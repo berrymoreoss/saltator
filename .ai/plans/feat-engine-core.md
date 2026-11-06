@@ -170,11 +170,25 @@ tests/bench/          kernel benchmark
   latch from two NANDs (X at power-on, set, reset, hold); tri-state bus + pull-down (idle →
   weak 0, one driver → its value, two opposite drivers → X + `contention`); floating input
   diagnostic; determinism (two runs ⇒ identical trace hash).
-- [ ] 10. `tests/bench/kernel.bench.ts`: long inverter chain toggled repeatedly; 1001-inverter
+- [x] 10. `tests/bench/kernel.bench.ts`: long inverter chain toggled repeatedly; 1001-inverter
   ring for a fixed simulated time. Record events/s below.
 - [ ] 11. Docs: update docs/simulation.md + docs/components.md to the real API (drop "draft");
   write `.ai/workflows/add-component.md`; coverage threshold for `src/core` in `vite.config.ts`;
   lessons; ADR if a decision deviates from ADR-0003; roadmap status.
+
+## Benchmark results
+
+`pnpm bench`, 2026-11-06, Apple M3 Pro, Node 24.4.0 (native `import`, see below):
+
+| Benchmark                                   | Events / iteration | Events / s |
+| ------------------------------------------- | -----------------: | ---------: |
+| Inverter chain ×1000, toggle input + settle |              1 001 |     ≈ 12 M |
+| Ring oscillator ×1001, 100 µs simulated     |            100 000 |   ≈ 13.5 M |
+
+Target ≥ 5M events/s: met. Under Vite's module runner (vitest's default) the same code measured
+≈ 4.4 M events/s, because every imported binding becomes a getter call; `pnpm bench` therefore
+runs with `--experimental.viteModuleRunner=false` plus `scripts/bench-resolve-hooks.ts`
+(resolves extensionless/directory imports; Node strips the types).
 
 ## Acceptance criteria
 

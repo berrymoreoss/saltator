@@ -20,7 +20,7 @@
     "coverage": "vitest run --coverage",
     "check:layers": "node scripts/check-layers.ts",
     "check": "pnpm typecheck && pnpm lint && pnpm check:layers && pnpm test",
-    "bench": "vitest bench --run"
+    "bench": "vitest bench --run --reporter=verbose --experimental.viteModuleRunner=false --execArgv=--import=./scripts/bench-resolve-hooks.ts"
   },
   "dependencies": {
     "react": "^19.3.1",
