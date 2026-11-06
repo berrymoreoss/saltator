@@ -4,6 +4,8 @@
  */
 import {
   FilePlus,
+  FlipHorizontal2,
+  FlipVertical2,
   Grid3x3,
   Hand,
   Info,
@@ -13,8 +15,11 @@ import {
   Moon,
   MousePointer2,
   Redo2,
+  RotateCcw,
+  RotateCw,
   Search,
   Sun,
+  Trash2,
   Undo2,
   ZoomIn,
   ZoomOut,
@@ -93,6 +98,66 @@ export function createCommands({ editor, settings, ui, examples }: WorkbenchCont
       run: () => editor.redo(),
     },
 
+    {
+      id: 'edit.delete',
+      label: 'Delete',
+      icon: Trash2,
+      shortcuts: ['Delete', 'Backspace'],
+      enabled: () => editor.hasSelection,
+      run: () => editor.deleteSelection(),
+    },
+    {
+      id: 'edit.rotate',
+      label: 'Rotate',
+      title: 'Rotate clockwise',
+      icon: RotateCw,
+      shortcuts: ['R'],
+      enabled: () => editor.hasSelection,
+      run: () => editor.rotate(true),
+    },
+    {
+      id: 'edit.rotateCcw',
+      label: 'Rotate Counter-clockwise',
+      icon: RotateCcw,
+      shortcuts: ['Shift+R'],
+      enabled: () => editor.hasSelection,
+      run: () => editor.rotate(false),
+    },
+    {
+      id: 'edit.flipH',
+      label: 'Flip Horizontal',
+      icon: FlipHorizontal2,
+      shortcuts: ['F'],
+      enabled: () => editor.hasSelection,
+      run: () => editor.flip('horizontal'),
+    },
+    {
+      id: 'edit.flipV',
+      label: 'Flip Vertical',
+      icon: FlipVertical2,
+      shortcuts: ['Shift+F'],
+      enabled: () => editor.hasSelection,
+      run: () => editor.flip('vertical'),
+    },
+    ...(
+      [
+        ['Left', 'ArrowLeft', -1, 0],
+        ['Right', 'ArrowRight', 1, 0],
+        ['Up', 'ArrowUp', 0, -1],
+        ['Down', 'ArrowDown', 0, 1],
+      ] as const
+    ).map(
+      ([name, key, dx, dy]): Command => ({
+        id: `edit.nudge${name}`,
+        label: `Nudge ${name} (Shift: 10 cells)`,
+        shortcuts: [key, `Shift+${key}`],
+        enabled: () => editor.hasSelection,
+        run: (event) => {
+          const step = event?.shiftKey ? 10 : 1;
+          editor.nudge(dx * step, dy * step);
+        },
+      }),
+    ),
     {
       id: 'edit.selectAll',
       label: 'Select All',
@@ -275,6 +340,13 @@ export function workbenchMenus(examples: readonly Example[]): MenuDef[] {
         'edit.undo',
         'edit.redo',
         SEPARATOR,
+        'edit.delete',
+        SEPARATOR,
+        'edit.rotate',
+        'edit.rotateCcw',
+        'edit.flipH',
+        'edit.flipV',
+        SEPARATOR,
         'edit.selectAll',
         'edit.deselect',
         SEPARATOR,
@@ -311,6 +383,7 @@ export function workbenchMenus(examples: readonly Example[]): MenuDef[] {
 export const TOOLBAR: readonly (readonly string[])[] = [
   ['tool.select', 'tool.pan'],
   ['edit.undo', 'edit.redo'],
+  ['edit.rotate', 'edit.flipH', 'edit.delete'],
   ['view.zoomIn', 'view.zoomOut', 'view.zoomFit'],
   ['view.grid', 'view.gates.toggle'],
 ];

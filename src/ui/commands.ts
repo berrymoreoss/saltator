@@ -24,7 +24,8 @@ export interface Command {
   readonly enabled?: () => boolean;
   /** A toggle or radio item's state. */
   readonly checked?: () => boolean;
-  readonly run: () => void;
+  /** Runs the command; a shortcut passes its key event (Shift+arrow nudges further). */
+  readonly run: (event?: KeyboardEvent) => void;
 }
 
 export class CommandRegistry {
@@ -89,6 +90,6 @@ export function dispatchShortcut(
   if (!command || !isEnabled(command)) return false;
   if (isTextField(event.target) && !command.global) return false;
   event.preventDefault();
-  command.run();
+  command.run(event);
   return true;
 }

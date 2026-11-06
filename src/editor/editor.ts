@@ -28,6 +28,7 @@ import {
   undoEntry,
 } from './history';
 import { type BoxMode, boxHits, type Hit, hitTest, rectFromPoints } from './hit-test';
+import { deleteSelection, flipSelection, moveSelection, rotateSelection } from './operations';
 import { renderScene } from './renderer';
 import { buildScene, LayoutCache, type Scene } from './scene';
 import {
@@ -39,6 +40,7 @@ import {
   selectAll,
   selectHit,
   selectionOf,
+  selectionSize,
   toggleHit,
   unionSelection,
 } from './selection';
@@ -280,6 +282,38 @@ export class Editor {
 
   clearSelection(): void {
     this.setSelection(EMPTY_SELECTION);
+  }
+
+  // ── Editing ─────────────────────────────────────────────────────────────────────────────
+
+  get hasSelection(): boolean {
+    return selectionSize(this.state.get().selection) > 0;
+  }
+
+  /** Deletes the selected parts and wires (wires attached to deleted parts stay). */
+  deleteSelection(): void {
+    const { circuit, selection } = this.state.get();
+    if (selectionSize(selection) === 0) return;
+    this.edit('Delete', deleteSelection(circuit, selection), { selection: EMPTY_SELECTION });
+  }
+
+  /** Turns the selection a quarter turn about its center; attached wires follow. */
+  rotate(clockwise = true): void {
+    const { selection } = this.state.get();
+    this.edit('Rotate', rotateSelection(this.scene, selection, clockwise));
+  }
+
+  /** Mirrors the selection about its center: `horizontal` swaps left and right. */
+  flip(direction: 'horizontal' | 'vertical' = 'horizontal'): void {
+    const { selection } = this.state.get();
+    this.edit('Flip', flipSelection(this.scene, selection, direction));
+  }
+
+  /** Moves the selection by whole cells; repeated nudges of one selection are one undo step. */
+  nudge(dx: number, dy: number): void {
+    const { selection } = this.state.get();
+    const key = `nudge ${[...selection.parts].join(',')} ${[...selection.wires].join(',')}`;
+    this.edit('Move', moveSelection(this.scene, selection, dx, dy), { coalesce: key });
   }
 
   // ── Camera ──────────────────────────────────────────────────────────────────────────────

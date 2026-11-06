@@ -215,7 +215,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   `normalizeWires`, fragments + tests.
 - [x] 3. editor: `History` + `editor.edit()`, undo/redo restoring selection, renames record;
   Edit ▸ Undo/Redo with dynamic labels, File ▸ New.
-- [ ] 4. editor: delete, rotate/flip about the selection center, arrow nudges (coalesced);
+- [x] 4. editor: delete, rotate/flip about the selection center, arrow nudges (coalesced);
   commands, toolbar, shortcuts.
 - [ ] 5. editor: rubber-band move (`move.ts`) + drag gesture with live preview.
 - [ ] 6. editor: wire tool (click-click, L posture, finish/cancel rules) and drag-from-pin in the

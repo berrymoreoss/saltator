@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { DARK_CANVAS, type Editor, LIGHT_CANVAS, type Store } from '../editor';
 import { CommandRegistry, dispatchShortcut } from './commands';
 import { AboutDialog, ShortcutsDialog } from './Dialogs';
-import { useMediaQuery, useStore } from './hooks';
+import { useMediaQuery, useStore, useStoreValue } from './hooks';
 import { MenuBar } from './MenuBar';
 import { MessagesPanel, MessagesTab } from './MessagesPanel';
 import { Panel, Splitter } from './Panel';
@@ -37,6 +37,10 @@ export function Workbench({ editor, settings: settingsStore, ui, examples }: Wor
   // change.
   useStore(editor.tool);
   useStore(editor.history);
+  useStoreValue(
+    editor.state,
+    (state) => state.selection.parts.size + state.selection.wires.size > 0,
+  );
   const prefersDark = useMediaQuery('(prefers-color-scheme: dark)');
   const theme = effectiveTheme(settings.theme, prefersDark);
   const canvasTheme = theme === 'dark' ? DARK_CANVAS : LIGHT_CANVAS;
