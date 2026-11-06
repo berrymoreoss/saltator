@@ -270,7 +270,11 @@ Checkable statements; verified one by one in the finish-branch workflow.
 
 ## Handoff
 
-- **State:** plan approved, branch started; no production code yet.
-- **Next step:** task 1 (`PinDef.description`, `functionTable` in `core`).
-- **Watch out:** —
+- **State:** task 1 done (`b3044c0`). Task 2 blocked: Nexperia's asset server returns 403 to
+  automated downloads (WebFetch and curl); not to be worked around.
+- **Next step:** get the 18 Nexperia datasheets from the user (PDFs in a folder outside the
+  repo, read with `pdftotext -layout`), then task 2: pinouts, pin descriptions, function tables,
+  HC timing with document revision and table numbers.
+- **Watch out:** text cells in function tables (`A=B`) are display-only; the 245 test covers its
+  rows by hand. Unit pin lists go inputs first, in the table's column order.
 - **Verify with:** `pnpm check`.
