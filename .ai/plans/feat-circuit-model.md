@@ -236,7 +236,7 @@ it is used from code. Auto-routing is a plain L-shape; anything smarter is edito
   wires stay separate; save → load → same netlist.
 - [x] 9. `tests/bench/circuit.bench.ts`: compile a large synthetic document (thousands of parts,
   ~10 000 wires); record the time below.
-- [ ] 10. Docs: `docs/circuit.md` (document format, layouts, connectivity, checks, compiler,
+- [x] 10. Docs: `docs/circuit.md` (document format, layouts, connectivity, checks, compiler,
   builder); architecture.md circuit section (drop _(planned)_); ADR-0006; `src/circuit/README.md`;
   glossary (junction, designator); coverage threshold for `src/circuit`; lessons; roadmap.
 

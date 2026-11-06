@@ -83,7 +83,9 @@ pins on one net are a short, an `out` and a pull resistor are not.
 - DIP pin numbering follows the datasheet: with the notch up, pin 1 is top-left, pins go down the
   left side and back up the right side (for DIP-14: left 1–7, right 8–14 bottom to top).
 - The editor draws DIP parts generically from `package` + `pins`, so a 74xx definition needs no
-  drawing code. Visual orientation and labels are decided in R04.
+  drawing code. Pin positions come from `partLayout` in `src/circuit`
+  ([circuit.md](circuit.md#part-layouts)): vertical, notch up, pin pitch one cell, body 4 cells
+  wide up to 20 pins and 6 above. Body and label styling are decided in R04.
 - `VCC` and `GND` are present in the definition and drawn, but the MVP treats every chip as
   powered. A later design check will flag unconnected power pins.
 
@@ -185,3 +187,7 @@ input has a `delay` prop (`time`, default **1 ns**, 0 allowed for Logisim-like b
 _(planned, R03)_ `symbol` describes geometry in grid units: bounding box, pin positions (side +
 offset), label anchors. The editor maps `symbol.kind` to a drawing function (`led`, `switch`,
 `seven-segment`, `gate-and`, …). The library never draws.
+
+Until a part has a `symbol`, `partLayout` gives it a generic box: inputs on the left, outputs on
+the right, power/nc pins at the bottom ([circuit.md](circuit.md#part-layouts)). All `prim/*`
+parts use it today.

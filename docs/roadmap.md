@@ -59,7 +59,7 @@ Kernel benchmark. Plan: `.ai/plans/feat-engine-core.md`.
 
 ### R02 · Circuit document & netlist compiler — `feat/circuit-model` — `in-progress`
 
-Document schema (components, wires, labels) with `schemaVersion` and migrations; geometric
+Document schema (components with display labels, wires) with `schemaVersion` and migrations; geometric
 connectivity (union-find over grid points, T-junctions); compiler to `Netlist`; design checks
 (unconnected inputs, shorted outputs, unknown types); code-first builder API for tests and examples.
 
@@ -68,6 +68,8 @@ connectivity (union-find over grid points, T-junctions); compiler to `Netlist`; 
 Headless behavior + symbol geometry for: VCC/GND rails, toggle switch, push button (momentary),
 DIP switch bank, pull-up/pull-down resistor, LED (color prop), LED bar, clock generator
 (frequency, duty cycle, manual step), 7-segment display (common anode/cathode), hex display, probe.
+A part's `symbol` takes precedence over R02's generic box layout (`partLayout`); decide here
+whether `prim/*` gates get gate-shaped symbols too (their pin positions change — fine before R07).
 
 ### R04 · App shell & schematic editor — `feat/editor-canvas`
 
@@ -80,7 +82,8 @@ Playwright smoke test.
 
 Simulator host (real-time pacing, speed control, run/pause/step/reset), live wire coloring by
 level, interactive parts on canvas (buttons, switches), LEDs/displays lit from net levels,
-diagnostics panel with click-to-locate, recompile on edit preserving state where possible.
+diagnostics panel with click-to-locate, recompile on edit preserving state where possible
+(state is keyed by designator: carry it across renames, see ADR-0006).
 
 ### R06 · 74HC gates & bus buffers — `feat/74hc-gates`
 

@@ -24,3 +24,17 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
 - 2026-11-06 (R01) — In 4-state simulation a feedback loop that starts at `X` stays `X`
   (`not X = X`): a plain inverter ring never oscillates. Start oscillators through a NAND with an
   enable; latches need a set/reset. This is the intended "missing reset" lesson, not a bug.
+- 2026-11-06 (R02) — The layer check applies to test files too: `src/circuit/*.test.ts` may not
+  import `library`. Circuit unit tests use local parts from `src/circuit/test-parts.ts`;
+  anything needing real parts goes to `tests/scenarios/`.
+- 2026-11-06 (R02) — Biome's `useIterableCallbackReturn` rejects `forEach((x) => arr.push(x))`
+  (the arrow returns push's result). Use `for … of` (or a block body) for side-effect loops.
+- 2026-11-06 (R02) — With "everything touching connects", a wire laid along a row of pin tips
+  (e.g. towards a rotated part) connects to every pin it passes. When drawing circuits in code or
+  tests, approach pins head-on; check `compileCircuit(...).nets` if a result looks odd.
+- 2026-11-06 (R02) — `Trace.hash()` mixes net **indices**, so it only compares runs of the same
+  netlist. To compare differently built netlists (document vs `NetlistBuilder`), compare
+  `trace.lines()` (net ids) and make the net ids match.
+- 2026-11-06 (R02) — Biome formats `.json` files and `json`/`jsonc` fences inside Markdown, which
+  destroys the one-line-per-item layout of `serializeDocument`. Show the file format in docs with a
+  `text` fence; exclude saved example documents (R07) from Biome.

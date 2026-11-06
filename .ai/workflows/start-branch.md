@@ -20,8 +20,8 @@ Read, in this order:
 1. `AGENTS.md` (conventions — you probably have it already).
 2. `docs/roadmap.md` — the item, its neighbours, dependencies.
 3. The existing plan for the item if one was pre-drafted (`.ai/plans/<branch>.md`).
-4. Docs the item touches (`docs/architecture.md`, `docs/simulation.md`, `docs/components.md`)
-   and the ADR index (`docs/adr/README.md`).
+4. Docs the item touches (`docs/architecture.md`, `docs/simulation.md`, `docs/components.md`,
+   `docs/circuit.md`) and the ADR index (`docs/adr/README.md`).
 5. `.ai/lessons.md`.
 6. The code the item builds on.
 

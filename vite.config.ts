@@ -9,9 +9,14 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['src/**/*.{ts,tsx}'],
-      exclude: ['src/**/*.test.{ts,tsx}', 'src/**/*.bench.ts', 'src/main.tsx'],
-      // The kernel must stay thoroughly tested (R01 acceptance criterion).
-      thresholds: { 'src/core/**': { lines: 90 } },
+      exclude: [
+        'src/**/*.test.{ts,tsx}',
+        'src/**/*.bench.ts',
+        'src/**/test-parts.ts',
+        'src/main.tsx',
+      ],
+      // Kernel and circuit model must stay thoroughly tested (R01, R02 acceptance criteria).
+      thresholds: { 'src/core/**': { lines: 90 }, 'src/circuit/**': { lines: 90 } },
     },
   },
 });

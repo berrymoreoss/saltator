@@ -113,7 +113,8 @@ interface Netlist {
 }
 ```
 
-- Produced by the circuit compiler (R02) or, in code, by a `NetlistBuilder`:
+- Produced by the circuit compiler ([circuit.md](circuit.md#compiler)) or, in code, by a
+  `NetlistBuilder`:
 
   ```ts
   new NetlistBuilder()

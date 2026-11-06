@@ -10,10 +10,19 @@ bubble.
 hardware it causes excess current and undefined levels; the simulator reports a `contention`
 diagnostic and resolves the net to `X`.
 
+**Dangling wire** — a wire end that touches nothing (no pin, no other wire); usually a wire that
+stops one grid cell short of a pin. Reported as a design-check warning.
+
 **Datasheet function table** — the truth table in a chip's datasheet; the basis of every part test.
 
 **Delta cycle** — a sub-step at the same simulation time, used to propagate zero-delay changes in
 a deterministic order.
+
+**Design check** — a static check of a circuit before simulation (unknown part, shorted outputs,
+undriven input, dangling wire). Errors may block simulation; warnings don't.
+
+**Designator** — the reference name of a part on a schematic (`U1`, `SW1`, `D3`). In this
+simulator it is the component's id in the document, the netlist and diagnostics.
 
 **DIP** — dual in-line package; the through-hole chip package used on breadboards. Pin 1 is next
 to the notch, numbering runs counter-clockwise (seen from the top).
@@ -26,6 +35,10 @@ randomly and may oscillate; the simulator treats it as `X` and reports it.
 
 **Inertial delay** — a delay model in which input pulses shorter than the element's delay do not
 reach the output.
+
+**Junction** — a point where three or more wires/pins meet and connect, drawn with a dot. A wire
+end landing on the middle of another wire (T-junction) connects; two wires that merely cross do
+not.
 
 **Level** — the resolved value of a net as seen by readers: `0`, `1`, `X` (unknown) or `Z`
 (high impedance / floating).

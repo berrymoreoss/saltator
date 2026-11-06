@@ -8,4 +8,10 @@ into a flat `Netlist` for the kernel.
 - **Pure:** no DOM, no React. Component definitions are injected via a registry, never imported
   from `library` directly.
 
-Spec: [docs/architecture.md#circuit-model](../../docs/architecture.md#circuit-model).
+Modules: `document.ts` (types), `schema.ts` + `migrations.ts` (loading), `serialize.ts`
+(saving), `geometry.ts`, `layout.ts` (pin positions), `connectivity.ts` (nets from wires),
+`compile.ts` + `checks.ts` (netlist, design checks), `builder.ts` (code-first documents).
+`test-parts.ts` holds small part definitions for unit tests: this layer may not import `library`,
+not even in tests; scenarios with real parts live in `tests/scenarios/`.
+
+Spec: [docs/circuit.md](../../docs/circuit.md).
