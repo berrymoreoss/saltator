@@ -220,13 +220,13 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 5. editor: rubber-band move (`move.ts`) + drag gesture with live preview.
 - [x] 6. editor: wire tool (click-click, L posture, finish/cancel rules) and drag-from-pin in the
   Select tool; preview with connection marks.
-- [ ] 7. editor + ui: place tool (arm from Parts, ghost, R/F before placing, sticky) and
+- [x] 7. editor + ui: place tool (arm from Parts, ghost, R/F before placing, sticky) and
   drag-and-drop from the Parts panel.
-- [ ] 8. editor + ui: clipboard (fragments as documents, system clipboard with fallback),
+- [x] 8. editor + ui: clipboard (fragments as documents, system clipboard with fallback),
   floating paste and duplicate, cut.
-- [ ] 9. ui: editable Properties (designator, label, position, rotation, flip, props by type,
+- [x] 9. ui: editable Properties (designator, label, position, rotation, flip, props by type,
   `parseTime`), double-click to focus.
-- [ ] 10. ui: context menu; status-bar hints per tool and gesture.
+- [x] 10. ui: context menu; status-bar hints per tool and gesture.
 - [ ] 11. Tests: editing scenario (Hello LED by edits) and `tests/e2e/editing.spec.ts`; look at
   everything in the browser in both themes; measure drag frame time on the stress schematic.
 - [ ] 12. Docs: editor.md (editing, tools, shortcuts), circuit.md (edit operations,

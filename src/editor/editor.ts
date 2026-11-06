@@ -9,7 +9,9 @@ import type { Circuit, ComponentInstance, Point, Rect, Rotation } from '../circu
 import {
   addComponents,
   addWires,
+  type ComponentPatch,
   copyFragment,
+  designatorError,
   emptyCircuit,
   nextDesignator,
   normalizeWires,
@@ -17,10 +19,12 @@ import {
   pasteFragment,
   prefixOfType,
   removeItems,
+  renameComponent,
   sameCircuit,
   transformRect,
+  updateComponent,
 } from '../circuit';
-import { type ComponentRegistry, resolveProps } from '../core';
+import { type ComponentRegistry, type PropValue, resolveProps } from '../core';
 import {
   BASE_SCALE,
   type Camera,
@@ -548,6 +552,78 @@ export class Editor {
     this.edit('Move', moveSelection(this.scene, selection, dx, dy), { coalesce: key });
   }
 
+  // ── Properties ──────────────────────────────────────────────────────────────────────────
+
+  /** Renames a part; returns why not (invalid or taken designator) instead of renaming. */
+  renamePart(from: string, to: string): string | undefined {
+    const { circuit } = this.state.get();
+    const error = designatorError(circuit, from, to);
+    if (error) return error;
+    if (from === to) return undefined;
+    this.edit(`Rename ${from}`, renameComponent(circuit, from, to), {
+      selection: selectionOf([to]),
+      renames: new Map([[from, to]]),
+    });
+    return undefined;
+  }
+
+  /** Sets a part's label (empty removes it). */
+  setPartLabel(id: string, label: string): void {
+    const { circuit } = this.state.get();
+    this.edit(`Label ${id}`, updateComponent(circuit, id, { label: label.trim() }));
+  }
+
+  /**
+   * Sets one prop of a part; returns why not (the value fails the part's prop checks) instead.
+   * Pins may move if the prop changes the layout; attached wires are not re-routed.
+   */
+  setPartProp(id: string, key: string, value: PropValue): string | undefined {
+    const { circuit } = this.state.get();
+    const instance = circuit.components.find((c) => c.id === id);
+    const definition = instance && this.registry.get(instance.type);
+    if (!instance || !definition) return `"${id}" can't be edited.`;
+    let props: Readonly<Record<string, PropValue>>;
+    try {
+      // All props written, resolved (circuit.md: a file keeps its meaning if a default changes).
+      props = resolveProps(definition, { ...instance.props, [key]: value }, id);
+    } catch (error) {
+      return (error as Error).message;
+    }
+    const label = definition.props?.find((p) => p.key === key)?.label ?? key;
+    this.edit(`Change ${label}`, updateComponent(circuit, id, { props }));
+    return undefined;
+  }
+
+  /**
+   * Moves, turns or mirrors one part to the given placement, as the move tool would (wires
+   * follow): flip first, then quarter turns about its center, then a move to `x`, `y`.
+   */
+  setPartPlacement(id: string, target: Omit<ComponentPatch, 'props' | 'label'>): void {
+    const only = selectionOf([id]);
+    let scene = this.scene;
+    const current = () => scene.circuit.components.find((c) => c.id === id);
+    const step = (circuit: Circuit) => {
+      scene = buildScene(circuit, this.registry, { layouts: this.#layouts });
+    };
+    let label = 'Move';
+    const start = current();
+    if (!start) return;
+    if (target.flip !== undefined && target.flip !== start.flip) {
+      step(flipSelection(scene, only, 'horizontal'));
+      label = 'Flip';
+    }
+    if (target.rotation !== undefined) {
+      const turns = ((((target.rotation - (current()?.rotation ?? 0)) / 90) % 4) + 4) % 4;
+      for (let i = 0; i < turns; i++) step(rotateSelection(scene, only, true));
+      if (turns > 0) label = 'Rotate';
+    }
+    const now = current()!;
+    const dx = target.x === undefined ? 0 : target.x - now.x;
+    const dy = target.y === undefined ? 0 : target.y - now.y;
+    if (dx !== 0 || dy !== 0) step(moveSelection(scene, only, dx, dy));
+    this.edit(label, scene.circuit);
+  }
+
   // ── Clipboard ───────────────────────────────────────────────────────────────────────────
 
   /** The selection as clipboard text, or undefined if nothing is selected. */
@@ -668,10 +744,19 @@ export class Editor {
     });
   }
 
-  /** A part is being dragged over the canvas from the Parts panel (or left it: undefined). */
+  /** The part being dragged from the Parts panel, if any. */
+  get draggedPart(): string | undefined {
+    return this.#dragType;
+  }
+
+  /**
+   * A part is dragged from the Parts panel: with a viewport position while over the canvas (its
+   * ghost follows), without one when it leaves; `undefined` when the drag ends.
+   */
   dragPart(type: string | undefined, client?: Point): void {
     this.#dragType = type;
     if (type && client) this.#setCursorCell(this.#cellAtClient(client));
+    else this.view.update(({ cursor: _, ...view }) => view);
     this.#updatePreview();
   }
 

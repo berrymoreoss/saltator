@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatTime, ms, ns, ps, TIME_MAX, us } from './time';
+import { formatTime, ms, ns, parseTime, ps, TIME_MAX, us } from './time';
 
 describe('time units', () => {
   it('converts to integer picoseconds', () => {
@@ -36,5 +36,34 @@ describe('formatTime', () => {
     [-ns(2), '-2 ns'],
   ])('%d ps → %s', (t, text) => {
     expect(formatTime(t)).toBe(text);
+  });
+});
+
+describe('parseTime', () => {
+  it.each([
+    ['10 ns', ns(10)],
+    ['10ns', ns(10)],
+    ['10', ns(10)],
+    ['1.5us', us(1.5)],
+    ['1.5 µs', us(1.5)],
+    ['2 μs', us(2)],
+    ['2 MS', ms(2)],
+    ['500ps', 500],
+    ['0', 0],
+    ['.5 ns', 500],
+    ['  7 ns  ', ns(7)],
+    ['1 s', 1_000_000_000_000],
+  ])('%j → %i ps', (text, t) => {
+    expect(parseTime(text)).toBe(t);
+  });
+
+  it.each(['', 'ns', '-1 ns', '1e3', '10 ks', 'ten', '1,5 ns', '1 2 ns'])('rejects %j', (text) => {
+    expect(parseTime(text)).toBeUndefined();
+  });
+
+  it('reads back what formatTime writes', () => {
+    for (const t of [0, 999, 1_000, 1_500, ns(7.25), us(2.5), ms(16), ms(1_500)]) {
+      expect(parseTime(formatTime(t))).toBe(t);
+    }
   });
 });

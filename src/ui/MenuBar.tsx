@@ -68,7 +68,7 @@ export function MenuBar({ menus, commands, mac }: MenuBarProps) {
   );
 }
 
-interface MenuListProps {
+export interface MenuListProps {
   readonly items: readonly MenuEntry[];
   readonly commands: CommandRegistry;
   readonly mac: boolean;
@@ -76,7 +76,8 @@ interface MenuListProps {
   readonly submenu?: boolean;
 }
 
-function MenuList({ items, commands, mac, onDone, submenu }: MenuListProps) {
+/** A menu's rows: commands, separators and hover submenus (also used by the context menu). */
+export function MenuList({ items, commands, mac, onDone, submenu }: MenuListProps) {
   const [openSub, setOpenSub] = useState<string | undefined>(undefined);
   return (
     <div className={submenu ? 'menu submenu' : 'menu'} role="menu">

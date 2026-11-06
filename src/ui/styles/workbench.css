@@ -92,6 +92,15 @@ button {
   box-shadow: var(--shadow);
 }
 
+.context-menu {
+  position: fixed;
+  z-index: 200;
+}
+
+.context-menu > .menu {
+  top: 0;
+}
+
 .submenu {
   top: -5px;
   left: calc(100% + 2px);

@@ -3,6 +3,9 @@
  * menu.
  */
 import {
+  ClipboardPaste,
+  Copy,
+  CopyPlus,
   FilePlus,
   FlipHorizontal2,
   FlipVertical2,
@@ -17,7 +20,9 @@ import {
   Redo2,
   RotateCcw,
   RotateCw,
+  Scissors,
   Search,
+  SlidersHorizontal,
   Sun,
   Trash2,
   Undo2,
@@ -26,13 +31,15 @@ import {
 } from 'lucide-react';
 import { type Circuit, emptyCircuit } from '../circuit';
 import { type Editor, EMPTY_SELECTION, type Store } from '../editor';
+import type { ClipboardBridge } from './clipboard';
 import type { Command } from './commands';
-import { GateIcon } from './icons';
+import { GateIcon, WireIcon } from './icons';
 import type { PanelId, Settings, ThemeSetting } from './settings';
 import type { Example, UiState } from './ui-state';
 
 export interface WorkbenchContext {
   readonly editor: Editor;
+  readonly clipboard: ClipboardBridge;
   readonly settings: Store<Settings>;
   readonly ui: Store<UiState>;
   readonly examples: readonly Example[];
@@ -52,7 +59,13 @@ const THEME_LABELS: Readonly<Record<ThemeSetting, string>> = {
 
 const THEME_ICONS = { system: Monitor, dark: Moon, light: Sun } as const;
 
-export function createCommands({ editor, settings, ui, examples }: WorkbenchContext): Command[] {
+export function createCommands({
+  editor,
+  clipboard,
+  settings,
+  ui,
+  examples,
+}: WorkbenchContext): Command[] {
   const patch = (change: Partial<Settings>) => settings.update((s) => ({ ...s, ...change }));
   const setPanel = (id: PanelId, visible: boolean) =>
     settings.update((s) => ({
@@ -98,6 +111,52 @@ export function createCommands({ editor, settings, ui, examples }: WorkbenchCont
       run: () => editor.redo(),
     },
 
+    {
+      id: 'edit.cut',
+      label: 'Cut',
+      icon: Scissors,
+      shortcuts: ['Mod+X'],
+      nativeKeys: true,
+      enabled: () => editor.hasSelection,
+      run: () => clipboard.cut(),
+    },
+    {
+      id: 'edit.copy',
+      label: 'Copy',
+      icon: Copy,
+      shortcuts: ['Mod+C'],
+      nativeKeys: true,
+      enabled: () => editor.hasSelection,
+      run: () => clipboard.copy(),
+    },
+    {
+      id: 'edit.paste',
+      label: 'Paste',
+      icon: ClipboardPaste,
+      shortcuts: ['Mod+V'],
+      nativeKeys: true,
+      run: () => {
+        void clipboard.paste();
+      },
+    },
+    {
+      id: 'edit.duplicate',
+      label: 'Duplicate',
+      icon: CopyPlus,
+      shortcuts: ['Mod+D'],
+      enabled: () => editor.hasSelection,
+      run: () => editor.duplicate(),
+    },
+    {
+      id: 'edit.properties',
+      label: 'Properties…',
+      icon: SlidersHorizontal,
+      enabled: () => editor.state.get().selection.parts.size === 1,
+      run: () => {
+        setPanel('properties', true);
+        ui.update((s) => ({ ...s, propertiesRequest: s.propertiesRequest + 1 }));
+      },
+    },
     {
       id: 'edit.delete',
       label: 'Delete',
@@ -188,6 +247,16 @@ export function createCommands({ editor, settings, ui, examples }: WorkbenchCont
       shortcuts: ['H'],
       checked: () => editor.tool.get() === 'pan',
       run: () => editor.setTool('pan'),
+    },
+
+    {
+      id: 'tool.wire',
+      label: 'Wire',
+      title: 'Draw wires',
+      icon: WireIcon,
+      shortcuts: ['W'],
+      checked: () => editor.tool.get() === 'wire',
+      run: () => editor.setTool('wire'),
     },
 
     {
@@ -337,6 +406,10 @@ export function workbenchMenus(examples: readonly Example[]): MenuDef[] {
         'edit.undo',
         'edit.redo',
         SEPARATOR,
+        'edit.cut',
+        'edit.copy',
+        'edit.paste',
+        'edit.duplicate',
         'edit.delete',
         SEPARATOR,
         'edit.rotate',
@@ -347,9 +420,11 @@ export function workbenchMenus(examples: readonly Example[]): MenuDef[] {
         'edit.selectAll',
         'edit.deselect',
         SEPARATOR,
+        'edit.properties',
         'parts.search',
       ],
     },
+    { label: 'Place', items: ['tool.wire', 'parts.search'] },
     {
       label: 'View',
       items: [
@@ -360,6 +435,7 @@ export function workbenchMenus(examples: readonly Example[]): MenuDef[] {
         SEPARATOR,
         'tool.select',
         'tool.pan',
+        'tool.wire',
         SEPARATOR,
         'view.grid',
         { label: 'Theme', items: ['view.theme.system', 'view.theme.dark', 'view.theme.light'] },
@@ -376,9 +452,32 @@ export function workbenchMenus(examples: readonly Example[]): MenuDef[] {
   ];
 }
 
+/** The context menu over a part or wire, and over empty canvas. */
+export const ITEM_CONTEXT_MENU: readonly MenuEntry[] = [
+  'edit.cut',
+  'edit.copy',
+  'edit.paste',
+  'edit.duplicate',
+  'edit.delete',
+  SEPARATOR,
+  'edit.rotate',
+  'edit.rotateCcw',
+  'edit.flipH',
+  'edit.flipV',
+  SEPARATOR,
+  'edit.properties',
+];
+
+export const CANVAS_CONTEXT_MENU: readonly MenuEntry[] = [
+  'edit.paste',
+  SEPARATOR,
+  'edit.selectAll',
+  'view.zoomFit',
+];
+
 /** Toolbar groups, separated by dividers. */
 export const TOOLBAR: readonly (readonly string[])[] = [
-  ['tool.select', 'tool.pan'],
+  ['tool.select', 'tool.pan', 'tool.wire'],
   ['edit.undo', 'edit.redo'],
   ['edit.rotate', 'edit.flipH', 'edit.delete'],
   ['view.zoomIn', 'view.zoomOut', 'view.zoomFit'],

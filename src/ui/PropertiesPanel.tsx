@@ -1,7 +1,9 @@
-import type { ReactNode } from 'react';
+import { type ReactNode, type Ref, useEffect, useRef, useState } from 'react';
+import { designatorError } from '../circuit';
 import { formatTime, type PropDef, type PropValue, pinsOf } from '../core';
 import { type Editor, LED_COLORS, type Scene, type ScenePart, type SceneWire } from '../editor';
 import { useStore } from './hooks';
+import { parsePropText, propText } from './prop-input';
 
 /** A prop value as shown to the user: units, enum labels, time in ns/µs/ms. */
 export function formatProp(def: PropDef, value: PropValue | undefined): string {
@@ -36,13 +38,32 @@ function Section({ title, children }: { readonly title: string; readonly childre
   );
 }
 
-/** What is selected, read-only (editing comes with R04b). */
-export function PropertiesPanel({ editor }: { readonly editor: Editor }) {
+/** What is selected; a single part's designator, label, placement and props are editable. */
+export function PropertiesPanel({
+  editor,
+  focusRequest,
+}: {
+  readonly editor: Editor;
+  /** Changes when the designator field should take focus (double-click, Edit ▸ Properties). */
+  readonly focusRequest: number;
+}) {
   const { scene, selection } = useStore(editor.state);
+  const designator = useRef<HTMLInputElement>(null);
+  const seen = useRef(focusRequest);
+  useEffect(() => {
+    if (focusRequest === seen.current) return;
+    seen.current = focusRequest;
+    designator.current?.focus();
+    designator.current?.select();
+  }, [focusRequest]);
+
   const parts = [...selection.parts].flatMap((id) => scene.partById.get(id) ?? []);
   const wires = [...selection.wires].flatMap((id) => scene.wireById.get(id) ?? []);
 
-  if (parts.length === 1 && wires.length === 0) return <PartProperties part={parts[0]!} />;
+  if (parts.length === 1 && wires.length === 0) {
+    const part = parts[0]!;
+    return <PartProperties key={part.id} part={part} editor={editor} designatorRef={designator} />;
+  }
   if (parts.length === 0 && wires.length === 1) {
     return <WireProperties wire={wires[0]!} scene={scene} />;
   }
@@ -60,9 +81,101 @@ export function PropertiesPanel({ editor }: { readonly editor: Editor }) {
   );
 }
 
-function PartProperties({ part }: { readonly part: ScenePart }) {
+interface FieldProps {
+  readonly value: string;
+  readonly label: string;
+  /** Why the text can't be used, or undefined if it can. */
+  readonly validate?: (text: string) => string | undefined;
+  /** Applies the text; returns an error to show instead of closing the edit. */
+  readonly onCommit: (text: string) => unknown;
+  readonly inputRef?: Ref<HTMLInputElement>;
+  readonly mono?: boolean;
+  readonly placeholder?: string;
+  readonly testId?: string;
+}
+
+/**
+ * A text field that edits a value: Enter or leaving the field applies it (if valid), Escape
+ * reverts; invalid text is marked with the reason below.
+ */
+function Field({
+  value,
+  label,
+  validate,
+  onCommit,
+  inputRef,
+  mono,
+  placeholder,
+  testId,
+}: FieldProps) {
+  const [draft, setDraft] = useState(value);
+  const [failure, setFailure] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    setDraft(value);
+    setFailure(undefined);
+  }, [value]);
+  const error = failure ?? (draft === value ? undefined : validate?.(draft));
+  const commit = () => {
+    if (draft === value) return;
+    if (validate?.(draft)) return;
+    const result = onCommit(draft);
+    if (typeof result === 'string') setFailure(result);
+  };
+  return (
+    <div className="field">
+      <input
+        ref={inputRef}
+        className={['prop-input', mono && 'mono', error && 'invalid'].filter(Boolean).join(' ')}
+        value={draft}
+        aria-label={label}
+        aria-invalid={error !== undefined}
+        placeholder={placeholder}
+        spellCheck={false}
+        data-testid={testId}
+        onChange={(e) => {
+          setDraft(e.target.value);
+          setFailure(undefined);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            commit();
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            e.stopPropagation();
+            setDraft(value);
+            setFailure(undefined);
+            e.currentTarget.blur();
+          }
+        }}
+        onBlur={() => {
+          if (error || validate?.(draft)) {
+            setDraft(value);
+            setFailure(undefined);
+          } else commit();
+        }}
+      />
+      {error && <div className="field-error">{error}</div>}
+    </div>
+  );
+}
+
+const ROTATION_OPTIONS = [0, 90, 180, 270] as const;
+
+function PartProperties({
+  part,
+  editor,
+  designatorRef,
+}: {
+  readonly part: ScenePart;
+  readonly editor: Editor;
+  readonly designatorRef: Ref<HTMLInputElement>;
+}) {
   const { instance, definition } = part;
   const defs = definition ? pinsOf(definition, part.props) : [];
+  const circuit = editor.state.get().circuit;
+  const integer = (text: string) =>
+    /^\s*-?\d+\s*$/.test(text) ? undefined : 'Enter a whole number of grid cells.';
   return (
     <div className="props" data-testid="part-properties">
       <div className="props-heading">
@@ -72,18 +185,76 @@ function PartProperties({ part }: { readonly part: ScenePart }) {
       {definition && <div className="props-subtitle">{definition.title}</div>}
       {part.drawing.kind === 'broken' && <div className="props-error">{part.drawing.reason}</div>}
       <Section title="Part">
-        <Row label="Designator">{instance.id}</Row>
+        <Row label="Designator">
+          <Field
+            value={instance.id}
+            label="Designator"
+            mono
+            inputRef={designatorRef}
+            testId="prop-designator"
+            validate={(text) => designatorError(circuit, instance.id, text.trim())}
+            onCommit={(text) => editor.renamePart(instance.id, text.trim())}
+          />
+        </Row>
         <Row label="Type">
           <span className="mono">{instance.type}</span>
         </Row>
-        <Row label="Label">{instance.label ?? <span className="muted">—</span>}</Row>
+        <Row label="Label">
+          <Field
+            value={instance.label ?? ''}
+            label="Label"
+            placeholder="none"
+            testId="prop-label"
+            onCommit={(text) => editor.setPartLabel(instance.id, text)}
+          />
+        </Row>
         <Row label="Position">
-          <span className="mono">
-            {instance.x}, {instance.y}
+          <span className="field-pair">
+            <Field
+              value={String(instance.x)}
+              label="X"
+              mono
+              testId="prop-x"
+              validate={integer}
+              onCommit={(text) => editor.setPartPlacement(instance.id, { x: Number(text) })}
+            />
+            <Field
+              value={String(instance.y)}
+              label="Y"
+              mono
+              testId="prop-y"
+              validate={integer}
+              onCommit={(text) => editor.setPartPlacement(instance.id, { y: Number(text) })}
+            />
           </span>
         </Row>
         <Row label="Rotation">
-          {instance.rotation}°{instance.flip ? ', flipped' : ''}
+          <select
+            className="prop-input"
+            aria-label="Rotation"
+            value={instance.rotation}
+            data-testid="prop-rotation"
+            onChange={(e) =>
+              editor.setPartPlacement(instance.id, {
+                rotation: Number(e.target.value) as (typeof ROTATION_OPTIONS)[number],
+              })
+            }
+          >
+            {ROTATION_OPTIONS.map((r) => (
+              <option key={r} value={r}>
+                {r}°
+              </option>
+            ))}
+          </select>
+        </Row>
+        <Row label="Flipped">
+          <input
+            type="checkbox"
+            aria-label="Flipped"
+            checked={instance.flip}
+            data-testid="prop-flip"
+            onChange={(e) => editor.setPartPlacement(instance.id, { flip: e.target.checked })}
+          />
         </Row>
         {definition?.datasheet && (
           <Row label="Datasheet">
@@ -96,14 +267,13 @@ function PartProperties({ part }: { readonly part: ScenePart }) {
       {definition?.props && definition.props.length > 0 && (
         <Section title="Properties">
           {definition.props.map((def) => (
-            <Row key={def.key} label={def.label}>
-              {def.key === 'color' && LED_COLORS[String(part.props[def.key])] && (
-                <span
-                  className="swatch"
-                  style={{ background: LED_COLORS[String(part.props[def.key])] }}
-                />
-              )}
-              {formatProp(def, part.props[def.key])}
+            <Row key={def.key} label={def.unit ? `${def.label} (${def.unit})` : def.label}>
+              <PropEditor
+                def={def}
+                value={part.props[def.key]}
+                editable={part.drawing.kind !== 'broken'}
+                onChange={(value) => editor.setPartProp(instance.id, def.key, value)}
+              />
             </Row>
           ))}
         </Section>
@@ -126,6 +296,70 @@ function PartProperties({ part }: { readonly part: ScenePart }) {
         </Section>
       )}
     </div>
+  );
+}
+
+/** The editor for one prop, by its type. */
+function PropEditor({
+  def,
+  value,
+  editable,
+  onChange,
+}: {
+  readonly def: PropDef;
+  readonly value: PropValue | undefined;
+  readonly editable: boolean;
+  readonly onChange: (value: PropValue) => string | undefined;
+}) {
+  if (!editable) return <>{formatProp(def, value)}</>;
+  const testId = `prop-${def.key}`;
+  if (def.type === 'boolean') {
+    return (
+      <input
+        type="checkbox"
+        aria-label={def.label}
+        checked={value === true}
+        data-testid={testId}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+    );
+  }
+  if (def.type === 'enum') {
+    const swatch = def.key === 'color' ? LED_COLORS[String(value)] : undefined;
+    return (
+      <>
+        {swatch && <span className="swatch" style={{ background: swatch }} />}
+        <select
+          className="prop-input"
+          aria-label={def.label}
+          value={String(value)}
+          data-testid={testId}
+          onChange={(e) => onChange(e.target.value)}
+        >
+          {def.options?.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </>
+    );
+  }
+  return (
+    <Field
+      value={propText(def, value)}
+      label={def.label}
+      mono={def.type !== 'string' && def.type !== 'color'}
+      testId={testId}
+      validate={(text) => {
+        const parsed = parsePropText(def, text);
+        return 'error' in parsed ? parsed.error : undefined;
+      }}
+      onCommit={(text) => {
+        const parsed = parsePropText(def, text);
+        return 'error' in parsed ? parsed.error : onChange(parsed.value);
+      }}
+    />
   );
 }
 

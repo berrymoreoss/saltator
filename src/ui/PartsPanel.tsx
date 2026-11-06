@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { AnyComponentDefinition, ComponentRegistry } from '../core';
 import { pinsOf, resolveProps } from '../core';
 import { type CanvasTheme, drawPartPreview, type GateStyle } from '../editor';
-import { groupParts } from './parts-filter';
+import { groupParts, PART_DRAG_TYPE } from './parts-filter';
 
 interface PartsPanelProps {
   readonly registry: ComponentRegistry;
@@ -11,13 +11,28 @@ interface PartsPanelProps {
   readonly gateStyle: GateStyle;
   /** Changes when the search box should take focus (Edit ▸ Find Part, `/`). */
   readonly searchRequest: number;
+  /** The part the place tool is armed with, if any. */
+  readonly armed?: string | undefined;
+  /** A part was clicked: arm the place tool with it. */
+  readonly onPick: (type: string) => void;
+  /** A part is dragged out of the list (`undefined` when the drag ends). */
+  readonly onDrag: (type: string | undefined) => void;
 }
 
 /**
  * The part library: families as collapsible groups, a search box, and a preview of the selected
- * part (symbol, title, pins, datasheet). Placing parts from here comes in R04b.
+ * part (symbol, title, pins, datasheet). Clicking a part arms the place tool with it; dragging it
+ * onto the canvas places one.
  */
-export function PartsPanel({ registry, theme, gateStyle, searchRequest }: PartsPanelProps) {
+export function PartsPanel({
+  registry,
+  theme,
+  gateStyle,
+  searchRequest,
+  armed,
+  onPick,
+  onDrag,
+}: PartsPanelProps) {
   const [query, setQuery] = useState('');
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   const [selected, setSelected] = useState<string | undefined>(undefined);
@@ -92,9 +107,26 @@ export function PartsPanel({ registry, theme, gateStyle, searchRequest }: PartsP
                   <button
                     key={part.type}
                     type="button"
-                    className={part.type === selected ? 'part-row selected' : 'part-row'}
-                    title={part.type}
-                    onClick={() => setSelected(part.type)}
+                    className={[
+                      'part-row',
+                      part.type === selected && 'selected',
+                      part.type === armed && 'armed',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
+                    title={`${part.type} — click to place, or drag onto the canvas`}
+                    draggable
+                    onClick={() => {
+                      setSelected(part.type);
+                      onPick(part.type);
+                    }}
+                    onDragStart={(e) => {
+                      setSelected(part.type);
+                      e.dataTransfer.setData(PART_DRAG_TYPE, part.type);
+                      e.dataTransfer.effectAllowed = 'copy';
+                      onDrag(part.type);
+                    }}
+                    onDragEnd={() => onDrag(undefined)}
                     data-type={part.type}
                   >
                     <span className="part-name">{part.name}</span>

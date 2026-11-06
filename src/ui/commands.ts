@@ -21,6 +21,11 @@ export interface Command {
   readonly shortcuts?: readonly string[];
   /** Runs even while typing in a text field (Escape). */
   readonly global?: boolean;
+  /**
+   * The shortcut belongs to the browser (Mod+C/X/V raise clipboard events, which the app handles
+   * without a permission prompt): it is shown, but not dispatched.
+   */
+  readonly nativeKeys?: boolean;
   readonly enabled?: () => boolean;
   /** A toggle or radio item's state. */
   readonly checked?: () => boolean;
@@ -87,7 +92,7 @@ export function dispatchShortcut(
 ): boolean {
   if (event.defaultPrevented || event.isComposing) return false;
   const command = registry.match(event, mac);
-  if (!command || !isEnabled(command)) return false;
+  if (!command || command.nativeKeys || !isEnabled(command)) return false;
   if (isTextField(event.target) && !command.global) return false;
   event.preventDefault();
   command.run(event);

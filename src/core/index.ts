@@ -85,4 +85,4 @@ export {
   symbolOf,
   validateSymbol,
 } from './symbol';
-export { formatTime, ms, ns, ps, TIME_MAX, type Time, us } from './time';
+export { formatTime, ms, ns, parseTime, ps, TIME_MAX, type Time, us } from './time';

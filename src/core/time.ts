@@ -56,3 +56,28 @@ export function formatTime(t: Time): string {
 function trim(value: number): string {
   return String(Number(value.toFixed(3)));
 }
+
+const PARSE_UNITS: Readonly<Record<string, number>> = {
+  ps: 1,
+  ns: PS_PER_NS,
+  us: PS_PER_US,
+  µs: PS_PER_US,
+  μs: PS_PER_US,
+  ms: PS_PER_MS,
+  s: PS_PER_S,
+};
+
+/**
+ * Reads a time typed by a user: a number with an optional unit (`10 ns`, `1.5us`, `2 µs`,
+ * `500ps`); a bare number is nanoseconds. Returns integer picoseconds, or undefined for anything
+ * else (negative, not a number, unknown unit). `parseTime(formatTime(t))` is `t` up to the
+ * 3 decimals `formatTime` keeps.
+ */
+export function parseTime(text: string): Time | undefined {
+  const match = /^\s*(\d+(?:\.\d*)?|\.\d+)\s*([a-zµμ]*)\s*$/i.exec(text);
+  if (!match) return undefined;
+  const unit = match[2]!.toLowerCase() || 'ns';
+  const scale = PARSE_UNITS[unit];
+  if (scale === undefined) return undefined;
+  return Math.round(Number(match[1]) * scale);
+}
