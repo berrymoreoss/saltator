@@ -175,7 +175,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 8. library: `io/clock` (auto/manual, period/duty exact, frequency/duty limits).
 - [x] 9. library: symbols for `prim/*` (incl. `prim/pull` resistor); update scenarios/bench that
   rely on box positions.
-- [ ] 10. scenarios: headless M1 circuits as documents (switch → NAND → LED; clock → LED; button
+- [x] 10. scenarios: headless M1 circuits as documents (switch → NAND → LED; clock → LED; button
   with/without pull-down; DIP switch → hex display; multiplexed 4-digit 7-segment duty).
 - [ ] 11. Docs: components.md (io family, symbols, flags, state/actions), circuit.md (symbol
   layouts, checks), architecture.md, ADR-0007 (IO electrical model), glossary, library
