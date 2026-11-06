@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023"],
+    "types": []
+  },
+  "include": ["src/core", "src/circuit", "src/library"],
+  "exclude": ["src/**/*.test.ts", "src/**/*.bench.ts"]
+}

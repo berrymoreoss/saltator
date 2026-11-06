@@ -1,0 +1,55 @@
+# Logic
+
+**Event-driven digital logic simulator for the browser. Test before fab.**
+
+Design a circuit from real chips, run it with datasheet propagation delays, watch every wire,
+look inside ROM and RAM, and verify it with test benches before you build it on a breadboard.
+
+The goal is to go from a single NAND gate to a complete 8-bit computer with a 16-bit address bus
+(think Ben Eater's SAP-1 and 6502 builds, then beyond).
+
+- **Real parts**: 74HC series first, then EEPROM/SRAM, 6502, VIA, LCD; more families later
+  (Z80, AVR, PIC).
+- **Faithful simulation**: event-driven, 4-state logic (0/1/X/Z), drive strengths, propagation
+  delays, bus contention and floating-input detection.
+- **See inside**: live signal colors, LEDs and displays, memory inspector, logic analyzer, debugger.
+- **Verify**: test benches and test vectors for your own circuits.
+
+Somewhere between Logisim and Proteus, built for learning and for building real hardware.
+
+## Status
+
+Early development. The foundation (tooling, architecture, docs, workflow) is in place; the
+simulation kernel is next. See the [roadmap](docs/roadmap.md).
+
+## Quick start
+
+Requires Node ≥ 24 and pnpm (`corepack enable`).
+
+```sh
+pnpm install
+pnpm dev        # http://localhost:5173
+pnpm check      # typecheck, lint, layer rules, tests
+pnpm build      # production build in dist/
+```
+
+## Documentation
+
+- [Vision](docs/vision.md) — goals, non-goals, principles
+- [Roadmap](docs/roadmap.md) — milestones and feature branches
+- [Architecture](docs/architecture.md) — layers and data flow
+- [Simulation model](docs/simulation.md) — how the kernel works
+- [Components](docs/components.md) — how parts are defined and tested
+- [Decisions](docs/adr/README.md) — architecture decision records
+
+## How this project is developed
+
+AI-first, one feature branch at a time. Each roadmap item gets its own branch and a plan in
+[`.ai/plans/`](.ai/plans/); agents follow [AGENTS.md](AGENTS.md) and the workflows in
+[`.ai/workflows/`](.ai/workflows/). With Claude Code:
+
+1. `/start-branch` — picks the next roadmap item, creates the branch, drafts the plan, asks the
+   open questions.
+2. Work in sessions: `/handoff` before `/clear` saves the state into the plan, `/resume-branch`
+   picks it up in the next session.
+3. `/finish-branch` — verifies acceptance criteria, updates docs and roadmap, merges after approval.
