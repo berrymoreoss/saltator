@@ -265,7 +265,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   culling, hover/selection overlays; pure helpers (grid spacing, visible rect) tested.
 - [x] 6. editor: gate drawers (ANSI + IEC; buffer, inverter, tri-state), `constant`,
   `pull-up/down`, `vcc`/`gnd`; recording-graphics test harness.
-- [ ] 7. editor: IO drawers (switch, button, dip-switch, clock, led, led-bar, seven-segment,
+- [x] 7. editor: IO drawers (switch, button, dip-switch, clock, led, led-bar, seven-segment,
   hex-display, probe) and the DIP package renderer; scenario test: every registered part draws
   inside its bounds in both gate styles.
 - [ ] 8. editor: `Editor` facade — mounts on a canvas, input handling (Figma/KiCad wheel modes,

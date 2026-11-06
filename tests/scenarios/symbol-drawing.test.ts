@@ -1,0 +1,108 @@
+/**
+ * Every registered part (plus the editor's DIP and box fixtures) draws with a dedicated drawing
+ * inside its layout, in both gate styles and for default, boundary and enum props; and the pins
+ * the editor draws are exactly where the compiler connects wires.
+ */
+import { describe, expect, it } from 'vitest';
+import { type Circuit, compileCircuit, emptyCircuit, type Rect } from '../../src/circuit';
+import { type AnyComponentDefinition, type PropValue, Registry } from '../../src/core';
+import {
+  buildScene,
+  DEV_PARTS,
+  DRAWERS,
+  drawPartBody,
+  GATE_STYLES,
+  RecordingGraphics,
+} from '../../src/editor';
+import { createDefaultRegistry } from '../../src/library';
+
+const shipped = createDefaultRegistry().list();
+const registry = new Registry([...shipped, ...DEV_PARTS]);
+
+/** Default props, then each integer prop at its bounds and each enum option. */
+function propVariants(definition: AnyComponentDefinition): Record<string, PropValue>[] {
+  const variants: Record<string, PropValue>[] = [{}];
+  for (const prop of definition.props ?? []) {
+    if (prop.type === 'integer') {
+      for (const value of [prop.min, prop.max]) {
+        if (value !== undefined) variants.push({ [prop.key]: value });
+      }
+    }
+    if (prop.type === 'enum') {
+      for (const option of prop.options ?? []) variants.push({ [prop.key]: option.value });
+    }
+    if (prop.type === 'boolean') variants.push({ [prop.key]: !prop.default });
+  }
+  return variants;
+}
+
+function circuitOf(type: string, props: Record<string, PropValue>): Circuit {
+  return {
+    ...emptyCircuit(),
+    components: [{ id: 'U1', type, x: 3, y: -2, rotation: 90, flip: true, props }],
+  };
+}
+
+function within(points: readonly (readonly [number, number])[], b: Rect): boolean {
+  const eps = 1e-9;
+  return points.every(
+    ([x, y]) =>
+      x >= b.x - eps && x <= b.x + b.width + eps && y >= b.y - eps && y <= b.y + b.height + eps,
+  );
+}
+
+describe('symbol drawing', () => {
+  it('has a drawer for the symbol kind of every shipped part', () => {
+    for (const definition of shipped) {
+      for (const props of propVariants(definition)) {
+        const part = buildScene(circuitOf(definition.type, props), registry).parts[0]!;
+        if (part.drawing.kind === 'symbol') {
+          expect(DRAWERS[part.drawing.symbol.kind], definition.type).toBeDefined();
+        } else {
+          expect(part.drawing.kind, definition.type).toBe('dip');
+        }
+      }
+    }
+  });
+
+  it('draws every part inside its layout, in both gate styles', () => {
+    for (const definition of registry.list()) {
+      for (const props of propVariants(definition)) {
+        const part = buildScene(circuitOf(definition.type, props), registry).parts[0]!;
+        for (const style of GATE_STYLES) {
+          const g = new RecordingGraphics();
+          drawPartBody(g, part, style, 'red');
+          const where = `${definition.type} ${JSON.stringify(props)} ${style}`;
+          expect(g.strokes + g.fills, where).toBeGreaterThan(0);
+          expect(within(g.points, part.localBounds), where).toBe(true);
+          for (const text of g.texts) {
+            expect(within([text.at], part.localBounds), `${where}: "${text.text}"`).toBe(true);
+          }
+        }
+      }
+    }
+  });
+
+  it('draws pins exactly where the compiler connects them', () => {
+    for (const definition of registry.list()) {
+      for (const props of propVariants(definition)) {
+        const circuit = circuitOf(definition.type, props);
+        const compiled = compileCircuit(circuit, registry);
+        const connected = compiled.nets.flatMap((net) => net.pins.map((p) => [p.pin, p.at]));
+        const drawn = buildScene(circuit, registry).parts[0]!.pins.map((p) => [p.name, p.at]);
+        expect(drawn, definition.type).toEqual(connected);
+      }
+    }
+  });
+
+  it('draws DIP pin numbers, names and the part name', () => {
+    const part = buildScene(circuitOf('dev/dip-14', {}), registry).parts[0]!;
+    const g = new RecordingGraphics();
+    drawPartBody(g, part, 'ansi', 'red');
+    const texts = g.texts.map((t) => t.text);
+    expect(texts).toContain('14');
+    expect(texts).toContain('VCC');
+    expect(texts).toContain('DEV14');
+    expect(g.texts.find((t) => t.text === 'OE')?.style.overline).toBe(true);
+  });
+});
