@@ -2,7 +2,14 @@
  * The event-driven simulator: compiles a netlist into index-based runtime arrays and runs the
  * delta-cycle event loop. Spec: docs/simulation.md.
  */
-import { type Behavior, type EvalContext, isDriverPin, isReadPin, type PinRef } from './component';
+import {
+  type Behavior,
+  type EvalContext,
+  isDriverPin,
+  isReadPin,
+  type PinRef,
+  type PropValue,
+} from './component';
 import { type ComponentDiagnostic, DiagnosticLog, KernelDiagnosticKind } from './diagnostics';
 import { EventQueue } from './event-queue';
 import {
@@ -23,7 +30,51 @@ export interface SimulatorOptions {
   readonly maxDeltaCycles?: number;
   /** Distinct diagnostics kept (repeats are merged). Default 1000. */
   readonly maxDiagnostics?: number;
+  /**
+   * Continue a running simulation in this (recompiled) netlist: what `carryOver()` of the old
+   * simulator returned. Time, statistics and the diagnostic log go on; see `carryOver`.
+   */
+  readonly carry?: SimulatorCarry;
 }
+
+/**
+ * What a simulation hands over to the simulator of a recompiled netlist (`carryOver`). Plain
+ * data keyed by component id; treat it as opaque.
+ */
+export interface SimulatorCarry {
+  readonly time: Time;
+  readonly stats: Readonly<SimulatorStats>;
+  readonly diagnostics: DiagnosticLog;
+  readonly components: ReadonlyMap<string, CarriedComponent>;
+  /** Pending output changes and timers, in the order the old queue would have run them. */
+  readonly events: readonly CarriedEvent[];
+}
+
+/** One component of a `SimulatorCarry`. */
+export interface CarriedComponent {
+  readonly type: string;
+  readonly props: Readonly<Record<string, PropValue>>;
+  /** The state object itself (moved, not copied). */
+  readonly state: unknown;
+  /** What each driver pin drives now, by pin name. */
+  readonly drives: ReadonlyMap<string, Drive>;
+}
+
+/** A pending event of a `SimulatorCarry`. */
+export type CarriedEvent =
+  | {
+      readonly kind: 'drive';
+      readonly time: Time;
+      readonly component: string;
+      readonly pin: string;
+      readonly drive: Drive;
+    }
+  | {
+      readonly kind: 'wake';
+      readonly time: Time;
+      readonly component: string;
+      readonly token: number;
+    };
 
 /**
  * - `idle`: no events left (nothing will happen without external input);
@@ -65,13 +116,19 @@ const DEFAULT_SETTLE_MAX_EVENTS = 1_000_000;
  *
  * Power-on: push-pull (`out`) outputs start driving strong `X`, tri-state and bidirectional pins
  * start released (`Z`). Every `init` runs in the constructor; at t = 0 every component is then
- * evaluated once, after the events `init` scheduled for t = 0 were applied.
+ * evaluated once, after the events `init` scheduled for t = 0 were applied. A simulator built
+ * with `carry` starts where the old one stopped instead (see `carryOver`).
  */
 export class Simulator {
   /** Resolved level of every net, by net index. Read-only for callers; updated in place. */
   readonly levels: Uint8Array;
   /** Resolved drive (level + strength) of every net, by net index. Read-only for callers. */
   readonly drives: Uint8Array;
+  /**
+   * 1 while two strong drivers disagree on the net (a short on real hardware), by net index.
+   * Read-only for callers; distinguishes contention from an `X` that is merely unknown.
+   */
+  readonly contended: Uint8Array;
   readonly stats: SimulatorStats = { events: 0, deltaCycles: 0, evaluations: 0 };
   readonly diagnostics: DiagnosticLog;
   readonly maxDeltaCycles: number;
@@ -94,6 +151,7 @@ export class Simulator {
   // Driver slots (one per driver pin).
   private readonly slotNet: Int32Array;
   private readonly slotPin: Int32Array; // flat pin index
+  private readonly slotComponent: Int32Array;
   private readonly slotDrive: Uint8Array;
   private readonly slotPendingSeq: Float64Array; // NO_EVENT when nothing is pending
   private readonly slotPendingDrive: Uint8Array;
@@ -107,7 +165,6 @@ export class Simulator {
   private readonly changeStamp: Float64Array; // delta id of the last level change
   private readonly touchStamp: Float64Array;
   private readonly touched: Int32Array;
-  private readonly contended: Uint8Array;
   private readonly floatingReported: Uint8Array;
 
   // Per-delta component activation.
@@ -133,12 +190,27 @@ export class Simulator {
 
   constructor(netlist: Netlist, registry: ComponentRegistry, options: SimulatorOptions = {}) {
     this.maxDeltaCycles = options.maxDeltaCycles ?? 1000;
-    this.diagnostics = new DiagnosticLog(options.maxDiagnostics ?? 1000);
+    const carry = options.carry;
+    this.diagnostics = carry?.diagnostics ?? new DiagnosticLog(options.maxDiagnostics ?? 1000);
+    if (carry) {
+      this.currentTime = carry.time;
+      Object.assign(this.stats, carry.stats);
+    }
     const resolved = resolveNetlist(netlist, registry);
     this.netlist = resolved;
     const { components, nets } = resolved;
     const componentCount = components.length;
     const netCount = nets.length;
+
+    // What each component continues from a carried simulation: a part of the same type keeps
+    // its output drives; with the same props too, also its state, pending events and timers.
+    const carried = components.map((c) => {
+      const old = carry?.components.get(c.id);
+      return old?.type === c.definition.type ? old : undefined;
+    });
+    const kept = carried.map(
+      (old, i) => old !== undefined && sameProps(old.props, components[i]!.props),
+    );
 
     // Pins and driver slots.
     this.pinStart = new Int32Array(componentCount + 1);
@@ -156,6 +228,7 @@ export class Simulator {
     this.pinReads = new Uint8Array(pinCount);
     this.slotNet = new Int32Array(slotCount);
     this.slotPin = new Int32Array(slotCount);
+    this.slotComponent = new Int32Array(slotCount);
     this.slotDrive = new Uint8Array(slotCount);
     this.slotPendingSeq = new Float64Array(slotCount).fill(NO_EVENT);
     this.slotPendingDrive = new Uint8Array(slotCount);
@@ -181,8 +254,11 @@ export class Simulator {
           this.pinSlot[flat] = slot;
           this.slotNet[slot] = net;
           this.slotPin[slot] = flat;
-          // A push-pull output always drives something; at power-on nobody knows what.
-          this.slotDrive[slot] = pin.dir === 'out' ? Drive.STRONG_X : Drive.Z;
+          this.slotComponent[slot] = i;
+          // A push-pull output always drives something; at power-on nobody knows what. A part
+          // carried over from a running simulation drives what it drove there.
+          this.slotDrive[slot] =
+            carried[i]?.drives.get(pin.name) ?? (pin.dir === 'out' ? Drive.STRONG_X : Drive.Z);
           driverCount[net]!++;
           slot++;
         }
@@ -229,14 +305,29 @@ export class Simulator {
     this.wakeStamp = new Float64Array(componentCount);
 
     this.behaviors = components.map((c) => c.definition.create(c.props));
-    this.states = this.behaviors.map((b) => b.createState?.());
+    this.states = this.behaviors.map((b, i) => (kept[i] ? carried[i]!.state : b.createState?.()));
     this.behaviors.forEach((b, i) => {
       this.hasEvaluate[i] = b.evaluate ? 1 : 0;
     });
 
+    // Carried events go first, in their old order, so same-time events keep their FIFO order.
+    for (const event of carry?.events ?? []) {
+      const c = this.componentIndexById.get(event.component);
+      if (c === undefined || !kept[c]) continue;
+      if (event.kind === 'wake') {
+        this.queue.push(event.time, EVENT_WAKE, c, event.token);
+        continue;
+      }
+      const p = components[c]!.pins.findIndex((d) => d.name === event.pin);
+      const slot = p < 0 ? -1 : this.pinSlot[this.pinStart[c]! + p]!;
+      if (slot < 0) continue;
+      this.slotPendingDrive[slot] = event.drive;
+      this.slotPendingSeq[slot] = this.queue.push(event.time, EVENT_DRIVE, slot, event.drive);
+    }
+
     this.ctx = new Context(this);
     this.behaviors.forEach((b, i) => {
-      if (!b.init) return;
+      if (!b.init || kept[i]) return;
       this.ctx.bind(i, -1);
       b.init(this.ctx);
     });
@@ -313,6 +404,65 @@ export class Simulator {
     };
   }
 
+  /**
+   * Hands this simulation over to the simulator of a recompiled netlist
+   * (`new Simulator(netlist, registry, { carry })`), which goes on at the same time. A component
+   * found there under the same id (after `renames`, old id → new) and type:
+   *
+   * - with the same props keeps its state, output drives, pending output changes and timers, and
+   *   its `init` is not run;
+   * - with other props powers on (fresh state, `init`), but its outputs start from what they
+   *   drove here instead of `X`.
+   *
+   * Other components power on. Then every component is evaluated once, as at t = 0, so parts
+   * react to changed connections; for an unchanged netlist that schedules nothing new, and the
+   * run goes on exactly as if nothing happened. State objects are moved, not copied: don't run
+   * this simulator afterwards.
+   */
+  carryOver(options: { readonly renames?: ReadonlyMap<string, string> } = {}): SimulatorCarry {
+    const renames = options.renames;
+    const idOf = (c: number) => {
+      const id = this.componentId(c);
+      return renames?.get(id) ?? id;
+    };
+    const components = new Map<string, CarriedComponent>();
+    this.netlist.components.forEach((c, i) => {
+      const drives = new Map<string, Drive>();
+      c.pins.forEach((pin, p) => {
+        const slot = this.pinSlot[this.pinStart[i]! + p]!;
+        if (slot >= 0) drives.set(pin.name, this.slotDrive[slot]! as Drive);
+      });
+      components.set(idOf(i), {
+        type: c.definition.type,
+        props: c.props,
+        state: this.states[i],
+        drives,
+      });
+    });
+
+    const pending: { seq: number; event: CarriedEvent }[] = [];
+    this.queue.forEach((time, seq, kind, a, b) => {
+      if (kind === EVENT_WAKE) {
+        pending.push({ seq, event: { kind: 'wake', time, component: idOf(a), token: b } });
+        return;
+      }
+      if (this.slotPendingSeq[a] !== seq) return; // cancelled
+      const c = this.slotComponent[a]!;
+      const pin = this.pinName(c, this.slotPin[a]! - this.pinStart[c]!);
+      const drive = b as Drive;
+      pending.push({ seq, event: { kind: 'drive', time, component: idOf(c), pin, drive } });
+    });
+    pending.sort((x, y) => x.event.time - y.event.time || x.seq - y.seq);
+
+    return {
+      time: this.currentTime,
+      stats: { ...this.stats },
+      diagnostics: this.diagnostics,
+      components,
+      events: pending.map((p) => p.event),
+    };
+  }
+
   // --- Control ------------------------------------------------------------------------------
 
   /** Delivers an external action (button press, switch flip) to a component, at `now`. */
@@ -353,7 +503,8 @@ export class Simulator {
     const startEvents = this.stats.events;
     if (!this.started) {
       this.started = true;
-      this.processTimestamp(0, true);
+      // Power-on: t = 0, or the time a carried simulation had reached.
+      this.processTimestamp(this.currentTime, true);
       if (this.isHalted) return 'halted';
     }
     const queue = this.queue;
@@ -728,6 +879,15 @@ class Context implements EvalContext<unknown> {
   report(diagnostic: ComponentDiagnostic): void {
     this.sim.report(this.c, diagnostic);
   }
+}
+
+/** Resolved props are complete records of primitives: equal when every value is. */
+function sameProps(
+  a: Readonly<Record<string, PropValue>>,
+  b: Readonly<Record<string, PropValue>>,
+): boolean {
+  const keys = Object.keys(a);
+  return keys.length === Object.keys(b).length && keys.every((key) => a[key] === b[key]);
 }
 
 /** In-place ascending sort of `a[0..n)`; insertion sort for the common small case. */

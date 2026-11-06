@@ -94,7 +94,7 @@ probes) only observe their net: reading `Z` through them is not a floating input
 - Push-pull (`out`) pins start driving **strong `X`**: a real output always drives something,
   and at power-on nobody knows what. `tristate` and `bidir` pins start released (`Z`).
 - Every behavior's `init` runs when the `Simulator` is constructed (drives scheduled there land
-  at t = 0).
+  at t = 0; with a carry-over, at the carried time — see below).
 - At t = 0, after the t = 0 events from `init` and from actions were applied, **every component
   with `evaluate` is evaluated once**. So a gate with an unconnected input reads it (and reports
   it), and gate outputs become defined after their delay.
@@ -233,6 +233,8 @@ const sim = new Simulator(netlist, registry, { maxDeltaCycles: 1000, maxDiagnost
   events.
 - `action(componentId, payload)` — deliver an external action at `now`; throws if the part has
   no `action` handler.
+- `carryOver({ renames? })` — hand the simulation over to a recompiled netlist
+  ([below](#editing-while-running-carry-over)).
 
 Run status (`RunStatus`): `idle` (nothing left to do), `reached` (time limit reached, events
 still pending — e.g. a clock), `budget` (event budget used up; checked between timestamps),
@@ -241,6 +243,39 @@ still pending — e.g. a clock), `budget` (event budget used up; checked between
 A **simulator host** outside core maps wall-clock to simulation time (speed factor, frame budget,
 "can't keep up" reporting) and offers debugger conveniences (step to next clock edge, run until
 breakpoint) _(planned, R05, R14)_.
+
+## Editing while running: carry-over
+
+When the circuit is edited while it runs, the host compiles a new netlist and continues the
+simulation in it (R05):
+
+```ts
+const next = new Simulator(netlist, registry, { carry: sim.carryOver({ renames }) });
+```
+
+The new simulator starts at the old one's `now`, keeps its statistics and continues the same
+`DiagnosticLog`. Components are matched by id; `renames` (old id → new, from the editor) maps
+parts that were renamed:
+
+| Component in the new netlist     | Starts with                                                                                            |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| same id, type and resolved props | its state object, output drives, pending output changes (same times, same order) and timers; no `init` |
+| same id and type, other props    | power-on state and `init`, but its outputs drive what they drove before (no `X` glitch)                |
+| anything else                    | power-on                                                                                               |
+
+Then, as at power-on, every component with `evaluate` is evaluated once at that time, so parts
+react to changed connections. For an unchanged netlist this schedules nothing — `evaluate` with
+nothing changed only re-drives what its outputs already drive or have pending
+([components.md](components.md#behavior-guidelines)) — so **recompiling an unchanged netlist at
+any instant doesn't change the run** (a property test in `tests/scenarios/carry-over.test.ts`).
+A latch built from gates keeps its value, a clock its phase, a renamed switch its position. Nets
+have no identity across compiles: their levels follow from the carried drives. State objects are
+moved, not copied: the old simulator must not run afterwards.
+
+An edit that doesn't change the structure (moving parts with their wires) needs no new
+simulator at all: `sameNetlistStructure(a, b)` is true when both netlists have the same
+components in the same order (id, type, props) and the same pins connected together, whatever
+the net ids.
 
 ## Observability
 
@@ -259,6 +294,9 @@ breakpoint) _(planned, R05, R14)_.
   merged (`count`, `lastTime`); at most `maxDiagnostics` distinct entries are kept, the rest are
   counted in `dropped`. `subscribe(listener)` is called for each new entry.
   `contention` is reported when a net starts to conflict and again (merged) after it cleared.
+- **Contention**: `sim.contended` is a `Uint8Array` with 1 for each net on which two strong
+  drivers disagree right now (a short on real hardware), so a renderer can tell contention from
+  an `X` that is merely unknown.
 - **Stats**: `sim.stats` = `{ events, deltaCycles, evaluations }`; `sim.now`, `sim.halted`.
 - **Inspection** _(planned, R12+)_: components may expose typed views of internal state (memory
   arrays, CPU registers) for UI panels, plus debug read/write that bypasses simulated timing.
@@ -287,6 +325,5 @@ breakpoint) _(planned, R05, R14)_.
 
 - Setup/hold checking helpers for edge-triggered parts _(R09)_.
 - Snapshot/restore of full simulator state (for "rewind" in the debugger) _(R14)_.
-- Preserving component state across recompiles, keyed by component id _(R05)_.
 - Web Worker host with SharedArrayBuffer levels _(backlog)_.
 - Fast mode for large synchronous designs (levelized/cycle-based evaluation) _(backlog)_.

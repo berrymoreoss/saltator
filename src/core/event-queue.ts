@@ -86,6 +86,14 @@ export class EventQueue {
     return true;
   }
 
+  /** Calls `visit` for every queued event, in no particular order (not for hot paths). */
+  forEach(visit: (time: Time, seq: number, kind: number, a: number, b: number) => void): void {
+    for (let i = 0; i < this.count; i++) {
+      const id = this.heap[i]!;
+      visit(this.times[id]!, this.seqs[id]!, this.kinds[id]!, this.as[id]!, this.bs[id]!);
+    }
+  }
+
   /** Drops all events. The seq counter keeps counting (seqs stay unique for the queue's life). */
   clear(): void {
     this.count = 0;

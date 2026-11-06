@@ -487,3 +487,146 @@ describe('queries and errors', () => {
     expect(() => s.action('B', what)).toThrow(message);
   });
 });
+
+describe('carry-over into a recompiled netlist', () => {
+  type Build = (b: NetlistBuilder) => NetlistBuilder;
+  const rebuild = (old: Simulator, build: Build, renames?: ReadonlyMap<string, string>) =>
+    new Simulator(build(new NetlistBuilder()).build(), registry, {
+      carry: old.carryOver(renames ? { renames } : {}),
+    });
+  /** Records `time net=level` for every change of `s`, into `out`. */
+  const record = (s: Simulator, out: string[]) =>
+    s.onNetChange((t, net, level) => out.push(`${t} ${s.netId(net)}=${levelChar(level)}`));
+
+  const clocked: Build = (b) =>
+    b
+      .add('C', 'test/clock')
+      .add('I', 'test/inv', { delay: ns(3) })
+      .connect('C.Y', 'I.A');
+
+  it('goes on at the same time with drives, pending changes and timers', () => {
+    const plain = sim(clocked);
+    const expected: string[] = [];
+    record(plain, expected);
+    plain.runUntil(ns(55));
+
+    const first = sim(clocked);
+    const seen: string[] = [];
+    record(first, seen);
+    first.runUntil(ns(21)); // the clock fell at 20 ns, the inverter rises at 23 ns
+    const second = rebuild(first, clocked);
+    record(second, seen);
+    expect(second.now).toBe(ns(21));
+    expect(levels(second, 'C.Y', 'I.Y')).toBe('00');
+    second.runUntil(ns(55));
+    expect(seen).toEqual(expected);
+  });
+
+  it('does not carry cancelled changes (a swallowed pulse stays swallowed)', () => {
+    const build: Build = (b) =>
+      b
+        .add('S', 'test/source')
+        .add('I', 'test/inv', { delay: ns(5) })
+        .net('in', 'S.Y', 'I.A');
+    const first = sim(build);
+    first.action('S', Drive.STRONG_0);
+    first.runUntil(ns(10));
+    first.action('S', Drive.STRONG_1);
+    first.runUntil(ns(11));
+    first.action('S', Drive.STRONG_0); // the 1 → 0 at 16 ns is cancelled
+    first.runUntil(ns(12));
+    const second = rebuild(first, build);
+    const seen: string[] = [];
+    record(second, seen);
+    second.runUntil(ns(40));
+    expect(seen).toEqual([]);
+    expect(levels(second, 'in', 'I.Y')).toBe('01');
+  });
+
+  it('keeps state and skips init for unchanged parts; renames carry them', () => {
+    calls.length = 0;
+    const first = sim((b) => b.add('R1', 'test/recorder'));
+    first.runUntil(ns(5));
+    first.action('R1', ns(10)); // a timer at 15 ns
+    const second = rebuild(first, (b) => b.add('R2', 'test/recorder'), new Map([['R1', 'R2']]));
+    second.runUntil(ns(20));
+    const log = (second.stateOf('R2') as Log).log;
+    expect(log).toEqual([
+      '0 R1 init Z=Z Z=Z',
+      '0 R1 eval Z=Z Z=Z',
+      '5000 R1 action Z=Z Z=Z',
+      '5000 R2 eval Z=Z Z=Z', // re-evaluated once at the carried time
+      '15000 R2 wake7 Z=Z Z=Z',
+    ]);
+  });
+
+  it('powers on parts with other props or a new id, but changed parts keep their outputs', () => {
+    const first = sim((b) =>
+      b.add('S', 'test/source').add('I', 'test/inv').net('in', 'S.Y', 'I.A'),
+    );
+    first.action('S', Drive.STRONG_1);
+    first.runUntil(ns(5));
+    expect(levels(first, 'I.Y')).toBe('0');
+
+    const second = rebuild(first, (b) =>
+      b
+        .add('S', 'test/source')
+        .add('I', 'test/inv', { delay: ns(4) }) // changed: no X glitch on its output
+        .add('J', 'test/inv') // new: powers on at X
+        .net('in', 'S.Y', 'I.A', 'J.A'),
+    );
+    const seen: string[] = [];
+    record(second, seen);
+    expect(levels(second, 'in', 'I.Y', 'J.Y')).toBe('10X');
+    second.runUntil(ns(20));
+    expect(seen).toEqual([`${ns(6)} J.Y=0`]);
+  });
+
+  it('powers on a part whose type changed under the same id', () => {
+    const first = sim((b) => b.add('P', 'test/clock'));
+    first.runUntil(ns(15));
+    const second = rebuild(first, (b) => b.add('P', 'test/recorder'));
+    second.runUntil(ns(16));
+    expect((second.stateOf('P') as Log).log[0]).toBe(`${ns(15)} P init Z=Z Z=Z`);
+  });
+
+  it('evaluates everything once, so parts react to new connections', () => {
+    const first = sim((b) => b.add('S', 'test/source').add('I', 'test/inv'));
+    first.action('S', Drive.STRONG_1);
+    first.runUntil(ns(5));
+    expect(levels(first, 'I.Y')).toBe('X');
+    const second = rebuild(first, (b) =>
+      b.add('S', 'test/source').add('I', 'test/inv').net('in', 'S.Y', 'I.A'),
+    );
+    second.runUntil(ns(10));
+    expect(levels(second, 'I.Y')).toBe('0');
+  });
+
+  it('continues the diagnostic log and the statistics', () => {
+    const first = sim((b) => b.add('I', 'test/inv'));
+    first.runUntil(ns(5));
+    const events = first.stats.events;
+    const second = rebuild(first, (b) => b.add('I', 'test/inv'));
+    second.runUntil(ns(10));
+    expect(second.diagnostics).toBe(first.diagnostics);
+    expect(second.diagnostics.entries.map((d) => [d.kind, d.count])).toEqual([
+      ['floating-input', 2],
+    ]);
+    expect(second.stats.events).toBeGreaterThanOrEqual(events);
+  });
+
+  it('reports contention a new connection causes, and exposes it per net', () => {
+    const apart = (b: NetlistBuilder) => b.add('A', 'test/source').add('B', 'test/source');
+    const first = sim(apart);
+    first.action('A', Drive.STRONG_1);
+    first.action('B', Drive.STRONG_0);
+    first.runUntil(ns(1));
+    const second = rebuild(first, (b) => apart(b).net('bus', 'A.Y', 'B.Y'));
+    expect(second.contended[second.netIndex('bus')]).toBe(1);
+    expect(second.diagnostics.entries.map((d) => d.kind)).toEqual(['contention']);
+    second.action('B', Drive.Z);
+    second.runUntil(ns(2));
+    expect(second.contended[second.netIndex('bus')]).toBe(0);
+    expect(levels(second, 'bus')).toBe('1');
+  });
+});

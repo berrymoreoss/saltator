@@ -165,6 +165,41 @@ export class NetlistBuilder {
   }
 }
 
+/**
+ * True when two netlists simulate the same circuit: the same components in the same order (id,
+ * type, props) and the same pins connected together. Net ids don't matter, nor do nets with
+ * fewer than two pins (an unconnected pin is on a private net either way). A simulator built from
+ * one runs the other unchanged — after moving parts with their wires, say.
+ */
+export function sameNetlistStructure(a: Netlist, b: Netlist): boolean {
+  if (a.components.length !== b.components.length) return false;
+  for (let i = 0; i < a.components.length; i++) {
+    const x = a.components[i]!;
+    const y = b.components[i]!;
+    if (x.id !== y.id || x.type !== y.type || !sameRecord(x.props, y.props)) return false;
+  }
+  return connectionKey(a) === connectionKey(b);
+}
+
+function sameRecord(
+  a: Readonly<Record<string, unknown>> | undefined,
+  b: Readonly<Record<string, unknown>> | undefined,
+): boolean {
+  const keys = Object.keys(a ?? {});
+  if (keys.length !== Object.keys(b ?? {}).length) return false;
+  return keys.every((key) => a?.[key] === b?.[key]);
+}
+
+/** The partition of pins into nets as one comparable string. */
+function connectionKey(netlist: Netlist): string {
+  const nets: string[] = [];
+  for (const net of netlist.nets) {
+    if (net.pins.length < 2) continue;
+    nets.push(net.pins.map(pinKey).sort().join(','));
+  }
+  return nets.sort().join('|');
+}
+
 // --- Resolution ---------------------------------------------------------------------------------
 
 export interface ResolvedComponent {

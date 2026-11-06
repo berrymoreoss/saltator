@@ -81,6 +81,19 @@ describe('EventQueue', () => {
     expect(drain(q)).toEqual([[3, 9]]);
   });
 
+  it('forEach visits every queued event with its payload', () => {
+    const q = new EventQueue();
+    q.push(5, 1, 10, 20);
+    q.push(3, 0, 11, 21);
+    q.push(9, 1, 12, 22);
+    q.pop();
+    const seen: string[] = [];
+    q.forEach((time, seq, kind, a, b) => {
+      seen.push(`${time}/${seq}/${kind}/${a}/${b}`);
+    });
+    expect(seen.sort()).toEqual(['5/0/1/10/20', '9/2/1/12/22']);
+  });
+
   it('matches a sorted reference under random interleaved push/pop (seeded)', () => {
     const random = rng(12345);
     const q = new EventQueue();

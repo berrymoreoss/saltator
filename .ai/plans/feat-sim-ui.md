@@ -262,7 +262,7 @@ later changes only this class.
 
 Small, ordered, each committable on its own with its tests (`pnpm check` green).
 
-- [ ] 1. core: `sim.contended`; pending-drive times per slot; `EventQueue` iteration over live
+- [x] 1. core: `sim.contended`; pending-drive times per slot; `EventQueue` iteration over live
   events; `carryOver()` and `SimulatorOptions.carry/renames/diagnostics` with the kept /
   changed / new rules and the start at the carried time; unit tests; the invariance property
   and latch/clock scenarios; simulation.md and components.md (idempotent `evaluate`).
@@ -340,6 +340,11 @@ Asked at branch start (2026-11-07); all answered.
 - 2026-11-07 — Q1–Q4 answered (Q2–Q4 as proposed; Q1 full carry-over plus the user's
   addition: structurally unchanged edits keep the simulator); design updated.
 - 2026-11-07 — plan approved by the user; status in-progress.
+- 2026-11-07 — task 1 done: `carryOver()` / `SimulatorOptions.carry` (kept / changed / new),
+  `sim.contended`, `EventQueue.forEach`, `sameNetlistStructure` (for the host's "same structure
+  keeps the simulator"); `tests/scenarios/carry-over.test.ts` checks the invariance on a bench of
+  IO parts and 40 random gate networks (mutation-checked: shifting carried timers or re-running
+  `init` fails it).
 
 ## Handoff
 

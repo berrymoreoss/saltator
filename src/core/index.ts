@@ -66,14 +66,18 @@ export {
   type ResolvedNetlist,
   type ResolvedPin,
   resolveNetlist,
+  sameNetlistStructure,
 } from './netlist';
 export { type ComponentRegistry, familyOf, Registry } from './registry';
 export {
+  type CarriedComponent,
+  type CarriedEvent,
   type NetChangeListener,
   type RunOptions,
   type RunStatus,
   type SettleOptions,
   Simulator,
+  type SimulatorCarry,
   type SimulatorOptions,
   type SimulatorStats,
 } from './simulator';
