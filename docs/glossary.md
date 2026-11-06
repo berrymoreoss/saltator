@@ -10,6 +10,10 @@ bubble.
 hardware it causes excess current and undefined levels; the simulator reports a `contention`
 diagnostic and resolves the net to `X`.
 
+**Common anode / common cathode** — the two kinds of LED displays: all segment anodes (or
+cathodes) joined into one common pin (`COM`). Common cathode: a segment lights when its pin is 1
+and COM is 0; common anode: when its pin is 0 and COM is 1.
+
 **Dangling wire** — a wire end that touches nothing (no pin, no other wire); usually a wire that
 stops one grid cell short of a pin. Reported as a design-check warning.
 
@@ -43,6 +47,10 @@ not.
 **Level** — the resolved value of a net as seen by readers: `0`, `1`, `X` (unknown) or `Z`
 (high impedance / floating).
 
+**Multiplexing (displays)** — driving several digits over shared segment lines by enabling one
+digit's common pin at a time, fast enough that the eye sees all digits lit (persistence of
+vision), each at the fraction of time it is enabled.
+
 **Net** — a set of electrically connected pins; all of them see the same level.
 
 **Netlist** — the flat list of component instances and nets the kernel simulates.
@@ -55,8 +63,19 @@ change; tPLH for low→high, tPHL for high→low output transitions.
 
 **Pull-up / pull-down** — a resistor that weakly drives a net to 1 / 0 when nothing else drives it.
 
+**Sense pin** — an input that only observes its net (LEDs, displays, probes). Reading a floating
+net through it is not a mistake, so it never raises a floating-input diagnostic.
+
 **Setup / hold time** — how long data must be stable before / after a clock edge for a flip-flop
 to capture it reliably.
+
+**SPST / SPDT** — single-pole single-throw (a contact that closes onto one terminal, open
+otherwise: push buttons, DIP switches) / single-pole double-throw (a changeover between two
+terminals: slide and toggle switches). An SPST contact to a rail leaves the net floating when
+open, so it needs a pull resistor.
+
+**Symbol** — how a part that isn't drawn as a chip package looks on the schematic (LED, switch,
+gate shape). Parts describe it as data (body size, pin sides and offsets); the editor draws it.
 
 **Test bench** — a harness that applies stimulus to a part or circuit and checks the outputs over
 time.

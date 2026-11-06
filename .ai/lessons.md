@@ -38,3 +38,10 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
 - 2026-11-06 (R02) — Biome formats `.json` files and `json`/`jsonc` fences inside Markdown, which
   destroys the one-line-per-item layout of `serializeDocument`. Show the file format in docs with a
   `text` fence; exclude saved example documents (R07) from Biome.
+- 2026-11-06 (R03) — Biome's `useIterableCallbackReturn` also fires on a `map` callback whose
+  exhaustive `switch` returns in every case (it doesn't see exhaustiveness). Move the `switch`
+  into a helper function that returns the value.
+- 2026-11-06 (R03) — Gate commits on the exit code: `pnpm check | tail` or `pnpm check; git
+  commit` commits red. Use `pnpm check > log && git commit …`.
+- 2026-11-06 (R03) — The registry validates pins and symbols with the **default** props. A test
+  that needs a broken pin list for `resolveNetlist` must make it depend on a non-default prop.

@@ -4,6 +4,7 @@
  */
 import type { ComponentDiagnostic } from './diagnostics';
 import type { Drive, Level } from './logic';
+import type { SymbolDef } from './symbol';
 import type { Time } from './time';
 
 /** Index of a pin in an instance's pin list (resolved once; no string lookups while running). */
@@ -31,6 +32,17 @@ export interface PinDef {
    * the editor may draw it differently. Allowed on driver pins only.
    */
   readonly weak?: boolean;
+  /**
+   * Only observes the net without loading it (LEDs, displays, probes): reading `Z` through it is
+   * not a floating input, and design checks don't flag it as undriven. `in` pins only.
+   */
+  readonly sense?: boolean;
+  /**
+   * The output is tied to this level for good (power rails, constants). Design checks count
+   * outputs tied to the same level as one source, so two VCC symbols wired together are not a
+   * short. Strong `out` pins only.
+   */
+  readonly constant?: 0 | 1;
 }
 
 /** True for pins whose net level the component may read. */
@@ -150,6 +162,11 @@ export interface ComponentDefinition<
   readonly units?: readonly UnitDef[];
   readonly props?: readonly PropDef[];
   readonly timing?: TimingDef;
+  /**
+   * Geometry of a part drawn as a symbol rather than a package (LEDs, switches, gates), or a
+   * function of props for parts like LED bars. Ignored when `package` is set.
+   */
+  readonly symbol?: SymbolDef | ((props: Props) => SymbolDef);
   /** Creates the behavior of one instance. `props` are validated and defaulted. */
   create(props: Props): Behavior<State>;
 }
@@ -184,16 +201,25 @@ export function pinIndex(pins: readonly PinDef[], name: string): PinRef {
 }
 
 /**
- * Throws if pin names are empty or not unique, or a non-driver pin is marked `weak`. `where`
- * prefixes the message.
+ * Throws if pin names are empty or not unique, or a flag doesn't fit the pin: `weak` on a
+ * non-driver, `sense` on anything but `in`, `constant` on anything but a strong `out` (or with a
+ * level other than 0/1). `where` prefixes the message.
  */
 export function validatePins(pins: readonly PinDef[], where: string): void {
   const seen = new Set<string>();
   for (const pin of pins) {
     if (pin.name === '') throw new Error(`${where}: empty pin name`);
     if (seen.has(pin.name)) throw new Error(`${where}: duplicate pin "${pin.name}"`);
-    if (pin.weak && !isDriverPin(pin.dir)) {
-      throw new Error(`${where}: pin "${pin.name}" is "${pin.dir}" and cannot be weak`);
+    const bad = (what: string) =>
+      new Error(`${where}: pin "${pin.name}" is "${pin.dir}" and cannot be ${what}`);
+    if (pin.weak && !isDriverPin(pin.dir)) throw bad('weak');
+    if (pin.sense && pin.dir !== 'in') throw bad('sense');
+    if (pin.constant !== undefined) {
+      if (pin.dir !== 'out') throw bad('constant');
+      if (pin.weak) throw new Error(`${where}: pin "${pin.name}" cannot be weak and constant`);
+      if (pin.constant !== 0 && pin.constant !== 1) {
+        throw new Error(`${where}: pin "${pin.name}" constant must be 0 or 1`);
+      }
     }
     seen.add(pin.name);
   }

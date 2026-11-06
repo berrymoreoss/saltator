@@ -1,4 +1,5 @@
-import { type AnyComponentDefinition, validatePins } from './component';
+import { type AnyComponentDefinition, pinsOf, resolveProps, validatePins } from './component';
+import { symbolOf, validateSymbol } from './symbol';
 
 /**
  * Read access to part definitions by type id. The simulator and the circuit compiler depend on
@@ -27,7 +28,10 @@ export class Registry implements ComponentRegistry {
     this.register(...definitions);
   }
 
-  /** Adds definitions. Throws on a malformed or duplicate type id, or invalid static pins. */
+  /**
+   * Adds definitions. Throws on a malformed or duplicate type id, or on invalid pins or symbol
+   * with the default props (prop-dependent ones are checked again when instances are laid out).
+   */
   register(...definitions: AnyComponentDefinition[]): this {
     for (const definition of definitions) {
       const { type } = definition;
@@ -35,7 +39,11 @@ export class Registry implements ComponentRegistry {
         throw new Error(`invalid type id "${type}" (expected "family/part", e.g. "prim/nand")`);
       }
       if (this.byType.has(type)) throw new Error(`duplicate component type "${type}"`);
-      if (typeof definition.pins !== 'function') validatePins(definition.pins, type);
+      const props = resolveProps(definition);
+      const pins = pinsOf(definition, props);
+      validatePins(pins, type);
+      const symbol = symbolOf(definition, props);
+      if (symbol) validateSymbol(symbol, pins, type);
       this.byType.set(type, definition);
     }
     return this;

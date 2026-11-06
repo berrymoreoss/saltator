@@ -18,8 +18,8 @@ How to read this file:
 | R00 | — (initial commit on `main`) | Foundation                               | done    |
 | R01 | `feat/engine-core`           | Simulation kernel                        | done    |
 | R02 | `feat/circuit-model`         | Circuit document & netlist compiler      | done    |
-| R03 | `feat/io-basic`              | Basic IO parts (headless)                | next    |
-| R04 | `feat/editor-canvas`         | App shell & schematic editor             | planned |
+| R03 | `feat/io-basic`              | Basic IO parts (headless)                | done    |
+| R04 | `feat/editor-canvas`         | App shell & schematic editor             | next    |
 | R05 | `feat/sim-ui`                | Running simulations in the editor        | planned |
 | R06 | `feat/74hc-gates`            | 74HC gates & bus buffers                 | planned |
 | R07 | `feat/persistence`           | Save, load, examples                     | planned |
@@ -64,25 +64,29 @@ geometric connectivity (union-find over grid points, T-junctions); compiler to `
 checks (unconnected inputs, shorted outputs, unknown types); code-first builder API for tests and
 examples. Spec: [circuit.md](circuit.md). Plan: `.ai/plans/feat-circuit-model.md`.
 
-### R03 · Basic IO parts — `feat/io-basic` — `next`
+### R03 · Basic IO parts — `feat/io-basic` — `done`
 
 Headless behavior + symbol geometry for: VCC/GND rails, toggle switch, push button (momentary),
 DIP switch bank, pull-up/pull-down resistor, LED (color prop), LED bar, clock generator
 (frequency, duty cycle, manual step), 7-segment display (common anode/cathode), hex display, probe.
-A part's `symbol` takes precedence over R02's generic box layout (`partLayout`); decide here
-whether `prim/*` gates get gate-shaped symbols too (their pin positions change — fine before R07).
+Symbols as data (`SymbolDef`); `prim/*` parts got gate-shaped symbols. Real contacts (SPDT /
+SPST to a rail) and two-terminal LEDs ([ADR-0007](adr/0007-io-electrical-model.md)); indicator
+on-time accounting for multiplexed displays. Spec: [components.md](components.md#io-parts-io).
+Plan: `.ai/plans/feat-io-basic.md`.
 
-### R04 · App shell & schematic editor — `feat/editor-canvas`
+### R04 · App shell & schematic editor — `feat/editor-canvas` — `next`
 
 React shell (toolbar, palette with search, inspector, bottom dock), Canvas2D renderer (HiDPI,
 grid, layers), camera pan/zoom, place/move/rotate/delete parts, orthogonal wire drawing with
 junctions, selection (click, box), copy/paste, undo/redo, keyboard shortcuts, generic DIP renderer.
-Playwright smoke test.
+Symbol renderers keyed by `symbol.kind` (gate shapes: pick ANSI vs IEC style; LEDs, switches,
+displays), where designators and labels go on a symbol. Playwright smoke test.
 
 ### R05 · Running simulations in the editor — `feat/sim-ui`
 
 Simulator host (real-time pacing, speed control, run/pause/step/reset), live wire coloring by
-level, interactive parts on canvas (buttons, switches), LEDs/displays lit from net levels,
+level, interactive parts on canvas (buttons, switches, DIP switches, manual clock step via their
+actions), LEDs/displays lit from their state with brightness from on-time (`onTimeAt`),
 diagnostics panel with click-to-locate, recompile on edit preserving state where possible
 (state is keyed by designator: carry it across renames, see ADR-0006).
 
@@ -190,6 +194,10 @@ Promote to a numbered item when needed.
 - Symbol view: Proteus/KiCad-style multi-unit symbols (U1A…), hidden power pins, per-part toggle.
 - Simulation in a Web Worker with SharedArrayBuffer levels; fast mode for synchronous designs.
 - Seeded random power-on state as a simulator option (default stays `X`; decided in R01, Q2).
+- Contact bounce for buttons and switches (deterministic pattern), to catch missing debouncing
+  before fab (R03 switches change cleanly).
+- Bussed resistor network part (SIP-9: 8 pull resistors with a common pin) for DIP switch banks
+  and buses.
 - Design checks: unconnected power pins, fan-out/load limits, worst-case timing corner.
 - More CPUs/MCUs: Z80, 8080/8085, 6800/6809, AVR (ATmega328P, ATtiny85), PIC.
 - Video output: VGA (Ben Eater's video card), composite.

@@ -12,6 +12,8 @@ import {
   or,
   type PinDef,
   type PropDef,
+  type SymbolDef,
+  type SymbolPin,
   strong,
   toInput,
   xor,
@@ -31,6 +33,32 @@ export function gatePins(inputs: number): PinDef[] {
     ...INPUT_NAMES.slice(0, inputs).map((name): PinDef => ({ name, dir: 'in' })),
     { name: 'Y', dir: 'out' },
   ];
+}
+
+/**
+ * Symbol of an N-input gate: inputs one cell apart down the left side, skipping the middle row
+ * for an even count so the output sits on the grid in the middle of the right side (2 inputs:
+ * rows 1 and 3, output 2). The editor draws the gate shape `kind` into the 4-cell-wide body.
+ */
+export function gateSymbol(kind: string, inputs: number): SymbolDef {
+  const even = inputs % 2 === 0;
+  const height = inputs + (even ? 2 : 1);
+  const pins: Record<string, SymbolPin> = { Y: { side: 'right', offset: height / 2 } };
+  for (let i = 0; i < inputs; i++) {
+    const skip = even && i >= inputs / 2 ? 1 : 0;
+    pins[INPUT_NAMES[i]!] = { side: 'left', offset: i + 1 + skip };
+  }
+  return { kind, width: 4, height, pins };
+}
+
+/** Symbol of a one-input part (buffer, inverter): a triangle with A on the left, Y on the right. */
+export function oneInputSymbol(kind: string): SymbolDef {
+  return {
+    kind,
+    width: 3,
+    height: 2,
+    pins: { A: { side: 'left', offset: 1 }, Y: { side: 'right', offset: 1 } },
+  };
 }
 
 export const delayProp: PropDef = {
@@ -65,6 +93,7 @@ function gate(
     title,
     keywords: ['gate', ...keywords],
     pins: ({ inputs }) => gatePins(inputs),
+    symbol: ({ inputs }) => gateSymbol(`gate-${part}`, inputs),
     props: [inputsProp, delayProp],
     create: ({ inputs, delay }) => ({
       evaluate(ctx) {
@@ -103,6 +132,7 @@ export const buffer = defineComponent<{ delay: number }, undefined>({
   title: 'Buffer',
   keywords: ['buffer', 'driver', 'delay'],
   pins: oneInputPins,
+  symbol: oneInputSymbol('buffer'),
   props: [delayProp],
   create: ({ delay }) => ({
     evaluate: (ctx) => ctx.drive(1, strong(toInput(ctx.read(0))), delay),
@@ -116,6 +146,7 @@ export const inverter = defineComponent<{ delay: number }, undefined>({
   title: 'Inverter (NOT gate)',
   keywords: ['not', 'inverter', 'gate'],
   pins: oneInputPins,
+  symbol: oneInputSymbol('not'),
   props: [delayProp],
   create: ({ delay }) => ({
     evaluate: (ctx) => ctx.drive(1, strong(not(ctx.read(0))), delay),

@@ -88,8 +88,8 @@ interface Wire {
         { "id": "U2", "type": "prim/not", "x": 20, "y": 0, "rotation": 90, "props": { "delay": 2000 } }
       ],
       "wires": [
-        { "id": "w1", "from": [15, 1], "to": [19, 1] },
-        { "id": "w2", "from": [19, 1], "to": [19, 0] }
+        { "id": "w1", "from": [16, 2], "to": [19, 2] },
+        { "id": "w2", "from": [19, 2], "to": [19, 0] }
       ]
     }
   ]
@@ -98,9 +98,10 @@ interface Wire {
 
 ## Part layouts
 
-Where a part's pins connect is derived from its definition by `partLayout(definition, props)`;
-the compiler (connectivity) and the editor (drawing, hit-testing) share it, so they always
-agree. A layout has its local origin at the top-left of its bounding box (pin stubs included);
+Where a part's pins connect is derived from its definition by `partLayout(definition, props)`:
+a DIP drawing for parts with a `package`, the part's `symbol` otherwise, and a generic box for
+parts with neither. The compiler (connectivity) and the editor (drawing, hit-testing) share it,
+so they always agree. A layout has its local origin at the top-left of its bounding box (pin stubs included);
 each pin sticks out of the body by one cell and connects at the tip. A layout lists every pin,
 power pins included (DIP parts draw them; the kernel ignores them).
 
@@ -121,13 +122,16 @@ y=7 ──┤GND    3Y├──   pin 7 at (0, 7), pin 8 at (6, 7)
 y=8   └─────────┘
 ```
 
-**Generic box** (no package): `in` pins down the left side, `out`/`tristate`/`bidir` down the
-right, `power`/`nc` along the bottom; the shorter side is centered where the grid allows. Body
-width 3 cells (more if many bottom pins). A 2-input `prim/nand` at (0, 0): `A` (0, 1), `B` (0, 2),
-`Y` (5, 1). All `prim/*` parts use it today.
+**Symbol** (no package, `symbol` set — every built-in non-chip part): the body from
+`symbol.width` × `symbol.height`, with a one-cell margin for the stubs on each side that has pins;
+each pin at its side and offset ([components.md](components.md#symbols-non-package-parts)). A
+2-input `prim/nand` at (0, 0) — body 4 × 4, inputs on rows 1 and 3, output on row 2: `A` (0, 1),
+`B` (0, 3), `Y` (6, 2). An `io/led`: `A` (0, 1), `K` (4, 1).
 
-**Symbol** _(planned, R03)_: explicit pin placement from the definition takes precedence over
-both. Pin positions of `prim/*` parts may change then; harmless while no files are saved (R07).
+**Generic box** (neither package nor symbol; a fallback, no built-in part uses it): `in` pins
+down the left side, `out`/`tristate`/`bidir` down the right, `power`/`nc` along the bottom; the
+shorter side is centered where the grid allows. Body width 3 cells (more if many bottom pins).
+A 2-input gate at (0, 0): `A` (0, 1), `B` (0, 2), `Y` (5, 1).
 
 **Placement**: instance pin position = mirror x (if `flip`) → rotate clockwise around the local
 origin → translate by `(x, y)` (`placementOf`, `placePins`, `transformPoint`). Pin sides
@@ -191,13 +195,13 @@ interface CompileResult {
 `DesignIssue = { severity: 'error' | 'warning', code, message, component?, pin?, wire?, net?,
 at? }` — enough to locate the issue on the canvas.
 
-| Code              | Severity | When                                                                                |
-| ----------------- | -------- | ----------------------------------------------------------------------------------- |
-| `unknown-type`    | error    | the part type isn't in the registry                                                 |
-| `invalid-props`   | error    | `resolveProps` rejects the props (message names the prop)                           |
-| `shorted-outputs` | error    | two or more strong push-pull (`out`, not `weak`) pins on one net                    |
-| `undriven-input`  | warning  | an `in` pin on a net with no possible driver: unconnected, or only inputs and wires |
-| `dangling-wire`   | warning  | a wire end that touches nothing (often: one cell short of a pin)                    |
+| Code              | Severity | When                                                                                                                                             |
+| ----------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `unknown-type`    | error    | the part type isn't in the registry                                                                                                              |
+| `invalid-props`   | error    | `resolveProps` rejects the props (message names the prop)                                                                                        |
+| `shorted-outputs` | error    | two or more strong push-pull (`out`, not `weak`) pins on one net; outputs tied to the same level (`constant`, e.g. two VCC symbols) count as one |
+| `undriven-input`  | warning  | an `in` pin (not `sense`) on a net with no possible driver: unconnected, or only inputs and wires                                                |
+| `dangling-wire`   | warning  | a wire end that touches nothing (often: one cell short of a pin)                                                                                 |
 
 An `out` pin with a pull resistor (`weak` pin) or with tri-state outputs is legal; conflicts
 between drivers that can actually disagree at run time are the kernel's `contention` diagnostic.
@@ -213,10 +217,10 @@ const document = new CircuitBuilder(registry)
   .add('U1', 'prim/nand', { at: [10, 0] })
   .add('U2', 'prim/not', { at: [20, 0], rotation: 90, props: { delay: ns(2) }, label: 'OUT' })
   .connect('S.Y', 'U1.A') // straight: (5, 1) → (10, 1)
-  .wire([7, 1], [7, 2], 'U1.B') // polyline through points and pins; T-junction at (7, 1)
-  .connect('U1.Y', 'U2.A', [17, 1]) // via points; L-shaped where not aligned, horizontal first
+  .wire([7, 1], [7, 3], 'U1.B') // polyline through points and pins; T-junction at (7, 1)
+  .connect('U1.Y', 'U2.A', [19, 2]) // via points; L-shaped where not aligned, horizontal first
   .document(); // or .build() for the Circuit
-builder.pin('U1.Y'); // → [15, 1]
+builder.pin('U1.Y'); // → [16, 2]
 ```
 
 Wire ids are generated (`w1`, `w2`, … skipping ids in use). The builder doesn't check what a
@@ -225,12 +229,12 @@ route runs over: like in the editor, a route over another pin connects to it.
 ## Performance
 
 Measured by `pnpm bench` (`tests/bench/circuit.bench.ts`): a 3 600-part, 10 620-wire schematic
-compiles in ≈ 9 ms, serializes in ≈ 10 ms and parses in ≈ 5 ms (Apple M3 Pro, R02). Recompiling
-on every edit is affordable.
+compiles in ≈ 8 ms, serializes in ≈ 10 ms and parses in ≈ 5 ms (Apple M3 Pro, R03; R02 measured
+≈ 9 ms with box layouts). Layouts are computed once per part type and props, so symbol
+validation costs nothing per instance. Recompiling on every edit is affordable.
 
 ## Planned extensions
 
-- Explicit part symbols (`symbol`) overriding the generic layouts _(R03)_.
 - Recompiling while running, preserving component state by id _(R05)_.
 - Net labels and tunnels (named nets joining by name), buses with rippers _(R10)_.
 - Several circuits per document with subcircuit instances _(R11)_.

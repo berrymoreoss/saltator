@@ -89,7 +89,7 @@ export class Simulator {
   private readonly pinStart: Int32Array;
   private readonly pinNets: Int32Array; // −1 for unconnected power/nc pins
   private readonly pinSlot: Int32Array; // −1 for pins without a driver
-  private readonly pinReads: Uint8Array;
+  private readonly pinReads: Uint8Array; // 1: reading Z here is a floating input
 
   // Driver slots (one per driver pin).
   private readonly slotNet: Int32Array;
@@ -173,7 +173,8 @@ export class Simulator {
         const flat = this.pinStart[i]! + p;
         const net = this.pinNets[flat]!;
         if (isReadPin(pin.dir)) {
-          this.pinReads[flat] = 1;
+          // Sense pins (LEDs, probes) observe a floating net without it being a mistake.
+          this.pinReads[flat] = pin.sense ? 0 : 1;
           readerSets[net]!.add(i);
         }
         if (isDriverPin(pin.dir)) {

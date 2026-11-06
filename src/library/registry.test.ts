@@ -3,7 +3,7 @@ import { familyOf } from '../core';
 import { createDefaultRegistry } from './registry';
 
 describe('createDefaultRegistry', () => {
-  it('contains every primitive', () => {
+  it('contains every primitive and IO part', () => {
     expect(
       createDefaultRegistry()
         .list()
@@ -20,6 +20,17 @@ describe('createDefaultRegistry', () => {
       'prim/tristate-buffer',
       'prim/constant',
       'prim/pull',
+      'io/vcc',
+      'io/gnd',
+      'io/switch',
+      'io/button',
+      'io/dip-switch',
+      'io/clock',
+      'io/led',
+      'io/led-bar',
+      'io/seven-segment',
+      'io/hex-display',
+      'io/probe',
     ]);
   });
 
@@ -28,7 +39,7 @@ describe('createDefaultRegistry', () => {
       expect(d.name, d.type).not.toBe('');
       expect(d.title, d.type).not.toBe('');
       expect(d.keywords?.length, d.type).toBeGreaterThan(0);
-      expect(familyOf(d.type)).toBe('prim');
+      expect(['prim', 'io']).toContain(familyOf(d.type));
     }
   });
 

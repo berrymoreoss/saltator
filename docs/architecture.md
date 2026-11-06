@@ -113,8 +113,9 @@ Implemented in R02. Full spec: [circuit.md](circuit.md). Rationale:
   Later: net labels/tunnels, buses (R10), subcircuit instances (R11).
 - **A component's id is its designator** (`U1`, `SW1`): readable in netlists, diagnostics and
   test benches. `label` is free display text.
-- **Pin positions are derived** from part definitions (`partLayout`: DIP drawing for packages, a
-  generic box otherwise, explicit symbols from R03), shared by the compiler and the editor.
+- **Pin positions are derived** from part definitions (`partLayout`: DIP drawing for packages,
+  the part's `symbol` otherwise, a generic box as a fallback), shared by the compiler and the
+  editor.
 - **Connectivity is geometric; everything that touches connects** (as in Logisim): wire ends and
   pins connect to wire ends, wire interiors (T-junctions) and pins at the same point; crossing
   wire interiors do not. Junction dots are derived. Union-find over grid points produces nets.

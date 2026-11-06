@@ -11,6 +11,7 @@ import {
   andGate,
   buffer,
   gatePins,
+  gateSymbol,
   inverter,
   MAX_GATE_INPUTS,
   MIN_GATE_INPUTS,
@@ -156,6 +157,21 @@ describe.each(GATES)('$def.type', ({ def, ref, table, unknown }) => {
 describe('N-input gates', () => {
   it('name inputs A… and put Y last', () => {
     expect(gatePins(3).map((p) => `${p.name}:${p.dir}`)).toEqual(['A:in', 'B:in', 'C:in', 'Y:out']);
+  });
+
+  it('have gate symbols with the output centered on the grid', () => {
+    const rows = (inputs: number) => {
+      const { pins, height } = gateSymbol('gate-and', inputs);
+      const ins = gatePins(inputs).slice(0, -1);
+      return `${ins.map((p) => pins[p.name]?.offset).join(',')} → ${pins.Y?.offset} / ${height}`;
+    };
+    expect(rows(2)).toBe('1,3 → 2 / 4');
+    expect(rows(3)).toBe('1,2,3 → 2 / 4');
+    expect(rows(4)).toBe('1,2,4,5 → 3 / 6');
+    expect(rows(8)).toBe('1,2,3,4,6,7,8,9 → 5 / 10');
+    expect(orGate.symbol).toBeTypeOf('function');
+    const symbol = typeof xnorGate.symbol === 'function' ? xnorGate.symbol({ inputs: 2 }) : null;
+    expect(symbol?.kind).toBe('gate-xnor');
   });
 
   it('let one controlling input decide despite unknown others', () => {

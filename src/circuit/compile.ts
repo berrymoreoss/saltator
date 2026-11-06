@@ -75,9 +75,9 @@ export function compileCircuit(circuit: Circuit, registry: ComponentRegistry): C
       });
       continue;
     }
-    // Parts with a fixed pin list share one layout; others depend on their props.
+    // Parts with a fixed pin list and symbol share one layout; others depend on their props.
     const key =
-      typeof definition.pins === 'function'
+      typeof definition.pins === 'function' || typeof definition.symbol === 'function'
         ? `${definition.type} ${JSON.stringify(props)}`
         : definition.type;
     let layout = layouts.get(key);
@@ -93,6 +93,8 @@ export function compileCircuit(circuit: Circuit, registry: ComponentRegistry): C
         pin: def.name,
         dir: def.dir,
         weak: def.weak === true,
+        sense: def.sense === true,
+        ...(def.constant !== undefined && { constant: def.constant }),
         at: placed.at,
       });
     });

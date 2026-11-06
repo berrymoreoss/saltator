@@ -74,4 +74,12 @@ export {
   type SimulatorOptions,
   type SimulatorStats,
 } from './simulator';
+export {
+  PIN_SIDES,
+  type PinSide,
+  type SymbolDef,
+  type SymbolPin,
+  symbolOf,
+  validateSymbol,
+} from './symbol';
 export { formatTime, ms, ns, ps, TIME_MAX, type Time, us } from './time';

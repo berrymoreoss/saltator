@@ -10,6 +10,9 @@ const registry = testRegistry();
 //   test/high, test/pull: Y (x+5, y+1)
 //   test/and:             A (x, y+1), B (x, y+2), Y (x+5, y+1)
 //   test/bus:             A (x, y+1), EN (x, y+2), Y (x+5, y+1), D (x+5, y+2)
+// Symbols:
+//   test/tie:             Y (x+1, y+2) for level 1, (x+1, y) for level 0
+//   test/lamp:            A (x, y+1), K (x+4, y+1)
 
 function part(
   id: string,
@@ -250,6 +253,51 @@ describe('compileCircuit', () => {
         [wire('w1', 5, 1, 5, 11), wire('w2', -5, 11, 0, 11), wire('w3', -5, 12, 0, 12)],
       );
       expect(codes(bus)).toEqual([]);
+    });
+
+    it('counts outputs tied to the same level as one source', () => {
+      // T1, T2 (level 1): Y (1, 2), (11, 2) on one horizontal wire. Fine.
+      const vcc = compile(
+        [part('T1', 'test/tie', 0, 0), part('T2', 'test/tie', 10, 0)],
+        [wire('w1', 1, 2, 11, 2)],
+      );
+      expect(vcc.issues).toEqual([]);
+      // Add a tie to 0 (Y at (21, 2)) and a push-pull output (H1.Y at (25, 2)).
+      const shorted = compile(
+        [
+          part('T1', 'test/tie', 0, 0),
+          part('T2', 'test/tie', 10, 0),
+          part('T3', 'test/tie', 20, 2, { props: { level: '0' } }),
+          part('H1', 'test/high', 20, 1),
+        ],
+        [wire('w1', 1, 2, 25, 2)],
+      );
+      expect(shorted.issues).toEqual([
+        {
+          severity: 'error',
+          code: 'shorted-outputs',
+          message: 'outputs shorted together on net "T1.Y": T1.Y, T2.Y, T3.Y, H1.Y',
+          net: 'T1.Y',
+          component: 'T3',
+          pin: 'Y',
+          at: [21, 2],
+        },
+      ]);
+      // A tie and a push-pull output: the output is the second source.
+      const output = compile(
+        [part('T1', 'test/tie', 0, 0), part('H1', 'test/high', 0, 1)],
+        [wire('w1', 1, 2, 5, 2)],
+      );
+      expect(output.issues.map((i) => [i.code, i.component])).toEqual([['shorted-outputs', 'H1']]);
+    });
+
+    it('never reports sense pins (LEDs, probes) as undriven inputs', () => {
+      const lamp = compile([part('L1', 'test/lamp', 0, 0)]);
+      expect(lamp.issues).toEqual([]);
+      expect(lamp.nets.map((n) => n.pins.map((p) => [p.pin, p.sense]))).toEqual([
+        [['A', true]],
+        [['K', true]],
+      ]);
     });
 
     it('reports inputs that nothing drives', () => {

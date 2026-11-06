@@ -10,7 +10,8 @@ queue, net resolution, component runtime API, test bench utilities.
 - **Hot path:** avoid allocations in the event loop; prefer typed arrays and integer indices.
 
 Modules: `time`, `logic` (levels, drives, resolution, 4-state operators), `event-queue`,
-`component` (definition types, `defineComponent`, `resolveProps`), `registry`, `netlist`
+`component` (definition types, `defineComponent`, `resolveProps`), `symbol` (symbol geometry,
+`validateSymbol`), `registry`, `netlist`
 (`NetlistBuilder`, `resolveNetlist`), `diagnostics`, `simulator`. Test utilities (`Bench`,
 `functionTable`, `truthTable`, `Trace`) live in `testing/` and are imported from
 `src/core/testing`, not from the main index.

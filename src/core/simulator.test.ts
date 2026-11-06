@@ -111,6 +111,20 @@ const clock = defineComponent<{ half: number }, { level: Level }>({
   }),
 });
 
+/** Indicator: observes its input through a sense pin and records what it saw. */
+const lamp = defineComponent<Record<string, never>, { seen: string }>({
+  type: 'test/lamp',
+  name: 'L',
+  title: 'Lamp',
+  pins: [{ name: 'A', dir: 'in', sense: true }],
+  create: () => ({
+    createState: () => ({ seen: '' }),
+    evaluate(ctx) {
+      ctx.state.seen += levelChar(ctx.read(0));
+    },
+  }),
+});
+
 /** Misbehaving part for API error checks. */
 const bad = defineComponent({
   type: 'test/bad',
@@ -130,7 +144,7 @@ const bad = defineComponent({
   }),
 });
 
-const registry = new Registry([source, inverter, recorder, edges, clock, bad]);
+const registry = new Registry([source, inverter, recorder, edges, clock, lamp, bad]);
 
 const sim = (build: (b: NetlistBuilder) => NetlistBuilder, options = {}) =>
   new Simulator(build(new NetlistBuilder()).build(), registry, options);
@@ -157,6 +171,27 @@ describe('power-on', () => {
   it('runs init in the constructor, with nothing changed', () => {
     const s = sim((b) => b.add('R', 'test/recorder'));
     expect((s.stateOf('R') as Log).log).toEqual(['0 R init Z=Z Z=Z']);
+  });
+});
+
+describe('floating inputs', () => {
+  it('reading Z through an input is reported once per floating period', () => {
+    const s = sim((b) => b.add('S', 'test/source').add('I', 'test/inv').connect('S.Y', 'I.A'));
+    s.settle();
+    expect(s.diagnostics.entries.map((d) => [d.kind, d.component, d.pin])).toEqual([
+      ['floating-input', 'I', 'A'],
+    ]);
+  });
+
+  it('reading Z through a sense pin is not a floating input, but still evaluates', () => {
+    const s = sim((b) => b.add('S', 'test/source').add('L', 'test/lamp').connect('S.Y', 'L.A'));
+    s.settle();
+    s.action('S', Drive.STRONG_1);
+    s.settle();
+    s.action('S', Drive.Z);
+    s.settle();
+    expect((s.stateOf('L') as { seen: string }).seen).toBe('Z1Z');
+    expect(s.diagnostics.entries).toEqual([]);
   });
 });
 
