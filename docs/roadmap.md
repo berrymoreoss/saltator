@@ -17,8 +17,8 @@ How to read this file:
 | --- | ---------------------------- | ---------------------------------------- | ------- |
 | R00 | — (initial commit on `main`) | Foundation                               | done    |
 | R01 | `feat/engine-core`           | Simulation kernel                        | done    |
-| R02 | `feat/circuit-model`         | Circuit document & netlist compiler      | next    |
-| R03 | `feat/io-basic`              | Basic IO parts (headless)                | planned |
+| R02 | `feat/circuit-model`         | Circuit document & netlist compiler      | done    |
+| R03 | `feat/io-basic`              | Basic IO parts (headless)                | next    |
 | R04 | `feat/editor-canvas`         | App shell & schematic editor             | planned |
 | R05 | `feat/sim-ui`                | Running simulations in the editor        | planned |
 | R06 | `feat/74hc-gates`            | 74HC gates & bus buffers                 | planned |
@@ -57,17 +57,20 @@ builder, component runtime API, diagnostics (contention, floating input, oscilla
 Abstract primitives (`prim/*` gates, buffers, tri-state buffer, constant, pull resistor).
 Kernel benchmark. Plan: `.ai/plans/feat-engine-core.md`.
 
-### R02 · Circuit document & netlist compiler — `feat/circuit-model` — `next`
+### R02 · Circuit document & netlist compiler — `feat/circuit-model` — `done`
 
-Document schema (components, wires, labels) with `schemaVersion` and migrations; geometric
-connectivity (union-find over grid points, T-junctions); compiler to `Netlist`; design checks
-(unconnected inputs, shorted outputs, unknown types); code-first builder API for tests and examples.
+Document schema (components with display labels, wires) with `schemaVersion` and migrations;
+geometric connectivity (union-find over grid points, T-junctions); compiler to `Netlist`; design
+checks (unconnected inputs, shorted outputs, unknown types); code-first builder API for tests and
+examples. Spec: [circuit.md](circuit.md). Plan: `.ai/plans/feat-circuit-model.md`.
 
-### R03 · Basic IO parts — `feat/io-basic`
+### R03 · Basic IO parts — `feat/io-basic` — `next`
 
 Headless behavior + symbol geometry for: VCC/GND rails, toggle switch, push button (momentary),
 DIP switch bank, pull-up/pull-down resistor, LED (color prop), LED bar, clock generator
 (frequency, duty cycle, manual step), 7-segment display (common anode/cathode), hex display, probe.
+A part's `symbol` takes precedence over R02's generic box layout (`partLayout`); decide here
+whether `prim/*` gates get gate-shaped symbols too (their pin positions change — fine before R07).
 
 ### R04 · App shell & schematic editor — `feat/editor-canvas`
 
@@ -80,7 +83,8 @@ Playwright smoke test.
 
 Simulator host (real-time pacing, speed control, run/pause/step/reset), live wire coloring by
 level, interactive parts on canvas (buttons, switches), LEDs/displays lit from net levels,
-diagnostics panel with click-to-locate, recompile on edit preserving state where possible.
+diagnostics panel with click-to-locate, recompile on edit preserving state where possible
+(state is keyed by designator: carry it across renames, see ADR-0006).
 
 ### R06 · 74HC gates & bus buffers — `feat/74hc-gates`
 
@@ -90,7 +94,8 @@ pinouts, timing and function-table tests. Part info panel (pinout, title, datash
 ### R07 · Save, load, examples — `feat/persistence`
 
 `.logic.json` save/load (File System Access API + fallback), autosave to IndexedDB, example
-gallery, "new from example".
+gallery, "new from example". Files are written by `serializeDocument` (R02); exclude example
+documents in the repo from Biome, which would reformat them.
 
 **M1 acceptance:** in the browser, build switch → 74HC00 → LED and clock → LED; run; the LED follows
 the logic; save, reload, still works.

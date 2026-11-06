@@ -40,6 +40,7 @@ pnpm build      # production build in dist/
 - [Architecture](docs/architecture.md) — layers and data flow
 - [Simulation model](docs/simulation.md) — how the kernel works
 - [Components](docs/components.md) — how parts are defined and tested
+- [Circuit model](docs/circuit.md) — documents, file format, wiring rules, compiler
 - [Decisions](docs/adr/README.md) — architecture decision records
 
 ## How this project is developed

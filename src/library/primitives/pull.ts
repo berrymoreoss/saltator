@@ -9,7 +9,7 @@ export const pull = defineComponent<{ direction: 'up' | 'down' }, undefined>({
   name: 'PULL',
   title: 'Pull-up / pull-down resistor',
   keywords: ['pull', 'pull-up', 'pull-down', 'resistor', 'weak'],
-  pins: [{ name: 'Y', dir: 'out' }],
+  pins: [{ name: 'Y', dir: 'out', weak: true }],
   props: [
     {
       key: 'direction',

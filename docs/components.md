@@ -50,6 +50,7 @@ interface PinDef {
   dir: 'in' | 'out' | 'tristate' | 'bidir' | 'power' | 'nc';
   activeLow?: boolean; // drawn with a bubble/overline: OE, CE, WE
   clock?: boolean; // drawn with a clock triangle
+  weak?: boolean; // only ever drives weakly (pull resistors); driver pins only
 }
 ```
 
@@ -73,12 +74,18 @@ Pin directions:
 | `power`    | —         | —               | —              | VCC, GND (not simulated in the MVP)  |
 | `nc`       | —         | —               | —              | not connected                        |
 
+A driver pin marked `weak` (pull resistors) only ever drives weak levels. The kernel doesn't need
+the flag — strength comes from the drive values — but static design checks do: two strong `out`
+pins on one net are a short, an `out` and a pull resistor are not.
+
 ## Packages and pin numbering
 
 - DIP pin numbering follows the datasheet: with the notch up, pin 1 is top-left, pins go down the
   left side and back up the right side (for DIP-14: left 1–7, right 8–14 bottom to top).
 - The editor draws DIP parts generically from `package` + `pins`, so a 74xx definition needs no
-  drawing code. Visual orientation and labels are decided in R04.
+  drawing code. Pin positions come from `partLayout` in `src/circuit`
+  ([circuit.md](circuit.md#part-layouts)): vertical, notch up, pin pitch one cell, body 4 cells
+  wide up to 20 pins and 6 above. Body and label styling are decided in R04.
 - `VCC` and `GND` are present in the definition and drawn, but the MVP treats every chip as
   powered. A later design check will flag unconnected power pins.
 
@@ -173,10 +180,14 @@ input has a `delay` prop (`time`, default **1 ns**, 0 allowed for Logisim-like b
 | `prim/xor`, `prim/xnor` | `A`, `B`, … `H` → `Y`      | `inputs`, `delay`                     | odd / even parity; any `X`/`Z` input → `X`                |
 | `prim/tristate-buffer`  | `A`, `EN` → `Y` (tristate) | `delay`                               | EN = 1 → Y = A; EN = 0 → `Z`; EN unknown → `X`            |
 | `prim/constant`         | `Y`                        | `value`: `'0'`, `'1'`, `'X'` (def. 1) | drives the value strongly from t = 0                      |
-| `prim/pull`             | `Y`                        | `direction`: `up` (default), `down`   | drives weak 1 / weak 0 from t = 0; any strong driver wins |
+| `prim/pull`             | `Y` (weak)                 | `direction`: `up` (default), `down`   | drives weak 1 / weak 0 from t = 0; any strong driver wins |
 
 ## Symbols (non-package parts)
 
 _(planned, R03)_ `symbol` describes geometry in grid units: bounding box, pin positions (side +
 offset), label anchors. The editor maps `symbol.kind` to a drawing function (`led`, `switch`,
 `seven-segment`, `gate-and`, …). The library never draws.
+
+Until a part has a `symbol`, `partLayout` gives it a generic box: inputs on the left, outputs on
+the right, power/nc pins at the bottom ([circuit.md](circuit.md#part-layouts)). All `prim/*`
+parts use it today.

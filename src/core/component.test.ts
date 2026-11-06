@@ -76,6 +76,13 @@ describe('pins', () => {
     ).toThrow('x/y: duplicate pin "A"');
     expect(() => validatePins([{ name: '', dir: 'in' }], 'x/y')).toThrow('x/y: empty pin name');
   });
+
+  it('validatePins allows weak only on driver pins', () => {
+    expect(() => validatePins([{ name: 'Y', dir: 'out', weak: true }], 'x/y')).not.toThrow();
+    expect(() => validatePins([{ name: 'A', dir: 'in', weak: true }], 'x/y')).toThrow(
+      'x/y: pin "A" is "in" and cannot be weak',
+    );
+  });
 });
 
 describe('resolveProps', () => {
