@@ -268,7 +268,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 7. editor: IO drawers (switch, button, dip-switch, clock, led, led-bar, seven-segment,
   hex-display, probe) and the DIP package renderer; scenario test: every registered part draws
   inside its bounds in both gate styles.
-- [ ] 8. editor: `Editor` facade — mounts on a canvas, input handling (Figma/KiCad wheel modes,
+- [x] 8. editor: `Editor` facade — mounts on a canvas, input handling (Figma/KiCad wheel modes,
   middle/Space-drag pan, click/Shift-click/box select, hover), state and view stores.
 - [ ] 9. ui: theme tokens (dark/light/system), settings store (persisted, guarded), command
   registry and shortcut matching (Mod = ⌘/Ctrl, ignore inputs) + tests of the pure parts.
