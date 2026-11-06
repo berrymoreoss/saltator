@@ -218,7 +218,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 9. UI: Part tab in the bottom dock (Q2, Q3) — drawing, pin table with descriptions,
   function table, datasheet link; follows the last picked part (canvas or Parts panel);
   unit tests for the pure parts (building the tables).
-- [ ] 10. e2e: place a 74HC00 from the Parts panel, wire switch → gate → LED, run, the LED
+- [x] 10. e2e: place a 74HC00 from the Parts panel, wire switch → gate → LED, run, the LED
   follows the switch; Part Info shows the pinout and datasheet of the selected chip.
 - [ ] 11. Docs: components.md (74xx section, parts table, statuses), editor.md (Part Info,
   gallery), architecture.md, glossary, ADR-0011, `src/library/README.md`, lessons; roadmap
@@ -301,14 +301,15 @@ Checkable statements; verified one by one in the finish-branch workflow.
   clicks (`UiState.partPick`); Edit ▸ Part Info and the context menu open it. Looked at in both
   themes: 74HC00 and 74HC245 (overlined `OE`, `Inputs/outputs` heading). At the default dock
   height (148 px) the drawing is small but readable; the tables scroll.
+- 2026-11-07 — task 10: `tests/e2e/chips.spec.ts` (74HC00 from the Parts panel runs switch →
+  gate → LED; Part tab from the panel, the canvas and the context menu); the start-up selection
+  box test now counts Hello, LED's 10 parts and 20 wires. `pnpm e2e`: 28 passed.
 
 ## Handoff
 
-- **State:** tasks 1–9 done: chips, tests, scenarios, examples, drawing, Part tab.
-- **Next step:** task 10 — e2e: a 74HC00 placed from the Parts panel, wired switch → gate →
-  LED, run, the LED follows; the Part tab shows the pins and datasheet. `tests/e2e/support.ts`
-  has place/wire/pinOf helpers (its Hello LED comment is stale: it draws the prim/nand version).
-- **Watch out:** data sheets are outside the repo (`~/Downloads/nexperia-74hc/`). Visual checks:
-  a Playwright script against `node_modules/.bin/vite --port 5199` (import `@playwright/test`
-  by absolute path).
-- **Verify with:** `pnpm check`; `pnpm e2e`.
+- **State:** tasks 1–10 done; `pnpm check` and `pnpm e2e` green.
+- **Next step:** task 11 — docs: components.md 74xx section (parts table, behavior, timing,
+  statuses), architecture.md, glossary, ADR-0011, `src/library/README.md`, roadmap; then the
+  finish-branch workflow (acceptance criteria one by one, `pnpm build`).
+- **Watch out:** data sheets are outside the repo (`~/Downloads/nexperia-74hc/`).
+- **Verify with:** `pnpm check`; `pnpm build`; `pnpm e2e`.

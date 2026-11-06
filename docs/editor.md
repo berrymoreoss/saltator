@@ -533,5 +533,7 @@ one directly.
   input, the context menu; simulation (`simulation.spec.ts`): Hello, LED drawn by hand runs (the
   switch drives the LED, the clock blinks), Step/Pause/Stop/Reset from keys and toolbar with F5
   never reloading, a held button, edits and a rename while running, a short located from the
-  Simulation tab, the speed select. Not part of `pnpm check` (it needs a browser); CI runs it
+  Simulation tab, the speed select; chips (`chips.spec.ts`, R06): a 74HC00 placed from the
+  Parts panel and wired switch → gate → LED runs, the Part tab follows the Parts panel, the
+  canvas and the context menu. Not part of `pnpm check` (it needs a browser); CI runs it
   after the build.
