@@ -16,6 +16,7 @@ import type { Drawer, GateStyle, PartLive } from './types';
 export { drawDip } from './dip';
 export * from './fallback';
 export { BUBBLE } from './gates';
+export * from './interact';
 export { LED_COLORS, lit, unlit } from './io';
 export * from './types';
 

@@ -13,6 +13,7 @@ import {
   copyFragment,
   designatorError,
   emptyCircuit,
+  inverseTransformPoint,
   nextDesignator,
   normalizeWires,
   partLayout,
@@ -73,7 +74,7 @@ import {
 } from './selection';
 import { Simulation, type SimulationOptions } from './simulation';
 import { Store } from './store';
-import type { GateStyle } from './symbols';
+import { type GateStyle, INTERACTIONS, type Poke } from './symbols';
 import { type CanvasTheme, DARK_CANVAS } from './theme';
 import {
   ConnectionIndex,
@@ -94,8 +95,11 @@ export interface PlaceTool {
   readonly type: string;
 }
 
-/** What a left-button press does: select/move, pan the view, draw a wire, or place a part. */
-export type Tool = 'select' | 'pan' | 'wire' | PlaceTool;
+/**
+ * What a left-button press does: select/move, pan the view, draw a wire, place a part, or
+ * operate parts of the running simulation (switches, buttons).
+ */
+export type Tool = 'select' | 'pan' | 'wire' | 'interact' | PlaceTool;
 
 /** What is going on right now (for the status-bar hint). */
 export type EditorMode = 'idle' | 'moving' | 'boxing' | 'panning' | 'wiring' | 'floating';
@@ -210,7 +214,17 @@ type Gesture =
     }
   | { readonly kind: 'move'; readonly startWorld: Point; delta: Point; circuit: Circuit }
   /** A wire dragged out of a pin (Select tool): releasing finishes it. */
-  | { readonly kind: 'wire-drag' };
+  | { readonly kind: 'wire-drag' }
+  /** Interact tool, pressed where there is nothing to operate: a click selects, a drag pans. */
+  | {
+      readonly kind: 'interact-press';
+      readonly start: Point;
+      readonly hit?: Hit;
+      last: Point;
+      panning: boolean;
+    }
+  /** Interact tool, holding a momentary part (a push button) until the press ends. */
+  | { readonly kind: 'hold'; readonly component: string; readonly release: unknown };
 
 /** The wire being drawn: fixed points so far, the leg to the pointer follows `posture`. */
 interface WireDraft {
@@ -298,6 +312,15 @@ export class Editor {
       this.simulation.sync(scene, renames);
     });
     this.simulation.revision.subscribe(() => this.#redrawNow());
+    // Run (from stopped) arms the Interact tool; Stop leaves it.
+    let running = false;
+    this.simulation.status.subscribe(() => {
+      const active = this.simulation.state !== 'stopped';
+      if (active === running) return;
+      running = active;
+      if (active) this.setTool('interact');
+      else if (this.tool.get() === 'interact') this.setTool('select');
+    });
     this.view = new Store<ViewState>({
       camera: DEFAULT_CAMERA,
       viewport: { width: 0, height: 0 },
@@ -422,6 +445,7 @@ export class Editor {
 
   /** Switches the tool; a part type arms the place tool with a fresh orientation. */
   setTool(tool: Tool): void {
+    this.#releaseHold();
     this.#wire = undefined;
     this.#floating = undefined;
     if (typeof tool === 'object') this.#place = { rotation: 0, flip: false };
@@ -465,6 +489,7 @@ export class Editor {
   }
 
   #cancelGesture(): boolean {
+    this.#releaseHold();
     const gesture = this.#gesture;
     let cancelled = false;
     if (gesture?.kind === 'box') {
@@ -487,6 +512,45 @@ export class Editor {
     this.#updateCursor();
     this.invalidate();
     return cancelled;
+  }
+
+  /** Lets go of a held push button (pointer up or cancelled, window blurred, tool changed). */
+  #releaseHold(): void {
+    const gesture = this.#gesture;
+    if (gesture?.kind !== 'hold') return;
+    this.#gesture = undefined;
+    this.simulation.action(gesture.component, gesture.release);
+  }
+
+  /** What pressing a part at a world point does in the Interact tool, if anything. */
+  #pokeAt(id: string, world: Point): Poke | undefined {
+    const part = this.scene.partById.get(id);
+    if (part?.drawing.kind !== 'symbol') return undefined;
+    const interaction = INTERACTIONS[part.drawing.symbol.kind];
+    if (!interaction) return undefined;
+    const local = inverseTransformPoint(world, part.placement);
+    return interaction({ local, body: part.layout.body, props: part.props });
+  }
+
+  /** Interact tool: operate the part under the pointer, else start a click-or-pan. */
+  #interactDown(at: Point): void {
+    const hit = this.#hitAt(at);
+    if (hit?.kind === 'part') {
+      const poke = this.#pokeAt(hit.id, this.#world(at));
+      if (poke && this.simulation.action(hit.id, poke.press)) {
+        if (poke.release !== undefined) {
+          this.#gesture = { kind: 'hold', component: hit.id, release: poke.release };
+        }
+        return;
+      }
+    }
+    this.#gesture = {
+      kind: 'interact-press',
+      start: at,
+      last: at,
+      panning: false,
+      ...(hit && { hit }),
+    };
   }
 
   #setMode(mode: EditorMode): void {
@@ -1026,7 +1090,14 @@ export class Editor {
     canvas.addEventListener('contextmenu', (e) => e.preventDefault(), { signal });
     window.addEventListener('keydown', (e) => this.#onKey(e, true), { signal });
     window.addEventListener('keyup', (e) => this.#onKey(e, false), { signal });
-    window.addEventListener('blur', () => this.#setSpace(false), { signal });
+    window.addEventListener(
+      'blur',
+      () => {
+        this.#setSpace(false);
+        this.#releaseHold();
+      },
+      { signal },
+    );
 
     resize();
     return () => {
@@ -1178,6 +1249,10 @@ export class Editor {
       this.#dropFloating();
       return;
     }
+    if (tool === 'interact') {
+      this.#interactDown(at);
+      return;
+    }
     if (typeof tool === 'object') {
       this.#placeAt(tool.type, here);
       return;
@@ -1225,6 +1300,19 @@ export class Editor {
 
     const gesture = this.#gesture;
     if (gesture?.kind === 'pan') {
+      this.setCamera(panBy(camera, at[0] - gesture.last[0], at[1] - gesture.last[1]));
+      gesture.last = at;
+      return;
+    }
+    if (gesture?.kind === 'hold') return;
+    if (gesture?.kind === 'interact-press') {
+      if (!gesture.panning) {
+        const moved = Math.hypot(at[0] - gesture.start[0], at[1] - gesture.start[1]);
+        if (moved < DRAG_THRESHOLD) return;
+        gesture.panning = true;
+        this.#setMode('panning');
+        this.#updateCursor();
+      }
       this.setCamera(panBy(camera, at[0] - gesture.last[0], at[1] - gesture.last[1]));
       gesture.last = at;
       return;
@@ -1291,8 +1379,15 @@ export class Editor {
 
   pointerUp(input: PointerInput): void {
     const gesture = this.#gesture;
+    if (gesture?.kind === 'hold') {
+      this.#releaseHold();
+      return;
+    }
     this.#gesture = undefined;
-    if (gesture?.kind === 'box') {
+    if (gesture?.kind === 'interact-press') {
+      if (!gesture.panning)
+        this.setSelection(gesture.hit ? selectHit(gesture.hit) : EMPTY_SELECTION);
+    } else if (gesture?.kind === 'box') {
       if (!gesture.active && !gesture.additive) this.clearSelection();
       this.#box = undefined;
       this.invalidate();
@@ -1412,7 +1507,12 @@ export class Editor {
     if (gesture?.kind === 'pan') cursor = 'grabbing';
     else if (this.#space || tool === 'pan') cursor = 'grab';
     else if (gesture?.kind === 'move' || this.#floating) cursor = 'move';
-    else if (tool === 'wire' || typeof tool === 'object' || this.#wire) cursor = 'crosshair';
+    else if (gesture?.kind === 'interact-press' && gesture.panning) cursor = 'grabbing';
+    else if (tool === 'interact') {
+      const hit = at && this.simulation.active ? this.#hitAt(at) : undefined;
+      cursor =
+        hit?.kind === 'part' && this.#pokeAt(hit.id, this.#world(at!)) ? 'pointer' : 'default';
+    } else if (tool === 'wire' || typeof tool === 'object' || this.#wire) cursor = 'crosshair';
     else if (at && this.#wireStartAt(at)) cursor = 'crosshair';
     else if (at) {
       const hit = this.#hitAt(at);

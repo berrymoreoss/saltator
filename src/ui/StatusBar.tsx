@@ -36,8 +36,13 @@ interface StatusBarProps {
   readonly onShowMessages: () => void;
 }
 
-/** What the pointer does now, for the status bar. */
-export function statusHint(tool: Tool, mode: EditorMode, registry: ComponentRegistry): string {
+/** What the pointer does now, for the status bar (`simulating`: a simulator exists). */
+export function statusHint(
+  tool: Tool,
+  mode: EditorMode,
+  registry: ComponentRegistry,
+  simulating = false,
+): string {
   switch (mode) {
     case 'moving':
       return 'Release to drop · Esc to cancel';
@@ -63,6 +68,10 @@ export function statusHint(tool: Tool, mode: EditorMode, registry: ComponentRegi
       return 'Drag to pan · V to select';
     case 'wire':
       return 'Click to start a wire · Esc for Select';
+    case 'interact':
+      return simulating
+        ? 'Click switches and DIP switches · Hold buttons · Click a manual clock to step · Drag to pan · V to edit'
+        : 'Run (F5) to operate switches and buttons · Drag to pan · V to select';
   }
 }
 
@@ -71,6 +80,7 @@ export function StatusBar({ editor, onShowMessages }: StatusBarProps) {
   const view = useStore(editor.view);
   const tool = useStore(editor.tool);
   const mode = useStore(editor.mode);
+  const simulating = useStore(editor.simulation.status).state !== 'stopped';
   const errors = scene.issues.filter((i) => i.severity === 'error').length;
   const warnings = scene.issues.length - errors;
   return (
@@ -85,7 +95,7 @@ export function StatusBar({ editor, onShowMessages }: StatusBarProps) {
         {selectionSummary(selection, scene)}
       </span>
       <span className="status-cell status-hint" data-testid="status-hint">
-        {statusHint(tool, mode, editor.registry)}
+        {statusHint(tool, mode, editor.registry, simulating)}
       </span>
       <span className="status-spacer" />
       <span className="status-cell">

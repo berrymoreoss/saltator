@@ -3,47 +3,12 @@ import { addComponents, addWires, type Circuit, CircuitBuilder, updateComponent 
 import { type Level, levelChar, ms, ns } from '../core';
 import { createDefaultRegistry } from '../library';
 import { Editor } from './editor';
-import { ALL_SPEEDS, formatRate, MAX_SPEED, REAL_TIME, type SimClock, SPEEDS } from './simulation';
+import { FakeClock } from './fake-clock';
+import { ALL_SPEEDS, formatRate, MAX_SPEED, REAL_TIME, SPEEDS } from './simulation';
 import { UNKNOWN_LIGHT } from './symbols';
 import { SignalStyle } from './theme';
 
 const registry = createDefaultRegistry();
-
-/** Wall clock and frames under the test's control. `cost`: ms each `now()` call takes. */
-class FakeClock implements SimClock {
-  time = 1000;
-  cost = 0;
-  #frames: (() => void)[] = [];
-
-  now = (): number => {
-    const t = this.time;
-    this.time += this.cost;
-    return t;
-  };
-
-  requestFrame(callback: () => void): () => void {
-    this.#frames.push(callback);
-    return () => {
-      this.#frames = this.#frames.filter((f) => f !== callback);
-    };
-  }
-
-  get pending(): number {
-    return this.#frames.length;
-  }
-
-  /** Lets `ms` of wall time pass, then runs the frame callbacks. */
-  frame(ms: number): void {
-    this.time += ms;
-    const frames = this.#frames;
-    this.#frames = [];
-    for (const f of frames) f();
-  }
-
-  frames(count: number, ms = 16): void {
-    for (let i = 0; i < count; i++) this.frame(ms);
-  }
-}
 
 /** SW1 → U1 (NAND, B tied high) → D1; X1 (clock) → D2; a 1 kHz clock by default. */
 function hello(frequency = 1000): Circuit {
