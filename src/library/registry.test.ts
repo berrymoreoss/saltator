@@ -25,6 +25,7 @@ describe('createDefaultRegistry', () => {
       'io/switch',
       'io/button',
       'io/dip-switch',
+      'io/clock',
       'io/led',
       'io/led-bar',
       'io/seven-segment',

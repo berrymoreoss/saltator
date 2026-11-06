@@ -172,7 +172,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   positions, all three contact kinds).
 - [x] 6. library: lights state + `onTimeAt`; `io/led`, `io/led-bar`.
 - [x] 7. library: `io/seven-segment` (CA/CC), `io/hex-display`, `io/probe`.
-- [ ] 8. library: `io/clock` (auto/manual, period/duty exact, frequency/duty limits).
+- [x] 8. library: `io/clock` (auto/manual, period/duty exact, frequency/duty limits).
 - [ ] 9. library: symbols for `prim/*` (incl. `prim/pull` resistor); update scenarios/bench that
   rely on box positions.
 - [ ] 10. scenarios: headless M1 circuits as documents (switch → NAND → LED; clock → LED; button

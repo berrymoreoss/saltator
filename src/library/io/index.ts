@@ -1,5 +1,6 @@
 import type { AnyComponentDefinition } from '../../core';
 import { pushButton } from './button';
+import { clock } from './clock';
 import { dipSwitch } from './dip-switch';
 import { hexDisplay } from './hex-display';
 import { led, ledBar } from './led';
@@ -9,6 +10,7 @@ import { sevenSegment } from './seven-segment';
 import { toggleSwitch } from './switch';
 
 export { type ButtonAction, type ButtonState, pushButton } from './button';
+export { type ClockAction, type ClockState, clock, clockPhases } from './clock';
 export type { Contact } from './contact';
 export {
   type DipSwitchAction,
@@ -40,6 +42,7 @@ export const io: readonly AnyComponentDefinition[] = [
   toggleSwitch,
   pushButton,
   dipSwitch,
+  clock,
   led,
   ledBar,
   sevenSegment,
