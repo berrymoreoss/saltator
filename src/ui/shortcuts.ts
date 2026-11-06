@@ -1,0 +1,72 @@
+/**
+ * Keyboard shortcuts written once as text (`Mod+0`, `Shift+Mod+Z`, `Home`, `/`) and matched
+ * against keyboard events or shown in menus. `Mod` is ⌘ on macOS and Ctrl elsewhere.
+ */
+
+export interface Shortcut {
+  /** `KeyboardEvent.key`, lower-cased for letters. */
+  readonly key: string;
+  readonly mod: boolean;
+  readonly shift: boolean;
+  readonly alt: boolean;
+}
+
+export function parseShortcut(text: string): Shortcut {
+  const parts = text.split('+');
+  // `Mod++` ends in an empty part for the `+` key.
+  const key = text.endsWith('++') ? '+' : parts[parts.length - 1]!;
+  const modifiers = new Set(parts.slice(0, text.endsWith('++') ? -2 : -1));
+  for (const m of modifiers) {
+    if (m !== 'Mod' && m !== 'Shift' && m !== 'Alt') {
+      throw new Error(`unknown modifier "${m}" in shortcut "${text}"`);
+    }
+  }
+  return {
+    key: key.length === 1 ? key.toLowerCase() : key,
+    mod: modifiers.has('Mod'),
+    shift: modifiers.has('Shift'),
+    alt: modifiers.has('Alt'),
+  };
+}
+
+/** The parts of a keyboard event a shortcut looks at. */
+export type KeyLike = Pick<KeyboardEvent, 'key' | 'metaKey' | 'ctrlKey' | 'shiftKey' | 'altKey'>;
+
+/** Keys whose character needs Shift on common layouts: Shift is not part of the shortcut. */
+const SHIFTED = new Set(['+', '?', '_', ':', '{', '}', '|', '"', '<', '>', '!', '@', '#']);
+
+export function matchesShortcut(shortcut: Shortcut, event: KeyLike, mac: boolean): boolean {
+  const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+  if (key !== shortcut.key) return false;
+  const mod = mac ? event.metaKey : event.ctrlKey;
+  const other = mac ? event.ctrlKey : event.metaKey;
+  if (mod !== shortcut.mod || other || event.altKey !== shortcut.alt) return false;
+  return SHIFTED.has(shortcut.key) || event.shiftKey === shortcut.shift;
+}
+
+const MAC_SYMBOLS: Readonly<Record<string, string>> = {
+  Escape: 'Esc',
+  ArrowUp: '↑',
+  ArrowDown: '↓',
+  ArrowLeft: '←',
+  ArrowRight: '→',
+  Backspace: '⌫',
+  Delete: '⌦',
+  Enter: '↩',
+};
+
+/** Human-readable form: `⇧⌘Z` on macOS, `Ctrl+Shift+Z` elsewhere. */
+export function formatShortcut(text: string, mac: boolean): string {
+  const s = parseShortcut(text);
+  const key = s.key.length === 1 ? s.key.toUpperCase() : s.key;
+  if (mac) {
+    return `${s.alt ? '⌥' : ''}${s.shift ? '⇧' : ''}${s.mod ? '⌘' : ''}${MAC_SYMBOLS[key] ?? key}`;
+  }
+  return [s.mod && 'Ctrl', s.alt && 'Alt', s.shift && 'Shift', key === 'Escape' ? 'Esc' : key]
+    .filter(Boolean)
+    .join('+');
+}
+
+export function isMacPlatform(platform: string): boolean {
+  return /mac|iphone|ipad/i.test(platform);
+}

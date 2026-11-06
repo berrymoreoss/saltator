@@ -270,7 +270,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   inside its bounds in both gate styles.
 - [x] 8. editor: `Editor` facade — mounts on a canvas, input handling (Figma/KiCad wheel modes,
   middle/Space-drag pan, click/Shift-click/box select, hover), state and view stores.
-- [ ] 9. ui: theme tokens (dark/light/system), settings store (persisted, guarded), command
+- [x] 9. ui: theme tokens (dark/light/system), settings store (persisted, guarded), command
   registry and shortcut matching (Mod = ⌘/Ctrl, ignore inputs) + tests of the pure parts.
 - [ ] 10. ui: shell — menu bar (dropdowns, hover-switching, Esc), toolbar with icons and
   tooltips, dock layout with splitters and hide/show, bottom dock tabs, status bar, canvas host.
