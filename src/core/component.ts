@@ -4,6 +4,7 @@
  */
 import type { ComponentDiagnostic } from './diagnostics';
 import type { Drive, Level } from './logic';
+import type { SymbolDef } from './symbol';
 import type { Time } from './time';
 
 /** Index of a pin in an instance's pin list (resolved once; no string lookups while running). */
@@ -150,6 +151,11 @@ export interface ComponentDefinition<
   readonly units?: readonly UnitDef[];
   readonly props?: readonly PropDef[];
   readonly timing?: TimingDef;
+  /**
+   * Geometry of a part drawn as a symbol rather than a package (LEDs, switches, gates), or a
+   * function of props for parts like LED bars. Ignored when `package` is set.
+   */
+  readonly symbol?: SymbolDef | ((props: Props) => SymbolDef);
   /** Creates the behavior of one instance. `props` are validated and defaulted. */
   create(props: Props): Behavior<State>;
 }

@@ -216,18 +216,17 @@ describe('resolveNetlist', () => {
 
   it('reports duplicate pin names from prop-dependent pin lists', () => {
     const bad = new Registry([
-      defineComponent({
+      // Valid with the default props (the registry checks those), broken with `n: 2`.
+      defineComponent<{ n: number }, undefined>({
         type: 'test/bad',
         name: 'B',
         title: 'Bad',
-        pins: () => [
-          { name: 'A', dir: 'in' },
-          { name: 'A', dir: 'in' },
-        ],
+        props: [{ key: 'n', label: 'N', type: 'integer', default: 1 }],
+        pins: ({ n }) => Array.from({ length: n }, () => ({ name: 'A', dir: 'in' })),
         create: () => ({}),
       }),
     ]);
-    const netlist = new NetlistBuilder().add('U1', 'test/bad').build();
+    const netlist = new NetlistBuilder().add('U1', 'test/bad', { n: 2 }).build();
     expect(problemsOf(() => resolveNetlist(netlist, bad))).toEqual(['U1: duplicate pin "A"']);
   });
 
