@@ -195,7 +195,7 @@ permission (a user gesture); a file that is gone is dropped from the list with a
 - [x] 7. Example gallery dialog with thumbnails; New from Example; e2e.
 - [x] 8. Learning examples (Q2) — half adder, SR latch, ring oscillator — as files, each with a
   scenario test that runs it (truth table, set/reset/hold, oscillation period).
-- [ ] 9. M1 acceptance e2e; look at it in the browser (both themes).
+- [x] 9. M1 acceptance e2e; look at it in the browser (both themes).
 - [ ] 10. Docs: editor.md (Files, examples, history note), architecture.md (Persistence),
   ADR-0012, `src/ui` / `src/app` READMEs, lessons, roadmap (R07 `done`, R08 `next`, backlog
   items from Out of scope).
@@ -272,6 +272,9 @@ permission (a user gesture); a file that is gone is dropped from the list with a
   54 ns) written once by a throwaway builder script that also checked every net, then looked
   at in the browser (layouts adjusted so labels and parts don't overlap). Behavior tested in
   `tests/scenarios/example-circuits.test.ts`.
+- 2026-11-07 — task 9: `tests/e2e/m1.spec.ts` builds switch → 74HC00 → LED and clock → LED in the
+  browser, runs it (D1 follows the switch, D2 blinks), saves, reloads, runs again, reopens the
+  file. Looked at: File menu, unsaved dialog, gallery (both themes), each example (dark).
 
 ## Handoff
 
@@ -280,7 +283,7 @@ permission (a user gesture); a file that is gone is dropped from the list with a
   autosave (`src/ui/autosave.ts`, `browser-storage.ts`, start-up in `App.tsx`); e2e
   `autosave.spec.ts`; Open Recent (`src/ui/recent-files.ts`); gallery (`ExampleGallery.tsx`,
   `drawCircuitPreview` in `src/editor/preview.ts`).
-- **Next step:** task 9 (M1 acceptance e2e; look at it in the browser, both themes).
+- **Next step:** task 10 (docs: editor.md, architecture.md, ADR-0012, READMEs, lessons, roadmap).
 - **Watch out:** Biome reformats `.json` (exclude `**/*.logic.json` first); Chrome reserves
   `Mod+N`.
 - **Verify with:** `pnpm check`, `pnpm e2e`.
