@@ -1,5 +1,6 @@
 /** The commands of the workbench and where they appear: menus and toolbar. */
 import {
+  BookOpen,
   ClipboardPaste,
   Copy,
   CopyPlus,
@@ -164,6 +165,18 @@ export function createCommands({
         setPanel('properties', true);
         ui.update((s) => ({ ...s, propertiesRequest: s.propertiesRequest + 1 }));
       },
+    },
+    {
+      id: 'edit.partInfo',
+      label: 'Part Info',
+      icon: BookOpen,
+      enabled: () => editor.state.get().selection.parts.size === 1,
+      run: () =>
+        settings.update((s) => ({
+          ...s,
+          bottomTab: 'part',
+          panels: { ...s.panels, bottom: { ...s.panels.bottom, visible: true } },
+        })),
     },
     {
       id: 'edit.delete',
@@ -492,6 +505,7 @@ export function workbenchMenus(examples: readonly Example[]): MenuDef[] {
         'edit.deselect',
         SEPARATOR,
         'edit.properties',
+        'edit.partInfo',
         'parts.search',
       ],
     },
@@ -551,6 +565,7 @@ export const ITEM_CONTEXT_MENU: readonly MenuEntry[] = [
   'edit.flipV',
   SEPARATOR,
   'edit.properties',
+  'edit.partInfo',
 ];
 
 export const CANVAS_CONTEXT_MENU: readonly MenuEntry[] = [

@@ -90,7 +90,8 @@ test('a selection box dragged left to right selects what is inside', async ({ pa
   await page.mouse.move(x + width / 2, y + height / 2, { steps: 4 });
   await page.mouse.move(x + width - 4, y + height - 4, { steps: 4 });
   await page.mouse.up();
-  await expect(page.getByTestId('selection-summary')).toHaveText('8 parts, 9 wires');
+  // The whole of Hello, LED (fitted at start-up): 10 parts, 20 wires since R06's 74HC00.
+  await expect(page.getByTestId('selection-summary')).toHaveText('10 parts, 20 wires');
 });
 
 test('keyboard zoom changes the zoom readout', async ({ page }) => {

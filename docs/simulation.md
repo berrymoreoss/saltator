@@ -18,8 +18,9 @@ Specification of the kernel in `src/core` (implemented in R01). Rationale:
   2^53 ps ≈ 2.5 hours of simulated time). `TIME_MAX` means "no limit".
 - `ps(n)`, `ns(n)`, `us(n)`, `ms(n)` convert to picoseconds, rounding to an integer
   (`ns(0.3)` = 300). `formatTime(t)` renders `'1.5 ns'`, `'16 ms'`.
-- Timing data comes from datasheets (typical values at VCC = 5 V, 25 °C unless a part says
-  otherwise). A future "worst case" mode may switch to max values.
+- Timing data comes from datasheets: typical values at 25 °C under the conditions the part
+  states (74HC: VCC = 4.5 V, CL = 50 pF; docs/components.md#timing). A future "worst case" mode
+  may switch to max values.
 
 ## Signal values
 
@@ -316,9 +317,11 @@ the net ids.
   `levels()`, `expect({ Y: 1 })`, `mismatches(...)`, `expectNoDiagnostics()`, `action(payload)`.
   Values are `0`, `1`, `'X'`, `'Z'` (or `Level` constants).
 - `measure({ A: 1 }, 'Y')` applies a stimulus and returns the delay until `Y` changes.
-- `functionTable(bench, { inputs, outputs, rows })` checks a datasheet function table written
-  with datasheet letters: `H`, `L`, `X` = **don't care** (expanded to both levels), `Z` (outputs
-  only; `X` in outputs is rejected). All failing rows are reported together.
+- `functionTable(bench, { inputs, outputs, rows }, pins?)` checks a datasheet function table
+  written with datasheet letters: `H`, `L`, `X` = **don't care** (expanded to both levels), `Z`
+  (outputs only; `X` in outputs is rejected). `pins` maps the columns (inputs, then outputs) to
+  the bench's pins, so a part's generic table (`nA nB | nY`) checks each unit. All failing rows
+  are reported together.
 - `truthTable(bench, inputs, outputs, rows)` checks rows of simulator values, where `X` means
   unknown — for X/Z propagation tests.
 - `new Trace(sim)` records every net change (`lines()`, `of(net)`, `hash()` for determinism

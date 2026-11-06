@@ -95,6 +95,15 @@ describe('Registry', () => {
     const tooSmall = part('prim/bad', { pins, symbol: () => ({ ...symbol, height: 0 }) });
     expect(() => new Registry([tooSmall])).toThrow('prim/bad: symbol height must be a positive');
   });
+
+  it('validates function tables', () => {
+    const table = { inputs: ['A'], outputs: ['Y'], rows: ['L | H', 'H | L'] };
+    expect(new Registry([part('prim/good', { functionTable: table })]).has('prim/good')).toBe(true);
+    const bad = part('prim/bad', { functionTable: { ...table, rows: ['L L | H'] } });
+    expect(() => new Registry([bad])).toThrow(
+      'prim/bad: function table row "L L | H": expected 1 inputs | 1 outputs',
+    );
+  });
 });
 
 describe('familyOf', () => {

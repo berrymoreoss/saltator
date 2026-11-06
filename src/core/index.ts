@@ -34,6 +34,12 @@ export {
   KernelDiagnosticKind,
 } from './diagnostics';
 export {
+  type FunctionTable,
+  type FunctionTableRow,
+  parseFunctionTableRow,
+  validateFunctionTable,
+} from './function-table';
+export {
   and,
   DRIVES,
   Drive,

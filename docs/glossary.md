@@ -22,6 +22,13 @@ and COM is 0; common anode: when its pin is 0 and COM is 1.
 stops one grid cell short of a pin. Reported as a design-check warning.
 
 **Datasheet function table** — the truth table in a chip's datasheet; the basis of every part test.
+Real chips carry it as data (`functionTable`, columns with the data sheet's generic names such as
+`nA nB | nY`), shown in the Part tab.
+
+**Enable / disable time (ten, tdis)** — how long a 3-state output takes to start driving after
+its enable becomes active (`ten`, tPZH/tPZL) and to release the net after it becomes inactive
+(`tdis`, tPHZ/tPLZ). When `tdis > ten`, two outputs handing a bus over at one instant fight
+briefly.
 
 **Delta cycle** — a sub-step at the same simulation time, used to propagate zero-delay changes in
 a deterministic order.
@@ -67,6 +74,13 @@ not.
 **Multiplexing (displays)** — driving several digits over shared segment lines by enabling one
 digit's common pin at a time, fast enough that the eye sees all digits lit (persistence of
 vision), each at the fraction of time it is enabled.
+
+**Logic family** — chips with the same numbers but a different technology: 74HC (CMOS), 74HCT
+(CMOS with TTL input levels), 74LS (TTL), 74AC. Same pinout and function, different timing and
+input behavior; the library shares the function and takes timing from the family.
+
+**n.c. (not connected)** — a package pin with no function (74HC20 pins 3 and 11), named
+`NC<number>` in a definition and drawn `NC`.
 
 **Net** — a set of electrically connected pins; all of them see the same level.
 

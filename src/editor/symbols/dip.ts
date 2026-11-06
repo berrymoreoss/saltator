@@ -1,7 +1,8 @@
 /**
  * The generic DIP package drawing (ADR-0004): a vertical body with the notch at the top, pin
  * numbers outside next to each stub, pin names inside (overlined when active-low, after a clock
- * triangle for clock inputs) and the part name down the middle, as in a datasheet drawing.
+ * triangle for clock inputs; `NC` for not-connected pins, whose names are `NC<number>`) and the
+ * part name down the middle, as in a datasheet drawing.
  */
 import type { PartLayout } from '../../circuit';
 import type { PinDef } from '../../core';
@@ -55,7 +56,7 @@ export function drawDip(
       g.stroke();
       inset = 0.55;
     }
-    g.text(pin.name, onLeft ? left + inset : right - inset, y, {
+    g.text(def?.dir === 'nc' ? 'NC' : pin.name, onLeft ? left + inset : right - inset, y, {
       size: NAME_SIZE,
       align: onLeft ? 'left' : 'right',
       baseline: 'middle',

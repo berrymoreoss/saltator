@@ -2,8 +2,29 @@ import { describe, expect, it } from 'vitest';
 import { designatorPrefixOf, familyOf } from '../core';
 import { createDefaultRegistry } from './registry';
 
+const CHIPS = [
+  '74xx/74hc00',
+  '74xx/74hc02',
+  '74xx/74hc04',
+  '74xx/74hc08',
+  '74xx/74hc10',
+  '74xx/74hc11',
+  '74xx/74hc14',
+  '74xx/74hc20',
+  '74xx/74hc21',
+  '74xx/74hc27',
+  '74xx/74hc30',
+  '74xx/74hc32',
+  '74xx/74hc86',
+  '74xx/74hc125',
+  '74xx/74hc126',
+  '74xx/74hc240',
+  '74xx/74hc244',
+  '74xx/74hc245',
+];
+
 describe('createDefaultRegistry', () => {
-  it('contains every primitive and IO part', () => {
+  it('contains every primitive, IO part and 74xx chip', () => {
     expect(
       createDefaultRegistry()
         .list()
@@ -31,6 +52,7 @@ describe('createDefaultRegistry', () => {
       'io/seven-segment',
       'io/hex-display',
       'io/probe',
+      ...CHIPS,
     ]);
   });
 
@@ -39,7 +61,7 @@ describe('createDefaultRegistry', () => {
       expect(d.name, d.type).not.toBe('');
       expect(d.title, d.type).not.toBe('');
       expect(d.keywords?.length, d.type).toBeGreaterThan(0);
-      expect(['prim', 'io']).toContain(familyOf(d.type));
+      expect(['prim', 'io', '74xx']).toContain(familyOf(d.type));
     }
   });
 
@@ -72,6 +94,7 @@ describe('createDefaultRegistry', () => {
       'io/seven-segment': 'DS',
       'io/hex-display': 'DS',
       'io/probe': 'TP',
+      ...Object.fromEntries(CHIPS.map((type) => [type, 'U'])),
     });
   });
 

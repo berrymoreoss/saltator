@@ -5,6 +5,7 @@ import {
   resolveProps,
   validatePins,
 } from './component';
+import { validateFunctionTable } from './function-table';
 import { symbolOf, validateSymbol } from './symbol';
 
 /**
@@ -36,8 +37,8 @@ export class Registry implements ComponentRegistry {
 
   /**
    * Adds definitions. Throws on a malformed or duplicate type id, a malformed designator prefix,
-   * or on invalid pins or symbol with the default props (prop-dependent ones are checked again
-   * when instances are laid out).
+   * a malformed function table, or on invalid pins or symbol with the default props
+   * (prop-dependent ones are checked again when instances are laid out).
    */
   register(...definitions: AnyComponentDefinition[]): this {
     for (const definition of definitions) {
@@ -55,6 +56,7 @@ export class Registry implements ComponentRegistry {
       validatePins(pins, type);
       const symbol = symbolOf(definition, props);
       if (symbol) validateSymbol(symbol, pins, type);
+      if (definition.functionTable) validateFunctionTable(definition.functionTable, type);
       this.byType.set(type, definition);
     }
     return this;

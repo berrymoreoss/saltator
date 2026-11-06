@@ -83,7 +83,7 @@ export async function netOf(page: Page, grid: (p: Point) => Point, at: Point, pi
     .textContent();
 }
 
-/** Places and wires the M1 Hello LED circuits (as `helloLed()`), from File ▸ New. */
+/** Places and wires the R05 Hello LED circuits (a `prim/nand`; the example now uses a 74HC00). */
 export async function drawHelloLed(page: Page): Promise<(p: Point) => Point> {
   const grid = await newCircuit(page);
   await place(page, grid, 'io/switch', [-12, 0]);

@@ -2,7 +2,8 @@ import { ChevronDown, ChevronRight, ExternalLink, Search, X } from 'lucide-react
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { AnyComponentDefinition, ComponentRegistry } from '../core';
 import { pinsOf, resolveProps } from '../core';
-import { type CanvasTheme, drawPartPreview, type GateStyle } from '../editor';
+import type { CanvasTheme, GateStyle } from '../editor';
+import { PartPreview } from './PartPreview';
 import { groupParts, PART_DRAG_TYPE } from './parts-filter';
 
 interface PartsPanelProps {
@@ -160,7 +161,13 @@ function PartDetails({ definition, registry, theme, gateStyle }: PartDetailsProp
   const pins = pinsOf(definition, resolveProps(definition, {}));
   return (
     <div className="part-details" data-testid="part-details">
-      <PartPreview type={definition.type} registry={registry} theme={theme} gateStyle={gateStyle} />
+      <PartPreview
+        type={definition.type}
+        registry={registry}
+        theme={theme}
+        gateStyle={gateStyle}
+        height={112}
+      />
       <div className="part-info">
         <div className="part-info-name">
           {definition.name} <span className="mono muted">{definition.type}</span>
@@ -181,54 +188,5 @@ function PartDetails({ definition, registry, theme, gateStyle }: PartDetailsProp
         )}
       </div>
     </div>
-  );
-}
-
-const PREVIEW_HEIGHT = 112;
-
-function PartPreview({
-  type,
-  registry,
-  theme,
-  gateStyle,
-}: {
-  readonly type: string;
-  readonly registry: ComponentRegistry;
-  readonly theme: CanvasTheme;
-  readonly gateStyle: GateStyle;
-}) {
-  const canvas = useRef<HTMLCanvasElement>(null);
-  const [width, setWidth] = useState(0);
-
-  useEffect(() => {
-    const element = canvas.current!;
-    const observer = new ResizeObserver(() => setWidth(element.clientWidth));
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
-    const element = canvas.current;
-    const ctx = element?.getContext('2d');
-    if (!element || !ctx || width === 0) return;
-    const dpr = window.devicePixelRatio || 1;
-    element.width = Math.round(width * dpr);
-    element.height = Math.round(PREVIEW_HEIGHT * dpr);
-    drawPartPreview(
-      ctx,
-      registry,
-      type,
-      { width, height: PREVIEW_HEIGHT },
-      { theme, gateStyle, dpr },
-    );
-  }, [type, registry, theme, gateStyle, width]);
-
-  return (
-    <canvas
-      ref={canvas}
-      className="part-preview"
-      style={{ height: PREVIEW_HEIGHT }}
-      aria-label={`Symbol of ${type}`}
-    />
   );
 }

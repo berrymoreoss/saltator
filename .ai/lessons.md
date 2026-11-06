@@ -88,3 +88,15 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
   changed; the invariance property test (`tests/scenarios/carry-over.test.ts`) catches a part
   that counts or toggles in `evaluate`, and was mutation-checked (shifting carried timers or
   re-running `init` fails it). Keep it green when the kernel or parts grow.
+- 2026-11-07 (R06) — The forced `evaluate` at power-on and after a recompile is not a "nothing
+  changed" call: inputs changed by t = 0 `init`/action events (or by the edit) show as changed
+  in the same delta. Never skip parts of a multi-section chip because their inputs didn't
+  change; evaluate every section (re-driving an unchanged output schedules nothing).
+- 2026-11-07 (R06) — Nexperia's asset server answers 403 to WebFetch and curl; don't work around
+  it — ask the user to download the PDFs. `pdftotext -layout` keeps their tables readable
+  (`file` reports bogus page counts for them). Typical `ten`/`tdis` are given only at 2.0, 4.5
+  and 6.0 V, hence the 4.5 V / 50 pF convention.
+- 2026-11-07 (R06) — For visual checks without the Chrome extension, run
+  `node_modules/.bin/vite --port 5199` in the background and a Playwright script from the
+  scratchpad that imports `node_modules/@playwright/test/index.mjs` by absolute path (pnpm
+  doesn't hoist `playwright` itself); drive `window.logicEditor` (`setCamera`, `setSelection`).

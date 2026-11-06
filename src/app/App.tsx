@@ -4,7 +4,8 @@ import { createDefaultRegistry } from '../library';
 import { createSettingsStore, createUiState, type Example, Workbench } from '../ui';
 import { helloLed, nandGrid, symbolGallery } from './examples';
 
-// The renderer fixtures (DIP packages before R06, the generic box) exist in dev builds only.
+// The renderer fixtures (a clock pin and a 28-pin DIP no shipped part has yet, the generic box)
+// exist in dev builds only.
 const registry = new Registry([
   ...createDefaultRegistry().list(),
   ...(import.meta.env.DEV ? DEV_PARTS : []),

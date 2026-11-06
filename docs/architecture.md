@@ -99,6 +99,12 @@ a behavior factory. 74xx chips are modeled as **packages** (DIP with real pinout
 but are not simulated in the MVP. Spec: [components.md](components.md). Rationale:
 [ADR-0004](adr/0004-chips-as-packages.md).
 
+Real chips (R06: 74HC gates and bus buffers) come from the Nexperia data sheets: a chip's
+function (`ChipSpec`: pinout with pin descriptions, units, function table, behavior) is shared by
+every logic family, which supplies the data sheet and timing (`LogicFamily`, HC at 4.5 V /
+50 pF). The function table on the definition is shown in the Part tab and checked by the part's
+tests ([ADR-0011](adr/0011-real-chips.md)).
+
 Bigger parts (ROM/RAM, CPUs, microcontrollers, peripherals) are ordinary components with internal
 state; they additionally expose an **inspection interface** (memory view, CPU registers) for UI
 panels and a **debug access** path (flash a ROM, poke RAM) that bypasses simulated timing
@@ -169,14 +175,15 @@ a desktop CAD-style React shell; R04b made it edit — Parts arms the place tool
 Properties edits the selected part, a context menu and the Edit/Place menus carry the editing
 commands, and the clipboard goes through the browser's clipboard events; R05 made it run — a
 Simulate menu and toolbar group with a speed select, the simulation in the status bar, a
-Simulation tab with runtime diagnostics, live levels in Properties.
+Simulation tab with runtime diagnostics, live levels in Properties; R06 added the Part tab (pins
+with data sheet descriptions and the function table of the part picked last).
 
 ```
 ┌───────────────────────── menu bar · toolbar (tools, zoom, grid, gate style) ─────────────────────────┐
 │ Parts    │                                canvas                                    │ Properties    │
 │ (search, │                                                                          │ (of the       │
 │ preview) │                                                                          │ selection)    │
-├──────────┴─────── bottom dock: Messages · Simulation (later: memory · logic analyzer) ┴───────────────┤
+├──────────┴──── bottom dock: Messages · Simulation · Part (later: memory · logic analyzer) ┴────────────┤
 │ status bar: cursor · zoom · selection · simulation · counts · issues                                  │
 ```
 
