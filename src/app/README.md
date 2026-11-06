@@ -1,7 +1,9 @@
 # src/app — composition root
 
 Wires everything together: creates the registry (plus `dev/*` fixtures in dev builds), the
-editor, the settings and UI stores and the React tree; `example-files.ts` lists the example
+editor, the settings and UI stores, the document controller with the browser's file access, and
+the React tree; at start-up it restores the autosaved session (or opens an example) and starts
+autosave and Open Recent before the first render (top-level await on IndexedDB); `example-files.ts` lists the example
 files in `examples/` (bundled as text), `examples.ts` builds the examples that stay in code
 (Symbol Gallery, and `nandGrid`, shared with the circuit benchmark). The simulator host lives in the
 editor (`editor.simulation`, R05).

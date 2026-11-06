@@ -100,3 +100,24 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
   `node_modules/.bin/vite --port 5199` in the background and a Playwright script from the
   scratchpad that imports `node_modules/@playwright/test/index.mjs` by absolute path (pnpm
   doesn't hoist `playwright` itself); drive `window.logicEditor` (`setCamera`, `setSelection`).
+- 2026-11-07 (R07) — IndexedDB writes started in `pagehide` don't finish before the page goes
+  away: a reload within a debounce lost the last edit. Write unload state synchronously
+  (`localStorage`) and fold it into IndexedDB at the next start; don't let a debounce keep
+  pushing a pending write back (bound the latency instead).
+- 2026-11-07 (R07) — The app awaits IndexedDB before its first render (top-level await), so
+  `page.goto` resolves before keys are handled: a key pressed right away is lost. Browser tests
+  load through `openApp` (waits for the canvas). A second tab restores the latest session,
+  which may be unsaved: File ▸ New then asks "Save changes?" (`newCircuit` answers it).
+- 2026-11-07 (R07) — Stub the File System Access pickers in Playwright with handles from the
+  origin private file system (`navigator.storage.getDirectory()`): real `FileSystemFileHandle`s
+  that IndexedDB can store (plain objects with functions can't be cloned) and that survive a
+  reload. Test files are typed without Node: no `Buffer` — read a download with `for await`
+  over `createReadStream()`, hand a file to `setFiles` by path (`download.saveAs`), list files
+  with `import.meta.glob` instead of `fs`.
+- 2026-11-07 (R07) — Chrome never gives `Mod+N`/`Mod+T`/`Mod+W` to a page, and Option on a Mac
+  changes `event.key` (⌥N is a dead `˜`): shortcuts with Alt match the physical key
+  (`event.code`).
+- 2026-11-07 (R07) — Laying out a circuit with DIP chips by hand: write it with
+  `CircuitBuilder` in a throwaway script that also checks the compiled nets against the
+  intended ones, then look at it in the browser (labels of rotated LEDs sit to their right and
+  run into nearby wires). Save the result as a file; from then on the file is the source.

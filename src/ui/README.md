@@ -16,6 +16,11 @@ browser's clipboard events and the async Clipboard API), place/drag from `PartsP
 Simulate menu and toolbar commands, `SimControls` (speed select, the status bar's simulation
 cell), `SimulationPanel` (runtime diagnostics tab), `LiveLevel` (level badges in Properties),
 bottom-dock tabs. R06: `PartInfoPanel` (the Part tab; pure model in `part-info.ts`),
-`PartPreview` (a part drawn by the canvas drawers, shared with `PartsPanel`).
+`PartPreview` (a part drawn by the canvas drawers, shared with `PartsPanel`). R07 (files):
+`document-session` (pure model), `files` (File System Access or the download fallback),
+`document-controller` (New, Open, Save, Save As, examples, drops; "Save changes?"),
+`autosave` (session restore, per tab) with its IndexedDB and Web Locks side in
+`browser-storage`, `recent-files` (Open Recent), `ExampleGallery` (File ▸ New from Example…);
+the unsaved-changes and file-problem dialogs in `Dialogs`.
 
 Spec: [docs/editor.md](../../docs/editor.md#shell).

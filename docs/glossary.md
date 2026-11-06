@@ -45,6 +45,10 @@ definition; new parts take the lowest free number.
 **DIP** — dual in-line package; the through-hole chip package used on breadboards. Pin 1 is next
 to the notch, numbering runs counter-clockwise (seen from the top).
 
+**Document session** — the open document around the editor's circuit: its name, the file it
+was opened from or saved to, and the circuit as last saved, against which unsaved changes are
+measured. Autosaved per browser tab and restored after a reload (R07).
+
 **Drive / strength** — what an output contributes to a net: a level plus a strength (`none`,
 `weak`, `strong`). Pull resistors are weak; CMOS outputs are strong.
 

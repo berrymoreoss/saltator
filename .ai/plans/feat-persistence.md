@@ -4,7 +4,7 @@
 | ---------- | ------------------------------------------------------------- |
 | Branch     | `feat/persistence`                                            |
 | Roadmap    | R07 — Save, load, examples ([roadmap](../../docs/roadmap.md)) |
-| Status     | in-progress                                                   |
+| Status     | done                                                          |
 | Depends on | R02, R04b, R05, R06                                           |
 | Created    | 2026-11-07                                                    |
 
@@ -196,24 +196,24 @@ permission (a user gesture); a file that is gone is dropped from the list with a
 - [x] 8. Learning examples (Q2) — half adder, SR latch, ring oscillator — as files, each with a
   scenario test that runs it (truth table, set/reset/hold, oscillation period).
 - [x] 9. M1 acceptance e2e; look at it in the browser (both themes).
-- [ ] 10. Docs: editor.md (Files, examples, history note), architecture.md (Persistence),
+- [x] 10. Docs: editor.md (Files, examples, history note), architecture.md (Persistence),
   ADR-0012, `src/ui` / `src/app` READMEs, lessons, roadmap (R07 `done`, R08 `next`, backlog
   items from Out of scope).
 
 ## Acceptance criteria
 
-- [ ] `pnpm check`, `pnpm build` and `pnpm e2e` are green.
-- [ ] Save writes a `.logic.json` that `parseDocument` reads back to the same circuit; Save on a
+- [x] `pnpm check`, `pnpm build` and `pnpm e2e` are green.
+- [x] Save writes a `.logic.json` that `parseDocument` reads back to the same circuit; Save on a
   saved file writes to the same file without a picker (Chromium).
-- [ ] Open loads a file; a broken file shows its problems and leaves the document alone.
-- [ ] Firefox/Safari path: Open via file input, Save downloads (tested in Chromium with the
+- [x] Open loads a file; a broken file shows its problems and leaves the document alone.
+- [x] Firefox/Safari path: Open via file input, Save downloads (tested in Chromium with the
   File System Access API hidden).
-- [ ] New/Open/example with unsaved changes asks Save / Don't Save / Cancel, and each does what
+- [x] New/Open/example with unsaved changes asks Save / Don't Save / Cancel, and each does what
   it says.
-- [ ] A reload (and a closed and reopened tab) restores the circuit, its name and unsaved state.
-- [ ] The gallery shows every example with a thumbnail; opening one gives an untitled copy.
-- [ ] Every example file loads, is canonical, has no design issues and runs.
-- [ ] M1: switch → 74HC00 → LED and clock → LED built in the browser, run, saved, reloaded, still
+- [x] A reload (and a closed and reopened tab) restores the circuit, its name and unsaved state.
+- [x] The gallery shows every example with a thumbnail; opening one gives an untitled copy.
+- [x] Every example file loads, is canonical, has no design issues and runs.
+- [x] M1: switch → 74HC00 → LED and clock → LED built in the browser, run, saved, reloaded, still
   works.
 
 ## Open questions
@@ -275,15 +275,19 @@ permission (a user gesture); a file that is gone is dropped from the list with a
 - 2026-11-07 — task 9: `tests/e2e/m1.spec.ts` builds switch → 74HC00 → LED and clock → LED in the
   browser, runs it (D1 follows the switch, D2 blinks), saves, reloads, runs again, reopens the
   file. Looked at: File menu, unsaved dialog, gallery (both themes), each example (dark).
+- 2026-11-07 — task 10 and finish: editor.md (Files section, commands, history, examples,
+  testing), architecture.md (Persistence), ADR-0012, glossary (document session), READMEs
+  (`src/ui`, `src/app`, `tests`), AGENTS.md map (`examples/`), lessons, roadmap (R07 `done`, M1
+  reached, R08 `next`, backlog: documents in tabs, file metadata / simulation settings).
+  Acceptance verified: `pnpm check` (1026 tests), `pnpm build`, `pnpm e2e` (42) green; each
+  criterion covered by the tests named in the log above. Summary: `.logic.json` files through
+  File System Access or a download fallback, "Save changes?", Open Recent, drop to open,
+  autosave with session restore per tab (also synchronously on unload), four example files
+  with a gallery; M1 "Hello, LED" reached.
 
 ## Handoff
 
-- **State:** tasks 1–4 done: examples as files, session model, `FileAccess`, File commands with
-  `DocumentController` (`src/ui/document-controller.ts`), dialogs, title, drop; e2e `files.spec.ts`;
-  autosave (`src/ui/autosave.ts`, `browser-storage.ts`, start-up in `App.tsx`); e2e
-  `autosave.spec.ts`; Open Recent (`src/ui/recent-files.ts`); gallery (`ExampleGallery.tsx`,
-  `drawCircuitPreview` in `src/editor/preview.ts`).
-- **Next step:** task 10 (docs: editor.md, architecture.md, ADR-0012, READMEs, lessons, roadmap).
-- **Watch out:** Biome reformats `.json` (exclude `**/*.logic.json` first); Chrome reserves
-  `Mod+N`.
-- **Verify with:** `pnpm check`, `pnpm e2e`.
+- **State:** done; waiting for the user's approval to merge.
+- **Next step:** merge to `main` (`--no-ff`), then R08 `feat/74hc-msi`.
+- **Watch out:** —
+- **Verify with:** `pnpm check`, `pnpm build`, `pnpm e2e`.

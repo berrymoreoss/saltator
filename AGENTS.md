@@ -49,6 +49,7 @@ pnpm 12 has no `-s` flag; use `pnpm <script>`.
 AGENTS.md, CLAUDE.md      agent instructions (CLAUDE.md imports this file)
 .ai/                      process memory: workflows, per-branch plans, lessons
 docs/                     vision, roadmap, architecture, simulation & component specs, ADRs
+examples/                 example circuits (.logic.json), opened from File ▸ Examples
 src/core/                 simulation kernel (pure)
 src/library/              part definitions + registry (pure)
 src/circuit/              circuit document, schema, netlist compiler (pure)
