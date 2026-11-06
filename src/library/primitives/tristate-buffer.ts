@@ -19,6 +19,17 @@ export const tristateBuffer = defineComponent<{ delay: number }, undefined>({
     { name: 'EN', dir: 'in' },
     { name: 'Y', dir: 'tristate' },
   ],
+  // A triangle with the enable entering from below.
+  symbol: {
+    kind: 'tristate-buffer',
+    width: 4,
+    height: 2,
+    pins: {
+      A: { side: 'left', offset: 1 },
+      EN: { side: 'bottom', offset: 2 },
+      Y: { side: 'right', offset: 1 },
+    },
+  },
   props: [delayProp],
   create: ({ delay }) => ({
     evaluate(ctx) {

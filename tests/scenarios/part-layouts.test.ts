@@ -1,12 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { partLayout } from '../../src/circuit';
-import {
-  type AnyComponentDefinition,
-  familyOf,
-  type PropValue,
-  pinsOf,
-  resolveProps,
-} from '../../src/core';
+import { type AnyComponentDefinition, type PropValue, pinsOf, resolveProps } from '../../src/core';
 import { createDefaultRegistry } from '../../src/library';
 
 const parts = createDefaultRegistry().list();
@@ -41,9 +35,7 @@ describe('part layouts of every built-in part', () => {
     }
   });
 
-  it('gives every IO part a symbol', () => {
-    for (const d of parts.filter((p) => familyOf(p.type) === 'io')) {
-      expect(d.symbol ?? d.package, d.type).toBeDefined();
-    }
+  it('gives every part a symbol or a package (none falls back to the generic box)', () => {
+    for (const d of parts) expect(d.symbol ?? d.package, d.type).toBeDefined();
   });
 });

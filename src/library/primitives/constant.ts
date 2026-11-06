@@ -12,6 +12,7 @@ export const constant = defineComponent<{ value: keyof typeof VALUES }, undefine
   pins: ({ value }) => [
     value === 'X' ? { name: 'Y', dir: 'out' } : { name: 'Y', dir: 'out', constant: VALUES[value] },
   ],
+  symbol: { kind: 'constant', width: 2, height: 2, pins: { Y: { side: 'right', offset: 1 } } },
   props: [
     {
       key: 'value',

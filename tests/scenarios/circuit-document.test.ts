@@ -16,13 +16,13 @@ import { levels, scenarioRegistry, set } from './support';
 
 const registry = scenarioRegistry();
 
-// Pin positions of parts placed at (x, y) — generic box layout:
-//   test/driver: Y (x+5, y+1)
-//   prim/nand:   A (x, y+1), B (x, y+2), Y (x+5, y+1)
-//   prim/not:    A (x, y+1), Y (x+5, y+1)
+// Pin positions of parts placed at (x, y):
+//   test/driver (generic box): Y (x+5, y+1)
+//   prim/nand (gate symbol):   A (x, y+1), B (x, y+3), Y (x+6, y+2)
+//   prim/not (gate symbol):    A (x, y+1), Y (x+5, y+1)
 
 /**
- * S̄R̄ latch from two NANDs. The two feedback wires cross at (17, 4) without connecting — if they
+ * S̄R̄ latch from two NANDs. The two feedback wires cross at (17, 5) without connecting — if they
  * connected, Q and Q̄ would be shorted.
  */
 function drawnLatch() {
@@ -33,8 +33,8 @@ function drawnLatch() {
     .add('U2', 'prim/nand', { at: [10, 10] })
     .connect('S.Y', 'U1.A')
     .connect('R.Y', 'U2.A')
-    .connect('U1.Y', 'U2.B', [17, 1], [17, 6], [8, 6], [8, 12])
-    .connect('U2.Y', 'U1.B', [18, 11], [18, 4], [7, 4], [7, 2])
+    .connect('U1.Y', 'U2.B', [17, 2], [17, 7], [8, 7], [8, 13])
+    .connect('U2.Y', 'U1.B', [18, 12], [18, 5], [7, 5], [7, 3])
     .document();
 }
 
@@ -145,9 +145,9 @@ describe('circuit documents → netlist → simulation', () => {
       .add('K1', 'prim/constant', { at: [0, 0] })
       .add('R1', 'prim/pull', { at: [0, 5] })
       .add('K2', 'prim/constant', { at: [0, 10], props: { value: '0' } })
-      .wire('K1.Y', 'R1.Y');
+      .connect('K1.Y', 'R1.Y');
     expect(compileCircuit(b.build(), registry).issues).toEqual([]);
-    b.wire('R1.Y', 'K2.Y');
+    b.connect('R1.Y', 'K2.Y');
     expect(compileCircuit(b.build(), registry).issues.map((i) => i.message)).toEqual([
       'outputs shorted together on net "K1.Y": K1.Y, K2.Y',
     ]);
