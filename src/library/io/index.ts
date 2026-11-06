@@ -1,6 +1,7 @@
 import type { AnyComponentDefinition } from '../../core';
 import { pushButton } from './button';
 import { dipSwitch } from './dip-switch';
+import { led, ledBar } from './led';
 import { gnd, vcc } from './rails';
 import { toggleSwitch } from './switch';
 
@@ -12,6 +13,17 @@ export {
   dipSwitch,
   MAX_DIP_SWITCHES,
 } from './dip-switch';
+export { led, ledBar, MAX_LED_BAR } from './led';
+export {
+  createLights,
+  LED_COLORS,
+  type LedColor,
+  Light,
+  type LightsState,
+  ledLight,
+  onTimeAt,
+  setLight,
+} from './lights';
 export { gnd, vcc } from './rails';
 export { type SwitchAction, type SwitchState, toggleSwitch } from './switch';
 
@@ -22,4 +34,6 @@ export const io: readonly AnyComponentDefinition[] = [
   toggleSwitch,
   pushButton,
   dipSwitch,
+  led,
+  ledBar,
 ];

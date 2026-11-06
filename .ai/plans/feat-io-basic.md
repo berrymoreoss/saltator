@@ -170,7 +170,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   for default and boundary props.
 - [x] 5. library: contacts — `io/switch`, `io/button`, `io/dip-switch` (actions, power-on
   positions, all three contact kinds).
-- [ ] 6. library: lights state + `onTimeAt`; `io/led`, `io/led-bar`.
+- [x] 6. library: lights state + `onTimeAt`; `io/led`, `io/led-bar`.
 - [ ] 7. library: `io/seven-segment` (CA/CC), `io/hex-display`, `io/probe`.
 - [ ] 8. library: `io/clock` (auto/manual, period/duty exact, frequency/duty limits).
 - [ ] 9. library: symbols for `prim/*` (incl. `prim/pull` resistor); update scenarios/bench that
