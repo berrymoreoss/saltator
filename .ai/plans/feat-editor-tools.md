@@ -227,7 +227,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 9. ui: editable Properties (designator, label, position, rotation, flip, props by type,
   `parseTime`), double-click to focus.
 - [x] 10. ui: context menu; status-bar hints per tool and gesture.
-- [ ] 11. Tests: editing scenario (Hello LED by edits) and `tests/e2e/editing.spec.ts`; look at
+- [x] 11. Tests: editing scenario (Hello LED by edits) and `tests/e2e/editing.spec.ts`; look at
   everything in the browser in both themes; measure drag frame time on the stress schematic.
 - [ ] 12. Docs: editor.md (editing, tools, shortcuts), circuit.md (edit operations,
   normalization), architecture.md, ADR-0009 (editing model), glossary, `src/*` READMEs,
