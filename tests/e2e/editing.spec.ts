@@ -1,82 +1,21 @@
-import { expect, type Page, test } from '@playwright/test';
-import { type Point, partLayout } from '../../src/circuit';
-import { resolveProps } from '../../src/core';
-import { layoutBounds } from '../../src/editor';
-import { createDefaultRegistry } from '../../src/library';
+import { expect, test } from '@playwright/test';
+import {
+  canvas,
+  clickAt,
+  menu,
+  netOf,
+  newCircuit,
+  pinOf,
+  place,
+  properties,
+  summary,
+  watchErrors,
+  wire,
+} from './support';
 
 // Editing in the browser. Every test starts from File ▸ New, which centers grid point (0, 0) on
 // the canvas at 100 % (16 px per cell), so grid points map to known pixels. Pin positions come
 // from the same layouts the app uses: a part placed by a click is centered on it.
-
-const registry = createDefaultRegistry();
-
-function watchErrors(page: Page): string[] {
-  const errors: string[] = [];
-  page.on('console', (message) => {
-    if (message.type() === 'error') errors.push(message.text());
-  });
-  page.on('pageerror', (error) => errors.push(error.message));
-  return errors;
-}
-
-const canvas = (page: Page) => page.getByTestId('schematic');
-const summary = (page: Page) => page.getByTestId('selection-summary');
-const properties = (page: Page) => page.getByTestId('properties-panel');
-
-async function menu(page: Page, title: string, item: string | RegExp): Promise<void> {
-  await page.getByRole('menuitem', { name: title, exact: true }).click();
-  await page.getByRole('menuitem', { name: item }).first().click();
-}
-
-/** File ▸ New; returns grid → page pixel. */
-async function newCircuit(page: Page): Promise<(p: Point) => Point> {
-  await page.goto('/');
-  await menu(page, 'File', 'New Circuit');
-  await expect(page.getByTestId('zoom')).toHaveText('100 %');
-  const box = (await canvas(page).boundingBox())!;
-  return ([x, y]) => [box.x + box.width / 2 + x * 16, box.y + box.height / 2 + y * 16];
-}
-
-/** Where a pin of a part placed by a click at `at` (rotation 0) ends up. */
-function pinOf(type: string, at: Point, pin: string): Point {
-  const definition = registry.get(type)!;
-  const layout = partLayout(definition, resolveProps(definition, {}));
-  const b = layoutBounds(layout);
-  const origin: Point = [
-    at[0] - Math.round(b.x + b.width / 2),
-    at[1] - Math.round(b.y + b.height / 2),
-  ];
-  const local = layout.pins.find((p) => p.name === pin)!.at;
-  return [origin[0] + local[0], origin[1] + local[1]];
-}
-
-async function clickAt(page: Page, p: Point, options: { button?: 'right' } = {}): Promise<void> {
-  await page.mouse.click(p[0], p[1], options);
-}
-
-async function place(page: Page, grid: (p: Point) => Point, type: string, at: Point) {
-  await page.locator(`[data-type="${type}"]`).click();
-  await clickAt(page, grid(at));
-  await page.keyboard.press('Escape');
-}
-
-/** Wire tool: click each grid point; the last one is a pin, which finishes the wire. */
-async function wire(page: Page, grid: (p: Point) => Point, ...points: Point[]) {
-  await page.keyboard.press('w');
-  for (const p of points) {
-    await page.mouse.move(...grid(p));
-    await clickAt(page, grid(p));
-  }
-  await page.keyboard.press('Escape');
-}
-
-/** The net a part's pin is on, as the Properties panel shows it ("open" if none). */
-async function netOf(page: Page, grid: (p: Point) => Point, at: Point, pin: string) {
-  await clickAt(page, grid(at));
-  return properties(page)
-    .locator('.prop-row', { hasText: new RegExp(`^${pin}`) })
-    .textContent();
-}
 
 test('Hello, LED drawn by hand: place, wire, label, color — no design issues', async ({ page }) => {
   const errors = watchErrors(page);
