@@ -27,6 +27,9 @@ describe('createDefaultRegistry', () => {
       'io/dip-switch',
       'io/led',
       'io/led-bar',
+      'io/seven-segment',
+      'io/hex-display',
+      'io/probe',
     ]);
   });
 
