@@ -93,7 +93,8 @@ pinouts, timing and function-table tests. Part info panel (pinout, title, datash
 ### R07 · Save, load, examples — `feat/persistence`
 
 `.logic.json` save/load (File System Access API + fallback), autosave to IndexedDB, example
-gallery, "new from example".
+gallery, "new from example". Files are written by `serializeDocument` (R02); exclude example
+documents in the repo from Biome, which would reformat them.
 
 **M1 acceptance:** in the browser, build switch → 74HC00 → LED and clock → LED; run; the LED follows
 the logic; save, reload, still works.

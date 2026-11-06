@@ -255,17 +255,42 @@ it is used from code. Auto-routing is a plain L-shape; anything smarter is edito
 Well within a frame, so R05 can recompile on every edit without incremental tricks. Kernel
 numbers unchanged (≈ 13–14M events/s).
 
+## Implementation notes (deviations from the design above)
+
+- `CompileResult` also carries `nets` (every net with its placed pins and wires) — the checks need
+  it anyway and the editor will want it for highlighting.
+- Every connected group is a net in the netlist, single unconnected pins included (same ids the
+  kernel would give them implicitly), so the editor can look up any pin or wire.
+- Generic box: power/nc pins go along the bottom; the shorter side is centered where the grid
+  allows (a 3-input gate's output sits in the middle).
+- `undriven-input` issues are listed per net (in net order), not strictly per component.
+- `CircuitBuilder.wire()` accepts pin names as points (`.wire('U1.Y', [8, 1], 'U2.A')`).
+- Circuit unit tests can't import `library` (layer check covers tests), hence
+  `src/circuit/test-parts.ts` (excluded from coverage).
+- Doc examples of the file format use a `text` fence: Biome reformats JSON fences in Markdown.
+
 ## Acceptance criteria
 
-- [ ] `pnpm check` and `pnpm build` are green; `src/circuit` imports only `core` (enforced).
-- [ ] `pnpm coverage`: `src/circuit` ≥ 90 % lines, enforced by a threshold.
-- [ ] Every connectivity rule and every design check has a dedicated test.
-- [ ] `parseDocument` reports all structural problems with JSON paths; a newer `schemaVersion`
-  is rejected with a clear message; migrations run in order (tested); round trip is lossless.
-- [ ] A circuit drawn as a document simulates exactly like the same circuit built with
-  `NetlistBuilder` (identical trace: same times, net ids and levels).
-- [ ] Compile benchmark recorded in this plan.
-- [ ] `docs/circuit.md`, architecture.md and ADR-0006 describe the implemented model.
+Verified 2026-11-06 at the end of task 10.
+
+- [x] `pnpm check` and `pnpm build` are green; `src/circuit` imports only `core` (enforced by
+  `pnpm check:layers`, tests included).
+- [x] `pnpm coverage`: `src/circuit` ≥ 90 % lines — 100 % lines, 98.3 % branches; enforced by a
+  threshold in `vite.config.ts`.
+- [x] Every connectivity rule and every design check has a dedicated test
+  (`connectivity.test.ts`: wire end on pin, pin on pin, end to end, T-junction, pin on a wire's
+  interior, crossing, collinear overlap, junction dots, dangling ends, brute-force cross-check;
+  `compile.test.ts`: each of the five issue codes).
+- [x] `parseDocument` reports all structural problems with JSON paths; a newer `schemaVersion`
+  is rejected with a clear message; migrations run in order (tested with injected migrations);
+  round trip is lossless (`schema.test.ts`, `migrations.test.ts`, `serialize.test.ts`).
+- [x] A circuit drawn as a document simulates exactly like the same circuit built with
+  `NetlistBuilder` (identical trace: same times, net ids and levels) —
+  `tests/scenarios/circuit-document.test.ts` (SR latch with crossing feedback wires, T-junction
+  fan-out).
+- [x] Compile benchmark recorded in this plan (≈ 9 ms for 3 600 parts / 10 620 wires).
+- [x] `docs/circuit.md`, architecture.md and ADR-0006 describe the implemented model; the doc's
+  JSON and builder examples were run against the code.
 
 ## Open questions
 
@@ -292,11 +317,19 @@ Asked at branch start (2026-11-06); all answered.
 
 - 2026-11-06 — branch created; plan drafted.
 - 2026-11-06 — Q1–Q4 answered (all as proposed); plan approved by the user; status in-progress.
+- 2026-11-06 — tasks 1–10 done: `PinDef.weak`; geometry; document format with loading
+  (all problems with paths), migrations and diff-friendly saving; DIP/box layouts; connectivity
+  (union-find + sorted point index, brute-force cross-check); compiler with design checks;
+  `CircuitBuilder`; scenarios (drawn latch/fan-out ≡ coded); benchmark (compile ≈ 9 ms for
+  10 620 wires); docs (`docs/circuit.md`, ADR-0006, architecture, components, glossary).
+  Acceptance criteria verified. 342 tests.
 
 ## Handoff
 
-- **State:** plan approved, Q1–Q4 answered; implementation starts with task 1.
-- **Next step:** task 1 (`PinDef.weak`).
-- **Watch out:** architecture.md proposed nanoid ids and polylines; Q2/Q3 deviate (segments,
-  designator as id) — record that in ADR-0006 and update architecture.md.
-- **Verify with:** `pnpm check`.
+- **State:** all tasks done, acceptance criteria verified; branch not merged yet.
+- **Next step:** `/finish-branch` — plan status `done`, roadmap R02 `done` / R03 `next`, merge
+  with the user's approval.
+- **Follow-ups (already noted in the roadmap):** R03 decides whether `prim/*` gates get symbols
+  (pin positions change); R05 carries state across designator renames; R07 must exclude saved
+  example documents from Biome.
+- **Verify with:** `pnpm check && pnpm build && pnpm coverage && pnpm bench`.
