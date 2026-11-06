@@ -316,9 +316,11 @@ the net ids.
   `levels()`, `expect({ Y: 1 })`, `mismatches(...)`, `expectNoDiagnostics()`, `action(payload)`.
   Values are `0`, `1`, `'X'`, `'Z'` (or `Level` constants).
 - `measure({ A: 1 }, 'Y')` applies a stimulus and returns the delay until `Y` changes.
-- `functionTable(bench, { inputs, outputs, rows })` checks a datasheet function table written
-  with datasheet letters: `H`, `L`, `X` = **don't care** (expanded to both levels), `Z` (outputs
-  only; `X` in outputs is rejected). All failing rows are reported together.
+- `functionTable(bench, { inputs, outputs, rows }, pins?)` checks a datasheet function table
+  written with datasheet letters: `H`, `L`, `X` = **don't care** (expanded to both levels), `Z`
+  (outputs only; `X` in outputs is rejected). `pins` maps the columns (inputs, then outputs) to
+  the bench's pins, so a part's generic table (`nA nB | nY`) checks each unit. All failing rows
+  are reported together.
 - `truthTable(bench, inputs, outputs, rows)` checks rows of simulator values, where `X` means
   unknown — for X/Z propagation tests.
 - `new Trace(sim)` records every net change (`lines()`, `of(net)`, `hash()` for determinism

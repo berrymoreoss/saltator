@@ -174,6 +174,18 @@ describe('functionTable', () => {
     expect(functionTable(new Bench(transceiver), t)).toBe(4);
   });
 
+  it('maps generic columns to each unit’s pins', () => {
+    const generic = { inputs: ['nA', 'nB'], outputs: ['nY'], rows: table.rows };
+    expect(functionTable(new Bench(nand), generic, ['A', 'B', 'Y'])).toBe(5);
+    expect(() => functionTable(new Bench(nand), generic, ['B', 'A'])).toThrow(
+      'function table: 2 pins [B, A] for 3 columns',
+    );
+    const swapped = { ...generic, rows: ['L H | L'] }; // wrong for a NAND whichever way round
+    expect(() => functionTable(new Bench(nand), swapped, ['B', 'A', 'Y'])).toThrow(
+      'row "L H | L" with B=0 A=1: Y: expected 0, got 1',
+    );
+  });
+
   it('rejects malformed rows and letters', () => {
     const bench = new Bench(nand);
     const run = (rows: string[]) => () => functionTable(bench, { ...table, rows });

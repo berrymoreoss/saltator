@@ -3,6 +3,7 @@
  * Spec: docs/components.md (definition shape), docs/simulation.md#components-at-runtime.
  */
 import type { ComponentDiagnostic } from './diagnostics';
+import type { FunctionTable } from './function-table';
 import type { Drive, Level } from './logic';
 import type { SymbolDef } from './symbol';
 import type { Time } from './time';
@@ -20,6 +21,8 @@ export type PinDir = 'in' | 'out' | 'tristate' | 'bidir' | 'power' | 'nc';
 export interface PinDef {
   /** Datasheet name: `1A`, `1Y`, `OE`, `VCC`. Unique within the part. */
   readonly name: string;
+  /** What the pin does, from the datasheet's pin description: `output enable input (active LOW)`. */
+  readonly description?: string;
   /** Physical pin number (required when the part has a `package`). */
   readonly number?: number;
   readonly dir: PinDir;
@@ -168,6 +171,8 @@ export interface ComponentDefinition<
   readonly units?: readonly UnitDef[];
   readonly props?: readonly PropDef[];
   readonly timing?: TimingDef;
+  /** The datasheet function table (one unit's, for multi-gate chips), shown in Part Info. */
+  readonly functionTable?: FunctionTable;
   /**
    * Geometry of a part drawn as a symbol rather than a package (LEDs, switches, gates), or a
    * function of props for parts like LED bars. Ignored when `package` is set.

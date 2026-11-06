@@ -41,6 +41,7 @@ interface ComponentDefinition<Props, State> {
   units?: UnitDef[]; // gate sections, for the future symbol view
   props?: PropDef[]; // user-editable properties (inspector)
   timing?: TimingDef; // datasheet numbers + source/conditions
+  functionTable?: FunctionTable; // datasheet function table (one unit's), shown in Part Info
   symbol?: SymbolDef | ((props: Props) => SymbolDef); // geometry when drawn as a symbol
 
   create(props: Props): Behavior<State>; // see docs/simulation.md
@@ -48,6 +49,7 @@ interface ComponentDefinition<Props, State> {
 
 interface PinDef {
   name: string; // datasheet name: '1A', '1Y', 'OE', 'VCC' (unique within the part)
+  description?: string; // datasheet pin description: 'output enable input (active LOW)'
   number?: number; // physical pin number (required when `package` is set)
   dir: 'in' | 'out' | 'tristate' | 'bidir' | 'power' | 'nc';
   activeLow?: boolean; // drawn with a bubble/overline: OE, CE, WE
@@ -164,6 +166,29 @@ Use the datasheet's typical value at 5 V when available, keyed by the datasheet 
 `tPLH`, `tPHL`, `tPZH`, `tPHZ`, `tsu`, `th`, …). Record where the numbers came from. Abstract
 `prim/*` parts have no `timing`; they take a `delay` prop instead.
 
+## Function tables
+
+A real chip carries its datasheet function table as data: Part Info shows it, and the part's test
+checks the behavior against it (`functionTable(bench, table, pins)` in `core/testing`).
+
+```ts
+functionTable: {
+  inputs: ['nA', 'nB'],     // the datasheet's generic column names
+  outputs: ['nY'],
+  rows: ['L X | H', 'X L | H', 'H H | L'],
+  note: 'each gate (n = 1 to 4)',
+}
+```
+
+- One table describes every unit; the test maps the columns to each unit's pins
+  (`for (const unit of units) functionTable(bench, table, unit.pins)`), so list a unit's pins
+  inputs first, in the table's column order.
+- Letters as in the datasheet: `H`, `L`, `X` (**don't care**, inputs), `Z` (outputs). Any other
+  cell is datasheet text kept for display (`A=B`, `input`); such rows can't be checked by the
+  helper, so the test covers them by hand.
+- The registry rejects tables without input or output columns, with duplicate column names, no
+  rows, or rows with the wrong number of cells.
+
 ## Behavior guidelines
 
 - Read inputs with `ctx.read` and combine them with the 4-state operators (`and`, `or`, `xor`,
@@ -184,8 +209,9 @@ Use the datasheet's typical value at 5 V when available, keyed by the datasheet 
 
 Every part ships with `<part>.test.ts` next to it, using `src/core/testing`:
 
-1. **Function table**: transcribe the datasheet function table with `functionTable(bench, …)`
-   (letters `H`, `L`, `X` = don't care, `Z`).
+1. **Function table**: check the definition's `functionTable` (or a transcription in the test)
+   with `functionTable(bench, table, pins)` for every unit (letters `H`, `L`, `X` = don't care,
+   `Z`).
 2. **Unknown / floating inputs**: `truthTable(bench, …)` with `0`, `1`, `'X'`, `'Z'`.
 3. **Timing**: at least one assertion that an output changes exactly `tpd` after the input
    (`bench.measure`).

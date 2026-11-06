@@ -32,6 +32,10 @@ near-identical parts such as gates). Use `defineComponent<Props, State>({ … })
   rail, `weak` on pull resistors.
 - **Timing** (`timing.typical`, optional `max`, `conditions`, `source`): typical values at
   VCC = 5 V unless the part says otherwise. Never zero for real chips.
+- **Datasheet data** (real chips): `description` on every pin (the datasheet's pin description)
+  and `functionTable` with the datasheet's generic columns (`nA nB | nY`) — Part Info shows them
+  and the test checks the behavior against the table (docs/components.md#function-tables).
+  `units` list each section's pins inputs first, in the table's column order.
 - **Behavior** (`create(props)`):
   - Precompute pin indices and constants from props in the closure (immutable only).
   - Mutable state only in `createState()` → plain data (objects, arrays, typed arrays).
@@ -53,8 +57,9 @@ Add it to the family's `index.ts` list and make sure `createDefaultRegistry()`
 File: `<part>.test.ts` next to the definition, using `Bench` and the helpers from
 `src/core/testing`:
 
-1. **Function table** — `functionTable(bench, { inputs, outputs, rows })` with the datasheet's
-   letters: `H`, `L`, `X` (= don't care, expanded), `Z` (outputs only).
+1. **Function table** — `functionTable(bench, definition.functionTable, unit.pins)` for every
+   unit (or a table written in the test), with the datasheet's letters: `H`, `L`, `X` (= don't
+   care, expanded), `Z` (outputs only).
 2. **Unknown / floating inputs** — `truthTable(bench, inputs, outputs, rows)` with simulator
    values `0`, `1`, `'X'`, `'Z'`.
 3. **Timing** — `bench.measure({ A: 1 }, 'Y')` equals the datasheet `tpd` (each distinct delay).

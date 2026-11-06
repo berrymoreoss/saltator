@@ -189,7 +189,7 @@ family, function tables and pin descriptions as definition data shown to the use
 
 Small, ordered, each committable on its own with its tests (`pnpm check` green).
 
-- [ ] 1. `core`: `PinDef.description`, `ComponentDefinition.functionTable` (shape, registry
+- [x] 1. `core`: `PinDef.description`, `ComponentDefinition.functionTable` (shape, registry
   validation, tests); `functionTable` test helper accepts a definition's table per unit
   (Q3). Docs: components.md definition shape.
 - [ ] 2. Datasheets: collect pinouts, pin descriptions, function tables and HC timing for the
@@ -262,6 +262,11 @@ Checkable statements; verified one by one in the finish-branch workflow.
 - 2026-11-07 — plan drafted; Q1–Q4 answered (Nexperia; Part tab in the bottom dock; pins,
   function table, drawing and datasheet — no timing; warn per floating input).
 - 2026-11-07 — plan approved; branch started.
+- 2026-11-07 — task 1: `FunctionTable` moved into `core` (`function-table.ts`: parse, validate),
+  `PinDef.description`, `ComponentDefinition.functionTable` (registry validates it);
+  `functionTable(bench, table, pins)` maps generic columns to a unit's pins. Text cells (`A=B`)
+  are display-only. Nexperia's asset server answers 403 to automated downloads: datasheets have
+  to be downloaded by the user (task 2).
 
 ## Handoff
 
