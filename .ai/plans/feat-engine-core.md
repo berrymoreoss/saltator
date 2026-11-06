@@ -125,7 +125,7 @@ tests/bench/          kernel benchmark
 
 ## Tasks
 
-- [ ] 1. `time.ts`, `logic.ts`: constants, `resolve()` over driver lists, level ops with 4-state
+- [x] 1. `time.ts`, `logic.ts`: constants, `resolve()` over driver lists, level ops with 4-state
   semantics (AND: any 0 → 0, all 1 → 1, else X; OR dual; XOR: any X/Z → X; NOT: X/Z → X).
   Exhaustive tests.
 - [ ] 2. `event-queue.ts`: heap with `(time, seq)` ordering and lazy cancellation. Tests incl. a

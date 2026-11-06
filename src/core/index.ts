@@ -1,5 +1,26 @@
 /**
  * Public API of the simulation kernel (signal model, scheduler, netlist runtime, component API).
- * Implemented in R01 (feat/engine-core). See docs/simulation.md.
+ * Spec: docs/simulation.md.
  */
-export {};
+
+export {
+  and,
+  DRIVES,
+  Drive,
+  driveName,
+  isContention,
+  LEVELS,
+  Level,
+  levelChar,
+  levelOf,
+  not,
+  or,
+  resolve,
+  Strength,
+  strengthOf,
+  strong,
+  toInput,
+  weak,
+  xor,
+} from './logic';
+export { formatTime, ms, ns, ps, TIME_MAX, type Time, us } from './time';
