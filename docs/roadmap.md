@@ -156,6 +156,16 @@ Setup/hold violation diagnostics for edge-triggered parts.
 Named net labels/tunnels, multi-bit buses with bus rippers/splitters, bus value display (hex),
 junction dots. Essential for readable 8-bit schematics.
 
+**Net labels** (KiCad/Altium/Proteus "net label", Logisim "tunnel"): a flag with a name and one
+connection point, placed on a wire end or a pin tip. All labels with the same name are one net,
+so a circuit can be laid out in blocks without wires running across it: switches `A`, `B` →
+labels `A`, `B` in one place; labels `A`, `B` → the 74HC00 inputs in another. The net takes the
+label's name (Properties, Messages, later the analyzer); a name used by a single label is a
+design warning (likely a typo). Scope: the whole circuit until R11 decides local vs global
+labels. VCC and GND symbols join by name the same way
+([ADR-0007](adr/0007-io-electrical-model.md)). Placed from the quick-place toolbar group
+(backlog) as well as the Parts panel.
+
 ### R11 · Hierarchical design — `feat/subcircuits`
 
 Multiple circuits per project, subcircuit instances with generated or custom symbols, navigation
@@ -249,3 +259,7 @@ Promote to a numbered item when needed.
 - Simulation view extras (R05 follow-ups): LED colors that stay visible on the light theme's
   cream when dim (a dim yellow LED is hard to see); a "toggling" wire style for nets that change
   faster than the frame rate, which now flicker between 0 and 1 from frame to frame.
+- Quick-place toolbar group: one-click buttons for the parts placed most often — VCC, GND and
+  Net Label — that arm the sticky place tool like a click in the Parts panel, with shortcuts
+  (KiCad uses `P` for power and `L` for a label; both are free). VCC and GND can land any time;
+  the Net Label button comes with R10.
