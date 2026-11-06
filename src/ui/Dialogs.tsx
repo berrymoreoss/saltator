@@ -9,10 +9,12 @@ interface DialogProps {
   readonly onClose: () => void;
   readonly children: ReactNode;
   readonly testId?: string;
+  /** A wider window (the example gallery). */
+  readonly wide?: boolean;
 }
 
 /** A modal window: Escape, the close button or a click outside closes it. */
-export function Dialog({ title, onClose, children, testId }: DialogProps) {
+export function Dialog({ title, onClose, children, testId, wide }: DialogProps) {
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
     // Unless a button took the focus (the default answer), the box takes it for Escape.
@@ -27,7 +29,7 @@ export function Dialog({ title, onClose, children, testId }: DialogProps) {
     >
       <div
         ref={box}
-        className="dialog"
+        className={wide ? 'dialog wide' : 'dialog'}
         role="dialog"
         aria-modal="true"
         aria-label={title}

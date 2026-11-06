@@ -7,6 +7,7 @@ import { CommandRegistry, dispatchShortcut } from './commands';
 import { AboutDialog, FileProblemDialog, ShortcutsDialog, UnsavedChangesDialog } from './Dialogs';
 import type { DocumentController } from './document-controller';
 import { documentTitle, hasUnsavedChanges } from './document-session';
+import { ExampleGalleryDialog } from './ExampleGallery';
 import { droppedFile } from './files';
 import { useMediaQuery, useStore, useStoreValue } from './hooks';
 import { MenuBar } from './MenuBar';
@@ -342,6 +343,19 @@ export function Workbench({
         <ShortcutsDialog commands={commands} mac={MAC} onClose={closeDialog} />
       )}
       {uiState.dialog === 'about' && <AboutDialog onClose={closeDialog} />}
+      {uiState.dialog === 'examples' && (
+        <ExampleGalleryDialog
+          examples={examples}
+          registry={editor.registry}
+          theme={canvasTheme}
+          gateStyle={settings.gateStyle}
+          onClose={closeDialog}
+          onOpen={(example) => {
+            closeDialog();
+            void documents.openExample(example.label, example.document);
+          }}
+        />
+      )}
       {uiState.unsavedQuestion && (
         <UnsavedChangesDialog
           name={uiState.unsavedQuestion.name}

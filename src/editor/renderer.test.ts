@@ -3,6 +3,7 @@ import { CircuitBuilder } from '../circuit';
 import { createDefaultRegistry } from '../library';
 import { DEFAULT_CAMERA } from './camera';
 import { WIRE_WIDTH } from './graphics';
+import { drawCircuitPreview } from './preview';
 import { type RenderOptions, renderScene, type SignalView } from './renderer';
 import { buildScene } from './scene';
 import { EMPTY_SELECTION } from './selection';
@@ -105,5 +106,19 @@ describe('renderScene: signals', () => {
       signals: signals({ [w1]: SignalStyle.L0, [w2]: SignalStyle.L0 }),
     });
     expect(wireStrokes(strokes)).toEqual([`${levels.l0}: 2`, `${DARK_CANVAS.selection}: 1`]);
+  });
+});
+
+describe('drawCircuitPreview', () => {
+  it('draws a whole circuit, and an empty one without failing', () => {
+    const { ctx, strokes } = recordingContext();
+    const size = { width: 200, height: 120 };
+    const options = { theme: DARK_CANVAS, gateStyle: 'ansi' as const, dpr: 2 };
+    drawCircuitPreview(ctx, registry, circuit, size, options);
+    expect(strokes.length).toBeGreaterThan(3);
+    const empty = recordingContext();
+    const nothing = { ...circuit, components: [], wires: [] };
+    drawCircuitPreview(empty.ctx, registry, nothing, size, options);
+    expect(empty.strokes.length).toBeLessThan(strokes.length);
   });
 });

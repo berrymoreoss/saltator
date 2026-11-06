@@ -13,7 +13,7 @@ import {
   unsavedDialog,
   writeFile,
 } from './file-system';
-import { menu, watchErrors } from './support';
+import { menu, openApp, watchErrors } from './support';
 
 // Files (R07): Save/Open through the File System Access API (stubbed pickers over the private
 // file system: the real pickers are native dialogs), the download/file-input fallback, "Save
@@ -26,7 +26,7 @@ test.describe('with the File System Access API', () => {
 
   test('Save writes a file, Save again needs no picker, Open reads it back', async ({ page }) => {
     const errors = watchErrors(page);
-    await page.goto('/');
+    await openApp(page);
     await expect(page).toHaveTitle('Hello, LED — Logic');
     await expect(documentName(page)).toHaveText('Hello, LED');
 
@@ -65,7 +65,7 @@ test.describe('with the File System Access API', () => {
   });
 
   test('replacing unsaved changes asks first: Cancel, Save, Don’t Save', async ({ page }) => {
-    await page.goto('/');
+    await openApp(page);
     await edit(page);
 
     await menu(page, 'File', 'New Circuit');
@@ -103,7 +103,7 @@ test.describe('with the File System Access API', () => {
   test('a file that does not load shows its problems and leaves the circuit alone', async ({
     page,
   }) => {
-    await page.goto('/');
+    await openApp(page);
     await writeFile(
       page,
       'broken.logic.json',
@@ -121,7 +121,7 @@ test.describe('with the File System Access API', () => {
   });
 
   test('a .logic.json file dropped onto the window opens', async ({ page }) => {
-    await page.goto('/');
+    await openApp(page);
     await page.evaluate(() => {
       const text =
         '{"schemaVersion": 1, "circuits": [{"id": "main", "name": "Main", "components": [{"id": "U1", "type": "prim/nand", "x": 0, "y": 0}], "wires": []}]}';
@@ -140,7 +140,7 @@ test.describe('with the File System Access API', () => {
   test('Open Recent lists saved and opened files, survives a reload, can be cleared', async ({
     page,
   }) => {
-    await page.goto('/');
+    await openApp(page);
     await pick(page, 'save', 'first.logic.json');
     await page.keyboard.press('ControlOrMeta+S');
     await expect(page).toHaveTitle('first — Logic');
@@ -180,7 +180,7 @@ test.describe('without the File System Access API (Firefox, Safari)', () => {
   });
 
   test('Save downloads the file; Open reads a chosen file', async ({ page }) => {
-    await page.goto('/');
+    await openApp(page);
     await edit(page);
 
     const download = page.waitForEvent('download');

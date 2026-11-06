@@ -484,6 +484,45 @@ select.prop-input {
   user-select: text;
 }
 
+.dialog.wide {
+  width: min(900px, calc(100vw - 32px));
+}
+
+.example-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.example-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--input-bg);
+  text-align: left;
+  cursor: pointer;
+}
+
+.example-card:hover {
+  border-color: var(--accent);
+}
+
+.example-thumbnail {
+  width: 100%;
+  border-radius: 4px;
+}
+
+.example-title {
+  font-weight: 600;
+}
+
+.example-description {
+  line-height: 1.35;
+}
+
 .dialog-actions {
   display: flex;
   gap: 8px;

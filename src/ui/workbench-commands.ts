@@ -13,6 +13,7 @@ import {
   Hand,
   Info,
   Keyboard,
+  LayoutGrid,
   Maximize,
   Monitor,
   Moon,
@@ -98,6 +99,12 @@ export function createCommands({
       icon: FilePlus,
       shortcuts: ['Mod+Alt+N'],
       run: () => void documents.newDocument(),
+    },
+    {
+      id: 'file.gallery',
+      label: 'New from Example…',
+      icon: LayoutGrid,
+      run: () => ui.update((s) => ({ ...s, dialog: 'examples' })),
     },
     {
       id: 'file.open',
@@ -554,6 +561,7 @@ export function workbenchMenus(examples: readonly Example[], recentCount?: numbe
       label: 'File',
       items: [
         'file.new',
+        'file.gallery',
         'file.open',
         ...recentItems,
         SEPARATOR,

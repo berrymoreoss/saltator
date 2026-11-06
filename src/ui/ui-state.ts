@@ -18,7 +18,7 @@ export interface Example {
   readonly document: () => CircuitDocument;
 }
 
-export type DialogId = 'shortcuts' | 'about';
+export type DialogId = 'shortcuts' | 'about' | 'examples';
 
 /** "Save changes to “name”?" waiting for an answer. */
 export interface UnsavedQuestion {

@@ -11,7 +11,7 @@ import {
   storedSessions,
   stubFileSystemAccess,
 } from './file-system';
-import { menu, watchErrors } from './support';
+import { menu, openApp, watchErrors } from './support';
 
 // Autosave and session restore (R07, Q1): a reload or a reopened tab shows the circuit as it was,
 // unsaved changes, file and view included.
@@ -22,7 +22,7 @@ test.beforeEach(async ({ page }) => {
 
 test('a reload brings back the unsaved circuit, its name and the view', async ({ page }) => {
   const errors = watchErrors(page);
-  await page.goto('/');
+  await openApp(page);
   await edit(page);
   await page.keyboard.press('=');
   const zoom = await page.getByTestId('zoom').textContent();
@@ -45,7 +45,7 @@ test('a reload brings back the unsaved circuit, its name and the view', async ({
 test('a saved file stays the document’s file across a reload: Save needs no picker', async ({
   page,
 }) => {
-  await page.goto('/');
+  await openApp(page);
   await pick(page, 'save', 'hello.logic.json');
   await page.keyboard.press('ControlOrMeta+S');
   await expect(page).toHaveTitle('hello — Logic');
@@ -65,13 +65,13 @@ test('a new tab starts from the latest session; each tab then keeps its own', as
   page,
   context,
 }) => {
-  await page.goto('/');
+  await openApp(page);
   await edit(page);
   await expect.poll(() => storedSessions(page)).toEqual([{ name: 'Hello, LED', unsaved: true }]);
 
   const second = await context.newPage();
   await second.addInitScript(stubFileSystemAccess);
-  await second.goto('/');
+  await openApp(second);
   await expect(second).toHaveTitle('• Hello, LED — Logic');
   await menu(second, 'File', 'New Circuit');
   await second.getByTestId('unsaved-dialog').getByRole('button', { name: 'Don’t Save' }).click();
@@ -91,17 +91,17 @@ test('a new tab starts from the latest session; each tab then keeps its own', as
 });
 
 test('?example= opens the example instead of the restored session', async ({ page }) => {
-  await page.goto('/');
+  await openApp(page);
   await edit(page);
   await expect.poll(() => storedSessions(page)).toEqual([{ name: 'Hello, LED', unsaved: true }]);
-  await page.goto('/?gallery');
+  await openApp(page, '/?gallery');
   await expect(page).toHaveTitle('Symbol Gallery — Logic');
 });
 
 test('a reload right after an edit keeps it (written synchronously on unload)', async ({
   page,
 }) => {
-  await page.goto('/');
+  await openApp(page);
   await expect.poll(() => storedSessions(page)).toEqual([{ name: 'Hello, LED', unsaved: false }]);
   await edit(page);
   await page.reload();

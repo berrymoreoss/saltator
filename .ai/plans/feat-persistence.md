@@ -192,7 +192,7 @@ permission (a user gesture); a file that is gone is dropped from the list with a
 - [x] 5. Autosave and session restore (`SessionStore`, IndexedDB adapter, start-up order,
   per-tab sessions, camera); e2e reload restore.
 - [x] 6. Open Recent (Q3).
-- [ ] 7. Example gallery dialog with thumbnails; New from Example; e2e.
+- [x] 7. Example gallery dialog with thumbnails; New from Example; e2e.
 - [ ] 8. Learning examples (Q2) — half adder, SR latch, ring oscillator — as files, each with a
   scenario test that runs it (truth table, set/reset/hold, oscillation period).
 - [ ] 9. M1 acceptance e2e; look at it in the browser (both themes).
@@ -262,14 +262,20 @@ permission (a user gesture); a file that is gone is dropped from the list with a
   in `pagehide` don't finish. Now a pending write is never pushed back (≤ 500 ms latency) and
   `pagehide` also writes the session synchronously to localStorage (`logic.unload.<id>`, no
   handle); `recoverUnloadWrites` moves newer ones into IndexedDB at start-up.
+- 2026-11-07 — task 7: File ▸ New from Example… (`ExampleGalleryDialog`, examples with a
+  description; thumbnails by `drawCircuitPreview`). E2E: the app now renders only after the
+  restore, so a key pressed right after `goto` was lost — every spec loads through
+  `openApp(page)` (waits for the canvas); `newCircuit` answers "Don't Save" when a second tab
+  starts from another tab's unsaved session.
 
 ## Handoff
 
 - **State:** tasks 1–4 done: examples as files, session model, `FileAccess`, File commands with
   `DocumentController` (`src/ui/document-controller.ts`), dialogs, title, drop; e2e `files.spec.ts`;
   autosave (`src/ui/autosave.ts`, `browser-storage.ts`, start-up in `App.tsx`); e2e
-  `autosave.spec.ts`; Open Recent (`src/ui/recent-files.ts`).
-- **Next step:** task 7 (example gallery dialog with thumbnails, New from Example).
+  `autosave.spec.ts`; Open Recent (`src/ui/recent-files.ts`); gallery (`ExampleGallery.tsx`,
+  `drawCircuitPreview` in `src/editor/preview.ts`).
+- **Next step:** task 8 (learning examples: half adder, SR latch, ring oscillator).
 - **Watch out:** Biome reformats `.json` (exclude `**/*.logic.json` first); Chrome reserves
   `Mod+N`.
 - **Verify with:** `pnpm check`, `pnpm e2e`.
