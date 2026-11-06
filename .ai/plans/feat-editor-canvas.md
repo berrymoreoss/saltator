@@ -277,7 +277,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 11. ui: Parts panel — family tree, search, preview (symbol canvas, title, pins, datasheet).
 - [x] 12. ui: Properties (read-only), Messages (click to locate), status bar counters, Keyboard
   shortcuts dialog, About.
-- [ ] 13. app: composition root, Hello LED and Symbol gallery documents, dev-only DIP-14 part;
+- [x] 13. app: composition root, Hello LED and Symbol gallery documents, dev-only DIP-14 part;
   e2e smoke extended (see Testing); look at both themes and both gate styles in the browser;
   measure the bench schematic redraw.
 - [ ] 14. Docs: `docs/editor.md` (shell, commands and shortcuts, camera, rendering, symbols, text
