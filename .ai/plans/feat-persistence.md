@@ -185,7 +185,7 @@ permission (a user gesture); a file that is gone is dropped from the list with a
 - [x] 1. Examples as files: Biome ignores `**/*.logic.json`; `examples/hello-led.logic.json`
   written from the builder; `src/app/example-files.ts`; the app loads it; scenario test for example
   files; `editing.test.ts` reads the file; the `helloLed` builder removed.
-- [ ] 2. Document session model + file-name rules (pure, unit tests).
+- [x] 2. Document session model + file-name rules (pure, unit tests).
 - [ ] 3. `FileAccess`: File System Access and fallback implementations, feature detection.
 - [ ] 4. File commands: New, Open, Save, Save As; open = `setCircuit`; the unsaved-changes and
   load-error dialogs; title and name in the menu bar; drop a file to open; e2e.
@@ -241,8 +241,8 @@ permission (a user gesture); a file that is gone is dropped from the list with a
 
 ## Handoff
 
-- **State:** task 1 done (examples as files).
-- **Next step:** task 2 (document session model).
+- **State:** tasks 1–2 done (examples as files, `src/ui/document-session.ts`).
+- **Next step:** task 3 (`FileAccess`).
 - **Watch out:** Biome reformats `.json` (exclude `**/*.logic.json` first); Chrome reserves
   `Mod+N`.
 - **Verify with:** `pnpm check`, `pnpm e2e`.
