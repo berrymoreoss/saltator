@@ -228,7 +228,7 @@ it is used from code. Auto-routing is a plain L-shape; anything smarter is edito
   pin on wire interior, pin-to-pin, crossing, collinear overlap, junction dots).
 - [x] 6. `compile.ts`, `checks.ts`: netlist, deterministic net ids, `wireNets`, wire-only nets,
   every design check. Tests incl. running compiled netlists in the `Simulator`.
-- [ ] 7. `builder.ts`: `CircuitBuilder` with `add`, `wire`, `connect`, `pin`, `build`,
+- [x] 7. `builder.ts`: `CircuitBuilder` with `add`, `wire`, `connect`, `pin`, `build`,
   `document`. Tests.
 - [ ] 8. `tests/scenarios`: SR latch and a T-junction fan-out drawn as documents → compile →
   simulate, matching the same circuits built with `NetlistBuilder` (trace hash); crossing wires
