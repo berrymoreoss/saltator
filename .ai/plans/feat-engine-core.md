@@ -165,7 +165,7 @@ tests/bench/          kernel benchmark
 - [x] 8. `src/library/primitives` + `createDefaultRegistry()`: all `prim/*` parts with props
   (`inputs`, `delay`, `value`, `direction`). Function-table tests incl. X/Z inputs and one
   timing test per part.
-- [ ] 9. `tests/scenarios`: ring oscillator (N odd inverters, delay d ⇒ period 2·N·d); zero-delay
+- [x] 9. `tests/scenarios`: ring oscillator (N odd inverters, delay d ⇒ period 2·N·d); zero-delay
   ring ⇒ `oscillation` + halt; inertial filtering (pulse < tpd swallowed, ≥ tpd passes); SR
   latch from two NANDs (X at power-on, set, reset, hold); tri-state bus + pull-down (idle →
   weak 0, one driver → its value, two opposite drivers → X + `contention`); floating input
