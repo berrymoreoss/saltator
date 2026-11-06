@@ -7,6 +7,7 @@ export * from './dev-parts';
 export * from './graphics';
 export * from './grid';
 export * from './hit-test';
+export * from './recording-graphics';
 export * from './renderer';
 export * from './scene';
 export * from './selection';

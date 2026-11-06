@@ -263,7 +263,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 5. editor: renderer core — HiDPI canvas, resize/DPR handling, on-demand redraw, canvas
   theme, adaptive grid, wires, junctions, pin stubs, box/unknown fallbacks, text with LOD,
   culling, hover/selection overlays; pure helpers (grid spacing, visible rect) tested.
-- [ ] 6. editor: gate drawers (ANSI + IEC; buffer, inverter, tri-state), `constant`,
+- [x] 6. editor: gate drawers (ANSI + IEC; buffer, inverter, tri-state), `constant`,
   `pull-up/down`, `vcc`/`gnd`; recording-graphics test harness.
 - [ ] 7. editor: IO drawers (switch, button, dip-switch, clock, led, led-bar, seven-segment,
   hex-display, probe) and the DIP package renderer; scenario test: every registered part draws
