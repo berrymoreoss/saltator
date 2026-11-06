@@ -4,7 +4,7 @@
 | ---------- | ---------------------------------------------------------- |
 | Branch     | `feat/engine-core`                                         |
 | Roadmap    | R01 — Simulation kernel ([roadmap](../../docs/roadmap.md)) |
-| Status     | in-progress                                                |
+| Status     | done                                                       |
 | Depends on | R00                                                        |
 | Created    | 2026-11-06                                                 |
 
@@ -241,15 +241,14 @@ Asked at branch start (2026-11-06); all answered.
   `createDefaultRegistry()`, scenario tests, benchmark (native imports; module runner ~3× slower),
   docs. Fixed `scripts/check-layers.ts` misclassifying directory imports (`'../../core'`) as the
   app layer. No decision deviates from ADR-0003, so no new ADR. Acceptance criteria verified.
+- 2026-11-06 — finished: acceptance criteria re-verified (check, build, coverage 99.9 % lines in
+  core, 25 scenario tests, bench ≈ 13–13.8M events/s). Roadmap: R01 `done`, R02 `next`; backlog
+  gained "seeded random power-on". Summary: 4-state event-driven kernel with inertial delays,
+  delta cycles, diagnostics, netlist builder/resolution, test bench and `prim/*` library.
 
 ## Handoff
 
-- **State:** all 11 tasks done and committed; acceptance criteria verified; `pnpm check`,
-  `pnpm build`, `pnpm coverage`, `pnpm bench` green. Roadmap still says R01 `in-progress`.
-- **Next step:** run the finish-branch workflow (`/finish-branch`): set plan status `done`,
-  roadmap R01 → `done`, R02 → `next`, commit `docs(plan): finish feat/engine-core`, then **ask the
-  user** before merging to `main` (no remote: `git merge --no-ff`).
-- **Watch out:** R02 builds on `NetlistBuilder`/`resolveNetlist`/`ComponentRegistry` from
-  `src/core`; the builder's `net(name)` already joins same-named nets (net-label semantics).
-  Benchmarks must run via `pnpm bench` (native imports), not plain `vitest bench`.
+- **State:** finished; merged to `main` with `--no-ff` after the user's approval. Nothing pending.
+- **Follow-ups:** R02 (`feat/circuit-model`) is `next` and builds on `NetlistBuilder`,
+  `resolveNetlist` and `ComponentRegistry`; seeded random power-on is in the backlog.
 - **Verify with:** `pnpm check && pnpm build && pnpm coverage && pnpm bench`.
