@@ -18,8 +18,9 @@ Specification of the kernel in `src/core` (implemented in R01). Rationale:
   2^53 ps ≈ 2.5 hours of simulated time). `TIME_MAX` means "no limit".
 - `ps(n)`, `ns(n)`, `us(n)`, `ms(n)` convert to picoseconds, rounding to an integer
   (`ns(0.3)` = 300). `formatTime(t)` renders `'1.5 ns'`, `'16 ms'`.
-- Timing data comes from datasheets (typical values at VCC = 5 V, 25 °C unless a part says
-  otherwise). A future "worst case" mode may switch to max values.
+- Timing data comes from datasheets: typical values at 25 °C under the conditions the part
+  states (74HC: VCC = 4.5 V, CL = 50 pF; docs/components.md#timing). A future "worst case" mode
+  may switch to max values.
 
 ## Signal values
 

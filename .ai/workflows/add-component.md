@@ -30,8 +30,9 @@ near-identical parts such as gates). Use `defineComponent<Props, State>({ … })
   depends on them); see docs/components.md#symbols-non-package-parts.
 - **Pin flags**: `sense` on inputs that only observe (indicators), `constant` on outputs tied to a
   rail, `weak` on pull resistors.
-- **Timing** (`timing.typical`, optional `max`, `conditions`, `source`): typical values at
-  VCC = 5 V unless the part says otherwise. Never zero for real chips.
+- **Timing** (`timing.typical`, optional `max`, `conditions`, `source`): for 74HC, typical at
+  VCC = 4.5 V, CL = 50 pF and max at −40 °C to +85 °C (docs/components.md#timing). Never zero
+  for real chips.
 - **Datasheet data** (real chips): `description` on every pin (the datasheet's pin description)
   and `functionTable` with the datasheet's generic columns (`nA nB | nY`) — Part Info shows them
   and the test checks the behavior against the table (docs/components.md#function-tables).

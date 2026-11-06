@@ -155,16 +155,20 @@ interface PropDef {
 
 ```ts
 timing: {
-  typical: { tpd: ns(7) },       // values the behavior uses (typical)
-  max: { tpd: ns(15) },          // optional, for a future worst-case mode
-  conditions: 'VCC = 5 V, CL = 15 pF, Tamb = 25 °C',
-  source: 'Nexperia 74HC00 datasheet, rev. 9, table 8',
+  typical: { tpd: ns(9) },       // values the behavior uses (typical)
+  max: { tpd: ns(23) },          // optional, for a future worst-case mode
+  conditions: 'VCC = 4.5 V, CL = 50 pF; typ at 25 °C, max at −40 °C to +85 °C',
+  source: 'Nexperia 74HC_HCT00 product data sheet, rev. 11 (29 April 2025), table 7',
 }
 ```
 
-Use the datasheet's typical value at 5 V when available, keyed by the datasheet symbol (`tpd`,
-`tPLH`, `tPHL`, `tPZH`, `tPHZ`, `tsu`, `th`, …). Record where the numbers came from. Abstract
-`prim/*` parts have no `timing`; they take a `delay` prop instead.
+Keyed by the datasheet symbol (`tpd`, `ten`, `tdis`, `tPLH`, `tPHL`, `tsu`, `th`, …); record
+where the numbers came from. **74HC parts use VCC = 4.5 V, CL = 50 pF** for every delay: the
+typical value at 25 °C drives the simulation, the maximum at −40 °C to +85 °C is recorded for a
+future worst-case mode. It is the one condition at which Nexperia gives every delay (typical
+`ten`/`tdis` exist only at 2.0, 4.5 and 6.0 V) and the maxima, and a breadboard's load is closer
+to 50 pF than to 15 pF (R06, Q5). Other families state their own conditions. Abstract `prim/*`
+parts have no `timing`; they take a `delay` prop instead.
 
 ## Function tables
 
