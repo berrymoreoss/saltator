@@ -4,7 +4,7 @@
 | ---------- | -------------------------------------------------------------------------- |
 | Branch     | `feat/sim-ui`                                                              |
 | Roadmap    | R05 — Running simulations in the editor ([roadmap](../../docs/roadmap.md)) |
-| Status     | draft                                                                      |
+| Status     | in-progress                                                                |
 | Depends on | R01, R03, R04a, R04b                                                       |
 | Created    | 2026-11-07                                                                 |
 
@@ -339,12 +339,11 @@ Asked at branch start (2026-11-07); all answered.
 - 2026-11-07 — branch created; plan drafted.
 - 2026-11-07 — Q1–Q4 answered (Q2–Q4 as proposed; Q1 full carry-over plus the user's
   addition: structurally unchanged edits keep the simulator); design updated.
+- 2026-11-07 — plan approved by the user; status in-progress.
 
 ## Handoff
 
-- **State:** plan drafted, Q1–Q4 answered and recorded; waiting for the user's approval of the
-  plan.
-- **Next step:** on approval: status in-progress, roadmap R05 `in-progress`, commit
-  `docs(plan): start feat/sim-ui`, then task 1 (core carry-over).
+- **State:** plan approved; implementation starting.
+- **Next step:** task 1 (core carry-over).
 - **Watch out:** —
 - **Verify with:** `pnpm check`.
