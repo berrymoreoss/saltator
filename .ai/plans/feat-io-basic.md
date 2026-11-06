@@ -168,7 +168,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 4. library: `io/` family skeleton in the default registry; `io/vcc`, `io/gnd`;
   `prim/constant` marks its pin `constant`; library-wide test: every part's layout resolves
   for default and boundary props.
-- [ ] 5. library: contacts — `io/switch`, `io/button`, `io/dip-switch` (actions, power-on
+- [x] 5. library: contacts — `io/switch`, `io/button`, `io/dip-switch` (actions, power-on
   positions, all three contact kinds).
 - [ ] 6. library: lights state + `onTimeAt`; `io/led`, `io/led-bar`.
 - [ ] 7. library: `io/seven-segment` (CA/CC), `io/hex-display`, `io/probe`.

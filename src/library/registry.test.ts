@@ -22,6 +22,9 @@ describe('createDefaultRegistry', () => {
       'prim/pull',
       'io/vcc',
       'io/gnd',
+      'io/switch',
+      'io/button',
+      'io/dip-switch',
     ]);
   });
 
