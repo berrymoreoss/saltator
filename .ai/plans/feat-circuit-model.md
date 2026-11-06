@@ -230,9 +230,10 @@ it is used from code. Auto-routing is a plain L-shape; anything smarter is edito
   every design check. Tests incl. running compiled netlists in the `Simulator`.
 - [x] 7. `builder.ts`: `CircuitBuilder` with `add`, `wire`, `connect`, `pin`, `build`,
   `document`. Tests.
-- [ ] 8. `tests/scenarios`: SR latch and a T-junction fan-out drawn as documents → compile →
-  simulate, matching the same circuits built with `NetlistBuilder` (trace hash); crossing wires
-  stay separate; save → load → same netlist.
+- [x] 8. `tests/scenarios`: SR latch and a T-junction fan-out drawn as documents → compile →
+  simulate, matching the same circuits built with `NetlistBuilder` (identical trace lines; the
+  trace hash mixes net indices, which differ between the two netlists by construction); crossing
+  wires stay separate; save → load → same netlist.
 - [ ] 9. `tests/bench/circuit.bench.ts`: compile a large synthetic document (thousands of parts,
   ~10 000 wires); record the time below.
 - [ ] 10. Docs: `docs/circuit.md` (document format, layouts, connectivity, checks, compiler,
@@ -247,7 +248,7 @@ it is used from code. Auto-routing is a plain L-shape; anything smarter is edito
 - [ ] `parseDocument` reports all structural problems with JSON paths; a newer `schemaVersion`
   is rejected with a clear message; migrations run in order (tested); round trip is lossless.
 - [ ] A circuit drawn as a document simulates exactly like the same circuit built with
-  `NetlistBuilder` (identical trace hash).
+  `NetlistBuilder` (identical trace: same times, net ids and levels).
 - [ ] Compile benchmark recorded in this plan.
 - [ ] `docs/circuit.md`, architecture.md and ADR-0006 describe the implemented model.
 
