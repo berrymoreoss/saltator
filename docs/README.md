@@ -8,6 +8,7 @@
 | [simulation.md](simulation.md)     | Kernel semantics: time, levels, strengths, delays, event loop     |
 | [components.md](components.md)     | How parts are defined, pinned, timed and tested                   |
 | [circuit.md](circuit.md)           | Circuit documents, file format, connectivity, compiler, checks    |
+| [editor.md](editor.md)             | The workbench shell, canvas, symbols, navigation, selection       |
 | [glossary.md](glossary.md)         | Domain terms (electronics and simulator)                          |
 | [adr/](adr/)                       | Architecture decisions and their reasons                          |
 

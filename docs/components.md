@@ -98,7 +98,9 @@ short.
 - The editor draws DIP parts generically from `package` + `pins`, so a 74xx definition needs no
   drawing code. Pin positions come from `partLayout` in `src/circuit`
   ([circuit.md](circuit.md#part-layouts)): vertical, notch up, pin pitch one cell, body 4 cells
-  wide up to 20 pins and 6 above. Body and label styling are decided in R04.
+  wide up to 20 pins and 6 above. The drawing — notch, pin numbers outside, pin names inside
+  (overlined when `activeLow`, a clock triangle for `clock`), part name down the middle — is in
+  [editor.md](editor.md#symbol-drawing).
 - `VCC` and `GND` are present in the definition and drawn, but the MVP treats every chip as
   powered. A later design check will flag unconnected power pins.
 
@@ -225,7 +227,10 @@ type PinSide = 'left' | 'top' | 'right' | 'bottom';
 - `partLayout` in `src/circuit` turns the symbol into connection points
   ([circuit.md](circuit.md#part-layouts)). A `package` wins over a `symbol` (chips are drawn as
   packages, ADR-0004); parts with neither get the generic box (none of the built-in parts).
-- Where the designator and label text go is decided by the editor (R04).
+- The editor draws each `kind` with its own drawer (ANSI or IEC gate style) and places the
+  designator and label outside the part ([editor.md](editor.md#symbol-drawing)). A new symbol
+  kind needs a drawer in `src/editor/symbols/`; `tests/scenarios/symbol-drawing.test.ts` fails
+  for a shipped part whose kind has none.
 
 ## IO parts (`io/*`)
 

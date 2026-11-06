@@ -48,3 +48,11 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
 - 2026-11-06 (R04a) — Playwright's `webServer.command` must not start the server through
   `pnpm exec`: pnpm moves it out of the process group Playwright kills, so the run hangs after
   the tests (or leaves an orphan on the port). Call `node_modules/.bin/vite` directly.
+- 2026-11-06 (R04a) — Biome's a11y rules can't see a role chosen by an expression
+  (`role={checked ? 'menuitemcheckbox' : 'menuitem'}`) and then flag `aria-checked` on a
+  `<button>`. Render the two cases as separate elements with literal roles.
+- 2026-11-06 (R04a) — The first canvas frame is slow (fonts, JIT: ~13 ms where steady frames take
+  ~1 ms). Measure redraw time as the median of many frames, not the first one.
+- 2026-11-06 (R04a) — Without the Chrome extension, look at the UI with a Playwright script in the
+  scratchpad (`chromium.launch()`, `colorScheme`, `deviceScaleFactor: 2`, `page.evaluate` to
+  drive `window.logicEditor` in dev builds) and read the PNG back.

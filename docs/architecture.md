@@ -128,35 +128,49 @@ Implemented in R02. Full spec: [circuit.md](circuit.md). Rationale:
 
 ## Editor
 
-_(planned, R04/R05)_ Framework-agnostic TypeScript on top of a `<canvas>`:
+Implemented in R04a (view, navigation, selection); editing tools come in R04b, the live signal
+overlay in R05. Full spec: [editor.md](editor.md). Framework-agnostic TypeScript on a `<canvas>`:
 
+- **Scene** (pure): the circuit's parts with layouts, placements, bounds, pins with nets and
+  text, wires, junctions and issues, rebuilt once per document change.
 - **Renderer**: Canvas2D, HiDPI-aware, redraws on demand (dirty flag + `requestAnimationFrame`),
-  layered (grid → wires → parts → overlays). Wire colors reflect net level (e.g. 1 = bright
-  green, 0 = dark green, Z = blue, X = red; contention flashes).
-- **Camera**: pan/zoom with world ↔ screen transforms; world unit = grid cell.
-- **Tools**: select/move, place part, draw wire (orthogonal, L-shaped auto-route), pan, delete,
-  rotate, duplicate, copy/paste.
-- **Commands**: every document mutation is a command with `do/undo`; the history drives undo/redo.
-- **Interaction with running simulation**: clicking an interactive part (button, switch) sends an
-  external event; LEDs and displays render from net levels.
-- **Symbol drawing**: DIP packages are drawn generically from the package definition; other parts
-  have renderer functions keyed by symbol kind. The library supplies geometry data only; pin
-  positions come from `circuit`'s `partLayout`, so drawing and connectivity always agree.
+  layered (grid → wires → parts → overlays), culled to the view with text level of detail.
+  _(R05)_ Wire colors reflect net level (e.g. 1 = bright green, 0 = dark green, Z = blue, X = red;
+  contention flashes).
+- **Camera**: pan/zoom with world ↔ screen transforms; world unit = grid cell; Figma-style or
+  KiCad-style wheel.
+- **Symbol drawing**: drawers keyed by `symbol.kind` on a small `SymbolGraphics` surface in local
+  cells; DIP packages drawn generically; gates in ANSI or IEC style (a view setting). The library
+  supplies geometry data only; pin positions come from `circuit`'s `partLayout`, so drawing and
+  connectivity always agree.
+- **Hit-testing and selection**: parts, pin stubs and wires under a point; click, Shift-click and
+  box selection (inside or touching).
+- **`Editor` facade**: owns circuit, scene, selection, camera and tool; exposes them as small
+  observable stores.
+- _(R04b)_ **Tools**: place part, draw wire (orthogonal, L-shaped auto-route), move, rotate,
+  delete, duplicate, copy/paste. **Commands**: every document mutation can be undone.
+- _(R05)_ **Interaction with running simulation**: clicking an interactive part (button, switch)
+  sends an external event; LEDs and displays render from their state.
 
 ## UI
 
-_(planned, R04+)_ React application shell:
+Implemented in R04a ([editor.md](editor.md#shell), [ADR-0008](adr/0008-desktop-workbench.md)):
+a desktop CAD-style React shell.
 
 ```
-┌───────────────────────── toolbar: run · pause · step · reset · speed · file ─────────────────────────┐
-│ palette  │                                canvas                                    │ inspector     │
-│ (search, │                                                                          │ (props of     │
-│ library) │                                                                          │ selection)    │
-├──────────┴──────────────── bottom dock: diagnostics · memory · logic analyzer ───────┴───────────────┤
+┌───────────────────────── menu bar · toolbar (tools, zoom, grid, gate style) ─────────────────────────┐
+│ Parts    │                                canvas                                    │ Properties    │
+│ (search, │                                                                          │ (of the       │
+│ preview) │                                                                          │ selection)    │
+├──────────┴──────────────── bottom dock: Messages (later: memory · logic analyzer) ───┴───────────────┤
+│ status bar: cursor · zoom · selection · counts · issues                                               │
 ```
 
 State that lives outside React (document, simulator, editor) is exposed through small observable
-stores and consumed with `useSyncExternalStore`. React never owns simulation state.
+stores (`Store`) and consumed with `useSyncExternalStore`. React never owns simulation state.
+Every user action is a command in one registry that drives menus, toolbar and shortcuts; view
+preferences (theme, gate style, wheel mode, dock layout) are settings kept in `localStorage`,
+never in documents.
 
 ## Persistence
 
@@ -171,8 +185,9 @@ export as `.bin` and Intel HEX _(R12)_.
 - **Parts**: every part has a test generated from its datasheet function table plus at least one
   timing assertion, using the core test bench.
 - **Circuits**: example projects ship with test benches (R15) that run headless in CI.
-- **Editor/UI**: unit tests for pure logic (geometry, commands, routing); browser e2e tests
-  (Playwright) are introduced with the editor _(R04)_.
+- **Editor/UI**: unit tests for pure logic (camera, scene, hit-testing, selection, shortcuts,
+  settings) and a scenario test drawing every part; browser e2e tests with Playwright
+  (`pnpm e2e`, R04a) for the shell and interaction.
 - **Performance**: Vitest benchmarks for the kernel; results recorded in the plan that changed them.
 
 ## Extensibility

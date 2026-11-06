@@ -35,6 +35,7 @@ pnpm dev              # Vite dev server
 pnpm check            # typecheck + lint + layer check + tests — run before every commit
 pnpm test             # tests once; pnpm test:watch for watch mode; pnpm test <path> for a subset
 pnpm coverage         # tests with coverage (v8)
+pnpm e2e              # browser tests (Playwright, Chromium; not part of check)
 pnpm bench            # benchmarks (tests/bench), on native imports for realistic numbers
 pnpm lint:fix         # format + autofix with Biome
 pnpm build            # typecheck + production build
@@ -80,6 +81,7 @@ Each `src/*` folder has a README with its rules.
   `tests/scenarios/`, benchmarks in `tests/bench/`.
 - Import test APIs explicitly: `import { describe, expect, it } from 'vitest'`.
 - Every part: datasheet function-table test + at least one timing assertion (core test bench).
+- UI behavior: Playwright tests in `tests/e2e/` (`*.spec.ts`), against a production build.
 - Tests must be deterministic: fixed seeds, no wall-clock time.
 - Bug fix ⇒ regression test first.
 

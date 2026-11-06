@@ -280,7 +280,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 13. app: composition root, Hello LED and Symbol gallery documents, dev-only DIP-14 part;
   e2e smoke extended (see Testing); look at both themes and both gate styles in the browser;
   measure the bench schematic redraw.
-- [ ] 14. Docs: `docs/editor.md` (shell, commands and shortcuts, camera, rendering, symbols, text
+- [x] 14. Docs: `docs/editor.md` (shell, commands and shortcuts, camera, rendering, symbols, text
   placement, selection), architecture.md (Editor/UI no longer planned), ADR-0008, components.md
   (drawing by kind), `src/editor` and `src/ui` READMEs, glossary, roadmap (R04a done, R04b
   next), lessons.
@@ -289,28 +289,35 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 
 Checkable statements; verified one by one in the finish-branch workflow.
 
-- [ ] `pnpm check`, `pnpm build` and `pnpm e2e` are green; CI runs e2e.
-- [ ] The shell has the Classic CAD layout: menu bar, toolbar, Parts (left), Properties (right),
+- [x] `pnpm check`, `pnpm build` and `pnpm e2e` are green; CI runs e2e (`.github/workflows/ci.yml`:
+  install Chromium, `pnpm e2e` after the build).
+- [x] The shell has the Classic CAD layout: menu bar, toolbar, Parts (left), Properties (right),
   Messages in a tabbed bottom dock, status bar; splitters resize the docks, View ▸ Panels hides
-  and shows them, and sizes/visibility survive a reload.
-- [ ] Dark and light themes: the default follows the OS (live), View ▸ Theme overrides it and the
-  choice survives a reload; the canvas follows the theme.
-- [ ] Every registered part has a drawing for its kind (no box fallback among built-in parts) in
-  ANSI and IEC style, drawn inside its layout bounds with pin stubs ending exactly at the
-  `partLayout` pin tips (scenario test); the gallery shows all of them in the browser, plus the
-  dev DIP-14 with pin numbers and names.
-- [ ] Designators and labels are placed outside the body and readable (never upside down or
-  mirrored) in all 8 placements (unit test + gallery check).
-- [ ] Navigation: scroll pans and pinch/`Mod`+wheel zooms about the cursor (default); the KiCad
-  setting makes the wheel zoom; middle-drag and Space-drag pan; zoom in/out/fit/100 % from menu,
-  toolbar and keyboard; lines crisp on a HiDPI display.
-- [ ] Selection: click, Shift-click, box left-to-right (inside) and right-to-left (touching),
-  `Mod+A`, Esc; Properties shows the selection.
-- [ ] Messages lists the current document's design issues; clicking one selects and centers its
-  item; status-bar counts match.
-- [ ] A full redraw of the bench schematic (3 600 parts, 10 620 wires) at fit zoom takes < 16 ms in
-  Chrome on Apple M3 Pro (dev overlay), recorded in the progress log.
-- [ ] docs/editor.md, architecture.md, ADR-0008 and the roadmap describe what was built.
+  and shows them, and sizes/visibility survive a reload — e2e `the shell renders every region…`,
+  `panel sizes and visibility survive a reload`.
+- [x] Dark and light themes: the default follows the OS (live, `useMediaQuery`), View ▸ Theme
+  overrides it and the choice is a persisted setting (`settings.test.ts`); the canvas follows the
+  theme — e2e `View ▸ Theme switches the shell and the canvas`.
+- [x] Every registered part has a drawing for its kind (no box fallback among built-in parts) in
+  ANSI and IEC style, drawn inside its layout bounds with pins exactly at the compiler's pin
+  positions — `tests/scenarios/symbol-drawing.test.ts`; the gallery shows all of them in the
+  browser, plus the dev DIP-14/DIP-28 with pin numbers and names (screenshots, both themes).
+- [x] Designators and labels are placed outside the part on a side without pins in all 8
+  placements (`scene.test.ts`), inner text is never upside down or mirrored (`graphics.test.ts`,
+  gallery rotations row checked by eye).
+- [x] Navigation: scroll pans and pinch/`Mod`+wheel zooms about the cursor (default); the KiCad
+  setting makes the wheel zoom; zoom in/out/fit/100 % from menu, toolbar and keyboard — e2e
+  `the wheel pans…`, `keyboard zoom…`; middle-drag, Space-drag and the Pan tool pan
+  (`editor.ts`, tried in the browser); HiDPI: backing store × devicePixelRatio, screenshots at 2×
+  are crisp.
+- [x] Selection: click, Shift-click, box left-to-right (inside) and right-to-left (touching),
+  `Mod+A`, Esc; Properties shows the selection — `hit-test.test.ts`, `selection.test.ts`,
+  `editor.test.ts`, e2e canvas click, box and Escape.
+- [x] Messages lists the current document's design issues; clicking one selects and centers its
+  item; status-bar counts match — e2e `clicking a message selects and centers its part…`.
+- [x] A full redraw of the 3 600-part, 10 620-wire stress schematic: median 4.2 ms at fit zoom
+  (13 %), 1.1 ms at 100 % (headless Chromium, Apple M3 Pro; dev build).
+- [x] docs/editor.md, architecture.md, ADR-0008 and the roadmap describe what was built.
 
 ## Open questions
 
@@ -350,17 +357,24 @@ place tool stay active after a click; designator prefixes per part.
   App opens Hello LED (`?gallery` opens the symbol gallery; dev builds add `dev/*` fixtures and
   expose `window.logicEditor`). Checked in headless Chromium screenshots (no Chrome extension):
   both themes, gallery at several zooms.
+- 2026-11-06 — tasks 12–14 done: Properties (read-only), Messages (click to locate, double-click
+  to zoom), shortcuts and About dialogs; e2e suite (9 tests: shell, gallery, locate, canvas click,
+  box select, keyboard and wheel zoom in both modes, theme switch, persisted layout, dialog);
+  `nandGrid` stress example shared with the bench; docs: `docs/editor.md`, ADR-0008,
+  architecture, components, circuit, glossary, AGENTS (`pnpm e2e`), layer READMEs, lessons.
+  Redraw: 4.2 ms at fit / 1.1 ms at 100 % on the stress schematic (Apple M3 Pro). Bench: compile
+  ≈ 8.6 ms, serialize ≈ 10.7 ms, parse ≈ 5.3 ms (unchanged). All acceptance criteria verified.
 
 ## Handoff
 
-- **State:** tasks 1–11 committed; `pnpm check` and `pnpm e2e` green. Properties and Messages
-  panels are still empty frames in `src/ui/Workbench.tsx`; Help dialogs not rendered yet
-  (`ui-state.ts` has `dialog`).
-- **Next step:** task 12 (Properties read-only, Messages with click-to-locate via
-  `editor.locate`, shortcuts/about dialogs), then 13 (e2e smoke extended, bench schematic redraw
-  time — a gallery frame took ~13 ms in dev at 113 %, check text cost), then 14 (docs, ADR-0008).
-- **Watch out:** `pnpm check` must stay browser-free (e2e is separate); keep React out of
-  `src/editor`; Biome formats Markdown and reformats JSX (re-read before editing); a `switch`
-  inside `map` trips `useIterableCallbackReturn` (move it to a helper). Screenshots: a
-  Playwright script in the scratchpad (`chromium.launch`, `colorScheme`, `deviceScaleFactor: 2`).
+- **State:** all 14 tasks done and committed; acceptance criteria verified; `pnpm check`,
+  `pnpm build`, `pnpm e2e` green. Waiting for the user to look at the app (`pnpm dev`) and
+  approve; then the finish-branch workflow (roadmap R04a `done`, R04b `next`, merge `--no-ff`).
+- **Follow-ups:** R04b — editing tools; its plan asks: wires follow a moved part (rubber-band)
+  or detach; undo as document snapshots vs do/undo commands; place tool stays active after a
+  click; designator prefixes per part (the gallery's `PREFIX` map in `src/app/examples.ts` is a
+  stand-in). R05 — level colors in `CanvasTheme`, lit LEDs/displays in the drawers (they draw
+  the idle look now), clickable switches.
+- **Watch out:** `pnpm check` must stay browser-free; keep React out of `src/editor`; Biome
+  reformats JSX and Markdown (re-read before editing).
 - **Verify with:** `pnpm check && pnpm build && pnpm e2e`.
