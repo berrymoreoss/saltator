@@ -41,7 +41,7 @@ export function StatusBar({ editor, onShowMessages }: StatusBarProps) {
   const warnings = scene.issues.length - errors;
   return (
     <footer className="statusbar" data-testid="statusbar">
-      <span className="status-cell mono" title="Cursor position (grid cells)">
+      <span className="status-cell mono" title="Cursor position (grid cells)" data-testid="cursor">
         X {view.cursor ? view.cursor[0] : '–'}&nbsp;&nbsp;Y {view.cursor ? view.cursor[1] : '–'}
       </span>
       <span className="status-cell mono" data-testid="zoom" title="Zoom">

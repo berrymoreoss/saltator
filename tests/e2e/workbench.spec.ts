@@ -173,3 +173,81 @@ test('the shortcuts dialog opens with ? and closes with Escape', async ({ page }
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
 });
+
+test('Shift-click toggles, Mod+A selects all, a right-to-left box selects what it touches', async ({
+  page,
+}) => {
+  await page.goto('/?gallery');
+  const summary = page.getByTestId('selection-summary');
+  await page.getByTestId('messages').getByRole('button').first().click();
+  await expect(summary).toHaveText(/^U1 · /);
+  const box = (await canvas(page).boundingBox())!;
+  const center = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  await page.keyboard.down('Shift');
+  await page.mouse.click(center.x, center.y);
+  await expect(summary).toHaveText('Nothing selected');
+  await page.mouse.click(center.x, center.y);
+  await page.keyboard.up('Shift');
+  await expect(summary).toHaveText(/^U1 · /);
+
+  await canvas(page).focus();
+  await page.keyboard.press('ControlOrMeta+A');
+  await expect(summary).toHaveText(/^\d+ parts$/);
+  await page.keyboard.press('Escape');
+
+  // From empty space right of U1 leftwards into it: only touched, never enclosed.
+  await page.mouse.move(center.x + 120, center.y - 20);
+  await page.mouse.down();
+  await page.mouse.move(center.x + 60, center.y - 10, { steps: 3 });
+  await page.mouse.move(center.x, center.y, { steps: 3 });
+  await page.mouse.up();
+  await expect(summary).toHaveText(/^U1 · /);
+});
+
+test('Space-drag, middle-drag and the Pan tool move the view', async ({ page }) => {
+  await page.goto('/');
+  const cursor = page.getByTestId('cursor');
+  const box = (await canvas(page).boundingBox())!;
+  const p = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  const readAt = async () => {
+    await page.mouse.move(p.x + 1, p.y);
+    await page.mouse.move(p.x, p.y);
+    return cursor.textContent();
+  };
+  const drag = async (button: 'left' | 'middle') => {
+    await page.mouse.move(p.x, p.y);
+    await page.mouse.down({ button });
+    await page.mouse.move(p.x + 160, p.y + 80, { steps: 5 });
+    await page.mouse.up({ button });
+  };
+
+  const start = await readAt();
+  await page.keyboard.down('Space');
+  await drag('left');
+  await page.keyboard.up('Space');
+  const afterSpace = await readAt();
+  expect(afterSpace).not.toBe(start);
+  await expect(page.getByTestId('selection-summary')).toHaveText('Nothing selected');
+
+  await drag('middle');
+  const afterMiddle = await readAt();
+  expect(afterMiddle).not.toBe(afterSpace);
+
+  await page.keyboard.press('H');
+  await drag('left');
+  expect(await readAt()).not.toBe(afterMiddle);
+  await page.keyboard.press('V');
+});
+
+test('View ▸ Panels hides and shows a dock', async ({ page }) => {
+  await page.goto('/');
+  const toggle = async () => {
+    await page.getByRole('menuitem', { name: 'View' }).click();
+    await page.getByRole('menuitem', { name: 'Panels' }).hover();
+    await page.getByRole('menuitemcheckbox', { name: 'Messages' }).click();
+  };
+  await toggle();
+  await expect(page.getByTestId('bottom-panel')).toHaveCount(0);
+  await toggle();
+  await expect(page.getByTestId('bottom-panel')).toBeVisible();
+});
