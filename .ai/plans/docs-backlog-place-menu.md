@@ -4,7 +4,7 @@
 | ---------- | ------------------------- |
 | Branch     | `docs/backlog-place-menu` |
 | Roadmap    | — (backlog, R10 notes)    |
-| Status     | in-progress               |
+| Status     | done                      |
 | Depends on | —                         |
 | Created    | 2026-11-07                |
 
@@ -19,7 +19,7 @@ Place menu), so frequently placed parts are one right click away and the toolbar
 - [x] 1. Backlog: the Place submenu replaces the quick-place toolbar group — Power, Ground,
   Pull-up, Pull-down, Wire, Net Label (R10), Port (R11), Part…; a part item arms the place tool.
 - [x] 2. R10: net labels are placed from the Place submenu (was: the toolbar group).
-- [ ] 3. Merge to `main` with the user's approval.
+- [x] 3. Merge to `main` with the user's approval.
 
 ## Open questions
 
@@ -35,10 +35,12 @@ Place menu), so frequently placed parts are one right click away and the toolbar
 ## Progress log
 
 - 2026-11-07 — roadmap (backlog, R10) updated.
+- 2026-11-07 — finished: the backlog has the Place submenu instead of the quick-place toolbar
+  group, R10 points to it; merged with the user's approval.
 
 ## Handoff
 
-- **State:** roadmap updated; waiting for the user's approval to merge.
-- **Next step:** finish-branch (status `done`, merge `--no-ff`).
+- **State:** merged; nothing pending.
+- **Next step:** —
 - **Watch out:** "Port" is read as a subcircuit's interface pin (R11); confirm when R11 starts.
 - **Verify with:** `pnpm check`.
