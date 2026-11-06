@@ -162,7 +162,7 @@ tests/bench/          kernel benchmark
 - [x] 6. `diagnostics.ts` + wiring: `contention`, `floating-input`, `oscillation` (halt,
   `maxDeltaCycles`), component-reported diagnostics; dedupe + cap. Tests.
 - [x] 7. `src/core/testing`: bench + function-table helper. Tests of the bench itself.
-- [ ] 8. `src/library/primitives` + `createDefaultRegistry()`: all `prim/*` parts with props
+- [x] 8. `src/library/primitives` + `createDefaultRegistry()`: all `prim/*` parts with props
   (`inputs`, `delay`, `value`, `direction`). Function-table tests incl. X/Z inputs and one
   timing test per part.
 - [ ] 9. `tests/scenarios`: ring oscillator (N odd inverters, delay d ⇒ period 2·N·d); zero-delay
