@@ -13,30 +13,30 @@ How to read this file:
 
 ## Overview
 
-| ID   | Branch                       | Title                                    | Status      |
-| ---- | ---------------------------- | ---------------------------------------- | ----------- |
-| R00  | — (initial commit on `main`) | Foundation                               | done        |
-| R01  | `feat/engine-core`           | Simulation kernel                        | done        |
-| R02  | `feat/circuit-model`         | Circuit document & netlist compiler      | done        |
-| R03  | `feat/io-basic`              | Basic IO parts (headless)                | done        |
-| R04a | `feat/editor-canvas`         | App shell & schematic view               | done        |
-| R04b | `feat/editor-tools`          | Schematic editing                        | done        |
-| R05  | `feat/sim-ui`                | Running simulations in the editor        | in-progress |
-| R06  | `feat/74hc-gates`            | 74HC gates & bus buffers                 | planned     |
-| R07  | `feat/persistence`           | Save, load, examples                     | planned     |
-| R08  | `feat/74hc-msi`              | 74HC combinational MSI                   | planned     |
-| R09  | `feat/74hc-sequential`       | 74HC sequential parts + timing checks    | planned     |
-| R10  | `feat/nets-and-buses`        | Net labels, tunnels, buses               | planned     |
-| R11  | `feat/subcircuits`           | Hierarchical design                      | planned     |
-| R12  | `feat/memory`                | ROM / RAM + memory inspector             | planned     |
-| R13  | `feat/logic-analyzer`        | Waveforms & probes                       | planned     |
-| R14  | `feat/debugger`              | Breakpoints, stepping, watches           | planned     |
-| R15  | `feat/test-benches`          | Circuit test benches ("test before fab") | planned     |
-| R16  | `example/sap-1`              | Ben Eater SAP-1 reference build          | planned     |
-| R17  | `feat/cpu-6502`              | W65C02S CPU                              | planned     |
-| R18  | `feat/peripherals`           | VIA, LCD, serial, buzzer                 | planned     |
-| R19  | `feat/toolchain`             | 6502 assembler & flashing                | planned     |
-| R20  | `example/be6502`             | Ben Eater 6502 reference build           | planned     |
+| ID   | Branch                       | Title                                    | Status  |
+| ---- | ---------------------------- | ---------------------------------------- | ------- |
+| R00  | — (initial commit on `main`) | Foundation                               | done    |
+| R01  | `feat/engine-core`           | Simulation kernel                        | done    |
+| R02  | `feat/circuit-model`         | Circuit document & netlist compiler      | done    |
+| R03  | `feat/io-basic`              | Basic IO parts (headless)                | done    |
+| R04a | `feat/editor-canvas`         | App shell & schematic view               | done    |
+| R04b | `feat/editor-tools`          | Schematic editing                        | done    |
+| R05  | `feat/sim-ui`                | Running simulations in the editor        | done    |
+| R06  | `feat/74hc-gates`            | 74HC gates & bus buffers                 | next    |
+| R07  | `feat/persistence`           | Save, load, examples                     | planned |
+| R08  | `feat/74hc-msi`              | 74HC combinational MSI                   | planned |
+| R09  | `feat/74hc-sequential`       | 74HC sequential parts + timing checks    | planned |
+| R10  | `feat/nets-and-buses`        | Net labels, tunnels, buses               | planned |
+| R11  | `feat/subcircuits`           | Hierarchical design                      | planned |
+| R12  | `feat/memory`                | ROM / RAM + memory inspector             | planned |
+| R13  | `feat/logic-analyzer`        | Waveforms & probes                       | planned |
+| R14  | `feat/debugger`              | Breakpoints, stepping, watches           | planned |
+| R15  | `feat/test-benches`          | Circuit test benches ("test before fab") | planned |
+| R16  | `example/sap-1`              | Ben Eater SAP-1 reference build          | planned |
+| R17  | `feat/cpu-6502`              | W65C02S CPU                              | planned |
+| R18  | `feat/peripherals`           | VIA, LCD, serial, buzzer                 | planned |
+| R19  | `feat/toolchain`             | 6502 assembler & flashing                | planned |
+| R20  | `example/be6502`             | Ben Eater 6502 reference build           | planned |
 
 ---
 
@@ -102,15 +102,22 @@ menus, status hints. Gestures run on plain `PointerInput`s and are unit-tested h
 Spec: [editor.md](editor.md#editing). Decision: [ADR-0009](adr/0009-editing-model.md). Plan:
 `.ai/plans/feat-editor-tools.md`.
 
-### R05 · Running simulations in the editor — `feat/sim-ui` — `in-progress`
+### R05 · Running simulations in the editor — `feat/sim-ui` — `done`
 
-Simulator host (real-time pacing, speed control, run/pause/step/reset), live wire coloring by
-level, interactive parts on canvas (buttons, switches, DIP switches, manual clock step via their
-actions), LEDs/displays lit from their state with brightness from on-time (`onTimeAt`),
-diagnostics panel with click-to-locate, recompile on edit preserving state where possible
-(state is keyed by designator: carry it across renames, see ADR-0006).
+Simulator host in the editor (`Simulation`): stopped until Run; run/pause, step to the next
+event, stop, reset (F5, F10, Shift+F5, Mod+Shift+F5, never reloading the page); speed presets
+from 1 ns/s to real time and Max with a frame budget and the speed reached shown when lagging.
+Wires and junctions colored by level (weak levels paler, contention flashing) in both themes;
+parts drawn from their live state, indicators at their average brightness from on-time; an
+Interact tool (switches, held buttons, DIP switches in any orientation, manual clock step).
+Editing while running: same-structure edits keep the simulator, others continue in the
+recompiled netlist with every unchanged part's state, drives, pending changes and timers carried
+by designator through renames (`Simulator.carryOver`, invisible for an unchanged netlist — a
+property test). Simulation tab with runtime diagnostics and click-to-locate; live levels in
+Properties. Spec: [editor.md](editor.md#simulation). Decision:
+[ADR-0010](adr/0010-running-simulations.md). Plan: `.ai/plans/feat-sim-ui.md`.
 
-### R06 · 74HC gates & bus buffers — `feat/74hc-gates`
+### R06 · 74HC gates & bus buffers — `feat/74hc-gates` — `next`
 
 74HC00, 02, 04, 08, 10, 11, 14, 20, 21, 27, 30, 32, 86, 125, 126, 240, 244, 245 with datasheet
 pinouts, timing and function-table tests. Part info panel (pinout, title, datasheet link).
@@ -226,3 +233,6 @@ Promote to a numbered item when needed.
 - Editing extras (R04b follow-ups): editing a prop of several selected parts at once, re-annotate
   designators, align/distribute, wire auto-routing around parts, a modifier to move parts without
   dragging their wires (KiCad "move"), dragging a single wire end.
+- Simulation view extras (R05 follow-ups): LED colors that stay visible on the light theme's
+  cream when dim (a dim yellow LED is hard to see); a "toggling" wire style for nets that change
+  faster than the frame rate, which now flicker between 0 and 1 from frame to frame.

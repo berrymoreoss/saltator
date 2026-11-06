@@ -4,7 +4,7 @@
 | ---------- | -------------------------------------------------------------------------- |
 | Branch     | `feat/sim-ui`                                                              |
 | Roadmap    | R05 — Running simulations in the editor ([roadmap](../../docs/roadmap.md)) |
-| Status     | in-progress                                                                |
+| Status     | done                                                                       |
 | Depends on | R01, R03, R04a, R04b                                                       |
 | Created    | 2026-11-07                                                                 |
 
@@ -393,14 +393,17 @@ Asked at branch start (2026-11-07); all answered.
 - 2026-11-07 — task 10 done (docs, ADR-0010, glossary, READMEs, lessons). Acceptance criteria
   verified: check (771), build, e2e 26 (three runs), bench 11.9M / 13.8M events/s. Waiting for
   the user's review.
+- 2026-11-07 — finished after the user's approval: check (771), build and e2e (26) green; roadmap
+  R05 `done`, R06 `next`; the two follow-ups (dim LEDs on the light theme, a "toggling" wire
+  style) added to the backlog. Summary: a simulator host in the editor (run control, pacing with
+  a frame budget, speed presets), level colors on wires, parts drawn from their live state with
+  brightness from on-time, an Interact tool, editing while running with `Simulator.carryOver`
+  (same-structure edits keep the simulator; an unchanged netlist recompiles invisibly — property
+  test), Simulation tab and live levels in Properties; ADR-0010.
 
 ## Handoff
 
-- **State:** all tasks done and committed; acceptance criteria verified (check, build, e2e ×3,
-  bench). Waiting for the user's review before finish-branch (roadmap R05 `done`, R06 `next`,
-  merge with `--no-ff`).
-- **Next step:** after approval, follow `.ai/workflows/finish-branch.md`.
-- **Watch out:** possible follow-ups noted in the progress log (dim yellow LED on the light
-  theme; wires toggling faster than the frame rate flicker) — not in scope, could go to the
-  backlog.
+- **State:** merged; nothing pending.
+- **Follow-ups:** R06 `feat/74hc-gates` (next). Backlog: "Simulation view extras" (dim LEDs on
+  the light theme, a toggling-wire style).
 - **Verify with:** `pnpm check && pnpm build && pnpm e2e`.
