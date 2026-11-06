@@ -45,3 +45,6 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
   commit` commits red. Use `pnpm check > log && git commit …`.
 - 2026-11-06 (R03) — The registry validates pins and symbols with the **default** props. A test
   that needs a broken pin list for `resolveNetlist` must make it depend on a non-default prop.
+- 2026-11-06 (R04a) — Playwright's `webServer.command` must not start the server through
+  `pnpm exec`: pnpm moves it out of the process group Playwright kills, so the run hangs after
+  the tests (or leaves an orphan on the port). Call `node_modules/.bin/vite` directly.
