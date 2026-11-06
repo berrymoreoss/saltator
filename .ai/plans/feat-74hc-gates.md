@@ -104,23 +104,29 @@ shows them as `NC`.
 
 ### Module layout (`src/library/74xx/`)
 
-- `dip.ts` — helpers to declare a package pinout as a compact list (number → name, dir, flags,
-  description), with the invariants checked by a test for every package part: numbers 1…N
-  each exactly once, `VCC`/`GND` present, units covering every signal pin exactly once.
-- `functions.ts` — what a chip _does_, independent of family: gate chips as `(op, invert,
-  inputs per gate, gates)`; buffer chips as `(OE polarity, inverting, groups)`; the 245.
-- `hc-timing.ts` — HC timing per chip: typical at VCC = 5 V (what the behavior uses), max at
-  4.5 V for the future worst-case mode, conditions and source (datasheet, revision, table).
-- `gates.ts`, `buffers.ts`, `transceiver.ts` — factories `(function, family timing) →
-  definition`; `index.ts` exports `chips74xx` for the registry. Tests next to each factory, one
-  `describe` per chip.
+- `pinout.ts` — `pins('1A, 2A', '1, 4', 'in', 'data input')` rows written like the data
+  sheet's pin description table (`n.c.` → `NC<number>`); `dipPins` orders them by number and
+  rejects missing or repeated numbers.
+- `chip.ts` — `ChipSpec` (function, pins, units, function table — shared by every family),
+  `LogicFamily` (per chip: data sheet URL and `TimingDef`), `chipDefinition(spec, family,
+  behavior)` → type `74xx/74hc00`, name `74HC00`, DIP package.
+- `hc-timing.ts` — the HC family: per chip the Nexperia document, revision and `[typ, max]` per
+  delay symbol (Q5: VCC = 4.5 V, CL = 50 pF, table 7).
+- `gates.ts` (`GATE_SPECS`, op + invert + units), `buffers.ts` (`BUFFER_SPECS`, enable level,
+  invert, buffers), `transceiver.ts` (245) with their behaviors; `index.ts` exports `chips74xx`
+  for the registry. Tests: `pinout.test.ts`, `chips.test.ts` (invariants of every chip),
+  `gates.test.ts`, `buffers.test.ts`, `transceiver.test.ts` — function tables checked through
+  pin numbers read off the pinning figures (a second, independent transcription), every delay
+  against a third table of the data sheet's numbers.
 
 ### Behavior
 
-- **Per-unit evaluation.** The closure precomputes, per input pin, the unit it belongs to
-  (typed arrays). `evaluate` re-evaluates only units with a changed input; when no input
-  changed (power-on, after a recompile while running) it evaluates every unit — idempotent, so
-  carry-over stays invisible. No allocations.
+- **Every section on every call.** The closure precomputes pin indices (typed arrays);
+  `evaluate` re-evaluates every gate/buffer/bit, re-driving unchanged outputs (which schedules
+  nothing). _Changed in task 3:_ evaluating only sections with a changed input (all when none
+  changed) was wrong — the forced evaluation at power-on and after a recompile can see some
+  inputs changed in the same delta and silently skipped the others (a 74HC125 with one buffer
+  used left the others released instead of `X`; regression test in `buffers.test.ts`).
 - **Gates**: the 4-state operators from `core` (`and`, `or`, `xor`, `not`, `toInput`), output
   driven after `tpd` — the same semantics as `prim/*`: a 0 into a NAND gives 1 even with an `X`
   on the other input; a floating input reads as `X`.
@@ -192,15 +198,15 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 1. `core`: `PinDef.description`, `ComponentDefinition.functionTable` (shape, registry
   validation, tests); `functionTable` test helper accepts a definition's table per unit
   (Q3). Docs: components.md definition shape.
-- [ ] 2. Datasheets: collect pinouts, pin descriptions, function tables and HC timing for the
+- [x] 2. Datasheets: collect pinouts, pin descriptions, function tables and HC timing for the
   18 chips from the chosen vendor (Q1) into `src/library/74xx/` data (`dip.ts` helpers,
   `hc-timing.ts` with sources); pinout invariant test for every package part.
-- [ ] 3. Gate factory + 74HC00, 02, 04, 08, 32, 86 (2-input and inverters) with tests:
+- [x] 3. Gate factory + 74HC00, 02, 04, 08, 32, 86 (2-input and inverters) with tests:
   function table per unit, unknown/floating inputs, `tpd`, units independent.
-- [ ] 4. 74HC10, 11, 14, 20, 21, 27, 30 with tests (n.c. pins, 8-input table).
-- [ ] 5. Buffer factory + 74HC125, 126, 240, 244 with tests (enable polarity, `ten`/`tdis`/`tpd`,
+- [x] 4. 74HC10, 11, 14, 20, 21, 27, 30 with tests (n.c. pins, 8-input table).
+- [x] 5. Buffer factory + 74HC125, 126, 240, 244 with tests (enable polarity, `ten`/`tdis`/`tpd`,
   unknown enable, groups independent).
-- [ ] 6. 74HC245 with tests (both directions, isolation, direction switch, unknown DIR/OE,
+- [x] 6. 74HC245 with tests (both directions, isolation, direction switch, unknown DIR/OE,
   floating input side).
 - [ ] 7. Registry: `74xx` family in `createDefaultRegistry()`; carry-over property over random
   74xx networks (gates, buffers, 245 on shared nets); scenarios: M1 circuit with a 74HC00
@@ -257,6 +263,13 @@ Checkable statements; verified one by one in the finish-branch workflow.
   whose output is unconnected. — **answer:** warn per input (no new check); examples tie
   unused inputs.
 
+- [x] Q5. Timing conditions (found in task 2: Nexperia gives typical `ten`/`tdis` only at
+  2.0/4.5/6.0 V with CL = 50 pF, typical `tpd` also at 5 V with 15 pF) — _proposed:_ every
+  delay at VCC = 4.5 V, CL = 50 pF (typical at 25 °C; max at −40 °C to +85 °C), one
+  condition for all parts and symbols, matching the max columns; alternative: `tpd` at 5 V /
+  15 pF and `ten`/`tdis` at 4.5 V. — **answer:** all at 4.5 V, 50 pF (components.md
+  updated).
+
 ## Progress log
 
 - 2026-11-07 — plan drafted; Q1–Q4 answered (Nexperia; Part tab in the bottom dock; pins,
@@ -267,14 +280,17 @@ Checkable statements; verified one by one in the finish-branch workflow.
   `functionTable(bench, table, pins)` maps generic columns to a unit's pins. Text cells (`A=B`)
   are display-only. Nexperia's asset server answers 403 to automated downloads: datasheets have
   to be downloaded by the user (task 2).
+- 2026-11-07 — tasks 2–6: the user downloaded the 18 Nexperia data sheets to
+  `~/Downloads/nexperia-74hc/` (read with `pdftotext -layout`). Typical `ten`/`tdis` exist only
+  at 4.5 V/50 pF → Q5. All 18 chips in `src/library/74xx/` and the default registry; per-section
+  evaluation dropped (see Design ▸ Behavior). 930 tests green.
 
 ## Handoff
 
-- **State:** task 1 done (`b3044c0`). Task 2 blocked: Nexperia's asset server returns 403 to
-  automated downloads (WebFetch and curl); not to be worked around.
-- **Next step:** get the 18 Nexperia datasheets from the user (PDFs in a folder outside the
-  repo, read with `pdftotext -layout`), then task 2: pinouts, pin descriptions, function tables,
-  HC timing with document revision and table numbers.
-- **Watch out:** text cells in function tables (`A=B`) are display-only; the 245 test covers its
-  rows by hand. Unit pin lists go inputs first, in the table's column order.
+- **State:** tasks 1–6 done: all 18 chips registered and tested (`src/library/74xx/`).
+- **Next step:** task 7 — carry-over property over random 74xx networks, bus scenarios, M1
+  circuit scenario with a 74HC00, circuit benchmark with a 74HC00 grid.
+- **Watch out:** data sheets are outside the repo (`~/Downloads/nexperia-74hc/`); the extracted
+  numbers live in `hc-timing.ts` and the tests. Text cells in function tables (`A=B`) are
+  display-only; the 245 test transcribes its rows in letters.
 - **Verify with:** `pnpm check`.

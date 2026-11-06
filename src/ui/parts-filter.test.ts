@@ -16,7 +16,7 @@ describe('parts filter', () => {
 
   it('groups by family in display order', () => {
     const groups = groupParts(parts, '');
-    expect(groups.map((g) => g.label)).toEqual(['Primitives', 'Input / Output']);
+    expect(groups.map((g) => g.label)).toEqual(['74HC Logic', 'Primitives', 'Input / Output']);
     expect(groups.flatMap((g) => g.parts)).toHaveLength(parts.length);
   });
 
