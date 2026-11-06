@@ -26,6 +26,11 @@ export interface PinDef {
   readonly activeLow?: boolean;
   /** Drawn with a clock triangle. */
   readonly clock?: boolean;
+  /**
+   * Only ever drives weakly (pull resistors). Design checks don't count it as a push-pull output;
+   * the editor may draw it differently. Allowed on driver pins only.
+   */
+  readonly weak?: boolean;
 }
 
 /** True for pins whose net level the component may read. */
@@ -178,12 +183,18 @@ export function pinIndex(pins: readonly PinDef[], name: string): PinRef {
   return index;
 }
 
-/** Throws if pin names are empty or not unique. `where` prefixes the message. */
+/**
+ * Throws if pin names are empty or not unique, or a non-driver pin is marked `weak`. `where`
+ * prefixes the message.
+ */
 export function validatePins(pins: readonly PinDef[], where: string): void {
   const seen = new Set<string>();
   for (const pin of pins) {
     if (pin.name === '') throw new Error(`${where}: empty pin name`);
     if (seen.has(pin.name)) throw new Error(`${where}: duplicate pin "${pin.name}"`);
+    if (pin.weak && !isDriverPin(pin.dir)) {
+      throw new Error(`${where}: pin "${pin.name}" is "${pin.dir}" and cannot be weak`);
+    }
     seen.add(pin.name);
   }
 }

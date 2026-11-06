@@ -216,7 +216,7 @@ it is used from code. Auto-routing is a plain L-shape; anything smarter is edito
 
 ## Tasks
 
-- [ ] 1. Core: `PinDef.weak`; `prim/pull` sets it; docs/components.md. Tests.
+- [x] 1. Core: `PinDef.weak`; `prim/pull` sets it; docs/components.md. Tests.
 - [ ] 2. `geometry.ts`: points, rotation/flip transforms, orthogonal segment helpers (contains
   point, interior vs end). Tests.
 - [ ] 3. `document.ts`, `migrations.ts`, `schema.ts`, `serialize.ts`: types, `parseDocument`

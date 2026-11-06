@@ -50,6 +50,7 @@ interface PinDef {
   dir: 'in' | 'out' | 'tristate' | 'bidir' | 'power' | 'nc';
   activeLow?: boolean; // drawn with a bubble/overline: OE, CE, WE
   clock?: boolean; // drawn with a clock triangle
+  weak?: boolean; // only ever drives weakly (pull resistors); driver pins only
 }
 ```
 
@@ -72,6 +73,10 @@ Pin directions:
 | `bidir`    | yes       | strong 0/1 or Z | released (`Z`) | data buses of RAM, CPUs, 74HC245 A/B |
 | `power`    | —         | —               | —              | VCC, GND (not simulated in the MVP)  |
 | `nc`       | —         | —               | —              | not connected                        |
+
+A driver pin marked `weak` (pull resistors) only ever drives weak levels. The kernel doesn't need
+the flag — strength comes from the drive values — but static design checks do: two strong `out`
+pins on one net are a short, an `out` and a pull resistor are not.
 
 ## Packages and pin numbering
 
@@ -173,7 +178,7 @@ input has a `delay` prop (`time`, default **1 ns**, 0 allowed for Logisim-like b
 | `prim/xor`, `prim/xnor` | `A`, `B`, … `H` → `Y`      | `inputs`, `delay`                     | odd / even parity; any `X`/`Z` input → `X`                |
 | `prim/tristate-buffer`  | `A`, `EN` → `Y` (tristate) | `delay`                               | EN = 1 → Y = A; EN = 0 → `Z`; EN unknown → `X`            |
 | `prim/constant`         | `Y`                        | `value`: `'0'`, `'1'`, `'X'` (def. 1) | drives the value strongly from t = 0                      |
-| `prim/pull`             | `Y`                        | `direction`: `up` (default), `down`   | drives weak 1 / weak 0 from t = 0; any strong driver wins |
+| `prim/pull`             | `Y` (weak)                 | `direction`: `up` (default), `down`   | drives weak 1 / weak 0 from t = 0; any strong driver wins |
 
 ## Symbols (non-package parts)
 

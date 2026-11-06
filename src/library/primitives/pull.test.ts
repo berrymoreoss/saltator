@@ -18,6 +18,10 @@ describe('prim/pull', () => {
     expect(trace.lines()).toEqual([`0 Y=${drive & 1}`]);
   });
 
+  it('declares its pin weak, so design checks do not count it as a push-pull output', () => {
+    expect(pull.pins).toEqual([{ name: 'Y', dir: 'out', weak: true }]);
+  });
+
   it('defaults to pull-up', () => {
     const bench = new Bench(pull);
     bench.settle();
