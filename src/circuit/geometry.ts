@@ -3,6 +3,7 @@
  * grid cells; x grows to the right and y grows downwards, as on a canvas, so a clockwise rotation
  * looks clockwise on screen.
  */
+import type { PinSide } from '../core';
 
 /** A grid point `[x, y]`. */
 export type Point = readonly [x: number, y: number];
@@ -66,8 +67,8 @@ export function transformPoint(local: Point, placement: Placement): Point {
   }
 }
 
-/** Side of a part a pin sticks out of. */
-export type Side = 'left' | 'top' | 'right' | 'bottom';
+/** Side of a part a pin sticks out of (the same type as core's `PinSide`). */
+export type Side = PinSide;
 
 const CLOCKWISE: readonly Side[] = ['left', 'top', 'right', 'bottom'];
 

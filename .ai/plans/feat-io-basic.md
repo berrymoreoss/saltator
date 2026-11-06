@@ -163,7 +163,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   `validateSymbol`; registry validates static symbols.
 - [x] 2. core: `PinDef.sense` (no `floating-input` through sense pins) and `PinDef.constant`
   (validated: sense only on `in`, constant only on `out`).
-- [ ] 3. circuit: symbol layouts in `partLayout` (package → symbol → box); `undriven-input`
+- [x] 3. circuit: symbol layouts in `partLayout` (package → symbol → box); `undriven-input`
   skips sense pins; `shorted-outputs` merges outputs tied to the same level.
 - [ ] 4. library: `io/` family skeleton in the default registry; `io/vcc`, `io/gnd`;
   `prim/constant` marks its pin `constant`; library-wide test: every part's layout resolves

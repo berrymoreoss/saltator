@@ -6,7 +6,15 @@
  * Every layout has its local origin at the top-left corner of its bounding box (pin stubs
  * included); pins stick out of the body by one cell and connect at the stub's tip.
  */
-import { type AnyComponentDefinition, type PinDef, type PropValue, pinsOf } from '../core';
+import {
+  type AnyComponentDefinition,
+  type PinDef,
+  type PropValue,
+  pinsOf,
+  type SymbolDef,
+  symbolOf,
+  validateSymbol,
+} from '../core';
 import type { ComponentInstance } from './document';
 import {
   type Placement,
@@ -38,9 +46,9 @@ export function dipBodyWidth(pinCount: number): number {
 }
 
 /**
- * Layout of a part with the given (resolved) props: a DIP drawing for parts with a `package`, a
- * generic box otherwise. Explicit symbol geometry (R03) will take precedence over both. Throws if
- * a package definition is inconsistent (a library bug).
+ * Layout of a part with the given (resolved) props: a DIP drawing for parts with a `package`
+ * (chips are drawn as packages, ADR-0004), the part's `symbol` otherwise, and a generic box for
+ * parts with neither. Throws if a package or symbol definition is inconsistent (a library bug).
  */
 export function partLayout(
   definition: AnyComponentDefinition,
@@ -48,7 +56,38 @@ export function partLayout(
 ): PartLayout {
   const pins = pinsOf(definition, props);
   if (definition.package) return dipLayout(definition.type, definition.package.pins, pins);
+  const symbol = symbolOf(definition, props);
+  if (symbol) return symbolLayout(definition.type, symbol, pins);
   return boxLayout(pins);
+}
+
+/**
+ * A symbol's body with a one-cell margin for the pin stubs on each side that has pins; the
+ * origin stays at the top-left of the bounding box, as for the other layouts.
+ */
+function symbolLayout(type: string, symbol: SymbolDef, pins: readonly PinDef[]): PartLayout {
+  validateSymbol(symbol, pins, type);
+  const used = new Set(pins.map((pin) => symbol.pins[pin.name]!.side));
+  const left = used.has('left') ? 1 : 0;
+  const top = used.has('top') ? 1 : 0;
+  const { width, height } = symbol;
+  const tip = (side: Side, offset: number): Point => {
+    switch (side) {
+      case 'left':
+        return [0, top + offset];
+      case 'right':
+        return [left + width + 1, top + offset];
+      case 'top':
+        return [left + offset, 0];
+      case 'bottom':
+        return [left + offset, top + height + 1];
+    }
+  };
+  const layout = pins.map((pin): PinLayout => {
+    const { side, offset } = symbol.pins[pin.name]!;
+    return { name: pin.name, at: tip(side, offset), side };
+  });
+  return { body: { x: left, y: top, width, height }, pins: layout };
 }
 
 /**

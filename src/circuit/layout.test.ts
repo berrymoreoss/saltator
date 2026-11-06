@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { defineComponent, type PinDef, resolveProps } from '../core';
+import {
+  defineComponent,
+  type PackageDef,
+  type PinDef,
+  resolveProps,
+  type SymbolDef,
+} from '../core';
 import type { ComponentInstance } from './document';
 import { dipBodyWidth, partLayout, placementOf, placePins } from './layout';
 import { testDip as hc00, testRegistry } from './test-parts';
@@ -109,6 +115,75 @@ describe('box layout', () => {
     expect(pinMap(layout)).toEqual({ A: [0, 1], VCC: [2, 3], GND: [3, 3], NC: [4, 3], D: [6, 1] });
     expect(layout.pins.map((p) => p.side)).toEqual(['left', 'bottom', 'bottom', 'bottom', 'right']);
     expect(layout.body.width).toBe(4);
+  });
+});
+
+describe('symbol layout', () => {
+  const sym = (symbol: SymbolDef, extra: { pins?: PinDef[]; package?: PackageDef } = {}) =>
+    defineComponent<Record<string, never>, undefined>({
+      type: 'test/sym',
+      name: 'SYM',
+      title: 'Symbol',
+      pins: Object.keys(symbol.pins).map((name): PinDef => ({ name, dir: 'in' })),
+      symbol,
+      create: () => ({}),
+      ...extra,
+    });
+
+  it('adds a one-cell margin for stubs on each side that has pins', () => {
+    const layout = partLayout(
+      sym({
+        kind: 'k',
+        width: 3,
+        height: 2,
+        pins: {
+          L: { side: 'left', offset: 1 },
+          T: { side: 'top', offset: 2 },
+          R: { side: 'right', offset: 0 },
+          B: { side: 'bottom', offset: 3 },
+        },
+      }),
+      {},
+    );
+    expect(layout.body).toEqual({ x: 1, y: 1, width: 3, height: 2 });
+    expect(pinMap(layout)).toEqual({ L: [0, 2], T: [3, 0], R: [5, 1], B: [4, 4] });
+    expect(layout.pins.map((p) => p.side)).toEqual(['left', 'top', 'right', 'bottom']);
+  });
+
+  it('keeps the origin at the body corner on sides without pins', () => {
+    const lamp = layoutOf('test/lamp');
+    expect(lamp.body).toEqual({ x: 1, y: 0, width: 2, height: 2 });
+    expect(pinMap(lamp)).toEqual({ A: [0, 1], K: [4, 1] });
+    const vcc = layoutOf('test/tie', { level: '1' });
+    expect(vcc.body).toEqual({ x: 0, y: 0, width: 2, height: 1 });
+    expect(pinMap(vcc)).toEqual({ Y: [1, 2] });
+    const gnd = layoutOf('test/tie', { level: '0' });
+    expect(gnd.body).toEqual({ x: 0, y: 1, width: 2, height: 1 });
+    expect(pinMap(gnd)).toEqual({ Y: [1, 0] });
+  });
+
+  it('takes precedence over the generic box, but a package wins over it', () => {
+    const symbol: SymbolDef = {
+      kind: 'k',
+      width: 2,
+      height: 2,
+      pins: { A: { side: 'right', offset: 1 } },
+    };
+    expect(pinMap(partLayout(sym(symbol), {}))).toEqual({ A: [3, 1] }); // box: (0, 1)
+    const packaged = sym(symbol, {
+      package: { kind: 'dip', pins: 2 },
+      pins: [
+        { name: 'A', number: 1, dir: 'in' },
+        { name: 'B', number: 2, dir: 'in' },
+      ],
+    });
+    expect(pinMap(partLayout(packaged, {}))).toEqual({ A: [0, 1], B: [6, 1] });
+  });
+
+  it('rejects an inconsistent symbol (a library bug)', () => {
+    const symbol: SymbolDef = { kind: 'k', width: 2, height: 2, pins: {} };
+    const part = sym(symbol, { pins: [{ name: 'A', dir: 'in' }] });
+    expect(() => partLayout(part, {})).toThrow('test/sym: symbol does not place pin "A"');
   });
 });
 

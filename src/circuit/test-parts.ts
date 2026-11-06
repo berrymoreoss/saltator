@@ -82,6 +82,56 @@ export const testDip = defineComponent<Record<string, never>, undefined>({
   create: () => ({}),
 });
 
+/**
+ * `test/tie`: output `Y` tied to `level`, drawn as a rail: a 2×1 body with the pin below it for 1
+ * (like VCC) and above it for 0 (like GND). At (x, y): level 1 → Y (x+1, y+2); 0 → Y (x+1, y).
+ */
+export const testTie = defineComponent<{ level: '0' | '1' }, undefined>({
+  type: 'test/tie',
+  name: 'TIE',
+  title: 'Test rail',
+  props: [
+    {
+      key: 'level',
+      label: 'Level',
+      type: 'enum',
+      default: '1',
+      options: [
+        { value: '0', label: '0' },
+        { value: '1', label: '1' },
+      ],
+    },
+  ],
+  pins: ({ level }) => [{ name: 'Y', dir: 'out', constant: level === '1' ? 1 : 0 }],
+  symbol: ({ level }) => ({
+    kind: 'tie',
+    width: 2,
+    height: 1,
+    pins: { Y: { side: level === '1' ? 'bottom' : 'top', offset: 1 } },
+  }),
+  create: ({ level }) => ({
+    init: (ctx) => ctx.drive(0, strong(level === '1' ? Level.L1 : Level.L0), 0),
+  }),
+});
+
+/** `test/lamp`: indicator with sense inputs on a 2×2 symbol. At (x, y): A (x, y+1), K (x+4, y+1). */
+export const testLamp = defineComponent<Record<string, never>, undefined>({
+  type: 'test/lamp',
+  name: 'LAMP',
+  title: 'Test lamp',
+  pins: [
+    { name: 'A', dir: 'in', sense: true },
+    { name: 'K', dir: 'in', sense: true },
+  ],
+  symbol: {
+    kind: 'lamp',
+    width: 2,
+    height: 2,
+    pins: { A: { side: 'left', offset: 1 }, K: { side: 'right', offset: 1 } },
+  },
+  create: () => ({}),
+});
+
 export function testRegistry(): Registry {
-  return new Registry([testAnd, testHigh, testPull, testBus, testDip]);
+  return new Registry([testAnd, testHigh, testPull, testBus, testDip, testTie, testLamp]);
 }
