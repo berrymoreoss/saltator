@@ -86,7 +86,8 @@ They are associative, so N-input gates fold them over their inputs.
 Components read `Level`s and may see `Z` (a bidirectional part may care). When a component reads
 a `Z` net through an `in` or `bidir` pin, the engine records a `floating-input` diagnostic for
 that net — once, until the net changes. This flags only floating values that are actually
-consumed, so idle bidirectional buses don't produce noise.
+consumed, so idle bidirectional buses don't produce noise. Pins marked `sense` (LEDs, displays,
+probes) only observe their net: reading `Z` through them is not a floating input.
 
 ### Power-on
 

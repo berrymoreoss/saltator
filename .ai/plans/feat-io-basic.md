@@ -177,7 +177,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   rely on box positions.
 - [x] 10. scenarios: headless M1 circuits as documents (switch → NAND → LED; clock → LED; button
   with/without pull-down; DIP switch → hex display; multiplexed 4-digit 7-segment duty).
-- [ ] 11. Docs: components.md (io family, symbols, flags, state/actions), circuit.md (symbol
+- [x] 11. Docs: components.md (io family, symbols, flags, state/actions), circuit.md (symbol
   layouts, checks), architecture.md, ADR-0007 (IO electrical model), glossary, library
   README, roadmap backlog (bounce, resistor network), lessons.
 
@@ -185,18 +185,24 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 
 Checkable statements; verified one by one in the finish-branch workflow.
 
-- [ ] `pnpm check` and `pnpm build` are green.
-- [ ] Every `io/*` part has a test from its function table (LED/segment lit table, contact
-  table), X/Z cases, and a time assertion (action time, clock period and duty to the ps).
-- [ ] Every registered part has a `package` or a `symbol`; `partLayout` succeeds for default and
-  boundary props with no two pins on one point.
-- [ ] Reads through sense pins never report `floating-input`; sense pins never get
-  `undriven-input`; VCC wired to VCC compiles clean, VCC to GND is `shorted-outputs`.
-- [ ] Headless M1: a document switch → NAND → LED simulates with the LED following the switch;
+- [x] `pnpm check` and `pnpm build` are green (492 tests).
+- [x] Every `io/*` part has a test from its function table (LED/segment lit table, contact
+  table), X/Z cases, and a time assertion (action time, clock period and duty to the ps) —
+  `src/library/io/*.test.ts`. Hex display and probe are stateless (no timing to assert); their
+  tests cover every input level.
+- [x] Every registered part has a `package` or a `symbol`; `partLayout` succeeds for default and
+  boundary props with no two pins on one point — `tests/scenarios/part-layouts.test.ts`.
+- [x] Reads through sense pins never report `floating-input` (`simulator.test.ts`, every
+  indicator test); sense pins never get `undriven-input` (`compile.test.ts`); VCC wired to VCC
+  compiles clean, VCC to GND is `shorted-outputs` (`compile.test.ts`, `io-parts.test.ts`).
+- [x] Headless M1: a document switch → NAND → LED simulates with the LED following the switch;
   clock → LED blinks with the configured period and duty; a button without a pull-down gives
-  a `floating-input` on the gate input when released, with a pull-down it doesn't.
-- [ ] A 4-digit 7-segment display multiplexed at 1 kHz reports 25 % on-time per lit segment.
-- [ ] components.md, circuit.md, ADR-0007 describe the implemented parts and model.
+  a `floating-input` on the gate input when released, with a pull-down it doesn't —
+  `tests/scenarios/io-parts.test.ts`.
+- [x] A 4-digit 7-segment display multiplexed at 1 kHz reports 25 % on-time per lit segment
+  (within 10 ns over 4 ms: the decoder's gate delays) — `io-parts.test.ts`.
+- [x] components.md, circuit.md, ADR-0007 describe the implemented parts and model; the
+  builder example in circuit.md was run against the code.
 
 ## Open questions
 
@@ -218,10 +224,22 @@ Asked at branch start (2026-11-06); all answered.
 
 - 2026-11-06 — branch created; plan drafted.
 - 2026-11-06 — Q1–Q3 answered (all as proposed); plan approved by the user; status in-progress.
+- 2026-11-06 — tasks 1–11 done: `SymbolDef` + `symbol` on definitions (registry validates pins
+  and symbols with default props); `sense`/`constant` pin flags; symbol layouts and flag-aware
+  design checks; `io/*`: rails, switch, button, DIP switch (real contacts), LED, LED bar,
+  7-segment, hex display, probe, clock; on-time accounting for indicators; gate-shaped symbols
+  for `prim/*`; headless M1 scenarios; docs, ADR-0007. Bench: compile ≈ 8 ms (3 600 parts,
+  10 620 wires; grid redrawn for the new NAND pins, same counts), kernel ≈ 13–14M events/s.
+  Coverage: 100 % of the new modules. All acceptance criteria verified. 492 tests.
 
 ## Handoff
 
-- **State:** plan approved; implementation starting with task 1.
-- **Next step:** task 1 (core: `SymbolDef`, `symbol`, `symbolOf`, `validateSymbol`).
-- **Watch out:** —
-- **Verify with:** `pnpm check`
+- **State:** all tasks done, acceptance criteria verified; waiting for the user's review before
+  the finish-branch workflow (merge needs approval).
+- **Next step:** finish-branch: re-verify, roadmap R03 `done`, R04 `next`, merge with `--no-ff`
+  after approval.
+- **Watch out:** pin positions of `prim/*` changed (gate symbols): code that draws circuits with
+  fixed coordinates must use the new ones (`docs/circuit.md#part-layouts`). Label anchors on
+  symbols and ANSI vs IEC drawing are R04's; brightness from `onTimeAt` and clicking parts are
+  R05's.
+- **Verify with:** `pnpm check && pnpm build && pnpm coverage && pnpm bench`.

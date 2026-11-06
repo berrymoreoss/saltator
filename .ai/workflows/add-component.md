@@ -23,6 +23,11 @@ near-identical parts such as gates). Use `defineComponent<Props, State>({ … })
   `nc`. Mark `activeLow` / `clock` pins. Prop-dependent pin lists: `pins: (props) => [...]`.
 - **Props** (`props`) for user-editable settings, with defaults and min/max. Time props are
   integer picoseconds (`ns(1)`).
+- **Drawing**: real chips set `package` (drawn as a DIP from the pin numbers). Other parts set
+  `symbol` — `kind`, body size, every pin's side and offset (a function of props if the shape
+  depends on them); see docs/components.md#symbols-non-package-parts.
+- **Pin flags**: `sense` on inputs that only observe (indicators), `constant` on outputs tied to a
+  rail, `weak` on pull resistors.
 - **Timing** (`timing.typical`, optional `max`, `conditions`, `source`): typical values at
   VCC = 5 V unless the part says otherwise. Never zero for real chips.
 - **Behavior** (`create(props)`):

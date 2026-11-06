@@ -70,6 +70,19 @@ describe('IO parts in circuits', () => {
     expect(sim.diagnostics.entries).toEqual([]);
   });
 
+  it('rail symbols: VCC wired to VCC is fine, VCC to GND is a short', () => {
+    // V1, V2: Y (1, 2), (11, 2); G1: Y (21, 2). One wire along y = 2.
+    const b = new CircuitBuilder(registry)
+      .add('V1', 'io/vcc', { at: [0, 0] })
+      .add('V2', 'io/vcc', { at: [10, 0] })
+      .wire('V1.Y', 'V2.Y');
+    expect(compileDocument(b.document(), registry).issues).toEqual([]);
+    b.add('G1', 'io/gnd', { at: [20, 2] }).wire('V2.Y', 'G1.Y');
+    expect(compileDocument(b.document(), registry).issues.map((i) => i.message)).toEqual([
+      'outputs shorted together on net "V1.Y": V1.Y, V2.Y, G1.Y',
+    ]);
+  });
+
   it('clock → LED: blinks with the configured period and duty', () => {
     const sim = simulate(
       new CircuitBuilder(registry)

@@ -5,8 +5,9 @@ How parts are described in `src/library`. Rationale for modeling chips as packag
 [simulation.md](simulation.md#components-at-runtime). Step-by-step recipe for adding a part:
 [.ai/workflows/add-component.md](../.ai/workflows/add-component.md).
 
-> Status: the definition shape is implemented (R01) and used by the `prim/*` parts. IO parts
-> (R03) add `symbol`; 74xx parts (R06) are the first to use `package` and `units`.
+> Status: the definition shape is implemented (R01); `symbol`, the `sense`/`constant` pin flags
+> and the `io/*` parts landed in R03. 74xx parts (R06) are the first to use `package` and
+> `units`.
 
 ## Families and type ids
 
@@ -17,7 +18,7 @@ the part before the slash (`familyOf(type)`).
 | Family   | Examples                                                           | Notes                                                                                                  |
 | -------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
 | `prim`   | `prim/nand`, `prim/tristate-buffer`, `prim/pull`                   | Abstract building blocks (Logisim-style), configurable inputs and delay. For prototyping and learning. |
-| `io`     | `io/switch`, `io/button`, `io/led`, `io/clock`, `io/seven-segment` | Interaction and indication _(planned, R03)_.                                                           |
+| `io`     | `io/switch`, `io/button`, `io/led`, `io/clock`, `io/seven-segment` | Interaction and indication: rails, switches, LEDs, displays, clock, probe ([below](#io-parts-io)).     |
 | `74xx`   | `74xx/74hc00`, `74xx/74hc245`, `74xx/74ls189`                      | Real logic chips. Behavior shared per function; timing per logic family (HC first) _(planned, R06)_.   |
 | `mem`    | `mem/at28c256`, `mem/62256`                                        | ROM/EEPROM/SRAM with inspectors _(planned, R12)_.                                                      |
 | `cpu`    | `cpu/w65c02s`                                                      | Processors (pin-level) _(planned, R17)_. Later: Z80, AVR, PIC.                                         |
@@ -39,7 +40,7 @@ interface ComponentDefinition<Props, State> {
   units?: UnitDef[]; // gate sections, for the future symbol view
   props?: PropDef[]; // user-editable properties (inspector)
   timing?: TimingDef; // datasheet numbers + source/conditions
-  // symbol?: SymbolDef — geometry for non-package rendering (planned, R03)
+  symbol?: SymbolDef | ((props: Props) => SymbolDef); // geometry when drawn as a symbol
 
   create(props: Props): Behavior<State>; // see docs/simulation.md
 }
@@ -51,13 +52,16 @@ interface PinDef {
   activeLow?: boolean; // drawn with a bubble/overline: OE, CE, WE
   clock?: boolean; // drawn with a clock triangle
   weak?: boolean; // only ever drives weakly (pull resistors); driver pins only
+  sense?: boolean; // only observes the net (LEDs, displays, probes); `in` pins only
+  constant?: 0 | 1; // output tied to this level (rails, constants); strong `out` pins only
 }
 ```
 
 Write definitions with `defineComponent<Props, State>({ … })`: it type-checks `create`, `pins`
 and the behavior against your props and state types, and returns the erased
 `AnyComponentDefinition` that registries store. A `Registry` rejects malformed or duplicate type
-ids and duplicate pin names.
+ids, and validates pins (and the symbol) with the default props: duplicate pin names, flags on
+the wrong kind of pin, a symbol that doesn't place every pin.
 
 `pins` may be a function of the (resolved) props, for parts whose pin count is configurable
 (N-input gates, DIP-switch banks, LED bars). `pinsOf(definition, props)` returns an instance's
@@ -77,6 +81,15 @@ Pin directions:
 A driver pin marked `weak` (pull resistors) only ever drives weak levels. The kernel doesn't need
 the flag — strength comes from the drive values — but static design checks do: two strong `out`
 pins on one net are a short, an `out` and a pull resistor are not.
+
+An `in` pin marked `sense` only observes its net, like an LED or a probe: a floating net there is
+no mistake (it is simply dark), so the kernel never reports `floating-input` for reads through it
+and the `undriven-input` check skips it. The part is still evaluated when the net changes.
+
+An `out` pin marked `constant: 0 | 1` is tied to that level for good (`io/vcc`, `io/gnd`,
+`prim/constant` with 0/1). The `shorted-outputs` check counts outputs tied to the same level as
+one source: two VCC symbols wired together are fine, VCC to GND or VCC to a gate output is a
+short.
 
 ## Packages and pin numbering
 
@@ -182,12 +195,76 @@ input has a `delay` prop (`time`, default **1 ns**, 0 allowed for Logisim-like b
 | `prim/constant`         | `Y`                        | `value`: `'0'`, `'1'`, `'X'` (def. 1) | drives the value strongly from t = 0                      |
 | `prim/pull`             | `Y` (weak)                 | `direction`: `up` (default), `down`   | drives weak 1 / weak 0 from t = 0; any strong driver wins |
 
+`prim/pull` is also the schematic's pull-up/pull-down resistor (the resistance is implied).
+
+Symbols (R03): N-input gates `gate-and`, `gate-or`, `gate-nand`, `gate-nor`, `gate-xor`,
+`gate-xnor` — a 4-cell-wide body, inputs one cell apart down the left side, skipping the middle
+row for an even count so the output sits on the grid (2 inputs: rows 1 and 3, output row 2);
+`buffer`, `not` (A left, Y right); `tristate-buffer` (EN from below); `constant`; `pull-up` /
+`pull-down` (a resistor to its rail, the pin below / above it).
+
 ## Symbols (non-package parts)
 
-_(planned, R03)_ `symbol` describes geometry in grid units: bounding box, pin positions (side +
-offset), label anchors. The editor maps `symbol.kind` to a drawing function (`led`, `switch`,
-`seven-segment`, `gate-and`, …). The library never draws.
+Parts without a `package` describe their drawing as data in `symbol` (a function of props where
+the shape depends on them, like LED bars or N-input gates). The library never draws; the editor
+maps `kind` to a drawing function and falls back to a box for kinds it doesn't know.
 
-Until a part has a `symbol`, `partLayout` gives it a generic box: inputs on the left, outputs on
-the right, power/nc pins at the bottom ([circuit.md](circuit.md#part-layouts)). All `prim/*`
-parts use it today.
+```ts
+interface SymbolDef {
+  kind: string; // drawing function: 'led', 'switch', 'gate-and', …
+  width: number; // body size in grid cells, pin stubs excluded
+  height: number;
+  pins: Record<string, { side: PinSide; offset: number }>; // every pin, power and nc too
+}
+type PinSide = 'left' | 'top' | 'right' | 'bottom';
+```
+
+- A pin sits on a side of the body, `offset` cells from its top (left/right sides) or left
+  (top/bottom sides) edge, 0 … height or 0 … width; its stub sticks out one cell and connects at
+  the tip. No two pins on the same point.
+- `partLayout` in `src/circuit` turns the symbol into connection points
+  ([circuit.md](circuit.md#part-layouts)). A `package` wins over a `symbol` (chips are drawn as
+  packages, ADR-0004); parts with neither get the generic box (none of the built-in parts).
+- Where the designator and label text go is decided by the editor (R04).
+
+## IO parts (`io/*`)
+
+Interaction and indication, in `src/library/io`. Electrical model:
+[ADR-0007](adr/0007-io-electrical-model.md). IO parts have no datasheet timing: switches and
+rails change with zero delay, the clock's edges are exact.
+
+| Type               | Pins                         | Props (default)                                                                    | Behavior                                                              |
+| ------------------ | ---------------------------- | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `io/vcc`, `io/gnd` | `Y` (out, constant 1 / 0)    | —                                                                                  | strong 1 / 0 from t = 0                                               |
+| `io/switch`        | `Y`                          | `contact` (`spdt`), `on` (false): position at power-on                             | toggle switch; actions `toggle`, `set`                                |
+| `io/button`        | `Y`                          | `contact` (`spst-vcc`)                                                             | momentary; released at power-on; actions `press`, `release`           |
+| `io/dip-switch`    | `S1`…`Sn`                    | `count` 1–12 (8), `contact` (`spst-vcc`), `on` (0): power-on bitmask, bit 0 = `S1` | actions `toggle`, `set` with `index` (0 = `S1`)                       |
+| `io/clock`         | `Y` (out)                    | `frequency` 0.001 Hz–1 GHz (1), `duty` 1–99 % (50), `mode` (`auto`)                | starts low; `auto` runs freely; `manual`: action `step` → one pulse   |
+| `io/led`           | `A`, `K` (sense)             | `color` (red)                                                                      | lit while A = 1 and K = 0                                             |
+| `io/led-bar`       | `A1`…`An`, `K1`…`Kn` (sense) | `count` 1–12 (10), `color`                                                         | n separate LEDs                                                       |
+| `io/seven-segment` | `a`…`g`, `dp`, `COM` (sense) | `common` (`cathode`), `color`                                                      | each segment an LED to `COM`; pins placed as on the real single digit |
+| `io/hex-display`   | `D0`…`D3` (sense)            | `color`                                                                            | shows 0–F; any `X`/`Z` input → unknown (`hexDigit(levels)`)           |
+| `io/probe`         | `A` (sense)                  | —                                                                                  | shows the level of its net: 0, 1, X or Z                              |
+
+- **Contacts** (`contact`): `spdt` — drives strong 1 when on, strong 0 when off (pin `out`);
+  `spst-vcc` — strong 1 when closed, released (`Z`) when open (pin `tristate`), needs a pull-down;
+  `spst-gnd` — strong 0 when closed, released when open, needs a pull-up. Contact bounce is not
+  modelled.
+- **LEDs**: on with forward bias (A = 1, K = 0); off if A is 0 or `Z`, or K is 1 or `Z` (a
+  floating side carries no current); unknown otherwise. 7-segment, common cathode: segment = A,
+  `COM` = K; common anode: `COM` = A, segment = K. Colors are an `enum` of real LED colors (red,
+  green, yellow, orange, blue, white).
+- **Clock**: period = round(10¹² / frequency) ps, high time = round(period × duty / 100) ps
+  (`clockPhases`); the first rising edge comes after the low time. `step` is ignored in `auto`
+  mode and while a pulse is under way.
+- **Actions** are objects with a `type` (`{ type: 'toggle' }`, `{ type: 'set', index: 2, on:
+  true }`, …), sent with `sim.action(id, action)`; unknown ones throw (a host bug). Types:
+  `SwitchAction`, `ButtonAction`, `DipSwitchAction`, `ClockAction`.
+- **State** (`sim.stateOf(id)`) is the renderer's contract: `{ on }` (switch), `{ pressed }`
+  (button), `{ on: boolean[] }` (DIP switch), `{ high }` (clock). LEDs, LED bars and 7-segment
+  displays keep `LightsState`: per light (segments in `SEGMENTS` order) what it shows
+  (`Light.OFF`/`ON`/`UNKNOWN`), since when, and its accumulated on-time. `onTimeAt(state, i,
+  now)` gives the total on-time up to `now`, so the average brightness over a frame is the
+  difference of two samples divided by the frame's duration — a multiplexed display or an LED on
+  a fast clock shows its real brightness instead of random frames. Hex display and probe are
+  stateless: the renderer reads their pin levels.

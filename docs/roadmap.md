@@ -190,6 +190,10 @@ Promote to a numbered item when needed.
 - Symbol view: Proteus/KiCad-style multi-unit symbols (U1A…), hidden power pins, per-part toggle.
 - Simulation in a Web Worker with SharedArrayBuffer levels; fast mode for synchronous designs.
 - Seeded random power-on state as a simulator option (default stays `X`; decided in R01, Q2).
+- Contact bounce for buttons and switches (deterministic pattern), to catch missing debouncing
+  before fab (R03 switches change cleanly).
+- Bussed resistor network part (SIP-9: 8 pull resistors with a common pin) for DIP switch banks
+  and buses.
 - Design checks: unconnected power pins, fan-out/load limits, worst-case timing corner.
 - More CPUs/MCUs: Z80, 8080/8085, 6800/6809, AVR (ATmega328P, ATtiny85), PIC.
 - Video output: VGA (Ben Eater's video card), composite.

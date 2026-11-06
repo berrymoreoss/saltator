@@ -11,6 +11,7 @@ the alternatives we rejected. Format: [ADR-0001](0001-record-architecture-decisi
 | [0004](0004-chips-as-packages.md)                 | Chips are modeled as packages; DIP view first                           | accepted |
 | [0005](0005-layered-architecture.md)              | Layered architecture with enforced boundaries                           | accepted |
 | [0006](0006-circuit-document-and-connectivity.md) | Circuit document: wire segments, designator ids, geometric connectivity | accepted |
+| [0007](0007-io-electrical-model.md)               | IO parts model real contacts and two-terminal LEDs                      | accepted |
 
 New ADR: copy [template.md](template.md) to `NNNN-short-title.md` (next free number), fill it in,
 add a row here. Superseding: set the old one's status to `superseded by NNNN`; never delete ADRs.
