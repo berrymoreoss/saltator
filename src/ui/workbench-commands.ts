@@ -51,7 +51,7 @@ export interface WorkbenchContext {
 const PANEL_LABELS: Readonly<Record<PanelId, string>> = {
   parts: 'Parts',
   properties: 'Properties',
-  bottom: 'Messages',
+  bottom: 'Messages and Simulation',
 };
 
 const THEME_LABELS: Readonly<Record<ThemeSetting, string>> = {

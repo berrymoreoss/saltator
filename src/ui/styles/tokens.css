@@ -29,6 +29,11 @@
   --ok: #1a7f37;
   --shadow: 0 6px 24px rgba(0, 0, 0, 0.16), 0 1px 3px rgba(0, 0, 0, 0.1);
   --canvas-bg: #fbfaf6;
+  /* Signal levels, as on the canvas (src/editor/theme.ts). */
+  --level-0: #14532d;
+  --level-1: #18b04a;
+  --level-z: #2563eb;
+  --level-x: #dc2626;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -57,6 +62,10 @@
     --ok: #3fb950;
     --shadow: 0 8px 28px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4);
     --canvas-bg: #17191d;
+    --level-0: #23843f;
+    --level-1: #4be36f;
+    --level-z: #4d8fea;
+    --level-x: #ff5a52;
   }
 }
 
@@ -85,6 +94,10 @@
   --ok: #3fb950;
   --shadow: 0 8px 28px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4);
   --canvas-bg: #17191d;
+  --level-0: #23843f;
+  --level-1: #4be36f;
+  --level-z: #4d8fea;
+  --level-x: #ff5a52;
 }
 
 :root {

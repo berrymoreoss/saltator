@@ -57,6 +57,9 @@ describe('settings', () => {
     expect(settings.showGrid).toBe(true);
     expect(settings.panels.parts).toEqual({ visible: false, size: PANEL_LIMITS.parts.max });
     expect(settings.panels.bottom).toEqual(DEFAULT_SETTINGS.panels.bottom);
+    expect(settings.bottomTab).toBe('messages');
+    expect(parseSettings({ bottomTab: 'simulation' }).bottomTab).toBe('simulation');
+    expect(parseSettings({ bottomTab: 'memory' }).bottomTab).toBe('messages');
   });
 
   it('follows the OS for the system theme', () => {

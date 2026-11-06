@@ -391,6 +391,58 @@ select.prop-input {
   font-size: var(--text-small);
 }
 
+.sim-message {
+  grid-template-columns: 18px 130px 1fr auto auto;
+}
+
+.message-when {
+  color: var(--fg-muted);
+  font-size: var(--text-small);
+}
+
+.messages-empty.muted {
+  color: var(--fg-muted);
+}
+
+/* A live level next to a pin or net (Properties). */
+.level-badge {
+  display: inline-block;
+  min-width: 14px;
+  padding: 0 3px;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: var(--text-small);
+  font-weight: 700;
+  line-height: 14px;
+  text-align: center;
+  color: var(--panel-bg);
+}
+
+.level-badge.l0 {
+  background: var(--level-0);
+}
+
+.level-badge.l1 {
+  background: var(--level-1);
+}
+
+.level-badge.z {
+  background: var(--level-z);
+}
+
+.level-badge.x,
+.level-badge.contention {
+  background: var(--level-x);
+}
+
+.level-badge.weak0 {
+  background: color-mix(in srgb, var(--level-0) 55%, transparent);
+}
+
+.level-badge.weak1 {
+  background: color-mix(in srgb, var(--level-1) 55%, transparent);
+}
+
 /* ── Dialogs ──────────────────────────────────────────────────────────────── */
 
 .dialog-backdrop {

@@ -1,3 +1,4 @@
+import { Eraser } from 'lucide-react';
 import { useEffect, useMemo, useRef } from 'react';
 import { DARK_CANVAS, type Editor, LIGHT_CANVAS, type Store } from '../editor';
 import { ContextMenu } from './ContextMenu';
@@ -6,14 +7,21 @@ import { CommandRegistry, dispatchShortcut } from './commands';
 import { AboutDialog, ShortcutsDialog } from './Dialogs';
 import { useMediaQuery, useStore, useStoreValue } from './hooks';
 import { MenuBar } from './MenuBar';
-import { MessagesPanel, MessagesTab } from './MessagesPanel';
+import { MessagesBadges, MessagesPanel } from './MessagesPanel';
 import { Panel, Splitter } from './Panel';
 import { PartsPanel } from './PartsPanel';
 import { PropertiesPanel } from './PropertiesPanel';
 import { PART_DRAG_TYPE } from './parts-filter';
 import { SpeedSelect } from './SimControls';
+import { SimulationBadges, SimulationPanel } from './SimulationPanel';
 import { StatusBar } from './StatusBar';
-import { effectiveTheme, PANEL_LIMITS, type PanelId, type Settings } from './settings';
+import {
+  type BottomTab,
+  effectiveTheme,
+  PANEL_LIMITS,
+  type PanelId,
+  type Settings,
+} from './settings';
 import { isMacPlatform } from './shortcuts';
 import { Toolbar } from './Toolbar';
 import type { Example, UiState } from './ui-state';
@@ -100,6 +108,13 @@ export function Workbench({ editor, settings: settingsStore, ui, examples }: Wor
     setPanel(id, { size: Math.round(Math.min(max, Math.max(min, size))) });
   };
   const { parts, properties, bottom } = settings.panels;
+  const showTab = (bottomTab: BottomTab) =>
+    settingsStore.update((s) => ({
+      ...s,
+      bottomTab,
+      panels: { ...s.panels, bottom: { ...s.panels.bottom, visible: true } },
+    }));
+  const tab = settings.bottomTab;
   const closeDialog = () => ui.update(({ dialog: _, ...rest }) => rest);
 
   return (
@@ -173,16 +188,59 @@ export function Workbench({ editor, settings: settingsStore, ui, examples }: Wor
           />
           <div className="dock dock-bottom" style={{ height: bottom.size }}>
             <Panel
-              title={<MessagesTab editor={editor} />}
+              title={
+                <div className="dock-tabs" role="tablist" aria-label="Bottom panel">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={tab === 'messages'}
+                    className={tab === 'messages' ? 'tab active' : 'tab'}
+                    onClick={() => showTab('messages')}
+                  >
+                    Messages
+                    <MessagesBadges editor={editor} />
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={tab === 'simulation'}
+                    className={tab === 'simulation' ? 'tab active' : 'tab'}
+                    onClick={() => showTab('simulation')}
+                  >
+                    Simulation
+                    <SimulationBadges editor={editor} />
+                  </button>
+                </div>
+              }
+              actions={
+                tab === 'simulation' && (
+                  <button
+                    type="button"
+                    className="icon-button"
+                    title="Clear the list (problems that happen again come back)"
+                    onClick={() => editor.simulation.clearDiagnostics()}
+                  >
+                    <Eraser size={13} />
+                  </button>
+                )
+              }
               onClose={() => setPanel('bottom', { visible: false })}
               testId="bottom-panel"
             >
-              <MessagesPanel editor={editor} />
+              {tab === 'messages' ? (
+                <MessagesPanel editor={editor} />
+              ) : (
+                <SimulationPanel editor={editor} />
+              )}
             </Panel>
           </div>
         </>
       )}
-      <StatusBar editor={editor} onShowMessages={() => setPanel('bottom', { visible: true })} />
+      <StatusBar
+        editor={editor}
+        onShowMessages={() => showTab('messages')}
+        onShowSimulation={() => showTab('simulation')}
+      />
       {uiState.dialog === 'shortcuts' && (
         <ShortcutsDialog commands={commands} mac={MAC} onClose={closeDialog} />
       )}

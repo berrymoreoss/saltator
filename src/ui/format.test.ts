@@ -6,6 +6,7 @@ import { createDefaultRegistry } from '../library';
 import { issueLocation } from './MessagesPanel';
 import { formatProp } from './PropertiesPanel';
 import { simulationSummary } from './SimControls';
+import { diagnosticLocation, diagnosticSeverity, diagnosticWhen } from './SimulationPanel';
 import { selectionSummary, statusHint } from './StatusBar';
 
 const registry = createDefaultRegistry();
@@ -94,5 +95,27 @@ describe('statusHint', () => {
   it('tells how the Interact tool works, and that it needs a running simulation', () => {
     expect(statusHint('interact', 'idle', registry, true)).toMatch(/^Click switches/);
     expect(statusHint('interact', 'idle', registry, false)).toMatch(/^Run \(F5\)/);
+  });
+});
+
+describe('runtime diagnostics', () => {
+  const d = (change: object) => ({
+    time: ns(12),
+    lastTime: ns(12),
+    count: 1,
+    kind: 'floating-input',
+    message: '',
+    ...change,
+  });
+
+  it('says where, when and how bad', () => {
+    expect(diagnosticLocation(d({ component: 'U1', pin: 'A' }))).toBe('U1.A');
+    expect(diagnosticLocation(d({ component: 'U3' }))).toBe('U3');
+    expect(diagnosticLocation(d({ net: 'U1.Y' }))).toBe('net U1.Y');
+    expect(diagnosticWhen(d({}))).toBe('at 12 ns');
+    expect(diagnosticWhen(d({ count: 40, lastTime: ns(1500) }))).toBe('12 ns … 1.5 µs ×40');
+    expect(diagnosticSeverity(d({ kind: 'contention' }))).toBe('error');
+    expect(diagnosticSeverity(d({ kind: 'oscillation' }))).toBe('error');
+    expect(diagnosticSeverity(d({}))).toBe('warning');
   });
 });

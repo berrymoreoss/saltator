@@ -1,4 +1,4 @@
-import { Gauge } from 'lucide-react';
+import { Gauge, TriangleExclamationPoint } from 'lucide-react';
 import { formatTime } from '../core';
 import { ALL_SPEEDS, formatRate, type SimStatus, type Simulation } from '../editor';
 import { useStore } from './hooks';
@@ -50,22 +50,39 @@ export function simulationSummary(status: SimStatus): string {
   return parts.join(' · ');
 }
 
-/** The status-bar cell of the simulation (its own component: it refreshes ~10× per second). */
-export function SimulationStatus({ simulation }: { readonly simulation: Simulation }) {
+/**
+ * The status-bar cell of the simulation, with the number of problems reported while running;
+ * a click shows them. Its own component: it refreshes ~10× per second.
+ */
+export function SimulationStatus({
+  simulation,
+  onClick,
+}: {
+  readonly simulation: Simulation;
+  readonly onClick: () => void;
+}) {
   const status = useStore(simulation.status);
+  const problems = useStore(simulation.diagnostics).length;
   const warn = status.error !== undefined || status.state === 'halted' || status.lagging;
   return (
-    <span
+    <button
+      type="button"
       className={`status-cell sim-status ${status.state}${warn ? ' warn' : ''}`}
       data-testid="sim-status"
+      onClick={onClick}
       title={
         status.lagging
-          ? `The simulation can't keep up with ${status.speed.label}`
-          : 'Simulation: state and simulated time'
+          ? `The simulation can't keep up with ${status.speed.label} — show Simulation`
+          : 'Simulation: state and simulated time — show Simulation'
       }
     >
       <span className="sim-dot" aria-hidden />
       <span className="mono">{simulationSummary(status)}</span>
-    </span>
+      {problems > 0 && (
+        <span className="issue-count warning">
+          <TriangleExclamationPoint size={12} /> {problems}
+        </span>
+      )}
+    </button>
   );
 }

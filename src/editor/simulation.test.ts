@@ -447,3 +447,57 @@ describe('Simulation: lights', () => {
     expect(simulation.signalView()!.part('NOPE')).toBeUndefined();
   });
 });
+
+describe('Simulation: panels', () => {
+  /** Two switches wired together: a contention as soon as they disagree. */
+  const shorted = () =>
+    new CircuitBuilder(registry)
+      .add('SW1', 'io/switch', { at: [0, 0] })
+      .add('SW2', 'io/switch', { at: [0, 6], props: { on: true } })
+      .connect('SW1.Y', 'SW2.Y', [6, 1], [6, 7])
+      .build();
+
+  it('finds the wires of a net a diagnostic names, and locates them', () => {
+    const { clock, editor, simulation } = setup(shorted());
+    expect(simulation.wiresOfNet('SW1.Y')).toEqual([]); // stopped
+    simulation.run();
+    clock.frames(10); // the list refreshes with the status, every 100 ms
+    const [d] = simulation.diagnostics.get();
+    expect(d).toMatchObject({ kind: 'contention', net: 'SW1.Y' });
+    const wires = simulation.wiresOfNet(d!.net!);
+    expect(wires.sort()).toEqual(editor.scene.wires.map((w) => w.id).sort());
+    expect(simulation.wiresOfNet('nope')).toEqual([]);
+    editor.locateNet('SW1.Y');
+    expect([...editor.state.get().selection.wires].sort()).toEqual(wires.sort());
+    editor.locateNet('SW2.Q'); // no such net: the part its id starts with
+    expect(editor.state.get().selection.parts).toEqual(new Set(['SW2']));
+  });
+
+  it('clears the list; a problem that happens again comes back', () => {
+    const { clock, simulation } = setup(shorted());
+    simulation.run();
+    clock.frames(10);
+    expect(simulation.diagnostics.get()).toHaveLength(1);
+    simulation.clearDiagnostics();
+    expect(simulation.diagnostics.get()).toEqual([]);
+    simulation.action('SW1', { type: 'toggle' }); // they agree: the short clears
+    clock.frame(16);
+    simulation.action('SW1', { type: 'toggle' }); // and starts again
+    clock.frames(10);
+    expect(simulation.diagnostics.get().map((d) => d.count)).toEqual([2]);
+  });
+
+  it('gives Properties the style of pins and wires, and ticks after actions', () => {
+    const { editor, simulation } = setup();
+    expect(simulation.pinStyle('SW1', 'Y')).toBeUndefined();
+    simulation.step();
+    expect(simulation.pinStyle('SW1', 'Y')).toBe(SignalStyle.L0);
+    expect(simulation.pinStyle('SW1', 'NOPE')).toBeUndefined();
+    const wire = editor.scene.wires.find((w) => w.net === 'SW1.Y')!;
+    expect(simulation.wireStyle(wire.id)).toBe(SignalStyle.L0);
+    const ticks = simulation.ticks.get();
+    simulation.action('SW1', { type: 'toggle' });
+    expect(simulation.ticks.get()).toBeGreaterThan(ticks);
+    expect(simulation.wireStyle(wire.id)).toBe(SignalStyle.L1);
+  });
+});

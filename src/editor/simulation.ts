@@ -191,6 +191,11 @@ export class Simulation {
   readonly diagnostics = new Store<readonly Diagnostic[]>([]);
   /** Grows whenever what the canvas shows may have changed (levels, lights, state). */
   readonly revision = new Store(0);
+  /**
+   * Grows when panels showing live values should refresh: a few times per second while running,
+   * after every step, action and state change. (The canvas follows `revision` instead.)
+   */
+  readonly ticks = new Store(0);
   readonly #registry: ComponentRegistry;
   readonly #clock: SimClock;
   readonly #budget: number;
@@ -205,6 +210,8 @@ export class Simulation {
   #actual = 0;
   #events = 0;
   #diagnosticsKey = '';
+  /** Counts of the entries cleared from the list: they show again only if they recur. */
+  #cleared = new WeakMap<Diagnostic, number>();
   #flash = true;
   /** Brightness samples of the indicators, by component id. */
   readonly #lights = new Map<string, LightSample>();
@@ -243,6 +250,46 @@ export class Simulation {
   /** True while there is a simulator (running, paused or halted). */
   get active(): boolean {
     return this.#sim !== undefined;
+  }
+
+  /** Signal style of a component pin's net (Properties); undefined without a simulator. */
+  pinStyle(component: string, pin: string): SignalStyle | undefined {
+    const sim = this.#sim;
+    if (!sim) return undefined;
+    try {
+      return netStyle(sim, sim.pinNet(component, pin));
+    } catch {
+      return undefined; // a part left out of the netlist, or a pin it doesn't have
+    }
+  }
+
+  /** Signal style of a wire's net; undefined without a simulator. */
+  wireStyle(wire: string): SignalStyle | undefined {
+    const sim = this.#sim;
+    const net = this.#signals.wires.get(wire);
+    return sim && net !== undefined ? netStyle(sim, net) : undefined;
+  }
+
+  /** The scene's wires on a simulator net (by the net id a diagnostic names). */
+  wiresOfNet(net: string): string[] {
+    const sim = this.#sim;
+    if (!sim) return [];
+    let index: number;
+    try {
+      index = sim.netIndex(net);
+    } catch {
+      return [];
+    }
+    const wires: string[] = [];
+    for (const [id, n] of this.#signals.wires) if (n === index) wires.push(id);
+    return wires;
+  }
+
+  /** Empties the diagnostics list; an entry shows again if it happens again. */
+  clearDiagnostics(): void {
+    for (const d of this.#sim?.diagnostics.entries ?? []) this.#cleared.set(d, d.count);
+    this.#diagnosticsKey = '';
+    this.#refreshDiagnostics();
   }
 
   /** What the canvas shows on wires now; undefined when stopped. */
@@ -433,6 +480,7 @@ export class Simulation {
     }));
     this.#lastStatus = this.#clock.now();
     this.#refreshDiagnostics();
+    this.ticks.update((n) => n + 1);
     this.#bump();
   }
 
@@ -578,6 +626,7 @@ export class Simulation {
       this.status.set({ ...status, time, actual, lagging });
     }
     this.#refreshDiagnostics();
+    this.ticks.update((n) => n + 1);
   }
 
   #refreshDiagnostics(): void {
@@ -588,7 +637,9 @@ export class Simulation {
     for (const d of entries) key += `/${d.count}`;
     if (key === this.#diagnosticsKey) return;
     this.#diagnosticsKey = key;
-    this.diagnostics.set(entries.map((d) => ({ ...d })));
+    this.diagnostics.set(
+      entries.filter((d) => d.count > (this.#cleared.get(d) ?? 0)).map((d) => ({ ...d })),
+    );
   }
 
   #bump(): void {

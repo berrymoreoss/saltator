@@ -310,6 +310,26 @@ button {
   background: var(--hover-bg);
 }
 
+.dock-tabs {
+  display: flex;
+  gap: 2px;
+}
+
+.dock-tabs .tab {
+  display: inline-flex;
+  align-items: center;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+}
+
+.dock-tabs .tab:hover:not(.active) {
+  color: var(--fg);
+}
+
 .panel-actions {
   display: flex;
   align-items: center;
@@ -414,6 +434,12 @@ button {
 
 .sim-status {
   white-space: nowrap;
+  color: inherit;
+}
+
+.sim-status:hover {
+  background: var(--hover-bg);
+  color: var(--fg);
 }
 
 .sim-dot {

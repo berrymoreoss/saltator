@@ -6,6 +6,8 @@ import type { GateStyle, WheelMode } from '../editor';
 
 export type ThemeSetting = 'system' | 'dark' | 'light';
 export type PanelId = 'parts' | 'properties' | 'bottom';
+/** Tabs of the bottom dock: design checks, and what happened while simulating. */
+export type BottomTab = 'messages' | 'simulation';
 
 export interface PanelSettings {
   readonly visible: boolean;
@@ -19,6 +21,7 @@ export interface Settings {
   readonly showGrid: boolean;
   readonly wheel: WheelMode;
   readonly panels: Readonly<Record<PanelId, PanelSettings>>;
+  readonly bottomTab: BottomTab;
 }
 
 /** Size limits of the docks, in px. */
@@ -38,6 +41,7 @@ export const DEFAULT_SETTINGS: Settings = {
     properties: { visible: true, size: 264 },
     bottom: { visible: true, size: 148 },
   },
+  bottomTab: 'messages',
 };
 
 export const SETTINGS_KEY = 'logic.settings.v1';
@@ -75,6 +79,7 @@ export function parseSettings(value: unknown): Settings {
       properties: panel(panels.properties, 'properties'),
       bottom: panel(panels.bottom, 'bottom'),
     },
+    bottomTab: oneOf(raw.bottomTab, ['messages', 'simulation'], DEFAULT_SETTINGS.bottomTab),
   };
 }
 

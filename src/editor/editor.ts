@@ -1021,9 +1021,39 @@ export class Editor {
         : item.at
           ? { x: item.at[0], y: item.at[1], width: 0, height: 0 }
           : undefined;
-    if (!rect) return;
+    if (rect) this.#bringIntoView(rect, options.zoom === true);
+  }
+
+  /**
+   * Selects the wires of a net the simulator names (a diagnostic's `net`) and brings them into
+   * view; a net without wires (pin on pin) locates the part its id starts with (`U1.Y`).
+   */
+  locateNet(net: string, options: { zoom?: boolean } = {}): void {
+    const wires = this.simulation
+      .wiresOfNet(net)
+      .flatMap((id) => this.scene.wireById.get(id) ?? []);
+    if (wires.length === 0) {
+      const component = net.split('.')[0];
+      if (component) this.locate({ component }, options);
+      return;
+    }
+    this.setSelection(
+      selectionOf(
+        [],
+        wires.map((w) => w.id),
+      ),
+    );
+    const xs = wires.flatMap((w) => [w.from[0], w.to[0]]);
+    const ys = wires.flatMap((w) => [w.from[1], w.to[1]]);
+    const x = Math.min(...xs);
+    const y = Math.min(...ys);
+    const rect = { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y };
+    this.#bringIntoView(rect, options.zoom === true);
+  }
+
+  #bringIntoView(rect: Rect, zoom: boolean): void {
     const { camera, viewport } = this.view.get();
-    if (options.zoom) {
+    if (zoom) {
       this.setCamera(fitRect(rect, viewport, 96));
       return;
     }

@@ -35,6 +35,7 @@ export function selectionSummary(selection: Selection, scene: Scene): string {
 interface StatusBarProps {
   readonly editor: Editor;
   readonly onShowMessages: () => void;
+  readonly onShowSimulation: () => void;
 }
 
 /** What the pointer does now, for the status bar (`simulating`: a simulator exists). */
@@ -76,7 +77,7 @@ export function statusHint(
   }
 }
 
-export function StatusBar({ editor, onShowMessages }: StatusBarProps) {
+export function StatusBar({ editor, onShowMessages, onShowSimulation }: StatusBarProps) {
   const { scene, selection } = useStore(editor.state);
   const view = useStore(editor.view);
   const tool = useStore(editor.tool);
@@ -95,7 +96,7 @@ export function StatusBar({ editor, onShowMessages }: StatusBarProps) {
       <span className="status-cell" data-testid="selection-summary">
         {selectionSummary(selection, scene)}
       </span>
-      <SimulationStatus simulation={editor.simulation} />
+      <SimulationStatus simulation={editor.simulation} onClick={onShowSimulation} />
       <span className="status-cell status-hint" data-testid="status-hint">
         {statusHint(tool, mode, editor.registry, simulating)}
       </span>

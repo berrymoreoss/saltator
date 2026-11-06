@@ -280,7 +280,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   release on leave/cancel/blur/tool change; gesture tests.
 - [x] 7. ui: Simulate menu, toolbar group with the speed select, shortcuts (global, F5 reload
   prevented), status bar (state, time, speed, actual speed), status hints.
-- [ ] 8. ui: Simulation tab (runtime diagnostics, locate, clear), tab setting; live levels in
+- [x] 8. ui: Simulation tab (runtime diagnostics, locate, clear), tab setting; live levels in
   Properties.
 - [ ] 9. Tests: `tests/e2e/simulation.spec.ts`; look at it in the browser in both themes (lit
   LEDs, level colors, displays); measure the stress schematic while running.
