@@ -4,6 +4,13 @@
  * Spec: docs/circuit.md.
  */
 
+export type {
+  CircuitNet,
+  DesignIssue,
+  DesignIssueCode,
+  PlacedPin,
+} from './checks';
+export { type CompileResult, compileCircuit, compileDocument } from './compile';
 export { type Connectivity, connect, type WireEnd, type WireSegment } from './connectivity';
 export {
   type Circuit,

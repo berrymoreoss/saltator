@@ -226,7 +226,7 @@ it is used from code. Auto-routing is a plain L-shape; anything smarter is edito
   rotation/flip. Tests (DIP-14 pins 1, 7, 8, 14; 2-input gate; transforms).
 - [x] 5. `connectivity.ts`: point union-find with the segment index; one test per rule (T-junction,
   pin on wire interior, pin-to-pin, crossing, collinear overlap, junction dots).
-- [ ] 6. `compile.ts`, `checks.ts`: netlist, deterministic net ids, `wireNets`, wire-only nets,
+- [x] 6. `compile.ts`, `checks.ts`: netlist, deterministic net ids, `wireNets`, wire-only nets,
   every design check. Tests incl. running compiled netlists in the `Simulator`.
 - [ ] 7. `builder.ts`: `CircuitBuilder` with `add`, `wire`, `connect`, `pin`, `build`,
   `document`. Tests.
