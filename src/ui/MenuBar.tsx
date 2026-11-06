@@ -138,7 +138,7 @@ function CommandItem({ command, mac, onDone, onHover }: CommandItemProps) {
   const content = (
     <>
       <span className="menu-check">{checked && <Check size={13} strokeWidth={2.5} />}</span>
-      <span className="menu-label">{command.label}</span>
+      <span className="menu-label">{command.menuLabel?.() ?? command.label}</span>
       {shortcut && <span className="menu-shortcut">{formatShortcut(shortcut, mac)}</span>}
     </>
   );

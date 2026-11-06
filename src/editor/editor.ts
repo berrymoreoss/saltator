@@ -4,7 +4,7 @@
  * demand. React reads its state through the `state` and `view` stores. Spec: docs/editor.md.
  */
 import type { Circuit, Point, Rect } from '../circuit';
-import { emptyCircuit } from '../circuit';
+import { emptyCircuit, normalizeWires, sameCircuit } from '../circuit';
 import type { ComponentRegistry } from '../core';
 import {
   BASE_SCALE,
@@ -18,6 +18,15 @@ import {
   zoomAt,
   zoomStep,
 } from './camera';
+import {
+  EMPTY_HISTORY,
+  type History,
+  invertRenames,
+  pushEntry,
+  redoEntry,
+  sealHistory,
+  undoEntry,
+} from './history';
 import { type BoxMode, boxHits, type Hit, hitTest, rectFromPoints } from './hit-test';
 import { renderScene } from './renderer';
 import { buildScene, LayoutCache, type Scene } from './scene';
@@ -62,6 +71,22 @@ export interface EditorState {
   readonly circuit: Circuit;
   readonly scene: Scene;
   readonly selection: Selection;
+  /**
+   * Parts renamed by the change that produced this state, old designator → new (an edit, its
+   * undo or redo), so a simulator host can carry their state over (R05, ADR-0006).
+   */
+  readonly renames?: ReadonlyMap<string, string>;
+}
+
+/** How `Editor.edit` records an edit. */
+export interface EditOptions {
+  /** Selection after the edit (default: the current one, minus items that are gone). */
+  readonly selection?: Selection;
+  /** Consecutive edits with the same key are one undo step (arrow-key nudges). */
+  readonly coalesce?: string;
+  readonly renames?: ReadonlyMap<string, string>;
+  /** Zoom to fit the new circuit (opening an example). */
+  readonly fit?: boolean;
 }
 
 /** View state: changes with every pan, zoom and pointer move (keep its consumers small). */
@@ -108,6 +133,8 @@ export class Editor {
   readonly state: Store<EditorState>;
   readonly view: Store<ViewState>;
   readonly tool = new Store<Tool>('select');
+  /** Undo/redo stacks (labels drive the Edit menu). */
+  readonly history = new Store<History>(EMPTY_HISTORY);
   #settings: EditorSettings;
   readonly #layouts = new LayoutCache();
   #hover: Hit | undefined;
@@ -144,13 +171,86 @@ export class Editor {
     return this.state.get().scene;
   }
 
-  /** Replaces the circuit; the selection keeps the items that still exist. */
+  /**
+   * Loads a circuit: replaces the document and forgets the undo history; the selection keeps the
+   * items that still exist. Edits go through `edit` instead.
+   */
   setCircuit(circuit: Circuit, options: { fit?: boolean } = {}): void {
+    this.#show(circuit, this.state.get().selection, undefined, options.fit);
+    this.history.set(EMPTY_HISTORY);
+  }
+
+  /**
+   * Commits one user action as one undo step: normalizes the wires (if they changed) and records
+   * the circuit and selection before and after. Returns false (and records nothing) when the
+   * circuit didn't change.
+   */
+  edit(label: string, circuit: Circuit, options: EditOptions = {}): boolean {
+    const before = this.state.get();
+    const next = circuit.wires === before.circuit.wires ? circuit : normalizeWires(circuit);
+    if (sameCircuit(next, before.circuit)) {
+      if (options.selection) this.setSelection(options.selection);
+      return false;
+    }
+    this.#show(next, options.selection ?? before.selection, options.renames, options.fit);
+    const after = this.state.get();
+    this.history.update((history) =>
+      pushEntry(history, {
+        label,
+        before: { circuit: before.circuit, selection: before.selection },
+        after: { circuit: after.circuit, selection: after.selection },
+        ...(options.coalesce !== undefined && { coalesce: options.coalesce }),
+        ...(options.renames && { renames: options.renames }),
+      }),
+    );
+    return true;
+  }
+
+  /** Label of the action Undo would revert (`Move`), if any. */
+  get undoLabel(): string | undefined {
+    return this.history.get().past.at(-1)?.label;
+  }
+
+  get redoLabel(): string | undefined {
+    return this.history.get().future.at(-1)?.label;
+  }
+
+  undo(): void {
+    const step = undoEntry(this.history.get());
+    if (!step) return;
+    const { circuit, selection } = step.entry.before;
+    this.#show(circuit, selection, invertRenames(step.entry.renames));
+    this.history.set(step.history);
+  }
+
+  redo(): void {
+    const step = redoEntry(this.history.get());
+    if (!step) return;
+    const { circuit, selection } = step.entry.after;
+    this.#show(circuit, selection, step.entry.renames);
+    this.history.set(step.history);
+  }
+
+  /** Ends coalescing: the next nudge starts a new undo step. */
+  sealHistory(): void {
+    this.history.update(sealHistory);
+  }
+
+  #show(
+    circuit: Circuit,
+    selection: Selection,
+    renames: ReadonlyMap<string, string> | undefined,
+    fit = false,
+  ): void {
     const scene = buildScene(circuit, this.registry, { layouts: this.#layouts });
-    const { selection } = this.state.get();
-    this.state.set({ circuit, scene, selection: pruneSelection(selection, scene) });
+    this.state.set({
+      circuit,
+      scene,
+      selection: pruneSelection(selection, scene),
+      ...(renames && renames.size > 0 && { renames }),
+    });
     this.#hover = undefined;
-    if (options.fit) {
+    if (fit) {
       this.#fitPending = true;
       this.#fitIfReady();
     }
@@ -163,7 +263,7 @@ export class Editor {
   }
 
   setSelection(selection: Selection): void {
-    const current = this.state.get();
+    const { renames: _, ...current } = this.state.get();
     if (sameSelection(selection, current.selection)) return;
     this.state.set({ ...current, selection });
     this.invalidate();

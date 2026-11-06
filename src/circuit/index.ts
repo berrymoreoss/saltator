@@ -39,6 +39,7 @@ export {
   prefixOfType,
   removeItems,
   renameComponent,
+  sameCircuit,
   translateCircuit,
   updateComponent,
   WIRE_PREFIX,

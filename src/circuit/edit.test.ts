@@ -13,6 +13,7 @@ import {
   pasteFragment,
   removeItems,
   renameComponent,
+  sameCircuit,
   translateCircuit,
   updateComponent,
 } from './edit';
@@ -145,6 +146,17 @@ describe('component operations', () => {
         ],
       ]),
     ).toThrow('neither horizontal nor vertical');
+  });
+
+  it('compares circuits by value', () => {
+    const c = circuit([part('U1')], [wire('w1', [0, 0], [3, 0])]);
+    expect(sameCircuit(c, c)).toBe(true);
+    expect(sameCircuit(c, circuit([part('U1')], [wire('w1', [0, 0], [3, 0])]))).toBe(true);
+    expect(sameCircuit(c, circuit([part('U1')], [wire('w1', [0, 0], [4, 0])]))).toBe(false);
+    expect(sameCircuit(c, circuit([part('U1')], [wire('w2', [0, 0], [3, 0])]))).toBe(false);
+    expect(sameCircuit(c, circuit([part('U1', 'test/and', 1)], c.wires as Wire[]))).toBe(false);
+    expect(sameCircuit(c, circuit([], c.wires as Wire[]))).toBe(false);
+    expect(sameCircuit(c, { ...c, name: 'Other' })).toBe(false);
   });
 
   it('translates a whole circuit', () => {

@@ -149,6 +149,35 @@ export function updateComponent(circuit: Circuit, id: string, patch: ComponentPa
   return { ...circuit, components };
 }
 
+/** True if two circuits hold the same parts and wires in the same order (by value). */
+export function sameCircuit(a: Circuit, b: Circuit): boolean {
+  if (a === b) return true;
+  if (a.id !== b.id || a.name !== b.name) return false;
+  if (a.components.length !== b.components.length || a.wires.length !== b.wires.length) {
+    return false;
+  }
+  for (let i = 0; i < a.components.length; i++) {
+    const x = a.components[i]!;
+    const y = b.components[i]!;
+    if (x !== y && !sameComponent(x, y)) return false;
+  }
+  for (let i = 0; i < a.wires.length; i++) {
+    const x = a.wires[i]!;
+    const y = b.wires[i]!;
+    if (
+      x !== y &&
+      (x.id !== y.id ||
+        x.from[0] !== y.from[0] ||
+        x.from[1] !== y.from[1] ||
+        x.to[0] !== y.to[0] ||
+        x.to[1] !== y.to[1])
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
 function sameComponent(a: ComponentInstance, b: ComponentInstance): boolean {
   if (
     a.id !== b.id ||

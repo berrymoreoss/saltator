@@ -33,8 +33,10 @@ const MAC = typeof navigator !== 'undefined' && isMacPlatform(navigator.platform
  */
 export function Workbench({ editor, settings: settingsStore, ui, examples }: WorkbenchProps) {
   const settings = useStore(settingsStore);
-  // Toolbar and menus read the tool and settings through their commands: re-render on change.
+  // Toolbar and menus read the tool, history and settings through their commands: re-render on
+  // change.
   useStore(editor.tool);
+  useStore(editor.history);
   const prefersDark = useMediaQuery('(prefers-color-scheme: dark)');
   const theme = effectiveTheme(settings.theme, prefersDark);
   const canvasTheme = theme === 'dark' ? DARK_CANVAS : LIGHT_CANVAS;

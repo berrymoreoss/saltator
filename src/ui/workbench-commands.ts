@@ -1,8 +1,9 @@
 /**
- * The commands of the workbench and where they appear: menus and toolbar. R04b adds the editing
- * commands (undo, delete, rotate, …), R05 a Simulate menu.
+ * The commands of the workbench and where they appear: menus and toolbar. R05 adds a Simulate
+ * menu.
  */
 import {
+  FilePlus,
   Grid3x3,
   Hand,
   Info,
@@ -11,12 +12,15 @@ import {
   Monitor,
   Moon,
   MousePointer2,
+  Redo2,
   Search,
   Sun,
+  Undo2,
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
-import type { Editor, Store } from '../editor';
+import { type Circuit, emptyCircuit } from '../circuit';
+import { type Editor, EMPTY_SELECTION, type Store } from '../editor';
 import type { Command } from './commands';
 import { GateIcon } from './icons';
 import type { PanelId, Settings, ThemeSetting } from './settings';
@@ -51,14 +55,43 @@ export function createCommands({ editor, settings, ui, examples }: WorkbenchCont
       panels: { ...s.panels, [id]: { ...s.panels[id], visible } },
     }));
 
+  // Until R07 brings files, opening a document is an undoable edit: nothing is lost by accident.
+  const open = (label: string, circuit: Circuit) =>
+    editor.edit(label, circuit, { selection: EMPTY_SELECTION, fit: true });
+
   return [
+    {
+      id: 'file.new',
+      label: 'New Circuit',
+      icon: FilePlus,
+      run: () => open('New Circuit', emptyCircuit()),
+    },
     ...examples.map(
       (example): Command => ({
         id: `file.example.${example.id}`,
         label: example.label,
-        run: () => editor.setCircuit(example.circuit(), { fit: true }),
+        run: () => open(`Open ${example.label}`, example.circuit()),
       }),
     ),
+
+    {
+      id: 'edit.undo',
+      label: 'Undo',
+      menuLabel: () => (editor.undoLabel ? `Undo ${editor.undoLabel}` : 'Undo'),
+      icon: Undo2,
+      shortcuts: ['Mod+Z'],
+      enabled: () => editor.undoLabel !== undefined,
+      run: () => editor.undo(),
+    },
+    {
+      id: 'edit.redo',
+      label: 'Redo',
+      menuLabel: () => (editor.redoLabel ? `Redo ${editor.redoLabel}` : 'Redo'),
+      icon: Redo2,
+      shortcuts: ['Mod+Shift+Z', 'Mod+Y'],
+      enabled: () => editor.redoLabel !== undefined,
+      run: () => editor.redo(),
+    },
 
     {
       id: 'edit.selectAll',
@@ -230,9 +263,24 @@ export function workbenchMenus(examples: readonly Example[]): MenuDef[] {
   return [
     {
       label: 'File',
-      items: [{ label: 'Examples', items: examples.map((e) => `file.example.${e.id}`) }],
+      items: [
+        'file.new',
+        SEPARATOR,
+        { label: 'Examples', items: examples.map((e) => `file.example.${e.id}`) },
+      ],
     },
-    { label: 'Edit', items: ['edit.selectAll', 'edit.deselect', SEPARATOR, 'parts.search'] },
+    {
+      label: 'Edit',
+      items: [
+        'edit.undo',
+        'edit.redo',
+        SEPARATOR,
+        'edit.selectAll',
+        'edit.deselect',
+        SEPARATOR,
+        'parts.search',
+      ],
+    },
     {
       label: 'View',
       items: [
@@ -262,6 +310,7 @@ export function workbenchMenus(examples: readonly Example[]): MenuDef[] {
 /** Toolbar groups, separated by dividers. */
 export const TOOLBAR: readonly (readonly string[])[] = [
   ['tool.select', 'tool.pan'],
+  ['edit.undo', 'edit.redo'],
   ['view.zoomIn', 'view.zoomOut', 'view.zoomFit'],
   ['view.grid', 'view.gates.toggle'],
 ];

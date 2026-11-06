@@ -213,7 +213,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   built-in part; `examples.ts` uses them; docs/components.md.
 - [x] 2. circuit: `edit.ts` — designators and wire ids, add/remove/update/rename/translate,
   `normalizeWires`, fragments + tests.
-- [ ] 3. editor: `History` + `editor.edit()`, undo/redo restoring selection, renames record;
+- [x] 3. editor: `History` + `editor.edit()`, undo/redo restoring selection, renames record;
   Edit ▸ Undo/Redo with dynamic labels, File ▸ New.
 - [ ] 4. editor: delete, rotate/flip about the selection center, arrow nudges (coalesced);
   commands, toolbar, shortcuts.
