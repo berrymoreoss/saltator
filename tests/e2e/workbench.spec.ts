@@ -1,4 +1,5 @@
 import { expect, type Page, test } from '@playwright/test';
+import { openApp } from './support';
 
 /** Collects console errors and page errors for the whole test. */
 function watchErrors(page: Page): string[] {
@@ -45,7 +46,7 @@ test.beforeEach(async ({ page }) => {
 
 test('the shell renders every region and draws the schematic', async ({ page }) => {
   const errors = watchErrors(page);
-  await page.goto('/');
+  await openApp(page);
   await expect(page.getByRole('menubar')).toBeVisible();
   await expect(page.getByRole('toolbar', { name: 'Main toolbar' })).toBeVisible();
   for (const id of ['parts-panel', 'properties-panel', 'bottom-panel', 'statusbar']) {
@@ -59,7 +60,7 @@ test('the shell renders every region and draws the schematic', async ({ page }) 
 
 test('the symbol gallery opens without errors', async ({ page }) => {
   const errors = watchErrors(page);
-  await page.goto('/?gallery');
+  await openApp(page, '/?gallery');
   await expect(page.getByTestId('messages')).toBeVisible();
   await expect.poll(() => canvasColors(page)).toBeGreaterThan(4);
   expect(errors).toEqual([]);
@@ -68,7 +69,7 @@ test('the symbol gallery opens without errors', async ({ page }) => {
 test('clicking a message selects and centers its part; clicking the canvas selects', async ({
   page,
 }) => {
-  await page.goto('/?gallery');
+  await openApp(page, '/?gallery');
   await page.getByTestId('messages').getByRole('button').first().click();
   const summary = page.getByTestId('selection-summary');
   await expect(summary).toHaveText(/^U1 · /);
@@ -83,7 +84,7 @@ test('clicking a message selects and centers its part; clicking the canvas selec
 });
 
 test('a selection box dragged left to right selects what is inside', async ({ page }) => {
-  await page.goto('/');
+  await openApp(page);
   const { x, y, width, height } = (await canvas(page).boundingBox())!;
   await page.mouse.move(x + 4, y + 4);
   await page.mouse.down();
@@ -95,7 +96,7 @@ test('a selection box dragged left to right selects what is inside', async ({ pa
 });
 
 test('keyboard zoom changes the zoom readout', async ({ page }) => {
-  await page.goto('/');
+  await openApp(page);
   const zoom = page.getByTestId('zoom');
   const before = await zoom.textContent();
   await canvas(page).focus();
@@ -108,7 +109,7 @@ test('keyboard zoom changes the zoom readout', async ({ page }) => {
 test('the wheel pans, Ctrl+wheel zooms; the KiCad setting makes the wheel zoom', async ({
   page,
 }) => {
-  await page.goto('/');
+  await openApp(page);
   const zoom = page.getByTestId('zoom');
   const box = (await canvas(page).boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
@@ -133,7 +134,7 @@ test('the wheel pans, Ctrl+wheel zooms; the KiCad setting makes the wheel zoom',
 
 test('View ▸ Theme switches the shell and the canvas', async ({ page }) => {
   await page.emulateMedia({ colorScheme: 'dark' });
-  await page.goto('/');
+  await openApp(page);
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   const dark = await canvasCornerBrightness(page);
 
@@ -145,7 +146,7 @@ test('View ▸ Theme switches the shell and the canvas', async ({ page }) => {
 });
 
 test('panel sizes and visibility survive a reload', async ({ page }) => {
-  await page.goto('/');
+  await openApp(page);
   const parts = page.getByTestId('parts-panel');
   const before = (await parts.boundingBox())!.width;
   const splitter = page.getByRole('separator', { name: 'Resize Parts panel' });
@@ -166,7 +167,7 @@ test('panel sizes and visibility survive a reload', async ({ page }) => {
 });
 
 test('the shortcuts dialog opens with ? and closes with Escape', async ({ page }) => {
-  await page.goto('/');
+  await openApp(page);
   await page.keyboard.press('Shift+Slash');
   const dialog = page.getByTestId('shortcuts-dialog');
   await expect(dialog).toBeVisible();
@@ -178,7 +179,7 @@ test('the shortcuts dialog opens with ? and closes with Escape', async ({ page }
 test('Shift-click toggles, Mod+A selects all, a right-to-left box selects what it touches', async ({
   page,
 }) => {
-  await page.goto('/?gallery');
+  await openApp(page, '/?gallery');
   const summary = page.getByTestId('selection-summary');
   await page.getByTestId('messages').getByRole('button').first().click();
   await expect(summary).toHaveText(/^U1 · /);
@@ -206,7 +207,7 @@ test('Shift-click toggles, Mod+A selects all, a right-to-left box selects what i
 });
 
 test('Space-drag, middle-drag and the Pan tool move the view', async ({ page }) => {
-  await page.goto('/');
+  await openApp(page);
   const cursor = page.getByTestId('cursor');
   const box = (await canvas(page).boundingBox())!;
   const p = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
@@ -241,7 +242,7 @@ test('Space-drag, middle-drag and the Pan tool move the view', async ({ page }) 
 });
 
 test('View ▸ Panels hides and shows a dock', async ({ page }) => {
-  await page.goto('/');
+  await openApp(page);
   const toggle = async () => {
     await page.getByRole('menuitem', { name: 'View' }).click();
     await page.getByRole('menuitem', { name: 'Panels' }).hover();

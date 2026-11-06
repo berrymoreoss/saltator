@@ -16,6 +16,7 @@ the alternatives we rejected. Format: [ADR-0001](0001-record-architecture-decisi
 | [0009](0009-editing-model.md)                     | Editing model: snapshot undo, rubber-band moves, normalized wires          | accepted |
 | [0010](0010-running-simulations.md)               | Running simulations: a host, live edits with carry-over, an Interact tool  | accepted |
 | [0011](0011-real-chips.md)                        | Real chips: Nexperia data sheets, one function per chip, timing per family | accepted |
+| [0012](0012-files-and-sessions.md)                | Files and sessions: `.logic.json` on disk, the session restored as it was  | accepted |
 
 New ADR: copy [template.md](template.md) to `NNNN-short-title.md` (next free number), fill it in,
 add a row here. Superseding: set the old one's status to `superseded by NNNN`; never delete ADRs.

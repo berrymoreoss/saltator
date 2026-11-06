@@ -29,10 +29,24 @@ export async function menu(page: Page, title: string, item: string | RegExp): Pr
   await page.getByRole('menuitem', { name: item }).first().click();
 }
 
+/**
+ * Loads the app and waits until it is ready: start-up restores the autosaved session before
+ * anything renders or listens to keys.
+ */
+export async function openApp(page: Page, path = '/'): Promise<void> {
+  await page.goto(path);
+  await expect(canvas(page)).toBeVisible();
+}
+
 /** File ▸ New; returns grid → page pixel. */
 export async function newCircuit(page: Page): Promise<(p: Point) => Point> {
-  await page.goto('/');
+  await openApp(page);
+  // A second tab starts from the latest autosaved session, which may have unsaved changes.
+  const unsaved = (await page.getByTestId('document-name').textContent())?.startsWith('•');
   await menu(page, 'File', 'New Circuit');
+  if (unsaved) {
+    await page.getByTestId('unsaved-dialog').getByRole('button', { name: 'Don’t Save' }).click();
+  }
   await expect(page.getByTestId('zoom')).toHaveText('100 %');
   const box = (await canvas(page).boundingBox())!;
   return ([x, y]) => [box.x + box.width / 2 + x * 16, box.y + box.height / 2 + y * 16];

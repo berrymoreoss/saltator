@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "circuits": [
+    {
+      "id": "main",
+      "name": "Main",
+      "components": [
+        { "id": "SW1", "type": "io/button", "label": "SET", "x": 2, "y": 0, "props": { "contact": "spst-gnd" } },
+        { "id": "SW2", "type": "io/button", "label": "RESET", "x": 2, "y": 12, "props": { "contact": "spst-gnd" } },
+        { "id": "R1", "type": "prim/pull", "x": 9, "y": -4, "props": { "direction": "up" } },
+        { "id": "R2", "type": "prim/pull", "x": 9, "y": 8, "props": { "direction": "up" } },
+        { "id": "U1", "type": "74xx/74hc00", "x": 28, "y": 0 },
+        { "id": "D1", "type": "io/led", "label": "Q", "x": 20, "y": 6, "rotation": 90, "props": { "color": "green" } },
+        { "id": "D2", "type": "io/led", "label": "/Q", "x": 25, "y": 12, "rotation": 90, "props": { "color": "red" } },
+        { "id": "PWR1", "type": "io/gnd", "x": 18, "y": 11 },
+        { "id": "PWR2", "type": "io/gnd", "x": 23, "y": 17 },
+        { "id": "PWR3", "type": "io/gnd", "x": 26, "y": 10 },
+        { "id": "PWR4", "type": "io/vcc", "x": 35, "y": -3 },
+        { "id": "PWR5", "type": "io/gnd", "x": 37, "y": 9 }
+      ],
+      "wires": [
+        { "id": "w1", "from": [6, 1], "to": [28, 1] },
+        { "id": "w2", "from": [10, 0], "to": [10, 1] },
+        { "id": "w3", "from": [6, 13], "to": [22, 13] },
+        { "id": "w4", "from": [22, 13], "to": [22, 5] },
+        { "id": "w5", "from": [22, 5], "to": [28, 5] },
+        { "id": "w6", "from": [10, 12], "to": [10, 13] },
+        { "id": "w7", "from": [28, 3], "to": [26, 3] },
+        { "id": "w8", "from": [26, 3], "to": [26, 4] },
+        { "id": "w9", "from": [19, 4], "to": [28, 4] },
+        { "id": "w10", "from": [28, 6], "to": [24, 6] },
+        { "id": "w11", "from": [24, 2], "to": [24, 12] },
+        { "id": "w12", "from": [24, 2], "to": [28, 2] },
+        { "id": "w14", "from": [19, 4], "to": [19, 6] },
+        { "id": "w15", "from": [19, 10], "to": [19, 11] },
+        { "id": "w17", "from": [24, 16], "to": [24, 17] },
+        { "id": "w18", "from": [28, 7], "to": [27, 7] },
+        { "id": "w19", "from": [27, 7], "to": [27, 10] },
+        { "id": "w20", "from": [34, 1], "to": [36, 1] },
+        { "id": "w21", "from": [36, 1], "to": [36, -1] },
+        { "id": "w22", "from": [34, 2], "to": [38, 2] },
+        { "id": "w23", "from": [38, 2], "to": [38, 9] },
+        { "id": "w24", "from": [34, 3], "to": [38, 3] },
+        { "id": "w25", "from": [34, 5], "to": [38, 5] },
+        { "id": "w26", "from": [34, 6], "to": [38, 6] }
+      ]
+    }
+  ]
+}

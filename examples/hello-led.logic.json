@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "circuits": [
+    {
+      "id": "main",
+      "name": "Main",
+      "components": [
+        { "id": "SW1", "type": "io/switch", "label": "IN", "x": 0, "y": 1, "props": { "contact": "spdt", "on": false } },
+        { "id": "U1", "type": "74xx/74hc00", "x": 16, "y": 0 },
+        { "id": "PWR1", "type": "io/vcc", "x": 12, "y": -3 },
+        { "id": "D1", "type": "io/led", "label": "OUT", "x": 8, "y": 9, "props": { "color": "green" } },
+        { "id": "PWR2", "type": "io/gnd", "x": 13, "y": 12 },
+        { "id": "PWR3", "type": "io/vcc", "x": 23, "y": -3 },
+        { "id": "PWR4", "type": "io/gnd", "x": 25, "y": 9 },
+        { "id": "X1", "type": "io/clock", "label": "1 Hz", "x": 0, "y": 16, "props": { "frequency": 1, "duty": 50, "mode": "auto" } },
+        { "id": "D2", "type": "io/led", "label": "BLINK", "x": 8, "y": 16, "props": { "color": "red" } },
+        { "id": "PWR5", "type": "io/gnd", "x": 13, "y": 18 }
+      ],
+      "wires": [
+        { "id": "w1", "from": [13, -1], "to": [13, 1] },
+        { "id": "w2", "from": [13, 1], "to": [16, 1] },
+        { "id": "w3", "from": [4, 2], "to": [16, 2] },
+        { "id": "w4", "from": [16, 3], "to": [8, 3] },
+        { "id": "w5", "from": [8, 3], "to": [8, 10] },
+        { "id": "w6", "from": [16, 4], "to": [14, 4] },
+        { "id": "w7", "from": [14, 4], "to": [14, 12] },
+        { "id": "w8", "from": [16, 5], "to": [14, 5] },
+        { "id": "w9", "from": [16, 7], "to": [14, 7] },
+        { "id": "w10", "from": [12, 10], "to": [14, 10] },
+        { "id": "w11", "from": [22, 1], "to": [24, 1] },
+        { "id": "w12", "from": [24, 1], "to": [24, -1] },
+        { "id": "w13", "from": [22, 2], "to": [26, 2] },
+        { "id": "w14", "from": [26, 2], "to": [26, 9] },
+        { "id": "w15", "from": [22, 3], "to": [26, 3] },
+        { "id": "w16", "from": [22, 5], "to": [26, 5] },
+        { "id": "w17", "from": [22, 6], "to": [26, 6] },
+        { "id": "w18", "from": [4, 17], "to": [8, 17] },
+        { "id": "w19", "from": [12, 17], "to": [14, 17] },
+        { "id": "w20", "from": [14, 17], "to": [14, 18] }
+      ]
+    }
+  ]
+}

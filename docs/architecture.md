@@ -195,9 +195,15 @@ never in documents.
 
 ## Persistence
 
-_(planned, R07)_ Save/load the document as a `.logic.json` file (File System Access API with
-download/upload fallback), autosave to IndexedDB, built-in example gallery. ROM images import and
-export as `.bin` and Intel HEX _(R12)_.
+Documents are `.logic.json` files written by `serializeDocument` (R07,
+[ADR-0012](adr/0012-files-and-sessions.md)): opened and saved through the File System Access API
+in Chromium (Save writes back through the file's handle) and a file input / download elsewhere,
+behind one `FileAccess` interface (`src/ui/files.ts`). A `DocumentController` keeps the document
+session (name, file, saved circuit) and asks before replacing unsaved changes. The session —
+unsaved changes, file handle and view included — is autosaved to IndexedDB and restored at
+start-up, per browser tab (`src/ui/autosave.ts`, `browser-storage.ts`); Open Recent keeps file
+handles there too. Example circuits are files in `examples/`. Spec:
+[editor.md](editor.md#files). ROM images import and export as `.bin` and Intel HEX _(R12)_.
 
 ## Testing strategy
 

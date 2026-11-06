@@ -1,10 +1,14 @@
 import { Eraser } from 'lucide-react';
 import { useEffect, useMemo, useRef } from 'react';
-import { DARK_CANVAS, type Editor, LIGHT_CANVAS, type Store } from '../editor';
+import { DARK_CANVAS, type Editor, LIGHT_CANVAS, Store } from '../editor';
 import { ContextMenu } from './ContextMenu';
 import { ClipboardBridge } from './clipboard';
 import { CommandRegistry, dispatchShortcut } from './commands';
-import { AboutDialog, ShortcutsDialog } from './Dialogs';
+import { AboutDialog, FileProblemDialog, ShortcutsDialog, UnsavedChangesDialog } from './Dialogs';
+import type { DocumentController } from './document-controller';
+import { documentTitle, hasUnsavedChanges } from './document-session';
+import { ExampleGalleryDialog } from './ExampleGallery';
+import { droppedFile } from './files';
 import { useMediaQuery, useStore, useStoreValue } from './hooks';
 import { MenuBar } from './MenuBar';
 import { MessagesBadges, MessagesPanel } from './MessagesPanel';
@@ -13,6 +17,7 @@ import { PartInfoPanel } from './PartInfoPanel';
 import { PartsPanel } from './PartsPanel';
 import { PropertiesPanel } from './PropertiesPanel';
 import { PART_DRAG_TYPE } from './parts-filter';
+import type { RecentFile, RecentFiles } from './recent-files';
 import { SpeedSelect } from './SimControls';
 import { SimulationBadges, SimulationPanel } from './SimulationPanel';
 import { StatusBar } from './StatusBar';
@@ -33,18 +38,29 @@ import './styles/panels.css';
 
 export interface WorkbenchProps {
   readonly editor: Editor;
+  readonly documents: DocumentController;
+  /** File ▸ Open Recent (where the browser gives file handles). */
+  readonly recent?: RecentFiles;
   readonly settings: Store<Settings>;
   readonly ui: Store<UiState>;
   readonly examples: readonly Example[];
 }
 
 const MAC = typeof navigator !== 'undefined' && isMacPlatform(navigator.platform);
+const NO_RECENT = new Store<readonly RecentFile[]>([]);
 
 /**
  * The desktop CAD-style shell: menu bar, toolbar, Parts dock (left), canvas, Properties dock
  * (right), bottom dock with tabs, status bar. Spec: docs/editor.md#shell.
  */
-export function Workbench({ editor, settings: settingsStore, ui, examples }: WorkbenchProps) {
+export function Workbench({
+  editor,
+  documents,
+  recent,
+  settings: settingsStore,
+  ui,
+  examples,
+}: WorkbenchProps) {
   const settings = useStore(settingsStore);
   // Toolbar and menus read the tool, history and settings through their commands: re-render on
   // change.
@@ -65,16 +81,35 @@ export function Workbench({ editor, settings: settingsStore, ui, examples }: Wor
   const commands = useMemo(
     () =>
       new CommandRegistry(
-        createCommands({ editor, clipboard, settings: settingsStore, ui, examples }),
+        createCommands({
+          editor,
+          documents,
+          recent,
+          clipboard,
+          settings: settingsStore,
+          ui,
+          examples,
+        }),
       ),
-    [editor, clipboard, settingsStore, ui, examples],
+    [editor, documents, recent, clipboard, settingsStore, ui, examples],
   );
   const tool = useStore(editor.tool);
-  const menus = useMemo(() => workbenchMenus(examples), [examples]);
+  const recentCount = useStoreValue(recent?.list ?? NO_RECENT, (list) => list.length);
+  const menus = useMemo(
+    () => workbenchMenus(examples, recent && recentCount),
+    [examples, recent, recentCount],
+  );
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
+
+  // A boolean, so an edit re-renders the shell only when it changes.
+  const session = useStore(documents.session);
+  const unsaved = useStoreValue(editor.state, (state) => hasUnsavedChanges(session, state.circuit));
+  useEffect(() => {
+    document.title = documentTitle(session.name, unsaved);
+  }, [session.name, unsaved]);
 
   useEffect(() => {
     editor.setSettings({
@@ -134,8 +169,37 @@ export function Workbench({ editor, settings: settingsStore, ui, examples }: Wor
   const closeDialog = () => ui.update(({ dialog: _, ...rest }) => rest);
 
   return (
-    <div className="workbench">
-      <MenuBar menus={menus} commands={commands} mac={MAC} />
+    // biome-ignore lint/a11y/noStaticElementInteractions: a file drop target; File ▸ Open is the keyboard way
+    <div
+      className="workbench"
+      // A .logic.json file dropped anywhere opens (after "Save changes?").
+      onDragOver={(e) => {
+        if (!e.dataTransfer.types.includes('Files')) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+      }}
+      onDrop={(e) => {
+        if (!e.dataTransfer.types.includes('Files')) return;
+        e.preventDefault();
+        const file = droppedFile(e.dataTransfer);
+        if (file) void documents.openFile(() => file);
+      }}
+    >
+      <MenuBar
+        menus={menus}
+        commands={commands}
+        mac={MAC}
+        trailing={
+          <div className="menubar-document" data-testid="document-name" title={session.name}>
+            {unsaved && (
+              <span className="menubar-document-unsaved" title="Unsaved changes">
+                •
+              </span>
+            )}
+            <span className="menubar-document-name">{session.name}</span>
+          </div>
+        }
+      />
       <Toolbar
         groups={TOOLBAR}
         commands={commands}
@@ -279,6 +343,31 @@ export function Workbench({ editor, settings: settingsStore, ui, examples }: Wor
         <ShortcutsDialog commands={commands} mac={MAC} onClose={closeDialog} />
       )}
       {uiState.dialog === 'about' && <AboutDialog onClose={closeDialog} />}
+      {uiState.dialog === 'examples' && (
+        <ExampleGalleryDialog
+          examples={examples}
+          registry={editor.registry}
+          theme={canvasTheme}
+          gateStyle={settings.gateStyle}
+          onClose={closeDialog}
+          onOpen={(example) => {
+            closeDialog();
+            void documents.openExample(example.label, example.document);
+          }}
+        />
+      )}
+      {uiState.unsavedQuestion && (
+        <UnsavedChangesDialog
+          name={uiState.unsavedQuestion.name}
+          onAnswer={uiState.unsavedQuestion.answer}
+        />
+      )}
+      {uiState.fileProblem && (
+        <FileProblemDialog
+          problem={uiState.fileProblem}
+          onClose={() => ui.update(({ fileProblem: _, ...rest }) => rest)}
+        />
+      )}
       <ContextMenu editor={editor} commands={commands} mac={MAC} />
     </div>
   );

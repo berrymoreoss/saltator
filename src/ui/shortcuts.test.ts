@@ -26,6 +26,22 @@ describe('parseShortcut', () => {
 });
 
 describe('matchesShortcut', () => {
+  it('with Alt, reads letters and digits from the physical key (⌥N types ˜ on a Mac)', () => {
+    const newCircuit = parseShortcut('Mod+Alt+N');
+    const optionN = { ...key('Dead', { meta: true, alt: true }), code: 'KeyN' };
+    expect(matchesShortcut(newCircuit, optionN, true)).toBe(true);
+    expect(
+      matchesShortcut(newCircuit, { ...key('n', { ctrl: true, alt: true }), code: 'KeyN' }, false),
+    ).toBe(true);
+    expect(matchesShortcut(newCircuit, { ...key('n', { meta: true }), code: 'KeyN' }, true)).toBe(
+      false,
+    );
+    // Without Alt the character counts (layouts where the key isn't where KeyN is).
+    expect(
+      matchesShortcut(parseShortcut('Mod+N'), { ...key('n', { meta: true }), code: 'KeyB' }, true),
+    ).toBe(true);
+  });
+
   const undo = parseShortcut('Mod+Z');
 
   it('uses ⌘ on macOS and Ctrl elsewhere', () => {

@@ -1,5 +1,5 @@
 import { Check, ChevronRight } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { type Command, type CommandRegistry, isEnabled } from './commands';
 import { formatShortcut } from './shortcuts';
 import type { MenuDef, MenuEntry } from './workbench-commands';
@@ -8,13 +8,15 @@ interface MenuBarProps {
   readonly menus: readonly MenuDef[];
   readonly commands: CommandRegistry;
   readonly mac: boolean;
+  /** Shown at the right end (the document's name). */
+  readonly trailing?: ReactNode;
 }
 
 /**
  * A desktop menu bar: click a title to open its menu, then hover the other titles to switch;
  * clicking an item runs it; Escape or a click outside closes. Submenus open on hover.
  */
-export function MenuBar({ menus, commands, mac }: MenuBarProps) {
+export function MenuBar({ menus, commands, mac, trailing }: MenuBarProps) {
   const [open, setOpen] = useState<number | undefined>(undefined);
   const bar = useRef<HTMLDivElement>(null);
 
@@ -64,6 +66,7 @@ export function MenuBar({ menus, commands, mac }: MenuBarProps) {
           )}
         </div>
       ))}
+      {trailing}
     </div>
   );
 }

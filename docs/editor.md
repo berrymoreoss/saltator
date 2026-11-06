@@ -1,10 +1,11 @@
 # Editor and workbench
 
 Specification of `src/editor` (the canvas engine, no React) and `src/ui` (the React shell around
-it): the workbench and schematic view (R04a), editing (R04b) and running the simulation (R05).
+it): the workbench and schematic view (R04a), editing (R04b), running the simulation (R05) and
+files (R07).
 Rationale: [ADR-0008](adr/0008-desktop-workbench.md) (workbench),
 [ADR-0009](adr/0009-editing-model.md) (editing), [ADR-0010](adr/0010-running-simulations.md)
-(simulation).
+(simulation), [ADR-0012](adr/0012-files-and-sessions.md) (files and sessions).
 
 ## Shell
 
@@ -12,7 +13,7 @@ A desktop CAD-style window (`Workbench`), dense like KiCad or Altium: 12 px UI t
 1 px borders, no page scroll — every region scrolls itself.
 
 ```
- File  Edit  Place  View  Help                                       ← menu bar
+ File  Edit  Place  View  Help                              • adder   ← menu bar, document
 ┌──────────────────────────────────────────────────────────────────┐
 │ tools │ undo redo │ rotate flip delete │ zoom │ grid  gate style    │ ← toolbar
 ├────────────┬──────────────────────────────────────┬──────────────┤
@@ -53,8 +54,11 @@ A desktop CAD-style window (`Workbench`), dense like KiCad or Altium: 12 px UI t
   Paste, Duplicate, Delete, Rotate, Rotate Counter-clockwise, Flip Horizontal, Flip Vertical,
   Properties; over empty canvas — Paste, Select All, Zoom to Fit. A right click while drawing a
   wire, floating a paste or placing parts cancels that instead.
-- **Dialogs**: Help ▸ Keyboard Shortcuts (generated from the command registry), About. Escape or
-  a click outside closes them.
+- **Dialogs**: Help ▸ Keyboard Shortcuts (generated from the command registry), About, the
+  example gallery, "Save changes?" and file problems ([Files](#files)). Escape or a click
+  outside closes them (for "Save changes?" that is Cancel).
+- **Document name** at the right end of the menu bar and in the browser tab's title
+  (`adder — Logic`), with `•` while there are unsaved changes.
 
 ### Part info
 
@@ -105,10 +109,14 @@ the shortcuts dialog all read the same `CommandRegistry`, which rejects duplicat
 | Keyboard Shortcuts  | `?`, `Mod+/`               | Swap wire bend (drawing)   | `Tab`                     |
 | Interact tool       | `I`                        | Run / Pause                | `F5`                      |
 | Step                | `F10`                      | Stop                       | `Shift+F5`                |
-| Reset               | `Mod+Shift+F5`             |                            |                           |
+| Reset               | `Mod+Shift+F5`             | New Circuit                | `Mod+Alt+N`               |
+| Open…               | `Mod+O`                    | Save (As…)                 | `Mod+S` (`Mod+Shift+S`)   |
 
 Commands marked `global` run while typing in a text field and keep their key from the browser
-even while disabled: F5 never reloads the page (and loses an unsaved circuit).
+even while disabled: F5 never reloads the page, `Mod+S` and `Mod+O` never show the browser's own
+Save Page and Open File. Chrome keeps `Mod+N` (a new window) from the page, hence `Mod+Alt+N`;
+with Alt a shortcut's letter or digit is read from the physical key (`event.code`), since Option
+changes the character on a Mac (⌥N types `˜`).
 
 **Escape** goes one step back: it cancels the current gesture (a drag, a wire being drawn, a
 floating paste), else leaves the Wire or place tool for Select, else clears the selection.
@@ -354,8 +362,8 @@ labelled (`Move`, `Place NAND`, `Rename U1`, `Change Delay`); documents are immu
 snapshots share every unchanged part and wire ([ADR-0009](adr/0009-editing-model.md)). A new
 edit clears the redo stack; 200 entries are kept; consecutive entries with the same `coalesce`
 key merge (nudges of one selection). Undo and redo restore the selection too and report the
-renames they undo or redo in `state.renames`. Opening an example and File ▸ New are undoable
-edits until R07 brings files; loading a circuit with `setCircuit` clears the history.
+renames they undo or redo in `state.renames`. Opening a document (New, Open, an example, a
+dropped file) loads it with `setCircuit`, which clears the history ([Files](#files)).
 
 ## Simulation
 
@@ -378,7 +386,7 @@ the toolbar group (Run/Pause, Step, Stop, Reset, speed select) and `F5`, `F10`, 
   t = 0 (diagnostics and brightness samples cleared), keeping running or paused; a halted
   simulation runs again.
 - Design errors don't block running: parts the compiler left out are missing.
-- Opening an example or File ▸ New stops the simulation first.
+- Opening a document stops the simulation first.
 
 ### Pacing
 
@@ -471,7 +479,8 @@ position, last redraw time — changes often, keep consumers small), `editor.too
 `editor.history` and `editor.requests` (the editor asking the UI to open the context menu or to
 focus Properties).
 
-- Document: `setCircuit` (load; clears history), `edit(label, circuit, options)`, `undo`, `redo`,
+- Document: `setCircuit(circuit, { fit?, camera? })` (load; clears history; `camera` restores a
+  view instead of zooming to fit), `edit(label, circuit, options)`, `undo`, `redo`,
   `undoLabel`, `redoLabel`.
 - Editing: `deleteSelection`, `rotate(clockwise)`, `flip(direction)`, `nudge(dx, dy)`,
   `copySelection`, `cutSelection` (both return clipboard text), `pasteText(text)`, `duplicate`,
@@ -489,24 +498,125 @@ focus Properties).
   position) and calls `pointerDown`, `pointerMove`, `pointerUp`, `doubleClick`, `pointerLeave` —
   so every gesture runs, and is tested, without a browser.
 
-Dev builds expose the editor as `window.logicEditor`.
+Dev builds expose the editor as `window.logicEditor` and the document controller as
+`window.logicDocuments`.
+
+## Files
+
+Circuits are `.logic.json` files ([circuit.md](circuit.md#loading-versioning-saving)); R07,
+[ADR-0012](adr/0012-files-and-sessions.md).
+
+### Document session
+
+`DocumentSession` (`src/ui/document-session.ts`, pure) is the open document around the editor's
+circuit: its **name** (the file name without `.logic.json`, `Untitled`, or an example's title),
+the **document** as loaded (the editor edits the first circuit; the others are written back
+unchanged), the **file** Save writes to (a File System Access handle) and the circuit as last
+**saved**. Unsaved changes = the editor's circuit differs from the saved one, by identity then
+by value (`sameCircuit`): undoing back to the saved state is clean again. File names map both
+ways (`fileNameOf` replaces characters no file system accepts; `nameOfFile` strips
+`.logic.json` or `.json`).
+
+`DocumentController` (`src/ui/document-controller.ts`) runs the File commands on a
+`Store<DocumentSession>`; it asks and reports through callbacks (the workbench shows dialogs),
+one file operation at a time:
+
+- **New Circuit** (`Mod+Alt+N`), **Open…** (`Mod+O`), **Open Recent**, an **example** and a
+  `.logic.json` **dropped** anywhere on the window replace the document: with unsaved changes
+  they first ask **"Save changes to “name”?"** — Save (the default button; a cancelled Save
+  cancels the action), Don't Save, Cancel (also Escape). Then `setCircuit` (history cleared,
+  simulation stopped, zoom to fit).
+- An example opens as an **untitled copy** named after it; unchanged, it is clean.
+- **Save** (`Mod+S`) writes to the document's file; without one (untitled, an example, a
+  download) or without write permission it is **Save As…** (`Mod+Shift+S`): a save picker
+  suggesting `name.logic.json`. The session then takes the saved file's name.
+- A file that doesn't load opens nothing and shows "Cannot open file" with every problem of
+  the `DocumentError` (or "saved by a newer version"); a failing write shows "File error".
+  Unknown part types are not load errors (the compiler reports them).
+
+### Reading and writing files
+
+`FileAccess` (`src/ui/files.ts`), picked by feature detection:
+
+- **native** (File System Access, Chromium): `showOpenFilePicker` / `showSaveFilePicker`
+  (`.logic.json`, the folder remembered by the picker id); Save writes through the handle and,
+  after a reload, asks for write permission first (refused → Save As). A closed picker
+  (`AbortError`) is not an error.
+- **fallback** (Firefox, Safari): Open is a file input (`cancel` resolves nothing); Save and
+  Save As download `name.logic.json`, so every Save downloads; no Open Recent.
+
+The browser primitives are injected (`nativeFileAccess(pickers)`, `fallbackFileAccess(...)`), so
+both run in Node tests; `droppedFile(dataTransfer)` reads a dropped file during the event and
+keeps its handle where the browser gives one.
+
+### Autosave and session restore
+
+The open document is restored as it was after a reload or a closed tab (`src/ui/autosave.ts`):
+
+- `Autosave` writes a `StoredSession` — name, the document text in the file format, unsaved
+  flag, file handle, camera, time — at most **500 ms** after a change of the circuit, the session
+  or the view (later changes in that time ride along; selection and pointer moves don't count),
+  at once when the page is hidden, and synchronously to `localStorage` on `pagehide`
+  (`logic.unload.<id>`, without the handle: IndexedDB writes started while a page unloads don't
+  finish). At start-up `recoverUnloadWrites` moves those into IndexedDB when newer.
+- Storage: IndexedDB database `logic` (`src/ui/browser-storage.ts`): `sessions` (by id, with an
+  `updated` index; the 10 most recent are kept) and `recent` (Open Recent).
+- **Per tab**: `claimSessionId` keeps the tab's id in `sessionStorage` (a reload finds it) and
+  holds a Web Lock on it, so a duplicated tab (same `sessionStorage`) gets a new id and copies
+  the session.
+- **Start-up** (`src/app/App.tsx`, before the first render): `?example=<id>` (or `?gallery`) opens
+  that example; else this tab's session, else the most recent one (a new tab), else Hello, LED
+  (a first launch). A restored session keeps its view and unsaved state; the history starts
+  empty and the simulation stopped. Blocked storage means nothing is restored or kept.
+
+### Open Recent
+
+`RecentFiles` (`src/ui/recent-files.ts`): the ten files opened or saved last, newest first, by
+their handles (deduplicated with `isSameEntry`). File ▸ Open Recent lists them by file name with
+Clear Recent Files; opening one asks for read permission; a file that is gone leaves the list
+with a message. Only where the browser gives file handles.
 
 ## Examples
 
-Until R07 brings files, File ▸ Examples opens documents built in code (`src/app/examples.ts`):
-**Hello, LED** (the M1 circuits, opened at start-up: a switch through a 74HC00 gate to an LED,
-with the chip's power pins wired and its unused inputs tied to GND, and a 1 Hz clock blinking
-an LED), **Symbol Gallery** (every part with prop variants and placements, the 74HC chips and a
-74HC245 in every orientation; dev builds add the `dev/*` renderer fixtures — a DIP-14 with a
-clock pin, DIP-28, generic box, unknown kind — and two broken parts) and, in dev builds, a **Stress Test** (3 600 NANDs,
+File ▸ Examples (a submenu) and **File ▸ New from Example…** (a gallery: a card per example with
+a thumbnail drawn live by `drawCircuitPreview`, title and description; examples without a
+description, like the stress test, are only in the submenu) open the examples as untitled
+copies. The **example files** are ordinary saved documents in `examples/` at the repository
+root, bundled as text and loaded like any file (`src/app/example-files.ts` lists them with a
+title and a description, in gallery order):
+
+- **Hello, LED** — the M1 circuits, opened at a first launch: a switch through a 74HC00 gate to
+  an LED, with the chip's power pins wired and its unused inputs tied to GND, and a 1 Hz clock
+  blinking an LED.
+- **Half Adder** — switches A and B into a 74HC86 (XOR → SUM LED) and a 74HC08 (AND → CARRY LED).
+- **SR Latch** — two cross-coupled 74HC00 NANDs; SET and RESET push buttons pull their line low
+  against a pull-up; Q and /Q LEDs. It starts unknown until set or reset (the missing-reset
+  lesson of 4-state logic).
+- **Ring Oscillator** — a 74HC00 NAND (EN switch) and two 74HC04 inverters in a ring: three
+  inversions, period 2 × (9 + 9 + 9) = 54 ns; at 10 ns/s the OSC LED blinks visibly.
+
+Two examples stay built in code (`src/app/examples.ts`): **Symbol Gallery** (every registered
+part with prop variants and placements, the 74HC chips and a 74HC245 in every orientation; dev
+builds add the `dev/*` renderer fixtures — a DIP-14 with a clock pin, DIP-28, generic box,
+unknown kind — and two broken parts) and, in dev builds, a **Stress Test** (3 600 NANDs,
 `nandGrid`, shared with the circuit benchmark). `?example=<id>` (or `?gallery`) in the URL opens
 one directly.
+
+Example files are kept canonical (`tests/scenarios/examples.test.ts`): exactly what
+`serializeDocument` writes, wires normalized, every resolved prop stored, no design issues.
+Biome ignores `*.logic.json`, which it would reformat. To change an example, open it in the app,
+edit, and save over the file.
 
 ## Testing
 
 - Pure modules (camera, scene, text placement, hit-testing, selection, grid, shortcuts, settings,
-  command registry, formatting, history, move, operations, wire routing, clipboard, prop input) —
-  Vitest in Node, next to the code.
+  command registry, formatting, history, move, operations, wire routing, clipboard, prop input,
+  document session, file access with injected pickers, document controller, autosave with a
+  memory store and controlled timers, recent files) — Vitest in Node, next to the code.
+- Examples — `tests/scenarios/examples.test.ts` keeps every file canonical (listed, bundled as
+  on disk, what `serializeDocument` writes, normalized wires, every resolved prop, no design
+  issues); `example-circuits.test.ts` and `hello-led.test.ts` run them (truth table, set /
+  reset / hold, the 54 ns period).
 - Gestures — `src/editor/gestures.test.ts` drives the `Editor` with `PointerInput`s: drag-move
   and cancel, nudges, the Wire tool (corners, Tab, Delete, double-click, Escape), wires dragged
   from a pin, the place tool, drop from the panel, floating paste and duplicate, cut, context-menu
@@ -535,5 +645,13 @@ one directly.
   never reloading, a held button, edits and a rename while running, a short located from the
   Simulation tab, the speed select; chips (`chips.spec.ts`, R06): a 74HC00 placed from the
   Parts panel and wired switch → gate → LED runs, the Part tab follows the Parts panel, the
-  canvas and the context menu. Not part of `pnpm check` (it needs a browser); CI runs it
-  after the build.
+  canvas and the context menu; files (`files.spec.ts`, R07): Save / Save again without a
+  picker / Open, "Save changes?" (Cancel, Escape, Save, Don't Save), a broken file, a dropped
+  file, Open Recent across a reload, the download / file-input fallback; autosave
+  (`autosave.spec.ts`): a reload restores the unsaved circuit, name and view, a reload right
+  after an edit, the file kept across a reload, per-tab sessions, `?example=`; the gallery
+  (`examples.spec.ts`); **M1** (`m1.spec.ts`): switch → 74HC00 → LED and clock → LED built,
+  run, saved, reloaded, run again. The File System Access pickers are stubbed with handles from
+  the origin private file system (`tests/e2e/file-system.ts`); specs load the app with
+  `openApp`, which waits for the start-up restore. Not part of `pnpm check` (it needs a
+  browser); CI runs it after the build.

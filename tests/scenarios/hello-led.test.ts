@@ -1,9 +1,9 @@
 /**
- * M1 "Hello, LED" as shipped (File ▸ Examples): a switch through a 74HC00 gate to an LED and a
- * 1 Hz clock blinking another, compiled from the document and run.
+ * M1 "Hello, LED" as shipped (`examples/hello-led.logic.json`): a switch through a 74HC00 gate to
+ * an LED and a 1 Hz clock blinking another, compiled from the document and run.
  */
 import { describe, expect, it } from 'vitest';
-import { helloLed } from '../../src/app/examples';
+import { exampleDocument } from '../../src/app/example-files';
 import { compileCircuit } from '../../src/circuit';
 import { ms, ns, Simulator } from '../../src/core';
 import { createDefaultRegistry, Light, type LightsState } from '../../src/library';
@@ -12,7 +12,7 @@ const registry = createDefaultRegistry();
 const light = (sim: Simulator, id: string) => (sim.stateOf(id) as LightsState).light[0];
 
 function start(): Simulator {
-  const compiled = compileCircuit(helloLed(registry), registry);
+  const compiled = compileCircuit(exampleDocument('hello-led').circuits[0]!, registry);
   expect(compiled.issues).toEqual([]);
   return new Simulator(compiled.netlist, registry);
 }

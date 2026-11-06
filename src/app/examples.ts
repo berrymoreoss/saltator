@@ -1,6 +1,7 @@
 /**
- * Built-in documents for the File ▸ Examples menu, drawn in code until R07 brings files and an
- * example gallery: the M1 "Hello, LED" circuits and a gallery of every part's symbol.
+ * Examples that must stay drawn in code (the example files are in `examples/`, see
+ * `example-files.ts`): the gallery of every registered part's symbol, which grows with the
+ * library, and the stress-test grid shared with the circuit benchmark.
  */
 import {
   type Circuit,
@@ -42,44 +43,6 @@ export function nandGrid(registry: ComponentRegistry, rows: number, columns: num
     }
   }
   return b.build();
-}
-
-/**
- * The M1 circuits: a switch through gate 1 of a 74HC00 (1A tied high: an inverter) to an LED, and
- * a 1 Hz clock blinking an LED. As on a breadboard, the chip's power pins are wired and its unused
- * inputs tied to GND (floating CMOS inputs are a mistake the design checks report).
- */
-export function helloLed(registry: ComponentRegistry): Circuit {
-  return (
-    new CircuitBuilder(registry)
-      .add('SW1', 'io/switch', { at: [0, 1], label: 'IN' })
-      .add('U1', '74xx/74hc00', { at: [16, 0] })
-      .add('PWR1', 'io/vcc', { at: [12, -3] })
-      .add('D1', 'io/led', { at: [8, 9], props: { color: 'green' }, label: 'OUT' })
-      .add('PWR2', 'io/gnd', { at: [13, 12] })
-      .add('PWR3', 'io/vcc', { at: [23, -3] })
-      .add('PWR4', 'io/gnd', { at: [25, 9] })
-      .connect('PWR1.Y', 'U1.1A', [13, 1])
-      .connect('SW1.Y', 'U1.1B')
-      .connect('U1.1Y', 'D1.A', [8, 3])
-      // Left GND bus: unused 2A, 2B, the chip's GND and the LED's cathode.
-      .connect('U1.2A', 'PWR2.Y', [14, 4])
-      .wire('U1.2B', [14, 5])
-      .wire('U1.GND', [14, 7])
-      .wire('D1.K', [14, 10])
-      // Right: VCC to the chip, unused 3A, 3B, 4A, 4B to GND.
-      .connect('U1.VCC', 'PWR3.Y', [24, 1])
-      .connect('U1.4B', 'PWR4.Y', [26, 2])
-      .wire('U1.4A', [26, 3])
-      .wire('U1.3B', [26, 5])
-      .wire('U1.3A', [26, 6])
-      .add('X1', 'io/clock', { at: [0, 16], label: '1 Hz' })
-      .add('D2', 'io/led', { at: [8, 16], props: { color: 'red' }, label: 'BLINK' })
-      .add('PWR5', 'io/gnd', { at: [13, 18] })
-      .connect('X1.Y', 'D2.A')
-      .connect('D2.K', 'PWR5.Y')
-      .build()
-  );
 }
 
 interface GalleryItem {

@@ -23,8 +23,8 @@ How to read this file:
 | R04b | `feat/editor-tools`          | Schematic editing                        | done    |
 | R05  | `feat/sim-ui`                | Running simulations in the editor        | done    |
 | R06  | `feat/74hc-gates`            | 74HC gates & bus buffers                 | done    |
-| R07  | `feat/persistence`           | Save, load, examples                     | next    |
-| R08  | `feat/74hc-msi`              | 74HC combinational MSI                   | planned |
+| R07  | `feat/persistence`           | Save, load, examples                     | done    |
+| R08  | `feat/74hc-msi`              | 74HC combinational MSI                   | next    |
 | R09  | `feat/74hc-sequential`       | 74HC sequential parts + timing checks    | planned |
 | R10  | `feat/nets-and-buses`        | Net labels, tunnels, buses               | planned |
 | R11  | `feat/subcircuits`           | Hierarchical design                      | planned |
@@ -130,18 +130,25 @@ bottom dock (drawing, pins with descriptions, function table, datasheet link) fo
 picked last; Hello, LED runs on a 74HC00. Spec: [components.md](components.md#74xx-chips-74xx).
 Decision: [ADR-0011](adr/0011-real-chips.md). Plan: `.ai/plans/feat-74hc-gates.md`.
 
-### R07 · Save, load, examples — `feat/persistence` — `next`
+### R07 · Save, load, examples — `feat/persistence` — `done`
 
-`.logic.json` save/load (File System Access API + fallback), autosave to IndexedDB, example
-gallery, "new from example". Files are written by `serializeDocument` (R02); exclude example
-documents in the repo from Biome, which would reformat them.
+`.logic.json` files: New, Open, Save, Save As through the File System Access API in Chromium
+(Save writes back through the file's handle) and a file input / download elsewhere; Open
+Recent; a dropped file opens; "Save changes?" before replacing unsaved changes (opening is no
+longer an undoable edit); the name and an unsaved mark in the title and the menu bar. The
+session — unsaved changes, file and view — is autosaved to IndexedDB (and synchronously on
+unload) and restored after a reload, per browser tab. Example files in `examples/` (Hello, LED,
+Half Adder, SR Latch, Ring Oscillator; Biome ignores `*.logic.json`), kept canonical and run by
+tests; File ▸ New from Example… shows them with live thumbnails. Spec:
+[editor.md](editor.md#files). Decision: [ADR-0012](adr/0012-files-and-sessions.md). Plan:
+`.ai/plans/feat-persistence.md`.
 
 **M1 acceptance:** in the browser, build switch → 74HC00 → LED and clock → LED; run; the LED follows
-the logic; save, reload, still works.
+the logic; save, reload, still works. — **Reached** (`tests/e2e/m1.spec.ts`).
 
 ## Phase 2 — Building blocks → **M2 "Modules"**
 
-### R08 · 74HC combinational MSI — `feat/74hc-msi`
+### R08 · 74HC combinational MSI — `feat/74hc-msi` — `next`
 
 74HC138, 139, 151, 153, 157, 158, 283, 85, 147/148, 4511 (BCD → 7-segment). Behavioral NE555
 (astable/monostable/bistable as a digital clock/pulse source) for Ben Eater's clock module.
@@ -263,3 +270,5 @@ Promote to a numbered item when needed.
   Net Label — that arm the sticky place tool like a click in the Parts panel, with shortcuts
   (KiCad uses `P` for power and `L` for a label; both are free). VCC and GND can land any time;
   the Net Label button comes with R10.
+- Documents (R07 follow-ups): several documents open in one window (tabs); a title, notes and
+  simulation settings (speed) stored in the file (schema v2).
