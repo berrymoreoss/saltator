@@ -4,7 +4,7 @@
 | ---------- | ------------------------- |
 | Branch     | `docs/backlog-net-labels` |
 | Roadmap    | — (backlog, R10 notes)    |
-| Status     | in-progress               |
+| Status     | done                      |
 | Depends on | —                         |
 | Created    | 2026-11-07                |
 
@@ -21,7 +21,7 @@ named points that join distant parts) in R10, which already plans net labels.
   switches → labels → 74HC00 example, net named after the label, single-label warning, scope
   until R11, VCC/GND joined by name (ADR-0007).
 - [x] 3. Glossary: "Net label" _(planned, R10)_, distinct from a part's `label`.
-- [ ] 4. Merge to `main` with the user's approval.
+- [x] 4. Merge to `main` with the user's approval.
 
 ## Open questions
 
@@ -32,10 +32,12 @@ named points that join distant parts) in R10, which already plans net labels.
 ## Progress log
 
 - 2026-11-07 — roadmap (R10, backlog) and glossary updated.
+- 2026-11-07 — finished: R10 describes net labels, backlog has the quick-place toolbar group,
+  glossary has "net label"; merged with the user's approval.
 
 ## Handoff
 
-- **State:** docs edits committed on the branch; waiting for merge approval.
-- **Next step:** merge to `main` (`--no-ff`) once approved; set status `done`.
-- **Watch out:** R10 is not promoted or reordered; R07 stays `next`.
+- **State:** merged; nothing pending.
+- **Next step:** —
+- **Watch out:** —
 - **Verify with:** `pnpm check`.
