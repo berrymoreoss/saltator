@@ -22,7 +22,7 @@ A desktop CAD-style window (`Workbench`), dense like KiCad or Altium: 12 px UI t
 │ ▾ IO       │                                      │ Delay 1 ns   │
 │ ── preview │                                      │              │
 ├────────────┴──────────────────────────────────────┴──────────────┤
-│ MESSAGES  2  78 · SIMULATION  1   (Memory, Analyzer later)        │
+│ MESSAGES  2  78 · SIMULATION  1 · PART  (Memory, Analyzer later)  │
 ├──────────────────────────────────────────────────────────────────┤
 │ X 12  Y 4 │ 100 % │ U1 · NAND │ hint …        14 parts · 20 wires │ ✖ 0 ⚠ 1 │
 └──────────────────────────────────────────────────────────────────┘
@@ -43,7 +43,8 @@ A desktop CAD-style window (`Workbench`), dense like KiCad or Altium: 12 px UI t
 - **Bottom dock tabs** (the active one is a setting): **Messages** — the compile result's design
   issues, errors first, with code, message and location (`U1.A`, `wire w3`); click selects the
   item and brings it into view, double-click zooms to it; the tab and the status bar show the
-  counts. **Simulation** — what happened while running ([Simulation](#simulation)).
+  counts. **Simulation** — what happened while running ([Simulation](#simulation)). **Part** —
+  the pins and function table of the last part picked ([Part info](#part-info)).
 - **Status bar**: grid position under the pointer, zoom, a one-line selection summary, the
   simulation (state, simulated time, the speed reached when lagging, runtime problems; click opens
   the Simulation tab), a hint for the current tool and gesture (`statusHint`), part/wire counts,
@@ -54,6 +55,25 @@ A desktop CAD-style window (`Workbench`), dense like KiCad or Altium: 12 px UI t
   wire, floating a paste or placing parts cancels that instead.
 - **Dialogs**: Help ▸ Keyboard Shortcuts (generated from the command registry), About. Escape or
   a click outside closes them.
+
+### Part info
+
+The **Part** tab of the bottom dock is a datasheet summary to keep open while wiring a chip
+(R06). It shows the part picked last — a single part selected on the canvas (its designator
+in the header, its props for prop-dependent pins) or a part clicked in the Parts panel:
+
+- the part drawn by the canvas drawers (DIP for chips), name, title, type and a link to the
+  datasheet named after its document (`Datasheet 74HC_HCT00`);
+- the pins in pin-number order: number, name (overlined when active-low, `NC` for n.c.), type
+  (`input`, `output`, `3-state output`, `input/output`, `power`, `not connected`) and the
+  datasheet's description;
+- the definition's `functionTable` (docs/components.md#function-tables) with its note
+  (`each gate (n = 1 to 4)`), columns of active-low pins overlined, the output group headed
+  `Inputs/outputs` for bus ports (245), and the letters' legend.
+
+Parts without descriptions or a function table (`prim/*`, `io/*`) show what they have. Timing is
+not shown (R06, Q3). Edit ▸ Part Info and the part context menu open the tab. The pure model is
+`src/ui/part-info.ts` (unit-tested); the selection-following lives in `Workbench`.
 
 ## Commands and shortcuts
 

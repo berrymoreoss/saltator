@@ -1,5 +1,6 @@
 import type { Circuit } from '../circuit';
 import { Store } from '../editor';
+import type { PartPick } from './part-info';
 import {
   browserStorage,
   type KeyValueStorage,
@@ -24,6 +25,8 @@ export interface UiState {
   readonly searchRequest: number;
   /** Incremented to ask the Properties panel to focus the designator field. */
   readonly propertiesRequest: number;
+  /** The part the Part tab shows: the last one picked on the canvas or in the Parts panel. */
+  readonly partPick?: PartPick;
 }
 
 export function createUiState(): Store<UiState> {

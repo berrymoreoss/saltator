@@ -59,6 +59,7 @@ describe('settings', () => {
     expect(settings.panels.bottom).toEqual(DEFAULT_SETTINGS.panels.bottom);
     expect(settings.bottomTab).toBe('messages');
     expect(parseSettings({ bottomTab: 'simulation' }).bottomTab).toBe('simulation');
+    expect(parseSettings({ bottomTab: 'part' }).bottomTab).toBe('part');
     expect(parseSettings({ bottomTab: 'memory' }).bottomTab).toBe('messages');
   });
 

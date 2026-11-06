@@ -7,7 +7,7 @@ import type { GateStyle, WheelMode } from '../editor';
 export type ThemeSetting = 'system' | 'dark' | 'light';
 export type PanelId = 'parts' | 'properties' | 'bottom';
 /** Tabs of the bottom dock: design checks, and what happened while simulating. */
-export type BottomTab = 'messages' | 'simulation';
+export type BottomTab = 'messages' | 'simulation' | 'part';
 
 export interface PanelSettings {
   readonly visible: boolean;
@@ -79,7 +79,7 @@ export function parseSettings(value: unknown): Settings {
       properties: panel(panels.properties, 'properties'),
       bottom: panel(panels.bottom, 'bottom'),
     },
-    bottomTab: oneOf(raw.bottomTab, ['messages', 'simulation'], DEFAULT_SETTINGS.bottomTab),
+    bottomTab: oneOf(raw.bottomTab, ['messages', 'simulation', 'part'], DEFAULT_SETTINGS.bottomTab),
   };
 }
 

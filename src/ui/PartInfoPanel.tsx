@@ -1,0 +1,171 @@
+import { ExternalLink } from 'lucide-react';
+import type { CanvasTheme, Editor, GateStyle } from '../editor';
+import { useStoreValue } from './hooks';
+import { PartPreview } from './PartPreview';
+import {
+  activeLowColumns,
+  datasheetName,
+  type FunctionTableInfo,
+  functionTableInfo,
+  outputsHeading,
+  type PartPick,
+  pinInfo,
+} from './part-info';
+
+interface PartInfoPanelProps {
+  readonly editor: Editor;
+  /** The last part picked on the canvas or in the Parts panel. */
+  readonly pick: PartPick | undefined;
+  readonly theme: CanvasTheme;
+  readonly gateStyle: GateStyle;
+}
+
+/**
+ * The Part tab of the bottom dock: what a learner needs while wiring a chip — its drawing, every
+ * pin with its datasheet description, the datasheet function table and a link to the datasheet.
+ * Spec: docs/editor.md#part-info.
+ */
+export function PartInfoPanel({ editor, pick, theme, gateStyle }: PartInfoPanelProps) {
+  const instance = useStoreValue(editor.state, (state) =>
+    pick?.id === undefined
+      ? undefined
+      : state.circuit.components.find((c) => c.id === pick.id && c.type === pick.type),
+  );
+  const definition = pick ? editor.registry.get(pick.type) : undefined;
+  if (!pick || !definition) {
+    return (
+      <div className="empty-note">
+        Select a part on the canvas or in the Parts panel to see its pins and function table.
+      </div>
+    );
+  }
+  const pins = pinInfo(definition, instance?.props);
+  const table = functionTableInfo(definition.functionTable);
+  const numbered = pins.some((pin) => pin.number !== undefined);
+  const described = pins.some((pin) => pin.description !== undefined);
+
+  return (
+    <div className="part-sheet" data-testid="part-sheet">
+      <div className="part-sheet-drawing">
+        <PartPreview
+          type={definition.type}
+          registry={editor.registry}
+          theme={theme}
+          gateStyle={gateStyle}
+          {...(instance && { props: instance.props })}
+        />
+      </div>
+      <div className="part-sheet-main">
+        <div className="part-sheet-header">
+          {instance && <span className="part-sheet-id">{instance.id}</span>}
+          <span className="part-info-name">{definition.name}</span>
+          <span>{definition.title}</span>
+          <span className="mono muted">{definition.type}</span>
+          {definition.datasheet && (
+            <a className="link" href={definition.datasheet} target="_blank" rel="noreferrer">
+              Datasheet {datasheetName(definition.datasheet)} <ExternalLink size={11} />
+            </a>
+          )}
+        </div>
+        <div className="part-sheet-tables">
+          <div className="part-sheet-scroll">
+            <table className="sheet-table" aria-label="Pins">
+              <thead>
+                <tr>
+                  {numbered && <th className="num">No.</th>}
+                  <th>Name</th>
+                  <th>Type</th>
+                  {described && <th>Description</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {pins.map((pin, i) => (
+                  <tr key={pin.number ?? i}>
+                    {numbered && <td className="num">{pin.number}</td>}
+                    <td className={pin.activeLow ? 'mono overline' : 'mono'}>{pin.name}</td>
+                    <td className="muted">{pin.type}</td>
+                    {described && <td>{pin.description}</td>}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="part-sheet-scroll">
+            {table ? (
+              <FunctionTableView
+                table={table}
+                overlined={activeLowColumns(definition)}
+                outputs={outputsHeading(definition)}
+              />
+            ) : (
+              <div className="empty-note">No function table for this part.</div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FunctionTableView({
+  table,
+  overlined,
+  outputs,
+}: {
+  readonly table: FunctionTableInfo;
+  readonly overlined: ReadonlySet<string>;
+  /** Heading of the output columns. */
+  readonly outputs: string;
+}) {
+  const column = (name: string, first: boolean) => (
+    <th
+      key={name}
+      className={[first && 'outputs-start', overlined.has(name) && 'overline']
+        .filter(Boolean)
+        .join(' ')}
+    >
+      {name}
+    </th>
+  );
+  return (
+    <table className="sheet-table function-table" aria-label="Function table">
+      <caption>Function table{table.note && ` — ${table.note}`}</caption>
+      <thead>
+        <tr>
+          <th colSpan={table.inputs.length}>Inputs</th>
+          <th colSpan={table.outputs.length} className="outputs-start">
+            {outputs}
+          </th>
+        </tr>
+        <tr>
+          {table.inputs.map((name) => column(name, false))}
+          {table.outputs.map((name, i) => column(name, i === 0))}
+        </tr>
+      </thead>
+      <tbody>
+        {table.rows.map((row, r) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: rows are static datasheet data
+          <tr key={r}>
+            {row.inputs.map((cell, i) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: cells are positional
+              <td key={i}>{cell}</td>
+            ))}
+            {row.outputs.map((cell, i) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: cells are positional
+              <td key={`o${i}`} className={i === 0 ? 'outputs-start' : undefined}>
+                {cell}
+              </td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colSpan={table.inputs.length + table.outputs.length} className="legend">
+            H = HIGH, L = LOW, X = don’t care, Z = high impedance
+          </td>
+        </tr>
+      </tfoot>
+    </table>
+  );
+}

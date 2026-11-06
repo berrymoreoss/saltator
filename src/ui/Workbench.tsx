@@ -9,6 +9,7 @@ import { useMediaQuery, useStore, useStoreValue } from './hooks';
 import { MenuBar } from './MenuBar';
 import { MessagesBadges, MessagesPanel } from './MessagesPanel';
 import { Panel, Splitter } from './Panel';
+import { PartInfoPanel } from './PartInfoPanel';
 import { PartsPanel } from './PartsPanel';
 import { PropertiesPanel } from './PropertiesPanel';
 import { PART_DRAG_TYPE } from './parts-filter';
@@ -92,6 +93,21 @@ export function Workbench({ editor, settings: settingsStore, ui, examples }: Wor
 
   useEffect(() => clipboard.attach(document), [clipboard]);
 
+  // The Part tab follows the last part picked: a single part selected on the canvas…
+  useEffect(() => {
+    const follow = () => {
+      const { selection, circuit } = editor.state.get();
+      if (selection.parts.size !== 1 || selection.wires.size !== 0) return;
+      const [id] = selection.parts;
+      const part = circuit.components.find((c) => c.id === id);
+      const current = ui.get().partPick;
+      if (!part || (current?.id === part.id && current.type === part.type)) return;
+      ui.update((s) => ({ ...s, partPick: { type: part.type, id: part.id } }));
+    };
+    follow();
+    return editor.state.subscribe(follow);
+  }, [editor, ui]);
+
   // Double-click on a part: show Properties and focus its designator.
   const request = useStore(editor.requests);
   useEffect(() => {
@@ -141,7 +157,11 @@ export function Workbench({ editor, settings: settingsStore, ui, examples }: Wor
                   gateStyle={settings.gateStyle}
                   searchRequest={uiState.searchRequest}
                   armed={typeof tool === 'object' ? tool.type : undefined}
-                  onPick={(type) => editor.placePart(type)}
+                  onPick={(type) => {
+                    // …or a part clicked in the Parts panel.
+                    ui.update((s) => ({ ...s, partPick: { type } }));
+                    editor.placePart(type);
+                  }}
                   onDrag={(type) => editor.dragPart(type)}
                 />
               </Panel>
@@ -210,6 +230,15 @@ export function Workbench({ editor, settings: settingsStore, ui, examples }: Wor
                     Simulation
                     <SimulationBadges editor={editor} />
                   </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={tab === 'part'}
+                    className={tab === 'part' ? 'tab active' : 'tab'}
+                    onClick={() => showTab('part')}
+                  >
+                    Part
+                  </button>
                 </div>
               }
               actions={
@@ -227,10 +256,15 @@ export function Workbench({ editor, settings: settingsStore, ui, examples }: Wor
               onClose={() => setPanel('bottom', { visible: false })}
               testId="bottom-panel"
             >
-              {tab === 'messages' ? (
-                <MessagesPanel editor={editor} />
-              ) : (
-                <SimulationPanel editor={editor} />
+              {tab === 'messages' && <MessagesPanel editor={editor} />}
+              {tab === 'simulation' && <SimulationPanel editor={editor} />}
+              {tab === 'part' && (
+                <PartInfoPanel
+                  editor={editor}
+                  pick={uiState.partPick}
+                  theme={canvasTheme}
+                  gateStyle={settings.gateStyle}
+                />
               )}
             </Panel>
           </div>

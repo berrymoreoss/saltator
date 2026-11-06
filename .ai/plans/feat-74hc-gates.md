@@ -215,7 +215,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 8. Editor: DIP drawing with real chips (`NC` names, `1OE`/`1A0` fit at DIP-20, active-low
   overlines), looked at in both themes and gate styles; Symbol Gallery 74HC row; Hello, LED
   with a 74HC00 (Q4).
-- [ ] 9. UI: Part tab in the bottom dock (Q2, Q3) — drawing, pin table with descriptions,
+- [x] 9. UI: Part tab in the bottom dock (Q2, Q3) — drawing, pin table with descriptions,
   function table, datasheet link; follows the last picked part (canvas or Parts panel);
   unit tests for the pure parts (building the tables).
 - [ ] 10. e2e: place a 74HC00 from the Parts panel, wire switch → gate → LED, run, the LED
@@ -296,13 +296,19 @@ Checkable statements; verified one by one in the finish-branch workflow.
   `tests/scenarios/hello-led.test.ts` (LED 9 ns after the switch); gallery rows with every 74HC
   chip and a 74HC245 in each orientation; DIP drawer shows `NC` for n.c. pins. Looked at in
   Chromium (Playwright, both themes): DIP-20 names fit, overlines, NC pins, Hello, LED clean.
+- 2026-11-07 — task 9: Part tab (`PartInfoPanel`, pure model `src/ui/part-info.ts` with tests,
+  `PartPreview` extracted from the Parts panel); follows the canvas selection and Parts panel
+  clicks (`UiState.partPick`); Edit ▸ Part Info and the context menu open it. Looked at in both
+  themes: 74HC00 and 74HC245 (overlined `OE`, `Inputs/outputs` heading). At the default dock
+  height (148 px) the drawing is small but readable; the tables scroll.
 
 ## Handoff
 
-- **State:** tasks 1–8 done: chips, tests, scenarios, examples, drawing.
-- **Next step:** task 9 — the Part tab in the bottom dock (drawing, pin table with descriptions,
-  function table, datasheet link; follows the last picked part, canvas or Parts panel).
-- **Watch out:** data sheets are outside the repo (`~/Downloads/nexperia-74hc/`). Text cells in
-  function tables (`A=B`) are display-only. Visual checks: a Playwright script against
-  `node_modules/.bin/vite --port 5199` (import `@playwright/test` by absolute path).
-- **Verify with:** `pnpm check`; `pnpm e2e` (Hello, LED changed: check `simulation.spec.ts`).
+- **State:** tasks 1–9 done: chips, tests, scenarios, examples, drawing, Part tab.
+- **Next step:** task 10 — e2e: a 74HC00 placed from the Parts panel, wired switch → gate →
+  LED, run, the LED follows; the Part tab shows the pins and datasheet. `tests/e2e/support.ts`
+  has place/wire/pinOf helpers (its Hello LED comment is stale: it draws the prim/nand version).
+- **Watch out:** data sheets are outside the repo (`~/Downloads/nexperia-74hc/`). Visual checks:
+  a Playwright script against `node_modules/.bin/vite --port 5199` (import `@playwright/test`
+  by absolute path).
+- **Verify with:** `pnpm check`; `pnpm e2e`.
