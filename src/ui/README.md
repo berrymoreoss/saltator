@@ -15,6 +15,7 @@ Implemented in R04a: `Workbench` (the shell), `MenuBar`, `Toolbar`, `Panel`/`Spl
 browser's clipboard events and the async Clipboard API), place/drag from `PartsPanel`. R05:
 Simulate menu and toolbar commands, `SimControls` (speed select, the status bar's simulation
 cell), `SimulationPanel` (runtime diagnostics tab), `LiveLevel` (level badges in Properties),
-bottom-dock tabs.
+bottom-dock tabs. R06: `PartInfoPanel` (the Part tab; pure model in `part-info.ts`),
+`PartPreview` (a part drawn by the canvas drawers, shared with `PartsPanel`).
 
 Spec: [docs/editor.md](../../docs/editor.md#shell).

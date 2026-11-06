@@ -1,6 +1,6 @@
 /**
  * 74xx245 octal bus transceiver: pinout and function table transcribed from the Nexperia data
- * sheet (tables 2 and 3). Spec: docs/components.md#74xx-chips.
+ * sheet (tables 2 and 3). Spec: docs/components.md#74xx-chips-74xx.
  */
 import {
   type AnyComponentDefinition,

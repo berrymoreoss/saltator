@@ -96,3 +96,7 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
   it — ask the user to download the PDFs. `pdftotext -layout` keeps their tables readable
   (`file` reports bogus page counts for them). Typical `ten`/`tdis` are given only at 2.0, 4.5
   and 6.0 V, hence the 4.5 V / 50 pF convention.
+- 2026-11-07 (R06) — For visual checks without the Chrome extension, run
+  `node_modules/.bin/vite --port 5199` in the background and a Playwright script from the
+  scratchpad that imports `node_modules/@playwright/test/index.mjs` by absolute path (pnpm
+  doesn't hoist `playwright` itself); drive `window.logicEditor` (`setCamera`, `setSelection`).

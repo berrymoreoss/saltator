@@ -1,6 +1,6 @@
 /**
  * Real 74xx logic chips as DIP packages (ADR-0004), 74HC family from Nexperia data sheets.
- * See docs/components.md#74xx-chips.
+ * See docs/components.md#74xx-chips-74xx.
  */
 import type { AnyComponentDefinition } from '../../core';
 import { hcBuffers } from './buffers';

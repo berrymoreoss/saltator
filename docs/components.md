@@ -6,8 +6,8 @@ How parts are described in `src/library`. Rationale for modeling chips as packag
 [.ai/workflows/add-component.md](../.ai/workflows/add-component.md).
 
 > Status: the definition shape is implemented (R01); `symbol`, the `sense`/`constant` pin flags
-> and the `io/*` parts landed in R03. 74xx parts (R06) are the first to use `package` and
-> `units`.
+> and the `io/*` parts landed in R03; the 74HC gates and bus buffers (R06) are the first to use
+> `package`, `units`, pin `description`s and `functionTable`.
 
 ## Families and type ids
 
@@ -19,7 +19,7 @@ the part before the slash (`familyOf(type)`).
 | -------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
 | `prim`   | `prim/nand`, `prim/tristate-buffer`, `prim/pull`                   | Abstract building blocks (Logisim-style), configurable inputs and delay. For prototyping and learning. |
 | `io`     | `io/switch`, `io/button`, `io/led`, `io/clock`, `io/seven-segment` | Interaction and indication: rails, switches, LEDs, displays, clock, probe ([below](#io-parts-io)).     |
-| `74xx`   | `74xx/74hc00`, `74xx/74hc245`, `74xx/74ls189`                      | Real logic chips. Behavior shared per function; timing per logic family (HC first) _(planned, R06)_.   |
+| `74xx`   | `74xx/74hc00`, `74xx/74hc245`, `74xx/74ls189`                      | Real logic chips ([below](#74xx-chips-74xx)). Behavior shared per function; timing per logic family.   |
 | `mem`    | `mem/at28c256`, `mem/62256`                                        | ROM/EEPROM/SRAM with inspectors _(planned, R12)_.                                                      |
 | `cpu`    | `cpu/w65c02s`                                                      | Processors (pin-level) _(planned, R17)_. Later: Z80, AVR, PIC.                                         |
 | `periph` | `periph/w65c22`, `periph/hd44780`                                  | Peripherals _(planned, R18)_.                                                                          |
@@ -315,3 +315,68 @@ rails change with zero delay, the clock's edges are exact.
   difference of two samples divided by the frame's duration — a multiplexed display or an LED on
   a fast clock shows its real brightness instead of random frames. Hex display and probe are
   stateless: the renderer reads their pin levels.
+
+## 74xx chips (`74xx/*`)
+
+Real logic chips as DIP packages ([ADR-0004](adr/0004-chips-as-packages.md)) in
+`src/library/74xx`, the 74HC family from the Nexperia product data sheets
+([ADR-0011](adr/0011-real-chips.md)). R06 ships the gates and bus buffers:
+
+| Type           | Function                                            | Package | Typical delays             |
+| -------------- | --------------------------------------------------- | ------- | -------------------------- |
+| `74xx/74hc00`  | quad 2-input NAND                                   | DIP-14  | tpd 9 ns                   |
+| `74xx/74hc02`  | quad 2-input NOR (outputs on pins 1, 4, 10, 13)     | DIP-14  | tpd 9 ns                   |
+| `74xx/74hc04`  | hex inverter                                        | DIP-14  | tpd 9 ns                   |
+| `74xx/74hc08`  | quad 2-input AND                                    | DIP-14  | tpd 9 ns                   |
+| `74xx/74hc10`  | triple 3-input NAND                                 | DIP-14  | tpd 11 ns                  |
+| `74xx/74hc11`  | triple 3-input AND                                  | DIP-14  | tpd 12 ns                  |
+| `74xx/74hc14`  | hex inverting Schmitt trigger                       | DIP-14  | tpd 15 ns                  |
+| `74xx/74hc20`  | dual 4-input NAND (n.c. pins 3, 11)                 | DIP-14  | tpd 10 ns                  |
+| `74xx/74hc21`  | dual 4-input AND (n.c. pins 3, 11)                  | DIP-14  | tpd 12 ns                  |
+| `74xx/74hc27`  | triple 3-input NOR                                  | DIP-14  | tpd 10 ns                  |
+| `74xx/74hc30`  | 8-input NAND (n.c. pins 9, 10, 13)                  | DIP-14  | tpd 15 ns                  |
+| `74xx/74hc32`  | quad 2-input OR                                     | DIP-14  | tpd 8 ns                   |
+| `74xx/74hc86`  | quad 2-input XOR                                    | DIP-14  | tpd 14 ns                  |
+| `74xx/74hc125` | quad buffer, 3-state, `nOE` active LOW              | DIP-14  | tpd 11, ten 15, tdis 15 ns |
+| `74xx/74hc126` | quad buffer, 3-state, `nOE` active HIGH             | DIP-14  | tpd 11, ten 15, tdis 15 ns |
+| `74xx/74hc240` | octal inverting buffer/line driver, 3-state         | DIP-20  | tpd 11, ten 14, tdis 15 ns |
+| `74xx/74hc244` | octal buffer/line driver, 3-state (two groups of 4) | DIP-20  | tpd 11, ten 13, tdis 14 ns |
+| `74xx/74hc245` | octal bus transceiver, 3-state (`DIR`, `OE`)        | DIP-20  | tpd 9, ten 11, tdis 15 ns  |
+
+Delays at VCC = 4.5 V, CL = 50 pF, 25 °C ([Timing](#timing)); each chip's `timing.max` holds the
+−40 °C to +85 °C maxima and `timing.source` the document, revision and table.
+
+- **One function, many families.** A chip's function — pinout with the data sheet's pin
+  descriptions, units, function table, behavior — is a `ChipSpec` (`GATE_SPECS`,
+  `BUFFER_SPECS`, `TRANSCEIVER_SPEC`); its data sheet and timing come from a `LogicFamily` (`HC`
+  in `hc-timing.ts`). `chipDefinition(spec, family, behavior)` makes type `74xx/74hc00`, name
+  `74HC00`. A 74HCT or 74AC is another timing table; a 74LS also needs TTL inputs (a floating
+  input reads high) — backlog.
+- **Pinouts** are written like the data sheet's pin description table:
+  `pins('1A, 2A, 3A, 4A', '1, 4, 9, 12', 'in', 'data input')`. Pins are listed in pin-number
+  order; n.c. pins are `nc` pins named `NC<number>` (drawn `NC`). Bus pins are 0-based as in the
+  Nexperia data sheets (`A0`–`A7`, `1A0`–`1A3`).
+- **Gates** combine their inputs with the 4-state operators, like `prim/*`: a 0 into a NAND gives
+  1 whatever the other inputs; a floating input reads as `X`.
+- **3-state buffers**: enabled, `Y = A` (inverted for the 240) after `tpd`, or after `ten` when
+  the enable has just become active; disabled, released after `tdis`; an unknown or floating
+  enable drives `X` (it might be driving). Two 244s handing a bus over at the same instant fight
+  for `tdis − ten` = 1 ns, as on a real board (`tests/scenarios/bus-74hc.test.ts`).
+- **74HC245**: `OE` high isolates both ports (`tdis`). `OE` low: `DIR` high drives B from A and
+  releases A, `DIR` low drives A from B and releases B; the port that starts driving uses `ten`,
+  data changes `tpd`. `OE` or `DIR` unknown: every port that might be an output drives `X`. Only
+  the input port is read, so a floating input bus is reported and an idle one is not.
+- **74HC14**: an inverter with the Schmitt trigger's delay; hysteresis is analog and not modeled.
+- **Every section, every call.** `evaluate` re-evaluates every gate, buffer or bit (re-driving
+  an unchanged output schedules nothing). Skipping sections whose inputs didn't change is wrong:
+  the forced evaluation at power-on and after a recompile can see some inputs changed and must
+  still evaluate the rest. Cost: a 74HC04 chain runs at ≈ 8.4M events/s against ≈ 13.2M for
+  `prim/not` (R06, `pnpm bench`).
+- **Unused inputs** float as on a real board: the `undriven-input` check warns about each one and
+  the kernel reports a `floating-input` when the chip reads it. Tie them to GND or VCC, as
+  Hello, LED does. **Power pins** are drawn but not simulated (ADR-0004).
+- **Tests** (`src/library/74xx/*.test.ts`): every function table checked on every unit through
+  pin numbers read off the data sheet's pinning figure, every delay against the data sheet's
+  numbers, unknown and floating inputs, enable timing, the 245 turning round; `chips.test.ts`
+  checks every chip's package, pin descriptions, timing source and units. The carry-over
+  property runs random networks of them.

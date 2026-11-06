@@ -1,7 +1,7 @@
 /**
  * 74xx gate chips (00, 02, 04, 08, 10, 11, 14, 20, 21, 27, 30, 32, 86): pinouts and function
  * tables transcribed from the Nexperia data sheets (tables 2 and 3), behavior shared with every
- * family. Spec: docs/components.md#74xx-chips.
+ * family. Spec: docs/components.md#74xx-chips-74xx.
  */
 import {
   type AnyComponentDefinition,

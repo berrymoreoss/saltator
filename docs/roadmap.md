@@ -13,30 +13,30 @@ How to read this file:
 
 ## Overview
 
-| ID   | Branch                       | Title                                    | Status      |
-| ---- | ---------------------------- | ---------------------------------------- | ----------- |
-| R00  | — (initial commit on `main`) | Foundation                               | done        |
-| R01  | `feat/engine-core`           | Simulation kernel                        | done        |
-| R02  | `feat/circuit-model`         | Circuit document & netlist compiler      | done        |
-| R03  | `feat/io-basic`              | Basic IO parts (headless)                | done        |
-| R04a | `feat/editor-canvas`         | App shell & schematic view               | done        |
-| R04b | `feat/editor-tools`          | Schematic editing                        | done        |
-| R05  | `feat/sim-ui`                | Running simulations in the editor        | done        |
-| R06  | `feat/74hc-gates`            | 74HC gates & bus buffers                 | in-progress |
-| R07  | `feat/persistence`           | Save, load, examples                     | planned     |
-| R08  | `feat/74hc-msi`              | 74HC combinational MSI                   | planned     |
-| R09  | `feat/74hc-sequential`       | 74HC sequential parts + timing checks    | planned     |
-| R10  | `feat/nets-and-buses`        | Net labels, tunnels, buses               | planned     |
-| R11  | `feat/subcircuits`           | Hierarchical design                      | planned     |
-| R12  | `feat/memory`                | ROM / RAM + memory inspector             | planned     |
-| R13  | `feat/logic-analyzer`        | Waveforms & probes                       | planned     |
-| R14  | `feat/debugger`              | Breakpoints, stepping, watches           | planned     |
-| R15  | `feat/test-benches`          | Circuit test benches ("test before fab") | planned     |
-| R16  | `example/sap-1`              | Ben Eater SAP-1 reference build          | planned     |
-| R17  | `feat/cpu-6502`              | W65C02S CPU                              | planned     |
-| R18  | `feat/peripherals`           | VIA, LCD, serial, buzzer                 | planned     |
-| R19  | `feat/toolchain`             | 6502 assembler & flashing                | planned     |
-| R20  | `example/be6502`             | Ben Eater 6502 reference build           | planned     |
+| ID   | Branch                       | Title                                    | Status  |
+| ---- | ---------------------------- | ---------------------------------------- | ------- |
+| R00  | — (initial commit on `main`) | Foundation                               | done    |
+| R01  | `feat/engine-core`           | Simulation kernel                        | done    |
+| R02  | `feat/circuit-model`         | Circuit document & netlist compiler      | done    |
+| R03  | `feat/io-basic`              | Basic IO parts (headless)                | done    |
+| R04a | `feat/editor-canvas`         | App shell & schematic view               | done    |
+| R04b | `feat/editor-tools`          | Schematic editing                        | done    |
+| R05  | `feat/sim-ui`                | Running simulations in the editor        | done    |
+| R06  | `feat/74hc-gates`            | 74HC gates & bus buffers                 | done    |
+| R07  | `feat/persistence`           | Save, load, examples                     | next    |
+| R08  | `feat/74hc-msi`              | 74HC combinational MSI                   | planned |
+| R09  | `feat/74hc-sequential`       | 74HC sequential parts + timing checks    | planned |
+| R10  | `feat/nets-and-buses`        | Net labels, tunnels, buses               | planned |
+| R11  | `feat/subcircuits`           | Hierarchical design                      | planned |
+| R12  | `feat/memory`                | ROM / RAM + memory inspector             | planned |
+| R13  | `feat/logic-analyzer`        | Waveforms & probes                       | planned |
+| R14  | `feat/debugger`              | Breakpoints, stepping, watches           | planned |
+| R15  | `feat/test-benches`          | Circuit test benches ("test before fab") | planned |
+| R16  | `example/sap-1`              | Ben Eater SAP-1 reference build          | planned |
+| R17  | `feat/cpu-6502`              | W65C02S CPU                              | planned |
+| R18  | `feat/peripherals`           | VIA, LCD, serial, buzzer                 | planned |
+| R19  | `feat/toolchain`             | 6502 assembler & flashing                | planned |
+| R20  | `example/be6502`             | Ben Eater 6502 reference build           | planned |
 
 ---
 
@@ -117,12 +117,20 @@ property test). Simulation tab with runtime diagnostics and click-to-locate; liv
 Properties. Spec: [editor.md](editor.md#simulation). Decision:
 [ADR-0010](adr/0010-running-simulations.md). Plan: `.ai/plans/feat-sim-ui.md`.
 
-### R06 · 74HC gates & bus buffers — `feat/74hc-gates` — `in-progress`
+### R06 · 74HC gates & bus buffers — `feat/74hc-gates` — `done`
 
-74HC00, 02, 04, 08, 10, 11, 14, 20, 21, 27, 30, 32, 86, 125, 126, 240, 244, 245 with datasheet
-pinouts, timing and function-table tests. Part info panel (pinout, title, datasheet link).
+74HC00, 02, 04, 08, 10, 11, 14, 20, 21, 27, 30, 32, 86 (gates), 125, 126, 240, 244 (3-state
+buffers) and 245 (bus transceiver) from the Nexperia data sheets: pinouts with pin
+descriptions, units, function tables as definition data, timing (`tpd`, `ten`, `tdis`) at
+4.5 V / 50 pF citing document, revision and table; function shared per chip number, timing per
+logic family. Tests check every function table through physical pin numbers, every delay and
+unknown/floating inputs; the carry-over property runs random 74xx networks; a bus scenario shows
+contention, the 1 ns fight of a same-instant handover and the 245 both ways. A Part tab in the
+bottom dock (drawing, pins with descriptions, function table, datasheet link) follows the part
+picked last; Hello, LED runs on a 74HC00. Spec: [components.md](components.md#74xx-chips-74xx).
+Decision: [ADR-0011](adr/0011-real-chips.md). Plan: `.ai/plans/feat-74hc-gates.md`.
 
-### R07 · Save, load, examples — `feat/persistence`
+### R07 · Save, load, examples — `feat/persistence` — `next`
 
 `.logic.json` save/load (File System Access API + fallback), autosave to IndexedDB, example
 gallery, "new from example". Files are written by `serializeDocument` (R02); exclude example
@@ -233,6 +241,11 @@ Promote to a numbered item when needed.
 - Editing extras (R04b follow-ups): editing a prop of several selected parts at once, re-annotate
   designators, align/distribute, wire auto-routing around parts, a modifier to move parts without
   dragging their wires (KiCad "move"), dragging a single wire end.
+- More logic families (R06 follow-up): 74HCT and 74AC as timing tables for the existing chip
+  specs; 74LS/74F also need TTL inputs (a floating input reads high).
+- Kernel: mark the forced evaluation (power-on, after a recompile) so multi-section chips can
+  re-evaluate only the sections whose inputs changed (a 74HC04 chain runs at ≈ 8.4M events/s
+  against ≈ 13.2M for `prim/not`, R06).
 - Simulation view extras (R05 follow-ups): LED colors that stay visible on the light theme's
   cream when dim (a dim yellow LED is hard to see); a "toggling" wire style for nets that change
   faster than the frame rate, which now flicker between 0 and 1 from frame to frame.
