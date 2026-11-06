@@ -1,8 +1,37 @@
 /**
  * Canvas colors. The UI picks the theme (dark or light, following the OS by default) and passes
- * the matching `CanvasTheme`, so the canvas and the chrome always agree. R05 adds signal-level
- * colors.
+ * the matching `CanvasTheme`, so the canvas and the chrome always agree.
  */
+
+/**
+ * How a net looks while simulating: its level and whether it is driven strongly, only pulled
+ * (`WEAK_*`), or shorted (`CONTENTION`: two strong drivers disagree). `NONE`: not simulated.
+ */
+export const SignalStyle = {
+  NONE: 0,
+  L0: 1,
+  L1: 2,
+  Z: 3,
+  X: 4,
+  WEAK_0: 5,
+  WEAK_1: 6,
+  CONTENTION: 7,
+} as const;
+export type SignalStyle = (typeof SignalStyle)[keyof typeof SignalStyle];
+
+/** Wire colors by signal style. */
+export interface LevelColors {
+  readonly l0: string;
+  readonly l1: string;
+  readonly z: string;
+  readonly x: string;
+  /** Only pulled to 0 / 1 (a pull resistor, nothing driving). */
+  readonly weak0: string;
+  readonly weak1: string;
+  /** The dim phase of a flashing contention. */
+  readonly contentionDim: string;
+}
+
 export interface CanvasTheme {
   readonly name: 'dark' | 'light';
   readonly background: string;
@@ -27,6 +56,31 @@ export interface CanvasTheme {
   readonly hover: string;
   readonly error: string;
   readonly warning: string;
+  /** Wires while simulating. */
+  readonly levels: LevelColors;
+}
+
+/** The color of a wire in `style`; `bright`: the bright phase of a flashing contention. */
+export function signalColor(theme: CanvasTheme, style: SignalStyle, bright = true): string {
+  const c = theme.levels;
+  switch (style) {
+    case SignalStyle.NONE:
+      return theme.wire;
+    case SignalStyle.L0:
+      return c.l0;
+    case SignalStyle.L1:
+      return c.l1;
+    case SignalStyle.Z:
+      return c.z;
+    case SignalStyle.X:
+      return c.x;
+    case SignalStyle.WEAK_0:
+      return c.weak0;
+    case SignalStyle.WEAK_1:
+      return c.weak1;
+    case SignalStyle.CONTENTION:
+      return bright ? c.x : c.contentionDim;
+  }
 }
 
 export const DARK_CANVAS: CanvasTheme = {
@@ -47,6 +101,15 @@ export const DARK_CANVAS: CanvasTheme = {
   hover: 'rgba(88, 166, 255, 0.35)',
   error: '#f85149',
   warning: '#d29922',
+  levels: {
+    l0: '#23843f',
+    l1: '#4be36f',
+    z: '#4d8fea',
+    x: '#ff5a52',
+    weak0: '#4f7a5b',
+    weak1: '#a8e6b8',
+    contentionDim: '#6e2622',
+  },
 };
 
 export const LIGHT_CANVAS: CanvasTheme = {
@@ -67,4 +130,13 @@ export const LIGHT_CANVAS: CanvasTheme = {
   hover: 'rgba(9, 105, 218, 0.30)',
   error: '#cf222e',
   warning: '#9a6700',
+  levels: {
+    l0: '#14532d',
+    l1: '#18b04a',
+    z: '#2563eb',
+    x: '#dc2626',
+    weak0: '#6f927a',
+    weak1: '#8fd3a4',
+    contentionDim: '#f2b8b5',
+  },
 };

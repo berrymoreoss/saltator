@@ -1095,6 +1095,7 @@ export class Editor {
       scene = this.#previewScene;
     }
     const { theme, gateStyle, showGrid } = this.#settings;
+    const signals = this.simulation.signalView();
     renderScene(
       ctx,
       scene,
@@ -1106,6 +1107,7 @@ export class Editor {
         selection,
         ...(this.#hover && !preview && { hover: this.#hover }),
         ...(this.#box && { box: this.#box }),
+        ...(signals && { signals }),
         ...(preview && {
           ghost: preview.ghost,
           connections: this.#ghostConnections(scene, preview.ghost),

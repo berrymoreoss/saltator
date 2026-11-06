@@ -7,10 +7,11 @@
  * free; the clock and the frame scheduler are injected, so all of this runs in Node tests.
  * Spec: docs/editor.md#simulation.
  */
-import { pointKey } from '../circuit';
+import { type Point, pointKey } from '../circuit';
 import {
   type ComponentRegistry,
   type Diagnostic,
+  Drive,
   formatTime,
   type Netlist,
   ns,
@@ -20,8 +21,10 @@ import {
   type Time,
   us,
 } from '../core';
+import type { SignalView } from './renderer';
 import type { Scene } from './scene';
 import { Store } from './store';
+import { SignalStyle } from './theme';
 
 /**
  * - `stopped`: no simulator; the canvas shows the plain drawing;
@@ -118,6 +121,27 @@ const STATUS_MS = 100;
 const LAG_FRAMES = 30;
 /** Max speed: how far one kernel call may go when nothing limits it (1 hour). */
 const MAX_SETTLE = 3_600 * PS_PER_SECOND;
+/** Half period of a flashing contention, wall-clock ms. */
+const FLASH_MS = 250;
+
+/** Signal style of each kernel drive value (level + strength). */
+const DRIVE_STYLES: readonly SignalStyle[] = (() => {
+  const styles: SignalStyle[] = Array.from({ length: 16 }, () => SignalStyle.Z);
+  styles[Drive.WEAK_0] = SignalStyle.WEAK_0;
+  styles[Drive.WEAK_1] = SignalStyle.WEAK_1;
+  styles[Drive.WEAK_X] = SignalStyle.X;
+  styles[Drive.STRONG_0] = SignalStyle.L0;
+  styles[Drive.STRONG_1] = SignalStyle.L1;
+  styles[Drive.STRONG_X] = SignalStyle.X;
+  return styles;
+})();
+
+/** How a net of `sim` looks; −1 (a net the simulator doesn't have, wires on no pin) is `Z`. */
+export function netStyle(sim: Simulator, net: number): SignalStyle {
+  if (net < 0) return SignalStyle.Z;
+  if (sim.contended[net] === 1) return SignalStyle.CONTENTION;
+  return DRIVE_STYLES[sim.drives[net]!] ?? SignalStyle.Z;
+}
 
 export class Simulation {
   readonly status: Store<SimStatus>;
@@ -139,6 +163,7 @@ export class Simulation {
   #actual = 0;
   #events = 0;
   #diagnosticsKey = '';
+  #flash = true;
 
   constructor(registry: ComponentRegistry, scene: Scene, options: SimulationOptions = {}) {
     this.#registry = registry;
@@ -172,6 +197,20 @@ export class Simulation {
   /** True while there is a simulator (running, paused or halted). */
   get active(): boolean {
     return this.#sim !== undefined;
+  }
+
+  /** What the canvas shows on wires now; undefined when stopped. */
+  signalView(): SignalView | undefined {
+    const sim = this.#sim;
+    if (!sim) return undefined;
+    const { wires, points } = this.#signals;
+    const style = (net: number | undefined) =>
+      net === undefined ? SignalStyle.NONE : netStyle(sim, net);
+    return {
+      wire: (id: string) => style(wires.get(id)),
+      point: (p: Point) => style(points.get(pointKey(p))),
+      flash: this.#flash || this.state !== 'running',
+    };
   }
 
   // ── Run control ─────────────────────────────────────────────────────────────────────────
@@ -382,10 +421,14 @@ export class Simulation {
       this.#setState('halted');
       return;
     }
-    if (sim.stats.events !== this.#events) {
-      this.#events = sim.stats.events;
-      this.#bump();
+    let changed = sim.stats.events !== this.#events;
+    this.#events = sim.stats.events;
+    const flash = Math.floor(wall / FLASH_MS) % 2 === 0;
+    if (flash !== this.#flash) {
+      this.#flash = flash;
+      changed ||= sim.contended.includes(1);
     }
+    if (changed) this.#bump();
     if (wall - this.#lastStatus >= STATUS_MS) this.#refreshStatus(wall);
     this.#schedule();
   }

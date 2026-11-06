@@ -12,7 +12,7 @@ import type { BoxMode, Hit } from './hit-test';
 import type { Scene, ScenePart } from './scene';
 import type { Selection } from './selection';
 import { drawPartBody, type GateStyle } from './symbols';
-import type { CanvasTheme } from './theme';
+import { type CanvasTheme, type SignalStyle, signalColor } from './theme';
 
 export interface Frame {
   readonly camera: Camera;
@@ -20,6 +20,16 @@ export interface Frame {
   readonly viewport: Viewport;
   /** Device pixels per CSS px. */
   readonly dpr: number;
+}
+
+/** What the simulation shows on wires: each net's signal style. */
+export interface SignalView {
+  /** Style of a wire's net, by wire id (`NONE` for wires the simulation doesn't know). */
+  wire(id: string): SignalStyle;
+  /** Style at a connection point: junction dots. */
+  point(p: Point): SignalStyle;
+  /** Contention is in its bright phase (it flashes while running). */
+  readonly flash: boolean;
 }
 
 export interface RenderOptions {
@@ -36,6 +46,8 @@ export interface RenderOptions {
   readonly ghost?: Selection;
   /** Points where the item being placed will connect to something. */
   readonly connections?: readonly Point[];
+  /** Live levels while simulating: wires and junctions take the colors of their nets. */
+  readonly signals?: SignalView;
 }
 
 /** Opacity of ghost parts. */
@@ -74,7 +86,7 @@ export function renderScene(
   drawHover(g, scene, options);
   drawSelectionFills(g, parts, options);
   drawWires(g, scene, view, options);
-  drawJunctions(g, scene, view);
+  drawJunctions(g, scene, view, options);
   const ghost = options.ghost;
   for (const part of parts) {
     const isGhost = ghost?.parts.has(part.id) === true;
@@ -151,43 +163,77 @@ function drawSelectionFills(
 }
 
 function drawWires(g: CanvasGraphics, scene: Scene, view: Rect, options: RenderOptions): void {
-  const { selection, theme, ghost } = options;
-  const highlighted = (id: string) => selection.wires.has(id) || ghost?.wires.has(id) === true;
-  g.world();
-  for (const selected of [false, true]) {
-    g.beginPath();
-    let any = false;
-    for (const wire of scene.wires) {
-      if (highlighted(wire.id) !== selected) continue;
-      const [x0, y0] = wire.from;
-      const [x1, y1] = wire.to;
-      const box = {
-        x: Math.min(x0, x1),
-        y: Math.min(y0, y1),
-        width: Math.abs(x1 - x0),
-        height: Math.abs(y1 - y0),
-      };
-      if (!intersects(box, view, 1)) continue;
-      g.moveTo(x0, y0);
-      g.lineTo(x1, y1);
-      any = true;
-    }
-    if (any) g.stroke(selected ? theme.selection : theme.wire, WIRE_WIDTH);
+  const { selection, theme, ghost, signals } = options;
+  // One path per color: plain or level colors, the selection color for selected and ghost wires.
+  // While simulating, a selected wire keeps its level color over a selection halo.
+  const halo: (readonly [Point, Point])[] = [];
+  const byColor = new Map<string, (readonly [Point, Point])[]>();
+  for (const wire of scene.wires) {
+    const [x0, y0] = wire.from;
+    const [x1, y1] = wire.to;
+    const box = {
+      x: Math.min(x0, x1),
+      y: Math.min(y0, y1),
+      width: Math.abs(x1 - x0),
+      height: Math.abs(y1 - y0),
+    };
+    if (!intersects(box, view, 1)) continue;
+    const selected = selection.wires.has(wire.id);
+    let color: string;
+    if (ghost?.wires.has(wire.id)) color = theme.selection;
+    else if (signals) {
+      color = signalColor(theme, signals.wire(wire.id), signals.flash);
+      if (selected) halo.push([wire.from, wire.to]);
+    } else color = selected ? theme.selection : theme.wire;
+    groupPush(byColor, color, [wire.from, wire.to] as const);
   }
+  g.world();
+  if (halo.length > 0) strokeSegments(g, halo, theme.hover, WIRE_WIDTH * 4);
+  for (const [color, segments] of byColor) strokeSegments(g, segments, color, WIRE_WIDTH);
 }
 
-function drawJunctions(g: CanvasGraphics, scene: Scene, view: Rect): void {
-  if (scene.junctions.length === 0) return;
-  const r = Math.max(0.2, 2.5 / g.scale);
-  g.world();
+/** Adds `item` to its group's list. */
+function groupPush<K, V>(groups: Map<K, V[]>, key: K, item: V): void {
+  const list = groups.get(key);
+  if (list) list.push(item);
+  else groups.set(key, [item]);
+}
+
+function strokeSegments(
+  g: CanvasGraphics,
+  segments: readonly (readonly [Point, Point])[],
+  color: string,
+  width: number,
+): void {
   g.beginPath();
-  for (const [x, y] of scene.junctions) {
+  for (const [from, to] of segments) {
+    g.moveTo(from[0], from[1]);
+    g.lineTo(to[0], to[1]);
+  }
+  g.stroke(color, width);
+}
+
+function drawJunctions(g: CanvasGraphics, scene: Scene, view: Rect, options: RenderOptions): void {
+  if (scene.junctions.length === 0) return;
+  const { signals, theme } = options;
+  const r = Math.max(0.2, 2.5 / g.scale);
+  const byColor = new Map<string, Point[]>();
+  for (const p of scene.junctions) {
+    const [x, y] = p;
     if (x < view.x - 1 || x > view.x + view.width + 1) continue;
     if (y < view.y - 1 || y > view.y + view.height + 1) continue;
-    g.moveTo(x + r, y);
-    g.arc(x, y, r, 0, Math.PI * 2);
+    const color = signals ? signalColor(theme, signals.point(p), signals.flash) : theme.junction;
+    groupPush(byColor, color, p);
   }
-  g.fill(g.theme.junction);
+  g.world();
+  for (const [color, points] of byColor) {
+    g.beginPath();
+    for (const [x, y] of points) {
+      g.moveTo(x + r, y);
+      g.arc(x, y, r, 0, Math.PI * 2);
+    }
+    g.fill(color);
+  }
 }
 
 function drawPart(g: CanvasGraphics, part: ScenePart, options: RenderOptions): void {

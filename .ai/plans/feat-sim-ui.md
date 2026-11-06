@@ -272,7 +272,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   mapping through pins), otherwise rebuild with carry-over and renames; accumulated
   diagnostics, stores; injected clock and frames; headless tests; `window.logicEditor` exposes
   it in dev builds.
-- [ ] 4. editor: level colors in both canvas themes; wires and junctions by level (weak tint,
+- [x] 4. editor: level colors in both canvas themes; wires and junctions by level (weak tint,
   contention flash); preview during gestures; redraw only on change.
 - [ ] 5. editor: live part drawing (`DrawContext.live`, light samples and brightness, switch /
   button / DIP / clock / hex / probe); drawing scenario with live states.

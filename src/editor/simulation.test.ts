@@ -4,6 +4,7 @@ import { type Level, levelChar, ms, ns } from '../core';
 import { createDefaultRegistry } from '../library';
 import { Editor } from './editor';
 import { ALL_SPEEDS, formatRate, MAX_SPEED, REAL_TIME, type SimClock, SPEEDS } from './simulation';
+import { SignalStyle } from './theme';
 
 const registry = createDefaultRegistry();
 
@@ -345,5 +346,68 @@ describe('Simulation: signals', () => {
       .map((w) => wires.get(w.id)!)
       .map((n) => sim.levels[n] as Level);
     expect(levels.every((l) => l !== undefined)).toBe(true);
+  });
+});
+
+describe('Simulation: signal view', () => {
+  const wireOn = (editor: Editor, net: string) => editor.scene.wires.find((w) => w.net === net)!;
+
+  it('is undefined when stopped; shows levels, weak levels and wires it does not know', () => {
+    const circuit = new CircuitBuilder(registry)
+      .add('SW1', 'io/switch', { at: [0, 0] })
+      .add('D1', 'io/led', { at: [10, 0] })
+      .connect('SW1.Y', 'D1.A')
+      .add('R1', 'prim/pull', { at: [0, 10], props: { direction: 'up' } })
+      .add('D2', 'io/led', { at: [10, 10] })
+      .connect('R1.Y', 'D2.A')
+      .build();
+    const { clock, editor, simulation } = setup(circuit);
+    expect(simulation.signalView()).toBeUndefined();
+    simulation.run();
+    clock.frame(16);
+    const view = simulation.signalView()!;
+    expect(view.wire(wireOn(editor, 'SW1.Y').id)).toBe(SignalStyle.L0);
+    expect(view.wire(wireOn(editor, 'R1.Y').id)).toBe(SignalStyle.WEAK_1);
+    expect(view.wire('no-such-wire')).toBe(SignalStyle.NONE);
+    expect(view.point(editor.scene.partById.get('D1')!.pins[1]!.at)).toBe(SignalStyle.Z); // K
+    simulation.action('SW1', { type: 'toggle' });
+    clock.frame(16);
+    expect(simulation.signalView()!.wire(wireOn(editor, 'SW1.Y').id)).toBe(SignalStyle.L1);
+  });
+
+  it('flashes contention while running, redrawing on each phase', () => {
+    // Two switches wired together: off/on disagree.
+    const circuit = new CircuitBuilder(registry)
+      .add('SW1', 'io/switch', { at: [0, 0] })
+      .add('SW2', 'io/switch', { at: [0, 6], props: { on: true } })
+      .connect('SW1.Y', 'SW2.Y', [6, 1], [6, 7])
+      .build();
+    const { clock, editor, simulation } = setup(circuit);
+    simulation.run();
+    clock.frame(16);
+    const id = editor.scene.wires[0]!.id;
+    expect(simulation.signalView()!.wire(id)).toBe(SignalStyle.CONTENTION);
+    const phases = new Set<boolean>();
+    let redraws = 0;
+    simulation.revision.subscribe(() => redraws++);
+    for (let i = 0; i < 40; i++) {
+      clock.frame(16);
+      phases.add(simulation.signalView()!.flash);
+    }
+    expect(phases).toEqual(new Set([true, false]));
+    expect(redraws).toBeGreaterThanOrEqual(2); // 640 ms: a phase every 250 ms
+    simulation.pause();
+    expect(simulation.signalView()!.flash).toBe(true);
+  });
+
+  it('does not redraw while nothing changes', () => {
+    const circuit = new CircuitBuilder(registry).add('SW1', 'io/switch', { at: [0, 0] }).build();
+    const { clock, simulation } = setup(circuit);
+    simulation.run();
+    clock.frame(16);
+    let redraws = 0;
+    simulation.revision.subscribe(() => redraws++);
+    clock.frames(30);
+    expect(redraws).toBe(0);
   });
 });
