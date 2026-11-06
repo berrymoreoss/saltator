@@ -4,6 +4,7 @@
  * Spec: docs/circuit.md.
  */
 
+export { type Connectivity, connect, type WireEnd, type WireSegment } from './connectivity';
 export {
   type Circuit,
   type CircuitDocument,
