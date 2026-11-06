@@ -4,7 +4,7 @@
 | ---------- | ----------------------------------------------------------- |
 | Branch     | `feat/editor-tools`                                         |
 | Roadmap    | R04b — Schematic editing ([roadmap](../../docs/roadmap.md)) |
-| Status     | in-progress                                                 |
+| Status     | done                                                        |
 | Depends on | R04a                                                        |
 | Created    | 2026-11-06                                                  |
 
@@ -231,7 +231,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   everything in the browser in both themes; measure drag frame time on the stress schematic.
 - [x] 12. Docs: editor.md (editing, tools, shortcuts), circuit.md (edit operations,
   normalization), architecture.md, ADR-0009 (editing model), glossary, `src/*` READMEs,
-  lessons. (Roadmap R04b → done, R05 → next is the finish-branch step, after the user's review.)
+  lessons; roadmap R04b done, R05 next (at finish, after the user's review).
 
 ## Acceptance criteria
 
@@ -270,8 +270,8 @@ Checkable statements; verified one by one in the finish-branch workflow.
   3.4 ms per pointer move (rubber-band), 13 ms median frame incl. the preview's scene rebuild
   (p90 15 ms), drop 30 ms once; 1 part: 16 ms median frame (dev build, headless Chromium, Apple
   M3 Pro).
-- [x] docs/editor.md, circuit.md, components.md, architecture.md, ADR-0009 describe what was built
-  (roadmap at finish).
+- [x] docs/editor.md, circuit.md, components.md, architecture.md, ADR-0009 and the roadmap
+  describe what was built.
 
 ## Open questions
 
@@ -312,17 +312,19 @@ Asked at branch start (2026-11-06); all answered.
   editor.md (Editing section, API, shortcuts), circuit.md, architecture.md, ADR-0009, glossary,
   READMEs, lessons. All acceptance criteria verified; waiting for the user's review before
   finish-branch and the merge.
+- 2026-11-07 — finished after the user's approval: check (704 tests), build and e2e (20 tests)
+  re-run green; roadmap R04b `done`, R05 `next`, editing extras added to the backlog. Summary:
+  the schematic view became an editor — sticky place tool and drag-and-drop from Parts,
+  designator prefixes, click-by-click and drag-from-pin wiring with connection marks, drag-move,
+  rotate, flip, delete and nudge with rubber-banded wires, connectivity-preserving wire
+  normalization, clipboard as document text with floating paste, snapshot undo/redo with renames
+  recorded for R05, editable Properties, context menu; gestures tested headless; ADR-0009.
 
 ## Handoff
 
-- **State:** all tasks done and every acceptance criterion verified (see above); plan stays
-  `in-progress` until the user has looked at it.
-- **Next step:** after the user's approval run finish-branch: plan `done`, roadmap R04b `done` and
-  R05 `next`, `docs(plan): finish feat/editor-tools`, merge `--no-ff` (no remote).
-- **Follow-ups for R05:** `EditorState.renames` carries old → new designators of each edit, undo
-  and redo for state carry-over; the renderer's ghosts/connections overlays are where level
-  colors join; editing while simulating needs a decision there (edit freely and recompile, or
-  pause).
-- **Watch out:** `edit()` compares circuits by value (`sameCircuit`), so a no-op edit records
-  nothing. Biome reflows nested arrays in tests; compare wires as `'x,y-x,y'` strings.
+- **State:** merged; nothing pending.
+- **Follow-ups:** R05 `feat/sim-ui` (next) — use `EditorState.renames` to carry simulator state
+  across renames; decide whether editing pauses or recompiles a running simulation; level colors
+  join the renderer next to the ghost/connection overlays. Editing extras are in the roadmap
+  backlog.
 - **Verify with:** `pnpm check && pnpm build && pnpm e2e`.
