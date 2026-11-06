@@ -10,6 +10,8 @@ dock panels (diagnostics, memory inspector, logic analyzer), dialogs.
 Implemented in R04a: `Workbench` (the shell), `MenuBar`, `Toolbar`, `Panel`/`Splitter`,
 `StatusBar`, `PartsPanel`, `PropertiesPanel`, `MessagesPanel`, `Dialogs`; `commands` +
 `workbench-commands` (one registry for menus, toolbar and shortcuts), `shortcuts`, `settings`
-(persisted view preferences), `ui-state`; styles in `styles/` (tokens for both themes).
+(persisted view preferences), `ui-state`; styles in `styles/` (tokens for both themes). R04b:
+`ContextMenu`, editable `PropertiesPanel` (`prop-input` parses typed values), `clipboard` (the
+browser's clipboard events and the async Clipboard API), place/drag from `PartsPanel`.
 
 Spec: [docs/editor.md](../../docs/editor.md#shell).

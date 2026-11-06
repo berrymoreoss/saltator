@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CircuitBuilder } from '../circuit';
+import { CircuitBuilder, removeItems, renameComponent, updateComponent } from '../circuit';
 import { createDefaultRegistry } from '../library';
 import { toScreen } from './camera';
 import { Editor } from './editor';
@@ -58,5 +58,69 @@ describe('Editor (headless)', () => {
     expect(editor.view.get().camera.scale).toBeCloseTo(16);
     editor.zoomOut();
     expect(editor.view.get().camera.scale).toBeCloseTo(16 / Math.SQRT2);
+  });
+
+  it('records each edit as one undo step and restores circuit and selection', () => {
+    const editor = new Editor(registry, circuit);
+    editor.setSelection(selectionOf(['U1']));
+    const moved = updateComponent(circuit, 'U1', { x: 12 });
+    expect(editor.edit('Move', moved)).toBe(true);
+    expect(editor.state.get().circuit).toBe(moved);
+    expect(editor.undoLabel).toBe('Move');
+    expect(editor.edit('Delete', removeItems(moved, { parts: ['U1'], wires: [] }))).toBe(true);
+    expect(editor.state.get().selection.parts.size).toBe(0);
+
+    editor.undo();
+    expect(editor.state.get().circuit).toBe(moved);
+    expect([...editor.state.get().selection.parts]).toEqual(['U1']);
+    expect(editor.redoLabel).toBe('Delete');
+    editor.undo();
+    expect(editor.state.get().circuit).toBe(circuit);
+    expect(editor.undoLabel).toBeUndefined();
+    editor.undo(); // nothing left: no-op
+    editor.redo();
+    editor.redo();
+    expect(editor.state.get().circuit.components.map((c) => c.id)).toEqual(['SW1']);
+    expect(editor.redoLabel).toBeUndefined();
+  });
+
+  it('records nothing for an edit that changes nothing; normalizes wires', () => {
+    const editor = new Editor(registry, circuit);
+    expect(editor.edit('Nothing', circuit)).toBe(false);
+    expect(editor.undoLabel).toBeUndefined();
+    // Splitting the switch → NAND wire in two: normalization merges it back, so nothing changed.
+    const [w] = circuit.wires;
+    const split = {
+      ...circuit,
+      wires: [
+        { id: 'w1', from: w!.from, to: [7, 1] as const },
+        { id: 'w2', from: [7, 1] as const, to: w!.to },
+      ],
+    };
+    expect(editor.edit('Split', split)).toBe(false);
+  });
+
+  it('coalesces nudges, reports renames and their inverse on undo; loading clears history', () => {
+    const editor = new Editor(registry, circuit);
+    const one = updateComponent(circuit, 'U1', { x: 11 });
+    const two = updateComponent(one, 'U1', { x: 12 });
+    editor.edit('Nudge', one, { coalesce: 'nudge' });
+    editor.edit('Nudge', two, { coalesce: 'nudge' });
+    editor.undo();
+    expect(editor.state.get().circuit).toBe(circuit);
+
+    const renames = new Map([['U1', 'NAND']]);
+    editor.edit('Rename U1', renameComponent(circuit, 'U1', 'NAND'), { renames });
+    expect(editor.state.get().renames).toEqual(renames);
+    editor.setSelection(selectionOf(['NAND']));
+    expect(editor.state.get().renames).toBeUndefined();
+    editor.undo();
+    expect(editor.state.get().renames).toEqual(new Map([['NAND', 'U1']]));
+    editor.redo();
+    expect(editor.state.get().renames).toEqual(renames);
+
+    editor.setCircuit(circuit);
+    expect(editor.undoLabel).toBeUndefined();
+    expect(editor.redoLabel).toBeUndefined();
   });
 });

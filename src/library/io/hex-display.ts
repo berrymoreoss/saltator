@@ -25,6 +25,7 @@ export const hexDisplay = defineComponent<{ color: LedColor }, undefined>({
   name: 'HEX',
   title: 'Hex digit display',
   keywords: ['hex', 'digit', 'display', 'nibble', 'output', 'til311'],
+  designatorPrefix: 'DS',
   props: [ledColorProp],
   pins: ['D0', 'D1', 'D2', 'D3'].map((name): PinDef => ({ name, dir: 'in', sense: true })),
   // Inputs along the bottom, most significant bit on the left.

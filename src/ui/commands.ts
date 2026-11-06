@@ -10,8 +10,10 @@ export type IconComponent = ComponentType<{ size?: number; strokeWidth?: number 
 
 export interface Command {
   readonly id: string;
-  /** Menu text. */
+  /** Menu text (and the name in the shortcuts dialog). */
   readonly label: string;
+  /** Menu text that depends on state (`Undo Move`); defaults to the label. */
+  readonly menuLabel?: () => string;
   /** Shorter text for toolbar tooltips (defaults to the label). */
   readonly title?: string;
   readonly icon?: IconComponent;
@@ -19,10 +21,16 @@ export interface Command {
   readonly shortcuts?: readonly string[];
   /** Runs even while typing in a text field (Escape). */
   readonly global?: boolean;
+  /**
+   * The shortcut belongs to the browser (Mod+C/X/V raise clipboard events, which the app handles
+   * without a permission prompt): it is shown, but not dispatched.
+   */
+  readonly nativeKeys?: boolean;
   readonly enabled?: () => boolean;
   /** A toggle or radio item's state. */
   readonly checked?: () => boolean;
-  readonly run: () => void;
+  /** Runs the command; a shortcut passes its key event (Shift+arrow nudges further). */
+  readonly run: (event?: KeyboardEvent) => void;
 }
 
 export class CommandRegistry {
@@ -84,9 +92,9 @@ export function dispatchShortcut(
 ): boolean {
   if (event.defaultPrevented || event.isComposing) return false;
   const command = registry.match(event, mac);
-  if (!command || !isEnabled(command)) return false;
+  if (!command || command.nativeKeys || !isEnabled(command)) return false;
   if (isTextField(event.target) && !command.global) return false;
   event.preventDefault();
-  command.run();
+  command.run(event);
   return true;
 }

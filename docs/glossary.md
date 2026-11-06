@@ -26,7 +26,10 @@ a deterministic order.
 undriven input, dangling wire). Errors may block simulation; warnings don't.
 
 **Designator** — the reference name of a part on a schematic (`U1`, `SW1`, `D3`). In this
-simulator it is the component's id in the document, the netlist and diagnostics.
+simulator it is the component's id in the document, the netlist and diagnostics. Its letters are
+the part's **designator prefix** (KiCad/IEEE convention: `U` chips and gates, `R` resistors, `SW`
+switches, `D` LEDs, `DS` displays, `X` clocks, `TP` probes, `PWR` power symbols), set in the part
+definition; new parts take the lowest free number.
 
 **DIP** — dual in-line package; the through-hole chip package used on breadboards. Pin 1 is next
 to the notch, numbering runs counter-clockwise (seen from the top).
@@ -36,6 +39,9 @@ to the notch, numbering runs counter-clockwise (seen from the top).
 
 **Floating input** — an input connected to a net that nothing drives (`Z`). On CMOS parts it reads
 randomly and may oscillate; the simulator treats it as `X` and reports it.
+
+**Floating paste** — pasted or duplicated parts and wires that follow the pointer as ghosts
+(translucent previews) until a click drops them.
 
 **Gate style** — how logic gates are drawn: ANSI/IEEE 91 distinctive shapes (the D-shaped AND,
 the curved OR) or IEC 60617 rectangles with a qualifying symbol (`&`, `≥1`, `=1`). A view setting
@@ -66,6 +72,9 @@ vision), each at the fraction of time it is enabled.
 change; tPLH for low→high, tPHL for high→low output transitions.
 
 **Pull-up / pull-down** — a resistor that weakly drives a net to 1 / 0 when nothing else drives it.
+
+**Rubber-banding** — wires following a part as it is moved, rotated or flipped: they stretch,
+slide a corner or bend, so connections are kept.
 
 **Sense pin** — an input that only observes its net (LEDs, displays, probes). Reading a floating
 net through it is not a mistake, so it never raises a floating-input diagnostic.

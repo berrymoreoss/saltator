@@ -1,4 +1,10 @@
-import { type AnyComponentDefinition, pinsOf, resolveProps, validatePins } from './component';
+import {
+  type AnyComponentDefinition,
+  DESIGNATOR_PREFIX,
+  pinsOf,
+  resolveProps,
+  validatePins,
+} from './component';
 import { symbolOf, validateSymbol } from './symbol';
 
 /**
@@ -29,8 +35,9 @@ export class Registry implements ComponentRegistry {
   }
 
   /**
-   * Adds definitions. Throws on a malformed or duplicate type id, or on invalid pins or symbol
-   * with the default props (prop-dependent ones are checked again when instances are laid out).
+   * Adds definitions. Throws on a malformed or duplicate type id, a malformed designator prefix,
+   * or on invalid pins or symbol with the default props (prop-dependent ones are checked again
+   * when instances are laid out).
    */
   register(...definitions: AnyComponentDefinition[]): this {
     for (const definition of definitions) {
@@ -39,6 +46,10 @@ export class Registry implements ComponentRegistry {
         throw new Error(`invalid type id "${type}" (expected "family/part", e.g. "prim/nand")`);
       }
       if (this.byType.has(type)) throw new Error(`duplicate component type "${type}"`);
+      const prefix = definition.designatorPrefix;
+      if (prefix !== undefined && !DESIGNATOR_PREFIX.test(prefix)) {
+        throw new Error(`${type}: invalid designator prefix "${prefix}" (expected A–Z letters)`);
+      }
       const props = resolveProps(definition);
       const pins = pinsOf(definition, props);
       validatePins(pins, type);

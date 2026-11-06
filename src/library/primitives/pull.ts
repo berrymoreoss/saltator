@@ -10,6 +10,7 @@ export const pull = defineComponent<{ direction: 'up' | 'down' }, undefined>({
   name: 'PULL',
   title: 'Pull-up / pull-down resistor',
   keywords: ['pull', 'pull-up', 'pull-down', 'resistor', 'weak'],
+  designatorPrefix: 'R',
   pins: [{ name: 'Y', dir: 'out', weak: true }],
   // A resistor to its rail: VCC above and the pin below for a pull-up, the other way round down.
   symbol: ({ direction }) => ({

@@ -55,3 +55,6 @@ export function groupParts(
     return parts ? [{ family, label: known.get(family) ?? family, parts }] : [];
   });
 }
+
+/** Data type of a part dragged from the Parts panel onto the canvas (the value is its type). */
+export const PART_DRAG_TYPE = 'application/x-logic-part';

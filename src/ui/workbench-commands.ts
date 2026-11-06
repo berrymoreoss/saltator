@@ -1,8 +1,14 @@
 /**
- * The commands of the workbench and where they appear: menus and toolbar. R04b adds the editing
- * commands (undo, delete, rotate, …), R05 a Simulate menu.
+ * The commands of the workbench and where they appear: menus and toolbar. R05 adds a Simulate
+ * menu.
  */
 import {
+  ClipboardPaste,
+  Copy,
+  CopyPlus,
+  FilePlus,
+  FlipHorizontal2,
+  FlipVertical2,
   Grid3x3,
   Hand,
   Info,
@@ -11,19 +17,29 @@ import {
   Monitor,
   Moon,
   MousePointer2,
+  Redo2,
+  RotateCcw,
+  RotateCw,
+  Scissors,
   Search,
+  SlidersHorizontal,
   Sun,
+  Trash2,
+  Undo2,
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
-import type { Editor, Store } from '../editor';
+import { type Circuit, emptyCircuit } from '../circuit';
+import { type Editor, EMPTY_SELECTION, type Store } from '../editor';
+import type { ClipboardBridge } from './clipboard';
 import type { Command } from './commands';
-import { GateIcon } from './icons';
+import { GateIcon, WireIcon } from './icons';
 import type { PanelId, Settings, ThemeSetting } from './settings';
 import type { Example, UiState } from './ui-state';
 
 export interface WorkbenchContext {
   readonly editor: Editor;
+  readonly clipboard: ClipboardBridge;
   readonly settings: Store<Settings>;
   readonly ui: Store<UiState>;
   readonly examples: readonly Example[];
@@ -43,7 +59,13 @@ const THEME_LABELS: Readonly<Record<ThemeSetting, string>> = {
 
 const THEME_ICONS = { system: Monitor, dark: Moon, light: Sun } as const;
 
-export function createCommands({ editor, settings, ui, examples }: WorkbenchContext): Command[] {
+export function createCommands({
+  editor,
+  clipboard,
+  settings,
+  ui,
+  examples,
+}: WorkbenchContext): Command[] {
   const patch = (change: Partial<Settings>) => settings.update((s) => ({ ...s, ...change }));
   const setPanel = (id: PanelId, visible: boolean) =>
     settings.update((s) => ({
@@ -51,15 +73,150 @@ export function createCommands({ editor, settings, ui, examples }: WorkbenchCont
       panels: { ...s.panels, [id]: { ...s.panels[id], visible } },
     }));
 
+  // Until R07 brings files, opening a document is an undoable edit: nothing is lost by accident.
+  const open = (label: string, circuit: Circuit) =>
+    editor.edit(label, circuit, { selection: EMPTY_SELECTION, fit: true });
+
   return [
+    {
+      id: 'file.new',
+      label: 'New Circuit',
+      icon: FilePlus,
+      run: () => open('New Circuit', emptyCircuit()),
+    },
     ...examples.map(
       (example): Command => ({
         id: `file.example.${example.id}`,
         label: example.label,
-        run: () => editor.setCircuit(example.circuit(), { fit: true }),
+        run: () => open(`Open ${example.label}`, example.circuit()),
       }),
     ),
 
+    {
+      id: 'edit.undo',
+      label: 'Undo',
+      menuLabel: () => (editor.undoLabel ? `Undo ${editor.undoLabel}` : 'Undo'),
+      icon: Undo2,
+      shortcuts: ['Mod+Z'],
+      enabled: () => editor.undoLabel !== undefined,
+      run: () => editor.undo(),
+    },
+    {
+      id: 'edit.redo',
+      label: 'Redo',
+      menuLabel: () => (editor.redoLabel ? `Redo ${editor.redoLabel}` : 'Redo'),
+      icon: Redo2,
+      shortcuts: ['Mod+Shift+Z', 'Mod+Y'],
+      enabled: () => editor.redoLabel !== undefined,
+      run: () => editor.redo(),
+    },
+
+    {
+      id: 'edit.cut',
+      label: 'Cut',
+      icon: Scissors,
+      shortcuts: ['Mod+X'],
+      nativeKeys: true,
+      enabled: () => editor.hasSelection,
+      run: () => clipboard.cut(),
+    },
+    {
+      id: 'edit.copy',
+      label: 'Copy',
+      icon: Copy,
+      shortcuts: ['Mod+C'],
+      nativeKeys: true,
+      enabled: () => editor.hasSelection,
+      run: () => clipboard.copy(),
+    },
+    {
+      id: 'edit.paste',
+      label: 'Paste',
+      icon: ClipboardPaste,
+      shortcuts: ['Mod+V'],
+      nativeKeys: true,
+      run: () => {
+        void clipboard.paste();
+      },
+    },
+    {
+      id: 'edit.duplicate',
+      label: 'Duplicate',
+      icon: CopyPlus,
+      shortcuts: ['Mod+D'],
+      enabled: () => editor.hasSelection,
+      run: () => editor.duplicate(),
+    },
+    {
+      id: 'edit.properties',
+      label: 'Properties…',
+      icon: SlidersHorizontal,
+      enabled: () => editor.state.get().selection.parts.size === 1,
+      run: () => {
+        setPanel('properties', true);
+        ui.update((s) => ({ ...s, propertiesRequest: s.propertiesRequest + 1 }));
+      },
+    },
+    {
+      id: 'edit.delete',
+      label: 'Delete',
+      icon: Trash2,
+      shortcuts: ['Delete', 'Backspace'],
+      enabled: () => editor.hasSelection,
+      run: () => editor.deleteSelection(),
+    },
+    {
+      id: 'edit.rotate',
+      label: 'Rotate',
+      title: 'Rotate clockwise',
+      icon: RotateCw,
+      shortcuts: ['R'],
+      enabled: () => editor.hasSelection,
+      run: () => editor.rotate(true),
+    },
+    {
+      id: 'edit.rotateCcw',
+      label: 'Rotate Counter-clockwise',
+      icon: RotateCcw,
+      shortcuts: ['Shift+R'],
+      enabled: () => editor.hasSelection,
+      run: () => editor.rotate(false),
+    },
+    {
+      id: 'edit.flipH',
+      label: 'Flip Horizontal',
+      icon: FlipHorizontal2,
+      shortcuts: ['F'],
+      enabled: () => editor.hasSelection,
+      run: () => editor.flip('horizontal'),
+    },
+    {
+      id: 'edit.flipV',
+      label: 'Flip Vertical',
+      icon: FlipVertical2,
+      shortcuts: ['Shift+F'],
+      enabled: () => editor.hasSelection,
+      run: () => editor.flip('vertical'),
+    },
+    ...(
+      [
+        ['Left', 'ArrowLeft', -1, 0],
+        ['Right', 'ArrowRight', 1, 0],
+        ['Up', 'ArrowUp', 0, -1],
+        ['Down', 'ArrowDown', 0, 1],
+      ] as const
+    ).map(
+      ([name, key, dx, dy]): Command => ({
+        id: `edit.nudge${name}`,
+        label: `Nudge ${name} (Shift: 10 cells)`,
+        shortcuts: [key, `Shift+${key}`],
+        enabled: () => editor.hasSelection,
+        run: (event) => {
+          const step = event?.shiftKey ? 10 : 1;
+          editor.nudge(dx * step, dy * step);
+        },
+      }),
+    ),
     {
       id: 'edit.selectAll',
       label: 'Select All',
@@ -70,10 +227,7 @@ export function createCommands({ editor, settings, ui, examples }: WorkbenchCont
       id: 'edit.deselect',
       label: 'Deselect',
       shortcuts: ['Escape'],
-      run: () => {
-        editor.clearSelection();
-        editor.setTool('select');
-      },
+      run: () => editor.escape(),
     },
 
     {
@@ -93,6 +247,16 @@ export function createCommands({ editor, settings, ui, examples }: WorkbenchCont
       shortcuts: ['H'],
       checked: () => editor.tool.get() === 'pan',
       run: () => editor.setTool('pan'),
+    },
+
+    {
+      id: 'tool.wire',
+      label: 'Wire',
+      title: 'Draw wires',
+      icon: WireIcon,
+      shortcuts: ['W'],
+      checked: () => editor.tool.get() === 'wire',
+      run: () => editor.setTool('wire'),
     },
 
     {
@@ -230,9 +394,37 @@ export function workbenchMenus(examples: readonly Example[]): MenuDef[] {
   return [
     {
       label: 'File',
-      items: [{ label: 'Examples', items: examples.map((e) => `file.example.${e.id}`) }],
+      items: [
+        'file.new',
+        SEPARATOR,
+        { label: 'Examples', items: examples.map((e) => `file.example.${e.id}`) },
+      ],
     },
-    { label: 'Edit', items: ['edit.selectAll', 'edit.deselect', SEPARATOR, 'parts.search'] },
+    {
+      label: 'Edit',
+      items: [
+        'edit.undo',
+        'edit.redo',
+        SEPARATOR,
+        'edit.cut',
+        'edit.copy',
+        'edit.paste',
+        'edit.duplicate',
+        'edit.delete',
+        SEPARATOR,
+        'edit.rotate',
+        'edit.rotateCcw',
+        'edit.flipH',
+        'edit.flipV',
+        SEPARATOR,
+        'edit.selectAll',
+        'edit.deselect',
+        SEPARATOR,
+        'edit.properties',
+        'parts.search',
+      ],
+    },
+    { label: 'Place', items: ['tool.wire', 'parts.search'] },
     {
       label: 'View',
       items: [
@@ -243,6 +435,7 @@ export function workbenchMenus(examples: readonly Example[]): MenuDef[] {
         SEPARATOR,
         'tool.select',
         'tool.pan',
+        'tool.wire',
         SEPARATOR,
         'view.grid',
         { label: 'Theme', items: ['view.theme.system', 'view.theme.dark', 'view.theme.light'] },
@@ -259,9 +452,34 @@ export function workbenchMenus(examples: readonly Example[]): MenuDef[] {
   ];
 }
 
+/** The context menu over a part or wire, and over empty canvas. */
+export const ITEM_CONTEXT_MENU: readonly MenuEntry[] = [
+  'edit.cut',
+  'edit.copy',
+  'edit.paste',
+  'edit.duplicate',
+  'edit.delete',
+  SEPARATOR,
+  'edit.rotate',
+  'edit.rotateCcw',
+  'edit.flipH',
+  'edit.flipV',
+  SEPARATOR,
+  'edit.properties',
+];
+
+export const CANVAS_CONTEXT_MENU: readonly MenuEntry[] = [
+  'edit.paste',
+  SEPARATOR,
+  'edit.selectAll',
+  'view.zoomFit',
+];
+
 /** Toolbar groups, separated by dividers. */
 export const TOOLBAR: readonly (readonly string[])[] = [
-  ['tool.select', 'tool.pan'],
+  ['tool.select', 'tool.pan', 'tool.wire'],
+  ['edit.undo', 'edit.redo'],
+  ['edit.rotate', 'edit.flipH', 'edit.delete'],
   ['view.zoomIn', 'view.zoomOut', 'view.zoomFit'],
   ['view.grid', 'view.gates.toggle'],
 ];

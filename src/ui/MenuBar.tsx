@@ -68,7 +68,7 @@ export function MenuBar({ menus, commands, mac }: MenuBarProps) {
   );
 }
 
-interface MenuListProps {
+export interface MenuListProps {
   readonly items: readonly MenuEntry[];
   readonly commands: CommandRegistry;
   readonly mac: boolean;
@@ -76,7 +76,8 @@ interface MenuListProps {
   readonly submenu?: boolean;
 }
 
-function MenuList({ items, commands, mac, onDone, submenu }: MenuListProps) {
+/** A menu's rows: commands, separators and hover submenus (also used by the context menu). */
+export function MenuList({ items, commands, mac, onDone, submenu }: MenuListProps) {
   const [openSub, setOpenSub] = useState<string | undefined>(undefined);
   return (
     <div className={submenu ? 'menu submenu' : 'menu'} role="menu">
@@ -138,7 +139,7 @@ function CommandItem({ command, mac, onDone, onHover }: CommandItemProps) {
   const content = (
     <>
       <span className="menu-check">{checked && <Check size={13} strokeWidth={2.5} />}</span>
-      <span className="menu-label">{command.label}</span>
+      <span className="menu-label">{command.menuLabel?.() ?? command.label}</span>
       {shortcut && <span className="menu-shortcut">{formatShortcut(shortcut, mac)}</span>}
     </>
   );

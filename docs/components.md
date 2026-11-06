@@ -33,6 +33,7 @@ interface ComponentDefinition<Props, State> {
   name: string; // '74HC00' (shown on the part)
   title: string; // 'Quad 2-input NAND gate'
   keywords?: string[]; // palette search: ['nand', 'gate']
+  designatorPrefix?: string; // 'SW' → new instances are SW1, SW2, …; default 'U'
   datasheet?: string; // URL of the datasheet used for pins, function table, timing
 
   pins: PinDef[] | ((props: Props) => PinDef[]); // order defines PinRef indices
@@ -60,8 +61,13 @@ interface PinDef {
 Write definitions with `defineComponent<Props, State>({ … })`: it type-checks `create`, `pins`
 and the behavior against your props and state types, and returns the erased
 `AnyComponentDefinition` that registries store. A `Registry` rejects malformed or duplicate type
-ids, and validates pins (and the symbol) with the default props: duplicate pin names, flags on
-the wrong kind of pin, a symbol that doesn't place every pin.
+ids and designator prefixes, and validates pins (and the symbol) with the default props:
+duplicate pin names, flags on the wrong kind of pin, a symbol that doesn't place every pin.
+
+`designatorPrefix` (uppercase letters) is what the editor numbers new instances with, by
+KiCad/IEEE convention: `U` for chips, gates and other logic (the default), `R` resistors, `SW`
+switches and buttons, `D` LEDs, `DS` displays, `X` clocks and oscillators, `TP` probes, `PWR`
+power symbols.
 
 `pins` may be a function of the (resolved) props, for parts whose pin count is configurable
 (N-input gates, DIP-switch banks, LED bars). `pinsOf(definition, props)` returns an instance's

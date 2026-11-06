@@ -21,6 +21,8 @@ near-identical parts such as gates). Use `defineComponent<Props, State>({ … })
 - **Pins** in datasheet order with datasheet names (`1A`, `1Y`, `OE`, `VCC`); with a `package`,
   every pin has its physical `number`. Directions: `in`, `out`, `tristate`, `bidir`, `power`,
   `nc`. Mark `activeLow` / `clock` pins. Prop-dependent pin lists: `pins: (props) => [...]`.
+- **Designator prefix** (`designatorPrefix`) when it isn't `U`: `R`, `SW`, `D`, `DS`, `X`, `TP`,
+  `PWR` (docs/components.md#definition-shape).
 - **Props** (`props`) for user-editable settings, with defaults and min/max. Time props are
   integer picoseconds (`ns(1)`).
 - **Drawing**: real chips set `package` (drawn as a DIP from the pin numbers). Other parts set

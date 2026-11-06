@@ -27,6 +27,7 @@ export const toggleSwitch = defineComponent<{ contact: Contact; on: boolean }, S
   name: 'SW',
   title: 'Toggle switch',
   keywords: ['switch', 'toggle', 'slide', 'input', 'spdt', 'spst', 'lever'],
+  designatorPrefix: 'SW',
   props: [
     contactProp('spdt'),
     { key: 'on', label: 'On at power-on', type: 'boolean', default: false },

@@ -44,3 +44,14 @@ export function ChipIcon(props: IconProps) {
     </Svg>
   );
 }
+
+/** A wire with a corner between two connection dots (the Wire tool). */
+export function WireIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M5 18h7V6h7" />
+      <circle cx="4" cy="18" r="1.6" />
+      <circle cx="20" cy="6" r="1.6" />
+    </Svg>
+  );
+}

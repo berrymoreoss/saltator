@@ -19,6 +19,7 @@ export const led = defineComponent<{ color: LedColor }, LightsState>({
   name: 'LED',
   title: 'LED',
   keywords: ['led', 'light', 'diode', 'lamp', 'indicator', 'output'],
+  designatorPrefix: 'D',
   props: [ledColorProp],
   pins: [
     { name: 'A', dir: 'in', sense: true },
@@ -47,6 +48,7 @@ export const ledBar = defineComponent<{ count: number; color: LedColor }, Lights
   name: 'BAR',
   title: 'LED bar graph',
   keywords: ['led', 'bar', 'graph', 'array', 'light', 'indicator', 'output'],
+  designatorPrefix: 'D',
   props: [
     { key: 'count', label: 'LEDs', type: 'integer', default: 10, min: 1, max: MAX_LED_BAR },
     ledColorProp,

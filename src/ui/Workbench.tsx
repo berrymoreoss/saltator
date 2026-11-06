@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { DARK_CANVAS, type Editor, LIGHT_CANVAS, type Store } from '../editor';
+import { ContextMenu } from './ContextMenu';
+import { ClipboardBridge } from './clipboard';
 import { CommandRegistry, dispatchShortcut } from './commands';
 import { AboutDialog, ShortcutsDialog } from './Dialogs';
-import { useMediaQuery, useStore } from './hooks';
+import { useMediaQuery, useStore, useStoreValue } from './hooks';
 import { MenuBar } from './MenuBar';
 import { MessagesPanel, MessagesTab } from './MessagesPanel';
 import { Panel, Splitter } from './Panel';
 import { PartsPanel } from './PartsPanel';
 import { PropertiesPanel } from './PropertiesPanel';
+import { PART_DRAG_TYPE } from './parts-filter';
 import { StatusBar } from './StatusBar';
 import { effectiveTheme, PANEL_LIMITS, type PanelId, type Settings } from './settings';
 import { isMacPlatform } from './shortcuts';
@@ -33,17 +36,28 @@ const MAC = typeof navigator !== 'undefined' && isMacPlatform(navigator.platform
  */
 export function Workbench({ editor, settings: settingsStore, ui, examples }: WorkbenchProps) {
   const settings = useStore(settingsStore);
-  // Toolbar and menus read the tool and settings through their commands: re-render on change.
+  // Toolbar and menus read the tool, history and settings through their commands: re-render on
+  // change.
   useStore(editor.tool);
+  useStore(editor.history);
+  useStoreValue(
+    editor.state,
+    (state) => state.selection.parts.size + state.selection.wires.size > 0,
+  );
   const prefersDark = useMediaQuery('(prefers-color-scheme: dark)');
   const theme = effectiveTheme(settings.theme, prefersDark);
   const canvasTheme = theme === 'dark' ? DARK_CANVAS : LIGHT_CANVAS;
   const uiState = useStore(ui);
 
+  const clipboard = useMemo(() => new ClipboardBridge(editor), [editor]);
   const commands = useMemo(
-    () => new CommandRegistry(createCommands({ editor, settings: settingsStore, ui, examples })),
-    [editor, settingsStore, ui, examples],
+    () =>
+      new CommandRegistry(
+        createCommands({ editor, clipboard, settings: settingsStore, ui, examples }),
+      ),
+    [editor, clipboard, settingsStore, ui, examples],
   );
+  const tool = useStore(editor.tool);
   const menus = useMemo(() => workbenchMenus(examples), [examples]);
 
   useEffect(() => {
@@ -64,6 +78,14 @@ export function Workbench({ editor, settings: settingsStore, ui, examples }: Wor
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [commands]);
+
+  useEffect(() => clipboard.attach(document), [clipboard]);
+
+  // Double-click on a part: show Properties and focus its designator.
+  const request = useStore(editor.requests);
+  useEffect(() => {
+    if (request?.kind === 'edit-properties') commands.get('edit.properties').run();
+  }, [request, commands]);
 
   const setPanel = (id: PanelId, change: Partial<Settings['panels'][PanelId]>) =>
     settingsStore.update((s) => ({
@@ -95,6 +117,9 @@ export function Workbench({ editor, settings: settingsStore, ui, examples }: Wor
                   theme={canvasTheme}
                   gateStyle={settings.gateStyle}
                   searchRequest={uiState.searchRequest}
+                  armed={typeof tool === 'object' ? tool.type : undefined}
+                  onPick={(type) => editor.placePart(type)}
+                  onDrag={(type) => editor.dragPart(type)}
                 />
               </Panel>
             </div>
@@ -123,7 +148,7 @@ export function Workbench({ editor, settings: settingsStore, ui, examples }: Wor
                 onClose={() => setPanel('properties', { visible: false })}
                 testId="properties-panel"
               >
-                <PropertiesPanel editor={editor} />
+                <PropertiesPanel editor={editor} focusRequest={uiState.propertiesRequest} />
               </Panel>
             </div>
           </>
@@ -154,6 +179,7 @@ export function Workbench({ editor, settings: settingsStore, ui, examples }: Wor
         <ShortcutsDialog commands={commands} mac={MAC} onClose={closeDialog} />
       )}
       {uiState.dialog === 'about' && <AboutDialog onClose={closeDialog} />}
+      <ContextMenu editor={editor} commands={commands} mac={MAC} />
     </div>
   );
 }
@@ -161,8 +187,33 @@ export function Workbench({ editor, settings: settingsStore, ui, examples }: Wor
 function CanvasHost({ editor }: { readonly editor: Editor }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   useEffect(() => editor.mount(canvas.current!), [editor]);
+  const dragged = (e: React.DragEvent) =>
+    e.dataTransfer.types.includes(PART_DRAG_TYPE) ? editor.draggedPart : undefined;
   return (
-    <div className="canvas-host">
+    <div
+      className="canvas-host"
+      role="application"
+      aria-label="Schematic editor"
+      onDragOver={(e) => {
+        const type = dragged(e);
+        if (!type) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+        editor.dragPart(type, [e.clientX, e.clientY]);
+      }}
+      onDragLeave={(e) => {
+        if (dragged(e) && !e.currentTarget.contains(e.relatedTarget as Node)) {
+          editor.dragPart(editor.draggedPart);
+        }
+      }}
+      onDrop={(e) => {
+        const type = e.dataTransfer.getData(PART_DRAG_TYPE) || dragged(e);
+        if (!type) return;
+        e.preventDefault();
+        editor.dropPart(type, [e.clientX, e.clientY]);
+        canvas.current?.focus({ preventScroll: true });
+      }}
+    >
       <canvas ref={canvas} tabIndex={0} aria-label="Schematic" data-testid="schematic" />
     </div>
   );

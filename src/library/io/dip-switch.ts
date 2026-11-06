@@ -32,6 +32,7 @@ export const dipSwitch = defineComponent<Props, DipSwitchState>({
   name: 'DIP',
   title: 'DIP switch bank',
   keywords: ['dip', 'switch', 'bank', 'input', 'byte', 'address', 'data', 'spst'],
+  designatorPrefix: 'SW',
   props: [
     {
       key: 'count',

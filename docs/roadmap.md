@@ -20,8 +20,8 @@ How to read this file:
 | R02  | `feat/circuit-model`         | Circuit document & netlist compiler      | done    |
 | R03  | `feat/io-basic`              | Basic IO parts (headless)                | done    |
 | R04a | `feat/editor-canvas`         | App shell & schematic view               | done    |
-| R04b | `feat/editor-tools`          | Schematic editing                        | next    |
-| R05  | `feat/sim-ui`                | Running simulations in the editor        | planned |
+| R04b | `feat/editor-tools`          | Schematic editing                        | done    |
+| R05  | `feat/sim-ui`                | Running simulations in the editor        | next    |
 | R06  | `feat/74hc-gates`            | 74HC gates & bus buffers                 | planned |
 | R07  | `feat/persistence`           | Save, load, examples                     | planned |
 | R08  | `feat/74hc-msi`              | 74HC combinational MSI                   | planned |
@@ -88,15 +88,21 @@ click-to-locate, demo documents (Hello LED, symbol gallery), Playwright browser 
 Spec: [editor.md](editor.md). Decision: [ADR-0008](adr/0008-desktop-workbench.md). Plan:
 `.ai/plans/feat-editor-canvas.md`.
 
-### R04b · Schematic editing — `feat/editor-tools` — `next`
+### R04b · Schematic editing — `feat/editor-tools` — `done`
 
-Place parts from the palette (click or drag), move/rotate/flip/delete, orthogonal wire drawing
-with junctions, copy/paste/duplicate, undo/redo, editing shortcuts, context menu, editing props,
-designator and label in the Properties panel, designator prefixes per part (`U`, `SW`, `D`, …).
-Open questions are listed in R04a's plan (Open questions, last paragraph). Spec to extend:
-[editor.md](editor.md).
+Sticky place tool armed from the Parts panel (or drag-and-drop) with a ghost and R/F before
+placing; designator prefixes in part definitions (KiCad/IEEE: `U`, `R`, `SW`, `D`, `DS`, `X`,
+`TP`, `PWR`), lowest free number; Wire tool (click corners, L preview, Tab swaps the bend) and
+wires dragged out of pin tips, with connection marks; drag-move, rotate, flip, delete and nudges
+with rubber-banded wires; wires normalized into straight runs without changing connectivity;
+cut/copy/paste through the system clipboard as document text, floating paste and duplicate;
+snapshot undo/redo with labels and recorded renames; editable Properties (designator with
+validation, label, placement, every prop type, times with units); context menu, Edit and Place
+menus, status hints. Gestures run on plain `PointerInput`s and are unit-tested headless.
+Spec: [editor.md](editor.md#editing). Decision: [ADR-0009](adr/0009-editing-model.md). Plan:
+`.ai/plans/feat-editor-tools.md`.
 
-### R05 · Running simulations in the editor — `feat/sim-ui`
+### R05 · Running simulations in the editor — `feat/sim-ui` — `next`
 
 Simulator host (real-time pacing, speed control, run/pause/step/reset), live wire coloring by
 level, interactive parts on canvas (buttons, switches, DIP switches, manual clock step via their
@@ -217,3 +223,6 @@ Promote to a numbered item when needed.
 - Video output: VGA (Ben Eater's video card), composite.
 - Export: KiCad netlist, BOM, SVG/PDF schematic; breadboard layout view.
 - Sharing via URL, embed mode, PWA/offline, desktop packaging.
+- Editing extras (R04b follow-ups): editing a prop of several selected parts at once, re-annotate
+  designators, align/distribute, wire auto-routing around parts, a modifier to move parts without
+  dragging their wires (KiCad "move"), dragging a single wire end.

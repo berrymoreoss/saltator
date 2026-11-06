@@ -44,7 +44,8 @@ interface Wire {
 - **Coordinates** are integer grid cells within ±1 000 000; x grows to the right, y downwards
   (as on a canvas), so a clockwise rotation looks clockwise on screen.
 - **A wire is one straight horizontal or vertical segment** of non-zero length. An L-shaped
-  connection is two wires sharing an end; the editor (R04b) splits and merges segments.
+  connection is two wires sharing an end; the editor merges collinear segments into straight runs
+  ([Editing](#editing)).
 - **Ids**: a letter or `_`, then letters, digits, `_` or `-` (`ID_PATTERN`). No dots, because
   netlists address pins as `U1.Y`. Component and wire ids are unique together within a circuit.
 - **A component's id is its designator** (`U1`, `SW1`): it is what netlists, diagnostics, the
@@ -225,6 +226,32 @@ builder.pin('U1.Y'); // → [16, 2]
 
 Wire ids are generated (`w1`, `w2`, … skipping ids in use). The builder doesn't check what a
 route runs over: like in the editor, a route over another pin connects to it.
+
+## Editing
+
+`src/circuit/edit.ts` holds the document operations the editor is built from (R04b) — pure
+`Circuit → Circuit` functions that keep unchanged components and wires (so undo snapshots share
+them) and return the same circuit when nothing changes.
+
+- **Ids**: `IdAllocator` / `nextDesignator(circuit, prefix)` hand out the lowest unused number
+  (`U1, U3` → `U2`); designators and wire ids share one namespace. The prefix comes from the part
+  definition (`designatorPrefix`, [components.md](components.md#definition-shape)); generated
+  wire ids are `w<n>`.
+- **Parts**: `addComponents`, `removeItems` (wires attached to removed parts stay, dangling),
+  `updateComponent` (position, rotation, flip, props, label), `renameComponent` with
+  `designatorError` for the UI's message, `translateCircuit`.
+- **Wires**: `addWires` (generated ids; zero-length segments skipped) and `normalizeWires`, which
+  the editor applies after every edit: zero-length wires go, and collinear wires that overlap or
+  meet end to end become one straight run — except at a point where perpendicular wires pass
+  through (one wire's interior, or two that meet there and merge as well). Wires ending there
+  connect to them, a run through the point would only cross, so the run stays split there. The
+  result's wire ends are always input wire ends covering the same points, so normalization never
+  changes connectivity (a property test checks this on random circuits). A merged run keeps the
+  id and position of its first wire.
+- **Fragments**: `copyFragment(circuit, items)` is a standalone circuit with the selected parts
+  and wires (the clipboard holds it as a one-circuit document); `pasteFragment(circuit, fragment,
+  offset, registry)` adds it moved by `offset`, keeping designators that are free, renumbering
+  taken ones with their part's prefix, giving wires fresh ids and keeping labels.
 
 ## Performance
 

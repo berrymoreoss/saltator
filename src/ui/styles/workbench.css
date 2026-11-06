@@ -92,6 +92,16 @@ button {
   box-shadow: var(--shadow);
 }
 
+.context-menu {
+  position: fixed;
+  z-index: 200;
+}
+
+/* The menu sizes the fixed wrapper, so the wrapper can be measured and kept in the window. */
+.context-menu > .menu {
+  position: static;
+}
+
 .submenu {
   top: -5px;
   left: calc(100% + 2px);

@@ -34,6 +34,7 @@ export const clock = defineComponent<Props, ClockState>({
   name: 'CLK',
   title: 'Clock generator',
   keywords: ['clock', 'oscillator', 'square wave', 'pulse', 'step', 'timer', 'input'],
+  designatorPrefix: 'X',
   props: [
     {
       key: 'frequency',

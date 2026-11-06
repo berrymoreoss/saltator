@@ -1,9 +1,9 @@
 # Editor and workbench
 
 Specification of `src/editor` (the canvas engine, no React) and `src/ui` (the React shell around
-it), implemented in R04a. Editing tools (placing, wiring, moving, undo) are R04b _(planned)_;
-running the simulation in the editor is R05 _(planned)_. Rationale:
-[ADR-0008](adr/0008-desktop-workbench.md).
+it): the workbench and schematic view (R04a) and editing (R04b); running the simulation in the
+editor is R05 _(planned)_. Rationale: [ADR-0008](adr/0008-desktop-workbench.md) (workbench),
+[ADR-0009](adr/0009-editing-model.md) (editing).
 
 ## Shell
 
@@ -11,9 +11,9 @@ A desktop CAD-style window (`Workbench`), dense like KiCad or Altium: 12 px UI t
 1 px borders, no page scroll — every region scrolls itself.
 
 ```
- File  Edit  View  Help                                              ← menu bar
+ File  Edit  Place  View  Help                                       ← menu bar
 ┌──────────────────────────────────────────────────────────────────┐
-│ [select] [pan] │ [zoom in] [zoom out] [fit] │ [grid] [gate style] │ ← toolbar
+│ tools │ undo redo │ rotate flip delete │ zoom │ grid  gate style    │ ← toolbar
 ├────────────┬──────────────────────────────────────┬──────────────┤
 │ PARTS      │                                      │ PROPERTIES   │
 │ [search  ] │                                      │ U1  NAND     │
@@ -33,17 +33,22 @@ A desktop CAD-style window (`Workbench`), dense like KiCad or Altium: 12 px UI t
 - **Parts**: families as collapsible groups (74HC Logic, Primitives, Input / Output, and Developer
   Fixtures in dev builds); a search box (`/` or `Mod+F`) matching every word against name, title,
   type and keywords; the selected part's preview — its symbol drawn by the canvas drawers — with
-  title, pins and datasheet link. Placing from the panel is R04b.
-- **Properties** (read-only in R04a): one part — designator, type, label, position, rotation,
-  props with units (times as ns/µs/ms, enum labels, LED color swatches), pins with their nets;
-  one wire — endpoints, length, net and the pins on it; several items — counts by part name;
-  nothing — the circuit's name and counts.
+  title, pins and datasheet link. Clicking a part arms the place tool with it (the row is marked);
+  dragging it onto the canvas places one ([Placing parts](#placing-parts)).
+- **Properties**: one part — designator, label, position, rotation, flip and every prop, all
+  editable ([Properties](#properties)), plus type, datasheet and pins with their nets; one wire —
+  endpoints, length, net and the pins on it; several items — counts by part name; nothing — the
+  circuit's name and counts.
 - **Messages**: the compile result's design issues, errors first, with code, message and location
   (`U1.A`, `wire w3`). Click selects the item and brings it into view; double-click zooms to it.
   The tab title and the status bar show the counts.
 - **Status bar**: grid position under the pointer, zoom, a one-line selection summary, a hint for
-  the current tool, part/wire counts, redraw time (dev builds), error/warning counts (click opens
-  Messages).
+  the current tool and gesture (`statusHint`), part/wire counts, redraw time (dev builds),
+  error/warning counts (click opens Messages).
+- **Context menu** (right click on the canvas): over a part or wire (selected first) — Cut, Copy,
+  Paste, Duplicate, Delete, Rotate, Rotate Counter-clockwise, Flip Horizontal, Flip Vertical,
+  Properties; over empty canvas — Paste, Select All, Zoom to Fit. A right click while drawing a
+  wire, floating a paste or placing parts cancels that instead.
 - **Dialogs**: Help ▸ Keyboard Shortcuts (generated from the command registry), About. Escape or
   a click outside closes them.
 
@@ -58,17 +63,26 @@ the shortcuts dialog all read the same `CommandRegistry`, which rejects duplicat
   common layouts (`+`, `?`) ignore Shift.
 - Keys typed into text fields never trigger commands (except commands marked `global`); a
   focused dialog or open menu handles Escape first.
+- A command marked `nativeKeys` (Cut, Copy, Paste) shows its shortcut but leaves the key to the
+  browser, whose clipboard events the app handles ([Copy and paste](#copy-and-paste)).
+- Menus can show a state-dependent label (`menuLabel`): Edit ▸ Undo Move.
 
-| Command               | Shortcuts                  | Command             | Shortcuts       |
-| --------------------- | -------------------------- | ------------------- | --------------- |
-| Select tool           | `V`                        | Zoom to Fit         | `Mod+0`, `Home` |
-| Pan tool              | `H`                        | Actual Size (100 %) | `Mod+1`         |
-| Select All            | `Mod+A`                    | Show Grid           | `Shift+G`       |
-| Deselect (and Select) | `Escape`                   | Toggle Gate Style   | `Shift+I`       |
-| Find Part             | `/`, `Mod+F`               | Keyboard Shortcuts  | `?`, `Mod+/`    |
-| Zoom In               | `Mod+=`, `Mod++`, `=`, `+` | Zoom Out            | `Mod+-`, `-`    |
+| Command             | Shortcuts                  | Command                    | Shortcuts                 |
+| ------------------- | -------------------------- | -------------------------- | ------------------------- |
+| Select tool         | `V`                        | Undo                       | `Mod+Z`                   |
+| Pan tool            | `H`                        | Redo                       | `Mod+Shift+Z`, `Mod+Y`    |
+| Wire tool           | `W`                        | Cut, Copy, Paste           | `Mod+X`, `Mod+C`, `Mod+V` |
+| Select All          | `Mod+A`                    | Duplicate                  | `Mod+D`                   |
+| Escape (see below)  | `Escape`                   | Delete                     | `Delete`, `Backspace`     |
+| Find Part           | `/`, `Mod+F`               | Rotate (counter-cw)        | `R` (`Shift+R`)           |
+| Zoom In             | `Mod+=`, `Mod++`, `=`, `+` | Flip Horizontal (Vertical) | `F` (`Shift+F`)           |
+| Zoom Out            | `Mod+-`, `-`               | Nudge (10 cells)           | arrows (`Shift`+arrows)   |
+| Zoom to Fit         | `Mod+0`, `Home`            | Show Grid                  | `Shift+G`                 |
+| Actual Size (100 %) | `Mod+1`                    | Toggle Gate Style          | `Shift+I`                 |
+| Keyboard Shortcuts  | `?`, `Mod+/`               | Swap wire bend (drawing)   | `Tab`                     |
 
-R04b adds the editing commands (undo, redo, delete, rotate, copy, paste, …).
+**Escape** goes one step back: it cancels the current gesture (a drag, a wire being drawn, a
+floating paste), else leaves the Wire or place tool for Select, else clears the selection.
 
 ## Settings and themes
 
@@ -133,9 +147,14 @@ one `requestAnimationFrame`), never in a loop.
   open-pin circles and dangling-end squares keep a minimum screen size.
 - **Overlays**: the item under the pointer gets a soft outline; selected parts are drawn in the
   selection color over a tinted box, selected wires in the selection color.
+- **Ghosts** (`RenderOptions.ghost`): parts not placed yet (the place tool, a floating paste)
+  are translucent and carry no open-pin marks; wires being drawn use the selection color.
+  `connections` are rings where they will connect.
 - **Budget**: a full redraw of the 3 600-part, 10 620-wire stress schematic (dev builds: File ▸
   Examples ▸ Stress Test) takes ≈ 4 ms at fit zoom and ≈ 1 ms at 100 % (headless Chromium, Apple
-  M3 Pro, R04a).
+  M3 Pro, R04a). Dragging 100 of its parts costs ≈ 3.4 ms per pointer move (the rubber-band
+  transform) and ≈ 13 ms per frame including the preview's scene rebuild (compile ≈ 8 ms); the
+  drop (normalize, rebuild, panels) ≈ 30 ms once (dev build, R04b).
 
 ## Symbol drawing
 
@@ -186,16 +205,149 @@ Text never reads upside down or mirrored.
   canvas draws a box — left-to-right selects items entirely inside (solid box), right-to-left
   items it touches (dashed box), Shift adds to the selection. `Mod+A` selects all, Escape clears.
   After a document change the selection keeps the ids that still exist.
+- Pressing on an item and dragging moves the selection ([Moving](#moving)); pressing on a pin tip
+  or a dangling wire end and dragging draws a wire ([Drawing wires](#drawing-wires)) — a click
+  there without a drag selects as usual.
+
+## Editing
+
+Every change to the document is one call of `editor.edit(label, circuit, options)`: it normalizes
+the wires ([circuit.md](circuit.md#editing)), ignores edits that change nothing, and records one
+undo step. Tools and gestures compute the new circuit with the pure operations in
+`src/circuit/edit.ts` and `src/editor/` (`move`, `operations`, `wire-route`, `clipboard`); while
+a gesture is in progress the canvas draws a **preview** circuit instead of the document, with
+**ghosts** (translucent parts, wires in the selection color) and rings where they will connect.
+
+### Tools
+
+`Tool = 'select' | 'pan' | 'wire' | { kind: 'place', type }`, in the toolbar and View menu
+(`V`, `H`, `W`; the place tool is armed from the Parts panel). Tools are sticky: they stay until
+another tool is chosen or Escape. The editor's `mode` store says what is going on (`idle`,
+`moving`, `boxing`, `panning`, `wiring`, `floating`) for the status-bar hint.
+
+### Placing parts
+
+- Clicking a part in the Parts panel arms the place tool: a ghost of the part with its next
+  designator follows the pointer, centered on it; `R`/`Shift+R` turn it and `F`/`Shift+F` mirror
+  it before it is placed; each click places one (selected, so Properties shows it) and the tool
+  stays armed until Escape or `V`.
+- Dragging a part from the panel onto the canvas places one where it is dropped (its ghost
+  follows the drag), in the default orientation, and leaves the current tool alone.
+- A placed part gets its designator from its definition's prefix — the lowest free number
+  (`U1`, `U2`, `SW1`, … filling gaps) — and **every resolved prop** written into the document.
+
+### Moving
+
+Dragging a selected item moves the whole selection by whole cells, shown live and committed on
+release as one step; arrow keys nudge it by one cell (`Shift`: ten), consecutive nudges are one
+undo step. **Wires follow** (`src/editor/move.ts`): moving points are the pin tips of moved parts,
+the ends of selected wires, and fixed wire ends or pins sitting on a selected wire's middle. For
+each moving point that touched something fixed:
+
+1. an unselected wire with both ends moving moves along;
+2. an unselected wire with one end there follows it: stretched if it stays straight; else, if its
+   fixed end is a plain corner (exactly one perpendicular wire there, nothing else), that corner
+   slides and the neighbour stretches (KiCad's drag); else it becomes a Z bent at the midpoint,
+   so both ends keep their direction;
+3. a fixed pin or a fixed wire's interior there (a pin touching a pin, a pin on a wire) gets a new
+   wire from the old point to the new one: straight along the pin's axis, otherwise one cell out
+   of the pin before turning — a wire running along a part's column of pin tips would connect to
+   each of them.
+
+A move can create new contacts where moved parts or bends land on other pins (everything that
+touches connects); the design checks report what came loose or got shorted.
+
+### Rotate, flip, delete
+
+- **Rotate** turns the selection a quarter turn about its center (the grid point nearest to the
+  center of its bounds); **flip** mirrors it about the same point — horizontally (a part's own
+  `flip`) or vertically (flip + half turn). Attached wires follow as in a move. In the place tool
+  and while a paste floats they orient the ghost instead.
+- **Delete** removes the selected parts and wires; wires attached to deleted parts stay (the
+  `dangling-wire` check marks them). While drawing a wire, Delete/Backspace takes back its last
+  corner.
+
+### Drawing wires
+
+- **Wire tool** (`W`): a click starts a wire at a grid point; an L-shaped preview follows the
+  pointer. The first leg leaves a pin head-on, otherwise it continues at a right angle to the
+  previous leg, otherwise it follows the axis the pointer moved along first; `Tab` swaps the bend.
+  Each click fixes the corner(s) up to it; clicking a pin, a wire end or a wire finishes the wire,
+  a second click on the same point (a double-click) finishes it anywhere. Escape cancels the wire
+  being drawn (the tool stays), right click too.
+- **Select tool**: press on a pin tip or a dangling wire end, drag, release — one L-shaped wire.
+- The preview rings every point where the new path will connect — including pins it merely runs
+  over, which connect too ([circuit.md](circuit.md#connectivity)).
+- The wire is committed as segments (`addWires`) and normalized: collinear pieces merge into
+  straight runs.
+
+### Copy and paste
+
+- **Copy** puts the selected parts and the selected wires on the clipboard as a one-circuit
+  document in the file format (`fragmentText`, `serializeDocument`), so it is plain text: it
+  pastes into another tab, and any document's text pastes too (`parseFragment` validates and
+  migrates it like a file). **Cut** copies, then deletes.
+- **Paste** and **Duplicate** float: the items follow the pointer as ghosts until a click drops
+  them (one undo step, selected), Escape or right click cancels; `R`/`F` orient them meanwhile.
+  Pasted parts keep their designators where they are free and are renumbered with their prefix
+  otherwise; wires get fresh ids; labels are kept.
+- **Clipboard access** (`src/ui/clipboard.ts`): `Mod+C/X/V` go through the browser's `copy`,
+  `cut` and `paste` events (no permission prompt; ignored in text fields). Menu items use the
+  async Clipboard API (paste may ask for permission) and fall back to the last copy kept in
+  memory when it is refused.
+
+### Properties
+
+The Properties panel edits a single selected part: double-click it, or Edit ▸ Properties, to
+focus its designator.
+
+- **Designator**: Enter applies a rename (one step; the edit records `old → new` for R05);
+  invalid or taken designators show the reason and are not applied (`designatorError`); Escape
+  reverts.
+- **Label** (empty removes it), **position** (whole cells), **rotation** (0/90/180/270) and
+  **flipped**: placement changes go through the move transforms, so wires follow.
+- **Props** by `PropDef.type` (`src/ui/prop-input.ts`): numbers and integers checked against
+  `min`/`max` (the unit may be typed), times with units (`10 ns`, `1.5us`, `2 µs`; a bare number
+  is nanoseconds; `parseTime` in core), booleans as checkboxes, enums as selects (LED colors with
+  a swatch), strings as text. Each commit is one undo step and writes all resolved props. A prop
+  that changes the layout (gate inputs, DIP-switch count) moves pins; attached wires are not
+  re-routed.
+
+### Undo and redo
+
+`src/editor/history.ts`: an entry is the circuit and the selection before and after one action,
+labelled (`Move`, `Place NAND`, `Rename U1`, `Change Delay`); documents are immutable, so
+snapshots share every unchanged part and wire ([ADR-0009](adr/0009-editing-model.md)). A new
+edit clears the redo stack; 200 entries are kept; consecutive entries with the same `coalesce`
+key merge (nudges of one selection). Undo and redo restore the selection too and report the
+renames they undo or redo in `state.renames`. Opening an example and File ▸ New are undoable
+edits until R07 brings files; loading a circuit with `setCircuit` clears the history.
 
 ## Editor API
 
 `new Editor(registry, circuit?, settings?)` (`src/editor/editor.ts`) owns the circuit, its scene,
-the selection, the camera and the tool. The UI mounts it with `editor.mount(canvas)` (returns the
-detach function) and reads `editor.state` (circuit, scene, selection), `editor.view` (camera,
-viewport, pointer position, last redraw time — changes often, keep consumers small) and
-`editor.tool` through `useSyncExternalStore`. Commands call `setCircuit`, `setSettings`,
-`setSelection`, `selectAll`, `clearSelection`, `setTool`, `zoomIn`, `zoomOut`, `zoomActual`,
-`zoomToFit`, `locate(item, { zoom? })`. Dev builds expose the editor as `window.logicEditor`.
+the selection, the undo history, the camera and the tool. The UI mounts it with
+`editor.mount(canvas)` (returns the detach function) and reads through `useSyncExternalStore`:
+`editor.state` (circuit, scene, selection, renames), `editor.view` (camera, viewport, pointer
+position, last redraw time — changes often, keep consumers small), `editor.tool`, `editor.mode`,
+`editor.history` and `editor.requests` (the editor asking the UI to open the context menu or to
+focus Properties).
+
+- Document: `setCircuit` (load; clears history), `edit(label, circuit, options)`, `undo`, `redo`,
+  `undoLabel`, `redoLabel`.
+- Editing: `deleteSelection`, `rotate(clockwise)`, `flip(direction)`, `nudge(dx, dy)`,
+  `copySelection`, `cutSelection` (both return clipboard text), `pasteText(text)`, `duplicate`,
+  `renamePart`, `setPartLabel`, `setPartProp`, `setPartPlacement` (the last three return an error
+  message instead of editing when the value isn't valid).
+- Tools: `setTool`, `placePart(type)`, `dragPart(type, client?)`, `dropPart(type, client)`,
+  `swapWirePosture`, `escape`, `cancel`.
+- View and selection: `setSettings`, `setSelection`, `selectAll`, `clearSelection`, `zoomIn`,
+  `zoomOut`, `zoomActual`, `zoomToFit`, `locate(item, { zoom? })`.
+- Input: the DOM layer converts events into `PointerInput` (canvas pixels, button, Shift, client
+  position) and calls `pointerDown`, `pointerMove`, `pointerUp`, `doubleClick`, `pointerLeave` —
+  so every gesture runs, and is tested, without a browser.
+
+Dev builds expose the editor as `window.logicEditor`.
 
 ## Examples
 
@@ -209,7 +361,14 @@ one directly.
 ## Testing
 
 - Pure modules (camera, scene, text placement, hit-testing, selection, grid, shortcuts, settings,
-  command registry, formatting) — Vitest in Node, next to the code.
+  command registry, formatting, history, move, operations, wire routing, clipboard, prop input) —
+  Vitest in Node, next to the code.
+- Gestures — `src/editor/gestures.test.ts` drives the `Editor` with `PointerInput`s: drag-move
+  and cancel, nudges, the Wire tool (corners, Tab, Delete, double-click, Escape), wires dragged
+  from a pin, the place tool, drop from the panel, floating paste and duplicate, cut, context-menu
+  and properties requests.
+- Editing scenario — `tests/scenarios/editing.test.ts` draws Hello, LED from an empty document
+  with gestures only and checks it compiles to the example's nets with no design issues.
 - Drawers — `tests/scenarios/symbol-drawing.test.ts` draws every registered part (default,
   boundary and enum props, both gate styles) with a recording `SymbolGraphics`: something is
   drawn, everything stays inside the layout, and drawn pins equal the compiler's pin positions.
@@ -217,4 +376,8 @@ one directly.
   shell regions, drawing, gallery without errors, locate from Messages, canvas click,
   Shift-click, select all, box selection in both directions, keyboard and wheel zoom in both wheel
   modes, Space/middle/Pan-tool panning, theme switch, View ▸ Panels, persisted panel layout,
-  shortcuts dialog. Not part of `pnpm check` (it needs a browser); CI runs it after the build.
+  shortcuts dialog; editing (`editing.spec.ts`): a circuit drawn by hand, drag-and-drop from the
+  panel, moving with wires, undo/redo and the Undo label, rotate/flip/delete, floating paste,
+  duplicate, paste into a second tab, keyboard clipboard events, Properties edits and invalid
+  input, the context menu. Not part of `pnpm check` (it needs a browser); CI runs it after the
+  build.

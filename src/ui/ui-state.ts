@@ -22,10 +22,12 @@ export interface UiState {
   readonly dialog?: DialogId;
   /** Incremented to ask the Parts panel to focus its search box. */
   readonly searchRequest: number;
+  /** Incremented to ask the Properties panel to focus the designator field. */
+  readonly propertiesRequest: number;
 }
 
 export function createUiState(): Store<UiState> {
-  return new Store<UiState>({ searchRequest: 0 });
+  return new Store<UiState>({ searchRequest: 0, propertiesRequest: 0 });
 }
 
 /** Settings loaded from storage and saved back (debounced) whenever they change. */

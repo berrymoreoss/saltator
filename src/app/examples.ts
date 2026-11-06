@@ -10,7 +10,13 @@ import {
   type Rotation,
   transformRect,
 } from '../circuit';
-import { type ComponentRegistry, type PropValue, resolveProps } from '../core';
+import {
+  type AnyComponentDefinition,
+  type ComponentRegistry,
+  designatorPrefixOf,
+  type PropValue,
+  resolveProps,
+} from '../core';
 import { layoutBounds } from '../editor';
 
 /**
@@ -65,21 +71,6 @@ interface GalleryItem {
   /** Free text shown under the designator. */
   readonly note?: string;
 }
-
-const PREFIX: Readonly<Record<string, string>> = {
-  'io/switch': 'SW',
-  'io/button': 'SW',
-  'io/dip-switch': 'SW',
-  'io/led': 'D',
-  'io/led-bar': 'D',
-  'io/seven-segment': 'DS',
-  'io/hex-display': 'DS',
-  'io/clock': 'X',
-  'io/probe': 'TP',
-  'io/vcc': 'PWR',
-  'io/gnd': 'PWR',
-  'prim/pull': 'R',
-};
 
 const ROTATIONS: readonly Rotation[] = [0, 90, 180, 270];
 
@@ -160,8 +151,8 @@ const GAP_Y = 7;
 export function symbolGallery(registry: ComponentRegistry, dev = false): Circuit {
   const builder = new CircuitBuilder(registry);
   const counters = new Map<string, number>();
-  const nextId = (type: string) => {
-    const prefix = PREFIX[type] ?? 'U';
+  const nextId = (definition: AnyComponentDefinition) => {
+    const prefix = designatorPrefixOf(definition);
     const n = (counters.get(prefix) ?? 0) + 1;
     counters.set(prefix, n);
     return `${prefix}${n}`;
@@ -183,7 +174,7 @@ export function symbolGallery(registry: ComponentRegistry, dev = false): Circuit
         y += rowHeight + GAP_Y;
         rowHeight = 0;
       }
-      builder.add(nextId(item.type), item.type, {
+      builder.add(nextId(definition), item.type, {
         at: [x - placed.x, y - placed.y],
         rotation,
         flip,

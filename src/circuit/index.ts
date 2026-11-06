@@ -24,6 +24,27 @@ export {
   type Wire,
 } from './document';
 export {
+  addComponents,
+  addWires,
+  type ComponentPatch,
+  circuitIds,
+  copyFragment,
+  designatorError,
+  IdAllocator,
+  type ItemIds,
+  nextDesignator,
+  normalizeWires,
+  type PasteResult,
+  pasteFragment,
+  prefixOfType,
+  removeItems,
+  renameComponent,
+  sameCircuit,
+  translateCircuit,
+  updateComponent,
+  WIRE_PREFIX,
+} from './edit';
+export {
   COORD_LIMIT,
   comparePoints,
   inSegmentInterior,
