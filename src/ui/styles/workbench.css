@@ -225,6 +225,29 @@ button {
   opacity: 0.4;
 }
 
+.speed-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 4px;
+  color: var(--fg-muted);
+}
+
+.toolbar-select {
+  height: 22px;
+  padding: 0 4px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--input-bg);
+  color: var(--fg);
+  font: inherit;
+  font-size: var(--text-small);
+}
+
+.toolbar-select:focus-visible {
+  outline: 1px solid var(--focus);
+}
+
 /* ── Docks, panels, splitters ─────────────────────────────────────────────── */
 
 .workbench-main {
@@ -387,6 +410,37 @@ button {
 
 .status-spacer {
   flex: 1;
+}
+
+.sim-status {
+  white-space: nowrap;
+}
+
+.sim-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--fg-subtle);
+}
+
+.sim-status.running .sim-dot {
+  background: var(--ok);
+}
+
+.sim-status.paused .sim-dot {
+  background: var(--warning);
+}
+
+.sim-status.halted .sim-dot {
+  background: var(--error);
+}
+
+.sim-status.warn {
+  color: var(--warning);
+}
+
+.sim-status.halted {
+  color: var(--error);
 }
 
 .status-issues {

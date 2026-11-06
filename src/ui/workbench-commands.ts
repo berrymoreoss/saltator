@@ -1,7 +1,4 @@
-/**
- * The commands of the workbench and where they appear: menus and toolbar. R05 adds a Simulate
- * menu.
- */
+/** The commands of the workbench and where they appear: menus and toolbar. */
 import {
   ClipboardPaste,
   Copy,
@@ -17,12 +14,18 @@ import {
   Monitor,
   Moon,
   MousePointer2,
+  Pause,
+  Play,
+  Pointer,
   Redo2,
+  RefreshCcw,
   RotateCcw,
   RotateCw,
   Scissors,
   Search,
   SlidersHorizontal,
+  Square,
+  StepForward,
   Sun,
   Trash2,
   Undo2,
@@ -30,7 +33,7 @@ import {
   ZoomOut,
 } from 'lucide-react';
 import { type Circuit, emptyCircuit } from '../circuit';
-import { type Editor, EMPTY_SELECTION, type Store } from '../editor';
+import { ALL_SPEEDS, type Editor, EMPTY_SELECTION, type Store } from '../editor';
 import type { ClipboardBridge } from './clipboard';
 import type { Command } from './commands';
 import { GateIcon, WireIcon } from './icons';
@@ -74,8 +77,13 @@ export function createCommands({
     }));
 
   // Until R07 brings files, opening a document is an undoable edit: nothing is lost by accident.
-  const open = (label: string, circuit: Circuit) =>
+  // A running simulation stops first: the new document's U1 is not the old one's.
+  const open = (label: string, circuit: Circuit) => {
+    editor.simulation.stop();
     editor.edit(label, circuit, { selection: EMPTY_SELECTION, fit: true });
+  };
+  const simulation = editor.simulation;
+  const simState = () => simulation.state;
 
   return [
     {
@@ -260,6 +268,69 @@ export function createCommands({
     },
 
     {
+      id: 'tool.interact',
+      label: 'Interact',
+      title: 'Operate switches and buttons while simulating',
+      icon: Pointer,
+      shortcuts: ['I'],
+      checked: () => editor.tool.get() === 'interact',
+      run: () => editor.setTool('interact'),
+    },
+
+    {
+      id: 'sim.toggle',
+      label: 'Run / Pause',
+      menuLabel: () =>
+        simState() === 'running' ? 'Pause' : simState() === 'paused' ? 'Continue' : 'Run',
+      icon: Play,
+      stateIcon: () => (simState() === 'running' ? Pause : Play),
+      shortcuts: ['F5'],
+      global: true,
+      enabled: () => simState() !== 'halted',
+      run: () => simulation.toggle(),
+    },
+    {
+      id: 'sim.step',
+      label: 'Step',
+      title: 'Step to the next event',
+      icon: StepForward,
+      shortcuts: ['F10'],
+      global: true,
+      enabled: () => simState() === 'stopped' || simState() === 'paused',
+      run: () => {
+        simulation.step();
+      },
+    },
+    {
+      id: 'sim.stop',
+      label: 'Stop',
+      title: 'Stop the simulation',
+      icon: Square,
+      shortcuts: ['Shift+F5'],
+      global: true,
+      enabled: () => simState() !== 'stopped',
+      run: () => simulation.stop(),
+    },
+    {
+      id: 'sim.reset',
+      label: 'Reset',
+      title: 'Reset: power on again at t = 0',
+      icon: RefreshCcw,
+      shortcuts: ['Mod+Shift+F5'],
+      global: true,
+      enabled: () => simState() !== 'stopped',
+      run: () => simulation.reset(),
+    },
+    ...ALL_SPEEDS.map(
+      (speed): Command => ({
+        id: `sim.speed.${speed.id}`,
+        label: speed.label,
+        checked: () => simulation.status.get().speed.id === speed.id,
+        run: () => simulation.setSpeed(speed),
+      }),
+    ),
+
+    {
       id: 'view.zoomIn',
       label: 'Zoom In',
       icon: ZoomIn,
@@ -436,6 +507,7 @@ export function workbenchMenus(examples: readonly Example[]): MenuDef[] {
         'tool.select',
         'tool.pan',
         'tool.wire',
+        'tool.interact',
         SEPARATOR,
         'view.grid',
         { label: 'Theme', items: ['view.theme.system', 'view.theme.dark', 'view.theme.light'] },
@@ -446,6 +518,19 @@ export function workbenchMenus(examples: readonly Example[]): MenuDef[] {
           label: 'Panels',
           items: ['view.panel.parts', 'view.panel.properties', 'view.panel.bottom'],
         },
+      ],
+    },
+    {
+      label: 'Simulate',
+      items: [
+        'sim.toggle',
+        'sim.step',
+        'sim.stop',
+        'sim.reset',
+        SEPARATOR,
+        { label: 'Speed', items: ALL_SPEEDS.map((s) => `sim.speed.${s.id}`) },
+        SEPARATOR,
+        'tool.interact',
       ],
     },
     { label: 'Help', items: ['help.shortcuts', SEPARATOR, 'help.about'] },
@@ -477,9 +562,10 @@ export const CANVAS_CONTEXT_MENU: readonly MenuEntry[] = [
 
 /** Toolbar groups, separated by dividers. */
 export const TOOLBAR: readonly (readonly string[])[] = [
-  ['tool.select', 'tool.pan', 'tool.wire'],
+  ['tool.select', 'tool.pan', 'tool.wire', 'tool.interact'],
   ['edit.undo', 'edit.redo'],
   ['edit.rotate', 'edit.flipH', 'edit.delete'],
+  ['sim.toggle', 'sim.step', 'sim.stop', 'sim.reset', 'widget:speed'],
   ['view.zoomIn', 'view.zoomOut', 'view.zoomFit'],
   ['view.grid', 'view.gates.toggle'],
 ];

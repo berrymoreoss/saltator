@@ -9,6 +9,7 @@ import {
   zoomPercent,
 } from '../editor';
 import { useStore } from './hooks';
+import { SimulationStatus } from './SimControls';
 
 /** One line about the selection: `U1 · NAND`, `3 parts, 2 wires`, or nothing. */
 export function selectionSummary(selection: Selection, scene: Scene): string {
@@ -94,6 +95,7 @@ export function StatusBar({ editor, onShowMessages }: StatusBarProps) {
       <span className="status-cell" data-testid="selection-summary">
         {selectionSummary(selection, scene)}
       </span>
+      <SimulationStatus simulation={editor.simulation} />
       <span className="status-cell status-hint" data-testid="status-hint">
         {statusHint(tool, mode, editor.registry, simulating)}
       </span>

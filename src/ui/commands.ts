@@ -17,9 +17,14 @@ export interface Command {
   /** Shorter text for toolbar tooltips (defaults to the label). */
   readonly title?: string;
   readonly icon?: IconComponent;
+  /** An icon that depends on state (Run ↔ Pause); defaults to `icon`. */
+  readonly stateIcon?: () => IconComponent;
   /** Shortcuts in `parseShortcut` syntax; the first one is shown. */
   readonly shortcuts?: readonly string[];
-  /** Runs even while typing in a text field (Escape). */
+  /**
+   * Runs even while typing in a text field (Escape), and keeps its key from the browser even
+   * while disabled (F5 must never reload the page).
+   */
   readonly global?: boolean;
   /**
    * The shortcut belongs to the browser (Mod+C/X/V raise clipboard events, which the app handles
@@ -92,7 +97,11 @@ export function dispatchShortcut(
 ): boolean {
   if (event.defaultPrevented || event.isComposing) return false;
   const command = registry.match(event, mac);
-  if (!command || command.nativeKeys || !isEnabled(command)) return false;
+  if (!command || command.nativeKeys) return false;
+  if (!isEnabled(command)) {
+    if (command.global) event.preventDefault();
+    return false;
+  }
   if (isTextField(event.target) && !command.global) return false;
   event.preventDefault();
   command.run(event);

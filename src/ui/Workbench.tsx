@@ -11,6 +11,7 @@ import { Panel, Splitter } from './Panel';
 import { PartsPanel } from './PartsPanel';
 import { PropertiesPanel } from './PropertiesPanel';
 import { PART_DRAG_TYPE } from './parts-filter';
+import { SpeedSelect } from './SimControls';
 import { StatusBar } from './StatusBar';
 import { effectiveTheme, PANEL_LIMITS, type PanelId, type Settings } from './settings';
 import { isMacPlatform } from './shortcuts';
@@ -40,6 +41,8 @@ export function Workbench({ editor, settings: settingsStore, ui, examples }: Wor
   // change.
   useStore(editor.tool);
   useStore(editor.history);
+  // Run/Pause, Step, Stop, Reset depend on the run state (not on the time, which ticks).
+  useStoreValue(editor.simulation.status, (status) => status.state);
   useStoreValue(
     editor.state,
     (state) => state.selection.parts.size + state.selection.wires.size > 0,
@@ -102,7 +105,12 @@ export function Workbench({ editor, settings: settingsStore, ui, examples }: Wor
   return (
     <div className="workbench">
       <MenuBar menus={menus} commands={commands} mac={MAC} />
-      <Toolbar groups={TOOLBAR} commands={commands} mac={MAC} />
+      <Toolbar
+        groups={TOOLBAR}
+        commands={commands}
+        mac={MAC}
+        widgets={{ speed: <SpeedSelect simulation={editor.simulation} /> }}
+      />
       <div className="workbench-main">
         {parts.visible && (
           <>

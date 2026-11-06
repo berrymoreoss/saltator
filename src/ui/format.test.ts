@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { CircuitBuilder } from '../circuit';
-import { ns, type PropDef } from '../core';
-import { buildScene, selectionOf } from '../editor';
+import { ms, ns, type PropDef } from '../core';
+import { buildScene, MAX_SPEED, REAL_TIME, type SimStatus, selectionOf } from '../editor';
 import { createDefaultRegistry } from '../library';
 import { issueLocation } from './MessagesPanel';
 import { formatProp } from './PropertiesPanel';
-import { selectionSummary } from './StatusBar';
+import { simulationSummary } from './SimControls';
+import { selectionSummary, statusHint } from './StatusBar';
 
 const registry = createDefaultRegistry();
 
@@ -54,5 +55,44 @@ describe('selectionSummary', () => {
     expect(selectionSummary(selectionOf(['U1']), scene)).toBe('U1 · NAND');
     expect(selectionSummary(selectionOf([], ['w1']), scene)).toBe('Wire w1 · net SW1.Y');
     expect(selectionSummary(selectionOf(['U1', 'SW1'], ['w1']), scene)).toBe('2 parts, 1 wire');
+  });
+});
+
+describe('simulationSummary', () => {
+  const status = (change: Partial<SimStatus>): SimStatus => ({
+    state: 'running',
+    time: ms(1250),
+    speed: REAL_TIME,
+    actual: 1e12,
+    lagging: false,
+    ...change,
+  });
+
+  it('shows the state and the simulated time', () => {
+    expect(simulationSummary(status({ state: 'stopped', time: 0 }))).toBe('Stopped');
+    expect(simulationSummary(status({}))).toBe('Running · 1.25 s');
+    expect(simulationSummary(status({ state: 'paused', time: ns(12) }))).toBe('Paused · 12 ns');
+    expect(simulationSummary(status({ state: 'halted' }))).toBe(
+      'Halted · 1.25 s · oscillation — Reset to restart',
+    );
+    expect(simulationSummary(status({ state: 'stopped', error: 'boom' }))).toBe(
+      "Can't simulate: boom",
+    );
+  });
+
+  it('shows the speed reached when lagging or at Max', () => {
+    expect(simulationSummary(status({ lagging: true, actual: 3.1e11 }))).toBe(
+      'Running · 1.25 s · actual 310 ms/s',
+    );
+    expect(simulationSummary(status({ speed: MAX_SPEED, actual: 2e9 }))).toBe(
+      'Running · 1.25 s · max 2 ms/s',
+    );
+  });
+});
+
+describe('statusHint', () => {
+  it('tells how the Interact tool works, and that it needs a running simulation', () => {
+    expect(statusHint('interact', 'idle', registry, true)).toMatch(/^Click switches/);
+    expect(statusHint('interact', 'idle', registry, false)).toMatch(/^Run \(F5\)/);
   });
 });

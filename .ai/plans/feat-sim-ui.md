@@ -278,7 +278,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   button / DIP / clock / hex / probe); drawing scenario with live states.
 - [x] 6. editor: Interact tool and the click→action table; Run arms it, Stop leaves it; button
   release on leave/cancel/blur/tool change; gesture tests.
-- [ ] 7. ui: Simulate menu, toolbar group with the speed select, shortcuts (global, F5 reload
+- [x] 7. ui: Simulate menu, toolbar group with the speed select, shortcuts (global, F5 reload
   prevented), status bar (state, time, speed, actual speed), status hints.
 - [ ] 8. ui: Simulation tab (runtime diagnostics, locate, clear), tab setting; live levels in
   Properties.
