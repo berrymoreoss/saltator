@@ -4,6 +4,27 @@
  */
 
 export {
+  type AnyComponentDefinition,
+  type Behavior,
+  type ComponentDefinition,
+  defineComponent,
+  type EvalContext,
+  isDriverPin,
+  isReadPin,
+  type PackageDef,
+  type PinDef,
+  type PinDir,
+  type PinRef,
+  type PropDef,
+  type PropValue,
+  pinIndex,
+  pinsOf,
+  resolveProps,
+  type TimingDef,
+  type UnitDef,
+} from './component';
+export { type ComponentDiagnostic, type Diagnostic, KernelDiagnosticKind } from './diagnostics';
+export {
   and,
   DRIVES,
   Drive,
@@ -23,4 +44,5 @@ export {
   weak,
   xor,
 } from './logic';
+export { type ComponentRegistry, familyOf, Registry } from './registry';
 export { formatTime, ms, ns, ps, TIME_MAX, type Time, us } from './time';

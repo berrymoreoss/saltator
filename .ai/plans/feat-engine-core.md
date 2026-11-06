@@ -123,6 +123,16 @@ tests/bench/          kernel benchmark
   `X` means _don't care_ — **not** our `X` (unknown); the helper must expand or reject it
   explicitly, never pass it through as unknown.
 
+### Deviations from the draft docs (apply in task 11)
+
+- `ComponentDefinition` has no `family` field: it is derived from the type id (`familyOf`).
+- `timing` is `{ typical: { tpd, … }, max?, conditions?, source? }` (a typed record instead of
+  mixing symbols and metadata at the top level).
+- `Behavior.evaluate` is optional (constants and pulls have no inputs); `createState()` added.
+- `defineComponent()` gives authors typed props/state and returns the erased form registries store.
+- `resolveProps()` validates raw props (unknown key, type, integer, min/max, enum) and fills defaults.
+- `symbol` is not defined yet (R03).
+
 ## Tasks
 
 - [x] 1. `time.ts`, `logic.ts`: constants, `resolve()` over driver lists, level ops with 4-state
@@ -130,7 +140,7 @@ tests/bench/          kernel benchmark
   Exhaustive tests.
 - [x] 2. `event-queue.ts`: heap with `(time, seq)` ordering and lazy cancellation. Tests incl. a
   seeded randomized comparison against a sorted reference.
-- [ ] 3. `component.ts`, `registry.ts`: types per docs/components.md (+ `pins` as function of
+- [x] 3. `component.ts`, `registry.ts`: types per docs/components.md (+ `pins` as function of
   props, `createState`). Registry tests (duplicate type → error).
 - [ ] 4. `netlist.ts`: `Netlist` type, `NetlistBuilder` (add component, connect pins, union-find
   merge, implicit nets for unconnected pins), validation with precise error messages
