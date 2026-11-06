@@ -34,6 +34,14 @@ export {
   transformSide,
 } from './geometry';
 export {
+  dipBodyWidth,
+  type PartLayout,
+  type PinLayout,
+  partLayout,
+  placementOf,
+  placePins,
+} from './layout';
+export {
   MIGRATIONS,
   type Migration,
   type Migrations,

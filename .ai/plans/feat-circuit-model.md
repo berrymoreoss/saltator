@@ -222,7 +222,7 @@ it is used from code. Auto-routing is a plain L-shape; anything smarter is edito
 - [x] 3. `document.ts`, `migrations.ts`, `schema.ts`, `serialize.ts`: types, `parseDocument`
   (all problems with paths), migration runner (injected migrations in tests, newer version
   rejected), stable serializer, round-trip tests.
-- [ ] 4. `layout.ts`: DIP and generic-box layouts; instance pin positions under every
+- [x] 4. `layout.ts`: DIP and generic-box layouts; instance pin positions under every
   rotation/flip. Tests (DIP-14 pins 1, 7, 8, 14; 2-input gate; transforms).
 - [ ] 5. `connectivity.ts`: point union-find with the segment index; one test per rule (T-junction,
   pin on wire interior, pin-to-pin, crossing, collinear overlap, junction dots).
