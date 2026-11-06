@@ -14,6 +14,7 @@ function rail(level: 0 | 1) {
     keywords: high
       ? ['vcc', 'power', 'supply', '5v', 'rail', 'high', 'logic 1']
       : ['gnd', 'ground', 'rail', '0v', 'low', 'logic 0'],
+    designatorPrefix: 'PWR',
     pins: [{ name: 'Y', dir: 'out', constant: level }],
     // VCC: a bar with the pin hanging below it; GND: the ground sign with the pin above it.
     symbol: {

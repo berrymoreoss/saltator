@@ -35,6 +35,7 @@ export const sevenSegment = defineComponent<
     'common anode',
     'common cathode',
   ],
+  designatorPrefix: 'DS',
   props: [
     {
       key: 'common',

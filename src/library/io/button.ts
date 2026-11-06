@@ -25,6 +25,7 @@ export const pushButton = defineComponent<{ contact: Contact }, ButtonState>({
   name: 'BTN',
   title: 'Push button (momentary)',
   keywords: ['button', 'push', 'momentary', 'tactile', 'key', 'input', 'spst'],
+  designatorPrefix: 'SW',
   props: [contactProp('spst-vcc')],
   pins: ({ contact }) => [{ name: 'Y', dir: contactDir(contact) }],
   symbol: { kind: 'button', width: 3, height: 2, pins: { Y: { side: 'right', offset: 1 } } },

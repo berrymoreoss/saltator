@@ -209,7 +209,7 @@ stress schematic; small circuits are free).
 
 Small, ordered, each committable on its own with its tests (`pnpm check` green).
 
-- [ ] 1. core + library: `designatorPrefix` (registry validation) and prefixes for every
+- [x] 1. core + library: `designatorPrefix` (registry validation) and prefixes for every
   built-in part; `examples.ts` uses them; docs/components.md.
 - [ ] 2. circuit: `edit.ts` — designators and wire ids, add/remove/update/rename/translate,
   `normalizeWires`, fragments + tests.

@@ -9,6 +9,7 @@ export const probe = defineComponent<Record<string, never>, undefined>({
   name: 'PROBE',
   title: 'Logic probe',
   keywords: ['probe', 'level', 'indicator', 'debug', 'measure', 'output'],
+  designatorPrefix: 'TP',
   pins: [{ name: 'A', dir: 'in', sense: true }],
   symbol: { kind: 'probe', width: 2, height: 2, pins: { A: { side: 'left', offset: 1 } } },
   create: () => ({}),

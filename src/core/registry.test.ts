@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { type AnyComponentDefinition, defineComponent, type PinDef } from './component';
+import {
+  type AnyComponentDefinition,
+  DEFAULT_DESIGNATOR_PREFIX,
+  defineComponent,
+  designatorPrefixOf,
+  type PinDef,
+} from './component';
 import { familyOf, Registry } from './registry';
 import type { SymbolDef } from './symbol';
 
@@ -21,6 +27,19 @@ describe('Registry', () => {
   it('rejects duplicate types', () => {
     const registry = new Registry([part('prim/a')]);
     expect(() => registry.register(part('prim/a'))).toThrow('duplicate component type "prim/a"');
+  });
+
+  it.each(['', 'sw', 'SW1', 'S W', 'S_W'])('rejects designator prefix %j', (prefix) => {
+    expect(() => new Registry([part('prim/a', { designatorPrefix: prefix })])).toThrow(
+      `prim/a: invalid designator prefix "${prefix}"`,
+    );
+  });
+
+  it('accepts uppercase designator prefixes; parts without one get U', () => {
+    const registry = new Registry([part('io/a', { designatorPrefix: 'PWR' }), part('io/b')]);
+    expect(designatorPrefixOf(registry.get('io/a')!)).toBe('PWR');
+    expect(designatorPrefixOf(registry.get('io/b')!)).toBe(DEFAULT_DESIGNATOR_PREFIX);
+    expect(DEFAULT_DESIGNATOR_PREFIX).toBe('U');
   });
 
   it.each(['nand', 'Prim/nand', 'prim/', '/nand', 'prim/nand/x', 'prim/tri state', 'prim/-a'])(

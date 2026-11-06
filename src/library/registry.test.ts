@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { familyOf } from '../core';
+import { designatorPrefixOf, familyOf } from '../core';
 import { createDefaultRegistry } from './registry';
 
 describe('createDefaultRegistry', () => {
@@ -41,6 +41,38 @@ describe('createDefaultRegistry', () => {
       expect(d.keywords?.length, d.type).toBeGreaterThan(0);
       expect(['prim', 'io']).toContain(familyOf(d.type));
     }
+  });
+
+  it('gives every part its conventional designator prefix', () => {
+    const prefixes = Object.fromEntries(
+      createDefaultRegistry()
+        .list()
+        .map((d) => [d.type, designatorPrefixOf(d)]),
+    );
+    expect(prefixes).toEqual({
+      'prim/buffer': 'U',
+      'prim/not': 'U',
+      'prim/and': 'U',
+      'prim/or': 'U',
+      'prim/nand': 'U',
+      'prim/nor': 'U',
+      'prim/xor': 'U',
+      'prim/xnor': 'U',
+      'prim/tristate-buffer': 'U',
+      'prim/constant': 'U',
+      'prim/pull': 'R',
+      'io/vcc': 'PWR',
+      'io/gnd': 'PWR',
+      'io/switch': 'SW',
+      'io/button': 'SW',
+      'io/dip-switch': 'SW',
+      'io/clock': 'X',
+      'io/led': 'D',
+      'io/led-bar': 'D',
+      'io/seven-segment': 'DS',
+      'io/hex-display': 'DS',
+      'io/probe': 'TP',
+    });
   });
 
   it('returns a fresh registry each time', () => {

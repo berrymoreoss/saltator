@@ -154,6 +154,12 @@ export interface ComponentDefinition<
   readonly title: string;
   /** Extra palette search terms. */
   readonly keywords?: readonly string[];
+  /**
+   * Designator prefix for new instances (`SW` → `SW1`, `SW2`): uppercase letters, by KiCad/IEEE
+   * convention (`U` chips and gates, `R`, `SW`, `D` LEDs, `DS` displays, `X` clocks, `TP`
+   * probes, `PWR` rails). Defaults to `U`.
+   */
+  readonly designatorPrefix?: string;
   /** URL of the datasheet the pins, function table and timing come from. */
   readonly datasheet?: string;
   /** Pin list (order defines `PinRef`s), or a function of props for parts like N-input gates. */
@@ -183,6 +189,17 @@ export function defineComponent<Props extends object, State>(
   definition: ComponentDefinition<Props, State>,
 ): AnyComponentDefinition {
   return definition as unknown as AnyComponentDefinition;
+}
+
+/** Prefix of parts that don't set `designatorPrefix`. */
+export const DEFAULT_DESIGNATOR_PREFIX = 'U';
+
+/** Uppercase letters only, so the number that follows is unambiguous (`SW12`). */
+export const DESIGNATOR_PREFIX = /^[A-Z]+$/;
+
+/** The designator prefix new instances of a part get. */
+export function designatorPrefixOf(definition: AnyComponentDefinition): string {
+  return definition.designatorPrefix ?? DEFAULT_DESIGNATOR_PREFIX;
 }
 
 /** Pin list of an instance with the given (resolved) props. */
