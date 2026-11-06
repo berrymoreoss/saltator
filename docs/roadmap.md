@@ -13,29 +13,29 @@ How to read this file:
 
 ## Overview
 
-| ID  | Branch                       | Title                                    | Status  |
-| --- | ---------------------------- | ---------------------------------------- | ------- |
-| R00 | — (initial commit on `main`) | Foundation                               | done    |
-| R01 | `feat/engine-core`           | Simulation kernel                        | done    |
-| R02 | `feat/circuit-model`         | Circuit document & netlist compiler      | next    |
-| R03 | `feat/io-basic`              | Basic IO parts (headless)                | planned |
-| R04 | `feat/editor-canvas`         | App shell & schematic editor             | planned |
-| R05 | `feat/sim-ui`                | Running simulations in the editor        | planned |
-| R06 | `feat/74hc-gates`            | 74HC gates & bus buffers                 | planned |
-| R07 | `feat/persistence`           | Save, load, examples                     | planned |
-| R08 | `feat/74hc-msi`              | 74HC combinational MSI                   | planned |
-| R09 | `feat/74hc-sequential`       | 74HC sequential parts + timing checks    | planned |
-| R10 | `feat/nets-and-buses`        | Net labels, tunnels, buses               | planned |
-| R11 | `feat/subcircuits`           | Hierarchical design                      | planned |
-| R12 | `feat/memory`                | ROM / RAM + memory inspector             | planned |
-| R13 | `feat/logic-analyzer`        | Waveforms & probes                       | planned |
-| R14 | `feat/debugger`              | Breakpoints, stepping, watches           | planned |
-| R15 | `feat/test-benches`          | Circuit test benches ("test before fab") | planned |
-| R16 | `example/sap-1`              | Ben Eater SAP-1 reference build          | planned |
-| R17 | `feat/cpu-6502`              | W65C02S CPU                              | planned |
-| R18 | `feat/peripherals`           | VIA, LCD, serial, buzzer                 | planned |
-| R19 | `feat/toolchain`             | 6502 assembler & flashing                | planned |
-| R20 | `example/be6502`             | Ben Eater 6502 reference build           | planned |
+| ID  | Branch                       | Title                                    | Status      |
+| --- | ---------------------------- | ---------------------------------------- | ----------- |
+| R00 | — (initial commit on `main`) | Foundation                               | done        |
+| R01 | `feat/engine-core`           | Simulation kernel                        | done        |
+| R02 | `feat/circuit-model`         | Circuit document & netlist compiler      | in-progress |
+| R03 | `feat/io-basic`              | Basic IO parts (headless)                | planned     |
+| R04 | `feat/editor-canvas`         | App shell & schematic editor             | planned     |
+| R05 | `feat/sim-ui`                | Running simulations in the editor        | planned     |
+| R06 | `feat/74hc-gates`            | 74HC gates & bus buffers                 | planned     |
+| R07 | `feat/persistence`           | Save, load, examples                     | planned     |
+| R08 | `feat/74hc-msi`              | 74HC combinational MSI                   | planned     |
+| R09 | `feat/74hc-sequential`       | 74HC sequential parts + timing checks    | planned     |
+| R10 | `feat/nets-and-buses`        | Net labels, tunnels, buses               | planned     |
+| R11 | `feat/subcircuits`           | Hierarchical design                      | planned     |
+| R12 | `feat/memory`                | ROM / RAM + memory inspector             | planned     |
+| R13 | `feat/logic-analyzer`        | Waveforms & probes                       | planned     |
+| R14 | `feat/debugger`              | Breakpoints, stepping, watches           | planned     |
+| R15 | `feat/test-benches`          | Circuit test benches ("test before fab") | planned     |
+| R16 | `example/sap-1`              | Ben Eater SAP-1 reference build          | planned     |
+| R17 | `feat/cpu-6502`              | W65C02S CPU                              | planned     |
+| R18 | `feat/peripherals`           | VIA, LCD, serial, buzzer                 | planned     |
+| R19 | `feat/toolchain`             | 6502 assembler & flashing                | planned     |
+| R20 | `example/be6502`             | Ben Eater 6502 reference build           | planned     |
 
 ---
 
@@ -57,7 +57,7 @@ builder, component runtime API, diagnostics (contention, floating input, oscilla
 Abstract primitives (`prim/*` gates, buffers, tri-state buffer, constant, pull resistor).
 Kernel benchmark. Plan: `.ai/plans/feat-engine-core.md`.
 
-### R02 · Circuit document & netlist compiler — `feat/circuit-model` — `next`
+### R02 · Circuit document & netlist compiler — `feat/circuit-model` — `in-progress`
 
 Document schema (components, wires, labels) with `schemaVersion` and migrations; geometric
 connectivity (union-find over grid points, T-junctions); compiler to `Netlist`; design checks
