@@ -4,7 +4,7 @@
 | ---------- | ------------------------------------------------------------------ |
 | Branch     | `feat/io-basic`                                                    |
 | Roadmap    | R03 — Basic IO parts (headless) ([roadmap](../../docs/roadmap.md)) |
-| Status     | in-progress                                                        |
+| Status     | done                                                               |
 | Depends on | R01, R02                                                           |
 | Created    | 2026-11-06                                                         |
 
@@ -231,15 +231,19 @@ Asked at branch start (2026-11-06); all answered.
   for `prim/*`; headless M1 scenarios; docs, ADR-0007. Bench: compile ≈ 8 ms (3 600 parts,
   10 620 wires; grid redrawn for the new NAND pins, same counts), kernel ≈ 13–14M events/s.
   Coverage: 100 % of the new modules. All acceptance criteria verified. 492 tests.
+- 2026-11-06 — finished: acceptance criteria re-verified (check, build, coverage 100 % of the new
+  modules, bench: compile ≈ 8.3 ms, kernel ≈ 12–14M events/s). Roadmap: R03 `done`, R04 `next`
+  (with symbol renderers by kind), R05 (clicking parts, brightness from on-time). Summary:
+  symbol geometry as data; `sense`/`constant` pin flags; eleven `io/*` parts with real contacts
+  and two-terminal LEDs; indicator on-time; gate-shaped `prim/*` symbols; headless M1
+  circuits; ADR-0007.
 
 ## Handoff
 
-- **State:** all tasks done, acceptance criteria verified; waiting for the user's review before
-  the finish-branch workflow (merge needs approval).
-- **Next step:** finish-branch: re-verify, roadmap R03 `done`, R04 `next`, merge with `--no-ff`
-  after approval.
-- **Watch out:** pin positions of `prim/*` changed (gate symbols): code that draws circuits with
-  fixed coordinates must use the new ones (`docs/circuit.md#part-layouts`). Label anchors on
-  symbols and ANSI vs IEC drawing are R04's; brightness from `onTimeAt` and clicking parts are
-  R05's.
+- **State:** finished; merging to `main` with `--no-ff` once the user approves. Nothing else
+  pending.
+- **Follow-ups (in the roadmap):** R04 draws symbols by `kind` (ANSI vs IEC, label placement);
+  R05 makes switches/buttons/DIP/clock clickable through their actions and lights indicators
+  from `LightsState` (`onTimeAt`); backlog: contact bounce, bussed resistor network; R10 may
+  join VCC/GND symbols by name.
 - **Verify with:** `pnpm check && pnpm build && pnpm coverage && pnpm bench`.

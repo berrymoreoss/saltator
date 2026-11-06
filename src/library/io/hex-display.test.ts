@@ -10,7 +10,10 @@ describe('hexDigit', () => {
     expect(hexDigit(bits(value))).toBe(value);
   });
 
-  it.each([Level.X, Level.Z])('is undefined if any input is %s', (level) => {
+  it.each([
+    ['X', Level.X],
+    ['Z', Level.Z],
+  ] as const)('is undefined if any input is %s', (_, level) => {
     for (let i = 0; i < 4; i++) {
       const levels = bits(0b1010);
       levels[i] = level;
