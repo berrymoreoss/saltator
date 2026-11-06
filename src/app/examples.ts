@@ -18,6 +18,7 @@ import {
   resolveProps,
 } from '../core';
 import { layoutBounds } from '../editor';
+import { chips74xx } from '../library';
 
 /**
  * A large synthetic schematic for benchmarks and the stress-test example: a grid of 2-input NANDs
@@ -43,24 +44,42 @@ export function nandGrid(registry: ComponentRegistry, rows: number, columns: num
   return b.build();
 }
 
-/** Switch → NAND (other input tied high, an inverter) → LED; a 1 Hz clock → LED. */
+/**
+ * The M1 circuits: a switch through gate 1 of a 74HC00 (1A tied high: an inverter) to an LED, and
+ * a 1 Hz clock blinking an LED. As on a breadboard, the chip's power pins are wired and its unused
+ * inputs tied to GND (floating CMOS inputs are a mistake the design checks report).
+ */
 export function helloLed(registry: ComponentRegistry): Circuit {
-  return new CircuitBuilder(registry)
-    .add('SW1', 'io/switch', { at: [0, 0], label: 'IN' })
-    .add('U1', 'prim/nand', { at: [10, 0] })
-    .add('PWR1', 'io/vcc', { at: [7, -4] })
-    .add('D1', 'io/led', { at: [20, 0], props: { color: 'green' }, label: 'OUT' })
-    .add('PWR2', 'io/gnd', { at: [26, 1] })
-    .connect('SW1.Y', 'U1.A')
-    .connect('PWR1.Y', 'U1.B', [8, 3])
-    .connect('U1.Y', 'D1.A', [18, 2], [18, 1])
-    .connect('D1.K', 'PWR2.Y')
-    .add('X1', 'io/clock', { at: [0, 12], label: '1 Hz' })
-    .add('D2', 'io/led', { at: [20, 12], props: { color: 'red' }, label: 'BLINK' })
-    .add('PWR3', 'io/gnd', { at: [26, 13] })
-    .connect('X1.Y', 'D2.A')
-    .connect('D2.K', 'PWR3.Y')
-    .build();
+  return (
+    new CircuitBuilder(registry)
+      .add('SW1', 'io/switch', { at: [0, 1], label: 'IN' })
+      .add('U1', '74xx/74hc00', { at: [16, 0] })
+      .add('PWR1', 'io/vcc', { at: [12, -3] })
+      .add('D1', 'io/led', { at: [8, 9], props: { color: 'green' }, label: 'OUT' })
+      .add('PWR2', 'io/gnd', { at: [13, 12] })
+      .add('PWR3', 'io/vcc', { at: [23, -3] })
+      .add('PWR4', 'io/gnd', { at: [25, 9] })
+      .connect('PWR1.Y', 'U1.1A', [13, 1])
+      .connect('SW1.Y', 'U1.1B')
+      .connect('U1.1Y', 'D1.A', [8, 3])
+      // Left GND bus: unused 2A, 2B, the chip's GND and the LED's cathode.
+      .connect('U1.2A', 'PWR2.Y', [14, 4])
+      .wire('U1.2B', [14, 5])
+      .wire('U1.GND', [14, 7])
+      .wire('D1.K', [14, 10])
+      // Right: VCC to the chip, unused 3A, 3B, 4A, 4B to GND.
+      .connect('U1.VCC', 'PWR3.Y', [24, 1])
+      .connect('U1.4B', 'PWR4.Y', [26, 2])
+      .wire('U1.4A', [26, 3])
+      .wire('U1.3B', [26, 5])
+      .wire('U1.3A', [26, 6])
+      .add('X1', 'io/clock', { at: [0, 16], label: '1 Hz' })
+      .add('D2', 'io/led', { at: [8, 16], props: { color: 'red' }, label: 'BLINK' })
+      .add('PWR5', 'io/gnd', { at: [13, 18] })
+      .connect('X1.Y', 'D2.A')
+      .connect('D2.K', 'PWR5.Y')
+      .build()
+  );
 }
 
 interface GalleryItem {
@@ -118,6 +137,7 @@ function galleryRows(dev: boolean): GalleryItem[][] {
       { type: 'io/seven-segment', props: { common: 'anode', color: 'green' }, note: 'CA' },
       { type: 'io/hex-display', props: { color: 'yellow' } },
     ],
+    chips74xx.map((chip) => ({ type: chip.type })),
     [
       ...ROTATIONS.map((rotation) => ({ type: 'prim/nand', rotation, note: `${rotation}°` })),
       ...ROTATIONS.map((rotation) => ({
@@ -125,6 +145,12 @@ function galleryRows(dev: boolean): GalleryItem[][] {
         rotation,
         flip: true,
         note: `${rotation}° flipped`,
+      })),
+      ...ROTATIONS.map((rotation) => ({
+        type: '74xx/74hc245',
+        rotation,
+        flip: rotation === 90,
+        note: rotation === 90 ? '90° flipped' : `${rotation}°`,
       })),
     ],
   ];

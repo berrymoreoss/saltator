@@ -50,21 +50,33 @@ function nets(c: Circuit): string[][] {
 describe('editing scenario: Hello, LED by hand', () => {
   it('compiles to the same nets as the built-in example, with no design issues', () => {
     const editor = new Editor(registry);
-    expect(place(editor, 'io/switch', [0, 0])).toBe('SW1');
-    expect(place(editor, 'prim/nand', [12, 1])).toBe('U1');
-    expect(place(editor, 'io/vcc', [6, -6])).toBe('PWR1');
-    expect(place(editor, 'io/led', [24, 1])).toBe('D1');
-    expect(place(editor, 'io/gnd', [30, 4])).toBe('PWR2');
-    expect(place(editor, 'io/clock', [0, 14])).toBe('X1');
-    expect(place(editor, 'io/led', [24, 14])).toBe('D2');
-    expect(place(editor, 'io/gnd', [30, 17])).toBe('PWR3');
+    // The place tool centers the part on the click: these are the example's positions.
+    expect(place(editor, 'io/switch', [2, 2])).toBe('SW1');
+    expect(place(editor, '74xx/74hc00', [19, 4])).toBe('U1');
+    expect(place(editor, 'io/vcc', [13, -2])).toBe('PWR1');
+    expect(place(editor, 'io/led', [10, 10])).toBe('D1');
+    expect(place(editor, 'io/gnd', [14, 13])).toBe('PWR2');
+    expect(place(editor, 'io/vcc', [24, -2])).toBe('PWR3');
+    expect(place(editor, 'io/gnd', [26, 10])).toBe('PWR4');
+    expect(place(editor, 'io/clock', [2, 17])).toBe('X1');
+    expect(place(editor, 'io/led', [10, 17])).toBe('D2');
+    expect(place(editor, 'io/gnd', [14, 19])).toBe('PWR5');
 
-    wire(editor, 'SW1.Y', 'U1.A');
-    wire(editor, 'PWR1.Y', 'U1.B');
-    wire(editor, 'U1.Y', 'D1.A');
-    wire(editor, 'D1.K', 'PWR2.Y');
+    wire(editor, 'PWR1.Y', [13, 1], 'U1.1A');
+    wire(editor, 'SW1.Y', 'U1.1B');
+    wire(editor, 'U1.1Y', [8, 3], 'D1.A');
+    // GND buses: the first wire to each rail, then stubs that end on it (clicking a wire ends).
+    wire(editor, 'U1.2A', [14, 4], 'PWR2.Y');
+    wire(editor, 'U1.2B', [14, 5]);
+    wire(editor, 'U1.GND', [14, 7]);
+    wire(editor, 'D1.K', [14, 10]);
+    wire(editor, 'U1.VCC', [24, 1], 'PWR3.Y');
+    wire(editor, 'U1.4B', [26, 2], 'PWR4.Y');
+    wire(editor, 'U1.4A', [26, 3]);
+    wire(editor, 'U1.3B', [26, 5]);
+    wire(editor, 'U1.3A', [26, 6]);
     wire(editor, 'X1.Y', 'D2.A');
-    wire(editor, 'D2.K', 'PWR3.Y');
+    wire(editor, 'D2.K', 'PWR5.Y');
     editor.escape();
 
     editor.setPartLabel('SW1', 'IN');
@@ -88,7 +100,7 @@ describe('editing scenario: Hello, LED by hand', () => {
       editor.undo();
       steps++;
     }
-    expect(steps).toBe(8 + 6 + 5);
+    expect(steps).toBe(10 + 14 + 5);
     expect(editor.state.get().circuit.components).toEqual([]);
   });
 });

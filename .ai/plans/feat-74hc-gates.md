@@ -212,7 +212,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   74xx networks (gates, buffers, 245 on shared nets); scenarios: M1 circuit with a 74HC00
   built as a document, a shared bus (two 244s → contention diagnostic when both enabled;
   245 between two buses). Circuit benchmark: a 74HC00 grid next to the `prim/nand` grid.
-- [ ] 8. Editor: DIP drawing with real chips (`NC` names, `1OE`/`1A0` fit at DIP-20, active-low
+- [x] 8. Editor: DIP drawing with real chips (`NC` names, `1OE`/`1A0` fit at DIP-20, active-low
   overlines), looked at in both themes and gate styles; Symbol Gallery 74HC row; Hello, LED
   with a 74HC00 (Q4).
 - [ ] 9. UI: Part tab in the bottom dock (Q2, Q3) — drawing, pin table with descriptions,
@@ -291,14 +291,18 @@ Checkable statements; verified one by one in the finish-branch workflow.
   chain ×1000 13.2M events/s, 74HC04 chain ×1002 8.4M events/s (all six inverters re-evaluated
   per event), ring oscillator 13.4M events/s. Per-section evaluation would need a kernel flag
   for the forced evaluation → backlog if chips ever dominate.
+- 2026-11-07 — task 8: Hello, LED rebuilt on a 74HC00 (1A tied high, power pins wired, unused
+  inputs on two GND buses; no design issues), redrawn by gestures in the editing scenario, run in
+  `tests/scenarios/hello-led.test.ts` (LED 9 ns after the switch); gallery rows with every 74HC
+  chip and a 74HC245 in each orientation; DIP drawer shows `NC` for n.c. pins. Looked at in
+  Chromium (Playwright, both themes): DIP-20 names fit, overlines, NC pins, Hello, LED clean.
 
 ## Handoff
 
-- **State:** tasks 1–7 done: 18 chips registered and tested, carry-over property and bus
-  scenarios green, benchmark recorded in the log.
-- **Next step:** task 8 — DIP drawing check with real chips (`NC`, `1OE`/`1A0` at DIP-20),
-  Symbol Gallery 74HC row, Hello, LED with a 74HC00 (unused inputs tied to GND) plus a scenario
-  that runs it; update `tests/scenarios/editing.test.ts`, which redraws Hello, LED by gestures.
+- **State:** tasks 1–8 done: chips, tests, scenarios, examples, drawing.
+- **Next step:** task 9 — the Part tab in the bottom dock (drawing, pin table with descriptions,
+  function table, datasheet link; follows the last picked part, canvas or Parts panel).
 - **Watch out:** data sheets are outside the repo (`~/Downloads/nexperia-74hc/`). Text cells in
-  function tables (`A=B`) are display-only.
-- **Verify with:** `pnpm check`; `pnpm bench` for throughput.
+  function tables (`A=B`) are display-only. Visual checks: a Playwright script against
+  `node_modules/.bin/vite --port 5199` (import `@playwright/test` by absolute path).
+- **Verify with:** `pnpm check`; `pnpm e2e` (Hello, LED changed: check `simulation.spec.ts`).

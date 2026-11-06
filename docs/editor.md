@@ -192,8 +192,8 @@ editor doesn't know.
   (power-on switch positions, unlit lights); while simulating they get `DrawContext.live`
   ([Simulation](#live-drawing)).
 - **DIP**: body with the notch at the top, pin numbers outside next to each stub, pin names
-  inside (overlined when `activeLow`, after a clock triangle when `clock`), the part name down
-  the middle.
+  inside (overlined when `activeLow`, after a clock triangle when `clock`, `NC` for `nc` pins),
+  the part name down the middle.
 
 ## Text
 
@@ -474,9 +474,11 @@ Dev builds expose the editor as `window.logicEditor`.
 ## Examples
 
 Until R07 brings files, File ▸ Examples opens documents built in code (`src/app/examples.ts`):
-**Hello, LED** (the M1 circuits, opened at start-up), **Symbol Gallery** (every part with prop
-variants and placements; dev builds add the `dev/*` renderer fixtures — DIP-14, DIP-28, generic
-box, unknown kind — and two broken parts) and, in dev builds, a **Stress Test** (3 600 NANDs,
+**Hello, LED** (the M1 circuits, opened at start-up: a switch through a 74HC00 gate to an LED,
+with the chip's power pins wired and its unused inputs tied to GND, and a 1 Hz clock blinking
+an LED), **Symbol Gallery** (every part with prop variants and placements, the 74HC chips and a
+74HC245 in every orientation; dev builds add the `dev/*` renderer fixtures — a DIP-14 with a
+clock pin, DIP-28, generic box, unknown kind — and two broken parts) and, in dev builds, a **Stress Test** (3 600 NANDs,
 `nandGrid`, shared with the circuit benchmark). `?example=<id>` (or `?gallery`) in the URL opens
 one directly.
 

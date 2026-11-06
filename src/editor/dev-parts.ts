@@ -1,8 +1,8 @@
 /**
  * Fixture parts for developing and testing the renderer: they exercise drawings no shipped part
- * uses yet (DIP packages until R06, the generic box, an unknown symbol kind). They have no
- * behavior and are registered only in tests and in dev builds of the app (`dev/*` types), never in
- * the default registry.
+ * uses yet (a DIP clock pin until R09, a DIP-28 until R12, the generic box, an unknown symbol
+ * kind). They have no behavior and are registered only in tests and in dev builds of the app
+ * (`dev/*` types), never in the default registry.
  */
 import { type AnyComponentDefinition, defineComponent, type PinDef } from '../core';
 
