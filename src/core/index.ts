@@ -44,5 +44,19 @@ export {
   weak,
   xor,
 } from './logic';
+export {
+  type Netlist,
+  NetlistBuilder,
+  type NetlistComponent,
+  NetlistError,
+  type NetlistNet,
+  type NetlistPin,
+  type PinSpec,
+  type ResolvedComponent,
+  type ResolvedNet,
+  type ResolvedNetlist,
+  type ResolvedPin,
+  resolveNetlist,
+} from './netlist';
 export { type ComponentRegistry, familyOf, Registry } from './registry';
 export { formatTime, ms, ns, ps, TIME_MAX, type Time, us } from './time';

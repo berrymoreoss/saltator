@@ -142,7 +142,7 @@ tests/bench/          kernel benchmark
   seeded randomized comparison against a sorted reference.
 - [x] 3. `component.ts`, `registry.ts`: types per docs/components.md (+ `pins` as function of
   props, `createState`). Registry tests (duplicate type → error).
-- [ ] 4. `netlist.ts`: `Netlist` type, `NetlistBuilder` (add component, connect pins, union-find
+- [x] 4. `netlist.ts`: `Netlist` type, `NetlistBuilder` (add component, connect pins, union-find
   merge, implicit nets for unconnected pins), validation with precise error messages
   (unknown type, unknown pin, duplicate id). Tests.
 - [ ] 5. `simulator.ts` core loop: compile, `init`, delta cycles, inertial `drive`, `wakeAfter`
