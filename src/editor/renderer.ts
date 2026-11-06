@@ -4,7 +4,7 @@
  * Stateless: the caller (the canvas view) owns the canvas and decides when to redraw.
  * Spec: docs/editor.md#rendering.
  */
-import type { Rect } from '../circuit';
+import type { Point, Rect } from '../circuit';
 import { type Camera, type Viewport, visibleRect } from './camera';
 import { CanvasGraphics, LINE_WIDTH, MIN_LINE_PX, WIRE_WIDTH } from './graphics';
 import { gridSpacing } from './grid';
@@ -29,7 +29,17 @@ export interface RenderOptions {
   readonly selection: Selection;
   readonly hover?: Hit;
   readonly box?: { readonly rect: Rect; readonly mode: BoxMode };
+  /**
+   * Items that are not placed yet — a part being placed, pasted items before they are dropped,
+   * a wire being drawn: drawn translucent, wires in the selection color.
+   */
+  readonly ghost?: Selection;
+  /** Points where the item being placed will connect to something. */
+  readonly connections?: readonly Point[];
 }
+
+/** Opacity of ghost parts. */
+const GHOST_ALPHA = 0.55;
 
 /** Text and marks stick out of a part's bounds by about this much, in cells (for culling). */
 const CULL_MARGIN = 4;
@@ -65,8 +75,15 @@ export function renderScene(
   drawSelectionFills(g, parts, options);
   drawWires(g, scene, view, options);
   drawJunctions(g, scene, view);
-  for (const part of parts) drawPart(g, part, options);
-  drawMarks(g, scene, parts, view);
+  const ghost = options.ghost;
+  for (const part of parts) {
+    const isGhost = ghost?.parts.has(part.id) === true;
+    if (isGhost) ctx.globalAlpha = GHOST_ALPHA;
+    drawPart(g, part, options);
+    if (isGhost) ctx.globalAlpha = 1;
+  }
+  drawMarks(g, scene, parts, view, ghost);
+  if (options.connections) drawConnections(g, options.connections);
   if (options.box) drawBox(g, options.box.rect, options.box.mode);
 }
 
@@ -134,13 +151,14 @@ function drawSelectionFills(
 }
 
 function drawWires(g: CanvasGraphics, scene: Scene, view: Rect, options: RenderOptions): void {
-  const { selection, theme } = options;
+  const { selection, theme, ghost } = options;
+  const highlighted = (id: string) => selection.wires.has(id) || ghost?.wires.has(id) === true;
   g.world();
   for (const selected of [false, true]) {
     g.beginPath();
     let any = false;
     for (const wire of scene.wires) {
-      if (selection.wires.has(wire.id) !== selected) continue;
+      if (highlighted(wire.id) !== selected) continue;
       const [x0, y0] = wire.from;
       const [x1, y1] = wire.to;
       const box = {
@@ -214,12 +232,19 @@ function drawPart(g: CanvasGraphics, part: ScenePart, options: RenderOptions): v
   g.highlight = undefined;
 }
 
-/** Open circles on unconnected pin ends, squares on dangling wire ends. */
-function drawMarks(g: CanvasGraphics, scene: Scene, parts: readonly ScenePart[], view: Rect): void {
+/** Open circles on unconnected pin ends, squares on dangling wire ends (not for ghosts). */
+function drawMarks(
+  g: CanvasGraphics,
+  scene: Scene,
+  parts: readonly ScenePart[],
+  view: Rect,
+  ghost: Selection | undefined,
+): void {
   const r = Math.max(0.15, 2 / g.scale);
   g.world();
   g.beginPath();
   for (const part of parts) {
+    if (ghost?.parts.has(part.id)) continue;
     for (const pin of part.pins) {
       if (!pin.open) continue;
       g.moveTo(pin.at[0] + r, pin.at[1]);
@@ -236,6 +261,20 @@ function drawMarks(g: CanvasGraphics, scene: Scene, parts: readonly ScenePart[],
     g.rect(x - s / 2, y - s / 2, s, s);
   }
   g.stroke(g.theme.warning, 1.5 / g.scale);
+}
+
+/** Rings where a ghost will connect: what a click would join. */
+function drawConnections(g: CanvasGraphics, points: readonly Point[]): void {
+  if (points.length === 0) return;
+  const r = Math.max(0.3, 4.5 / g.scale);
+  g.world();
+  g.beginPath();
+  for (const [x, y] of points) {
+    g.moveTo(x + r, y);
+    g.arc(x, y, r, 0, Math.PI * 2);
+  }
+  g.fill(g.theme.selectionFill);
+  g.stroke(g.theme.selection, 1.5 / g.scale);
 }
 
 function drawBox(g: CanvasGraphics, rect: Rect, mode: BoxMode): void {

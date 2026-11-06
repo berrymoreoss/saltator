@@ -1,11 +1,26 @@
 /**
- * The editor facade the UI mounts on a `<canvas>`: owns the circuit, its scene, the selection and
- * the camera; turns pointer, wheel and Space-key input into navigation and selection; redraws on
- * demand. React reads its state through the `state` and `view` stores. Spec: docs/editor.md.
+ * The editor facade the UI mounts on a `<canvas>`: owns the circuit, its scene, the selection, the
+ * undo history and the camera; turns pointer, wheel and key input into navigation, selection and
+ * edits (tools: select/move, pan, wire, place; floating paste); redraws on demand. React reads its
+ * state through the stores. The DOM layer only converts events into `PointerInput`s, so the
+ * gestures run (and are tested) without a browser. Spec: docs/editor.md.
  */
-import type { Circuit, Point, Rect } from '../circuit';
-import { emptyCircuit, normalizeWires, sameCircuit } from '../circuit';
-import type { ComponentRegistry } from '../core';
+import type { Circuit, ComponentInstance, Point, Rect, Rotation } from '../circuit';
+import {
+  addComponents,
+  addWires,
+  copyFragment,
+  emptyCircuit,
+  nextDesignator,
+  normalizeWires,
+  partLayout,
+  pasteFragment,
+  prefixOfType,
+  removeItems,
+  sameCircuit,
+  transformRect,
+} from '../circuit';
+import { type ComponentRegistry, resolveProps } from '../core';
 import {
   BASE_SCALE,
   type Camera,
@@ -18,6 +33,7 @@ import {
   zoomAt,
   zoomStep,
 } from './camera';
+import { fragmentText, parseFragment } from './clipboard';
 import {
   EMPTY_HISTORY,
   type History,
@@ -28,9 +44,16 @@ import {
   undoEntry,
 } from './history';
 import { type BoxMode, boxHits, type Hit, hitTest, rectFromPoints } from './hit-test';
-import { deleteSelection, flipSelection, moveSelection, rotateSelection } from './operations';
+import { type ItemTransform, mirror, rotation, transformItems } from './move';
+import {
+  deleteSelection,
+  flipSelection,
+  moveSelection,
+  rotateSelection,
+  selectionBounds,
+} from './operations';
 import { renderScene } from './renderer';
-import { buildScene, LayoutCache, type Scene } from './scene';
+import { buildScene, LayoutCache, layoutBounds, type Scene } from './scene';
 import {
   EMPTY_SELECTION,
   isSelected,
@@ -47,12 +70,41 @@ import {
 import { Store } from './store';
 import type { GateStyle } from './symbols';
 import { type CanvasTheme, DARK_CANVAS } from './theme';
+import {
+  ConnectionIndex,
+  legPosture,
+  otherPosture,
+  type Posture,
+  pathConnections,
+  polylineSegments,
+  routeL,
+} from './wire-route';
 
 /** What the scroll wheel does without modifiers: pan (Figma, trackpads) or zoom (KiCad, mice). */
 export type WheelMode = 'pan' | 'zoom';
 
-/** What a left-button drag does: select (click, box) or pan the view. R04b adds editing tools. */
-export type Tool = 'select' | 'pan';
+/** The part the place tool puts down on each click. */
+export interface PlaceTool {
+  readonly kind: 'place';
+  readonly type: string;
+}
+
+/** What a left-button press does: select/move, pan the view, draw a wire, or place a part. */
+export type Tool = 'select' | 'pan' | 'wire' | PlaceTool;
+
+/** What is going on right now (for the status-bar hint). */
+export type EditorMode = 'idle' | 'moving' | 'boxing' | 'panning' | 'wiring' | 'floating';
+
+/** Something the editor asks the UI to do. `seq` grows with every request. */
+export type EditorRequest =
+  | {
+      readonly kind: 'context-menu';
+      /** Viewport (client) coordinates for the menu. */
+      readonly client: Point;
+      readonly hit?: Hit;
+      readonly seq: number;
+    }
+  | { readonly kind: 'edit-properties'; readonly seq: number };
 
 export interface EditorSettings {
   readonly theme: CanvasTheme;
@@ -108,7 +160,18 @@ export interface Locatable {
   readonly at?: Point;
 }
 
-/** Pointer travel (px) before a press on empty canvas becomes a selection box. */
+/** A pointer event as the gestures see it (canvas pixels; no DOM). */
+export interface PointerInput {
+  /** Position on the canvas in CSS px. */
+  readonly at: Point;
+  /** 0 left, 1 middle, 2 right. */
+  readonly button: number;
+  readonly shift: boolean;
+  /** Viewport position, for menus the UI opens there. */
+  readonly client?: Point;
+}
+
+/** Pointer travel (px) before a press becomes a drag. */
 const DRAG_THRESHOLD = 3;
 /** Hit-test tolerance in screen px. */
 const HIT_TOLERANCE = 5;
@@ -123,25 +186,82 @@ type Gesture =
       readonly before: Selection;
       active: boolean;
     }
-  | { readonly kind: 'press' };
+  /** Pressed on an item; a drag moves the selection, or draws a wire from a pin tip. */
+  | {
+      readonly kind: 'press';
+      readonly start: Point;
+      readonly startWorld: Point;
+      readonly hit: Hit;
+      /** Pin tip or free wire end under the press: a drag draws a wire from here. */
+      readonly wireFrom?: Point;
+      /** Select the hit on release (a press on a pin tip leaves the selection until then). */
+      readonly selectOnClick: boolean;
+    }
+  | { readonly kind: 'move'; readonly startWorld: Point; delta: Point; circuit: Circuit }
+  /** A wire dragged out of a pin (Select tool): releasing finishes it. */
+  | { readonly kind: 'wire-drag' };
+
+/** The wire being drawn: fixed points so far, the leg to the pointer follows `posture`. */
+interface WireDraft {
+  readonly points: Point[];
+  /** Posture of the leg to the pointer, once known; `swapped` flips it (Tab). */
+  posture?: Posture;
+  swapped: boolean;
+  readonly index: ConnectionIndex;
+}
+
+/** Pasted or duplicated items following the pointer until a click drops them. */
+interface Floating {
+  readonly fragment: Circuit;
+  /** Grid point of the fragment that sits under the pointer. */
+  readonly anchor: Point;
+  readonly label: string;
+}
+
+/** An `EditorRequest` before it gets its sequence number. */
+type RequestInput =
+  | { readonly kind: 'context-menu'; readonly client: Point; readonly hit?: Hit }
+  | { readonly kind: 'edit-properties' };
+
+interface Preview {
+  readonly circuit: Circuit;
+  readonly ghost: Selection;
+}
 
 function isTyping(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
+  if (typeof HTMLElement === 'undefined' || !(target instanceof HTMLElement)) return false;
   return target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName);
 }
+
+const samePoint = (a: Point, b: Point) => a[0] === b[0] && a[1] === b[1];
+const cell = (p: Point): Point => [Math.round(p[0]), Math.round(p[1])];
+const rot = (r: number): Rotation => (((r % 360) + 360) % 360) as Rotation;
 
 export class Editor {
   readonly registry: ComponentRegistry;
   readonly state: Store<EditorState>;
   readonly view: Store<ViewState>;
   readonly tool = new Store<Tool>('select');
+  readonly mode = new Store<EditorMode>('idle');
   /** Undo/redo stacks (labels drive the Edit menu). */
   readonly history = new Store<History>(EMPTY_HISTORY);
+  /** Requests to the UI: open the context menu, focus the Properties panel. */
+  readonly requests = new Store<EditorRequest | undefined>(undefined);
   #settings: EditorSettings;
   readonly #layouts = new LayoutCache();
   #hover: Hit | undefined;
   #box: { rect: Rect; mode: BoxMode } | undefined;
   #gesture: Gesture | undefined;
+  #wire: WireDraft | undefined;
+  #floating: Floating | undefined;
+  /** Orientation of the next part the place tool puts down (R and F change it). */
+  #place: { rotation: Rotation; flip: boolean } = { rotation: 0, flip: false };
+  /** A part dragged over the canvas from the Parts panel. */
+  #dragType: string | undefined;
+  #preview: Preview | undefined;
+  #previewScene: Scene | undefined;
+  #index: { scene: Scene; index: ConnectionIndex } | undefined;
+  #requestSeq = 0;
   #space = false;
   #canvas: HTMLCanvasElement | undefined;
   #ctx: CanvasRenderingContext2D | undefined;
@@ -173,11 +293,17 @@ export class Editor {
     return this.state.get().scene;
   }
 
+  /** The circuit as drawn right now: a gesture's preview, or the document. */
+  get displayed(): Circuit {
+    return this.#preview?.circuit ?? this.state.get().circuit;
+  }
+
   /**
    * Loads a circuit: replaces the document and forgets the undo history; the selection keeps the
    * items that still exist. Edits go through `edit` instead.
    */
   setCircuit(circuit: Circuit, options: { fit?: boolean } = {}): void {
+    this.cancel();
     this.#show(circuit, this.state.get().selection, undefined, options.fit);
     this.history.set(EMPTY_HISTORY);
   }
@@ -218,6 +344,7 @@ export class Editor {
   }
 
   undo(): void {
+    if (this.#cancelGesture()) return;
     const step = undoEntry(this.history.get());
     if (!step) return;
     const { circuit, selection } = step.entry.before;
@@ -226,6 +353,7 @@ export class Editor {
   }
 
   redo(): void {
+    if (this.#cancelGesture()) return;
     const step = redoEntry(this.history.get());
     if (!step) return;
     const { circuit, selection } = step.entry.after;
@@ -256,6 +384,7 @@ export class Editor {
       this.#fitPending = true;
       this.#fitIfReady();
     }
+    this.#updatePreview();
     this.invalidate();
   }
 
@@ -271,9 +400,20 @@ export class Editor {
     this.invalidate();
   }
 
+  /** Switches the tool; a part type arms the place tool with a fresh orientation. */
   setTool(tool: Tool): void {
+    this.#wire = undefined;
+    this.#floating = undefined;
+    if (typeof tool === 'object') this.#place = { rotation: 0, flip: false };
     this.tool.set(tool);
+    this.#setMode('idle');
+    this.#updatePreview();
     this.#updateCursor();
+  }
+
+  /** Arms the place tool with a part type (the Parts panel). */
+  placePart(type: string): void {
+    this.setTool({ kind: 'place', type });
   }
 
   selectAll(): void {
@@ -284,36 +424,389 @@ export class Editor {
     this.setSelection(EMPTY_SELECTION);
   }
 
+  /**
+   * Escape: cancels the current gesture, wire or floating paste; else leaves the wire or place
+   * tool for Select; else clears the selection.
+   */
+  escape(): void {
+    if (this.cancel()) return;
+    const tool = this.tool.get();
+    if (tool !== 'select' && tool !== 'pan') {
+      this.setTool('select');
+      return;
+    }
+    if (tool === 'pan') this.setTool('select');
+    this.clearSelection();
+  }
+
+  /** Cancels a gesture, a wire being drawn or a floating paste; true if there was one. */
+  cancel(): boolean {
+    return this.#cancelGesture();
+  }
+
+  #cancelGesture(): boolean {
+    const gesture = this.#gesture;
+    let cancelled = false;
+    if (gesture?.kind === 'box') {
+      this.setSelection(gesture.before);
+      cancelled = gesture.active;
+    }
+    if (gesture?.kind === 'move' || gesture?.kind === 'wire-drag') cancelled = true;
+    this.#gesture = undefined;
+    this.#box = undefined;
+    if (this.#wire) {
+      this.#wire = undefined;
+      cancelled = true;
+    }
+    if (this.#floating) {
+      this.#floating = undefined;
+      cancelled = true;
+    }
+    this.#setMode('idle');
+    this.#updatePreview();
+    this.#updateCursor();
+    this.invalidate();
+    return cancelled;
+  }
+
+  #setMode(mode: EditorMode): void {
+    this.mode.set(mode);
+  }
+
+  #request(request: RequestInput): void {
+    this.requests.set({ ...request, seq: ++this.#requestSeq });
+  }
+
   // ── Editing ─────────────────────────────────────────────────────────────────────────────
 
   get hasSelection(): boolean {
     return selectionSize(this.state.get().selection) > 0;
   }
 
-  /** Deletes the selected parts and wires (wires attached to deleted parts stay). */
+  /**
+   * Delete: while drawing a wire, takes back its last corner; otherwise deletes the selected
+   * parts and wires (wires attached to deleted parts stay).
+   */
   deleteSelection(): void {
+    const wire = this.#wire;
+    if (wire) {
+      if (wire.points.length > 1) {
+        wire.points.pop();
+        wire.posture = undefined;
+        this.#updatePreview();
+      } else {
+        this.#cancelGesture();
+      }
+      return;
+    }
     const { circuit, selection } = this.state.get();
     if (selectionSize(selection) === 0) return;
     this.edit('Delete', deleteSelection(circuit, selection), { selection: EMPTY_SELECTION });
   }
 
-  /** Turns the selection a quarter turn about its center; attached wires follow. */
+  /**
+   * Turns a quarter turn: the part about to be placed, the floating paste, or the selection
+   * about its center (attached wires follow).
+   */
   rotate(clockwise = true): void {
+    if (this.#floating) {
+      this.#transformFloating(rotation(this.#floating.anchor, clockwise));
+      return;
+    }
+    if (typeof this.tool.get() === 'object') {
+      const place = this.#place;
+      this.#place = { ...place, rotation: rot(place.rotation + (clockwise ? 90 : 270)) };
+      this.#updatePreview();
+      return;
+    }
     const { selection } = this.state.get();
     this.edit('Rotate', rotateSelection(this.scene, selection, clockwise));
   }
 
-  /** Mirrors the selection about its center: `horizontal` swaps left and right. */
+  /** Mirrors the part about to be placed, the floating paste or the selection. */
   flip(direction: 'horizontal' | 'vertical' = 'horizontal'): void {
+    if (this.#floating) {
+      this.#transformFloating(mirror(this.#floating.anchor, direction));
+      return;
+    }
+    if (typeof this.tool.get() === 'object') {
+      const { rotation: r, flip } = this.#place;
+      // Same rule as for placed parts: toggle the flip, negate the rotation (+180° vertically).
+      this.#place = { rotation: rot((direction === 'horizontal' ? 0 : 180) - r), flip: !flip };
+      this.#updatePreview();
+      return;
+    }
     const { selection } = this.state.get();
     this.edit('Flip', flipSelection(this.scene, selection, direction));
   }
 
   /** Moves the selection by whole cells; repeated nudges of one selection are one undo step. */
   nudge(dx: number, dy: number): void {
+    if (this.#gesture || this.#wire || this.#floating) return;
     const { selection } = this.state.get();
     const key = `nudge ${[...selection.parts].join(',')} ${[...selection.wires].join(',')}`;
     this.edit('Move', moveSelection(this.scene, selection, dx, dy), { coalesce: key });
+  }
+
+  // ── Clipboard ───────────────────────────────────────────────────────────────────────────
+
+  /** The selection as clipboard text, or undefined if nothing is selected. */
+  copySelection(): string | undefined {
+    const { circuit, selection } = this.state.get();
+    if (selectionSize(selection) === 0) return undefined;
+    return fragmentText(copyFragment(circuit, selection));
+  }
+
+  /** Copies, then deletes the selection. */
+  cutSelection(): string | undefined {
+    const text = this.copySelection();
+    if (text === undefined) return undefined;
+    const { circuit, selection } = this.state.get();
+    this.edit('Cut', removeItems(circuit, selection), { selection: EMPTY_SELECTION });
+    return text;
+  }
+
+  /** Starts a floating paste of clipboard text; false if the text holds no parts or wires. */
+  pasteText(text: string): boolean {
+    const fragment = parseFragment(text);
+    if (!fragment) return false;
+    this.#startFloating(fragment, 'Paste');
+    return true;
+  }
+
+  /** Copies of the selection follow the pointer until a click drops them. */
+  duplicate(): void {
+    const { circuit, selection } = this.state.get();
+    if (selectionSize(selection) === 0) return;
+    this.#startFloating(copyFragment(circuit, selection), 'Duplicate');
+  }
+
+  #startFloating(fragment: Circuit, label: string): void {
+    this.#cancelGesture();
+    if (typeof this.tool.get() === 'object' || this.tool.get() === 'wire') this.setTool('select');
+    const scene = buildScene(fragment, this.registry, { layouts: this.#layouts });
+    const bounds = selectionBounds(scene, selectAll(scene));
+    const anchor: Point = bounds
+      ? [Math.round(bounds.x + bounds.width / 2), Math.round(bounds.y + bounds.height / 2)]
+      : [0, 0];
+    this.#floating = { fragment, anchor, label };
+    this.#setMode('floating');
+    this.#updatePreview();
+    this.#updateCursor();
+  }
+
+  #transformFloating(t: ItemTransform): void {
+    const floating = this.#floating!;
+    const scene = buildScene(floating.fragment, this.registry, { layouts: this.#layouts });
+    const fragment = transformItems(scene, selectAll(scene), t);
+    this.#floating = { ...floating, fragment };
+    this.#updatePreview();
+  }
+
+  /** Where floating items go: under the pointer, else the middle of the view. */
+  #pointerCell(): Point {
+    const { cursor, camera, viewport } = this.view.get();
+    return cursor ?? cell(toWorld(camera, [viewport.width / 2, viewport.height / 2]));
+  }
+
+  #floatingResult(): { circuit: Circuit; ghost: Selection } | undefined {
+    const floating = this.#floating;
+    if (!floating) return undefined;
+    const at = this.#pointerCell();
+    const offset: Point = [at[0] - floating.anchor[0], at[1] - floating.anchor[1]];
+    const pasted = pasteFragment(
+      this.state.get().circuit,
+      floating.fragment,
+      offset,
+      this.registry,
+    );
+    return { circuit: pasted.circuit, ghost: selectionOf(pasted.parts, pasted.wires) };
+  }
+
+  #dropFloating(): void {
+    const floating = this.#floating;
+    const result = this.#floatingResult();
+    this.#floating = undefined;
+    this.#setMode('idle');
+    if (floating && result) this.edit(floating.label, result.circuit, { selection: result.ghost });
+    this.#updatePreview();
+    this.#updateCursor();
+  }
+
+  // ── Placing parts ───────────────────────────────────────────────────────────────────────
+
+  /** A new instance of `type` centered on `at` with the place tool's orientation. */
+  #newPart(type: string, at: Point, orientation = this.#place): ComponentInstance | undefined {
+    const definition = this.registry.get(type);
+    if (!definition) return undefined;
+    const props = resolveProps(definition, {});
+    const local = layoutBounds(partLayout(definition, props));
+    const placed = transformRect(local, { origin: [0, 0], ...orientation });
+    const center: Point = [
+      Math.round(placed.x + placed.width / 2),
+      Math.round(placed.y + placed.height / 2),
+    ];
+    const circuit = this.state.get().circuit;
+    return {
+      id: nextDesignator(circuit, prefixOfType(this.registry, type)),
+      type,
+      x: at[0] - center[0],
+      y: at[1] - center[1],
+      rotation: orientation.rotation,
+      flip: orientation.flip,
+      // Every prop written: the file keeps its meaning if a default changes (circuit.md).
+      props,
+    };
+  }
+
+  #placeAt(type: string, at: Point, orientation = this.#place): void {
+    const part = this.#newPart(type, at, orientation);
+    if (!part) return;
+    const name = this.registry.get(type)?.name ?? type;
+    this.edit(`Place ${name}`, addComponents(this.state.get().circuit, [part]), {
+      selection: selectionOf([part.id]),
+    });
+  }
+
+  /** A part is being dragged over the canvas from the Parts panel (or left it: undefined). */
+  dragPart(type: string | undefined, client?: Point): void {
+    this.#dragType = type;
+    if (type && client) this.#setCursorCell(this.#cellAtClient(client));
+    this.#updatePreview();
+  }
+
+  /** Drops a part dragged from the Parts panel at a viewport position. */
+  dropPart(type: string, client: Point): void {
+    this.#dragType = undefined;
+    this.#placeAt(type, this.#cellAtClient(client), { rotation: 0, flip: false });
+    this.#updatePreview();
+  }
+
+  #cellAtClient(client: Point): Point {
+    const rect = this.#canvas?.getBoundingClientRect();
+    const local: Point = rect ? [client[0] - rect.left, client[1] - rect.top] : client;
+    return cell(toWorld(this.view.get().camera, local));
+  }
+
+  // ── Wires ───────────────────────────────────────────────────────────────────────────────
+
+  #connectionIndex(): ConnectionIndex {
+    const scene = this.scene;
+    if (this.#index?.scene !== scene) this.#index = { scene, index: new ConnectionIndex(scene) };
+    return this.#index.index;
+  }
+
+  #startWire(from: Point): void {
+    this.#wire = { points: [from], swapped: false, index: this.#connectionIndex() };
+    this.#setMode('wiring');
+    this.#updatePreview();
+  }
+
+  /** The draft's points plus the L to the pointer. */
+  #wirePath(): Point[] {
+    const wire = this.#wire!;
+    const to = this.#pointerCell();
+    const last = wire.points.at(-1)!;
+    if (!wire.posture && !samePoint(last, to)) {
+      wire.posture = legPosture(wire.index, last, wire.points.at(-2), to);
+    }
+    const base = wire.posture ?? 'horizontal';
+    return [...wire.points, ...routeL(last, to, wire.swapped ? otherPosture(base) : base)];
+  }
+
+  /** Swaps which way the wire's last leg bends (Tab while drawing). */
+  swapWirePosture(): void {
+    if (!this.#wire) return;
+    this.#wire.swapped = !this.#wire.swapped;
+    this.#updatePreview();
+  }
+
+  /** Fixes the leg to `at`; finishes on a connection or a repeated click, else keeps drawing. */
+  #wireClick(at: Point): void {
+    const wire = this.#wire!;
+    this.#setCursorCell(at);
+    const last = wire.points.at(-1)!;
+    if (samePoint(last, at)) {
+      this.#finishWire();
+      return;
+    }
+    const path = this.#wirePath();
+    wire.points.splice(0, wire.points.length, ...path);
+    wire.posture = undefined;
+    wire.swapped = false;
+    if (wire.index.connectsEnd(at)) this.#finishWire();
+    else this.#updatePreview();
+  }
+
+  #finishWire(): void {
+    const wire = this.#wire;
+    this.#wire = undefined;
+    this.#setMode('idle');
+    if (wire) {
+      const segments = polylineSegments(wire.points);
+      if (segments.length > 0) {
+        const { circuit } = addWires(this.state.get().circuit, segments);
+        this.edit('Wire', circuit, { selection: EMPTY_SELECTION });
+      }
+    }
+    this.#updatePreview();
+  }
+
+  // ── Preview ─────────────────────────────────────────────────────────────────────────────
+
+  /** Recomputes what a gesture or tool shows on top of the document (drawn on the next frame). */
+  #updatePreview(): void {
+    this.#preview = this.#computePreview();
+    this.#previewScene = undefined;
+    this.invalidate();
+  }
+
+  #computePreview(): Preview | undefined {
+    const circuit = this.state.get().circuit;
+    const gesture = this.#gesture;
+    if (gesture?.kind === 'move') return { circuit: gesture.circuit, ghost: EMPTY_SELECTION };
+    if (this.#wire) {
+      const { circuit: next, wires } = addWires(circuit, polylineSegments(this.#wirePath()));
+      return {
+        circuit: next,
+        ghost: selectionOf(
+          [],
+          wires.map((w) => w.id),
+        ),
+      };
+    }
+    const floating = this.#floatingResult();
+    if (floating) return floating;
+    const tool = this.tool.get();
+    const type = this.#dragType ?? (typeof tool === 'object' ? tool.type : undefined);
+    const cursor = this.view.get().cursor;
+    if (type && cursor && !this.#gesture) {
+      const orientation = this.#dragType ? { rotation: 0 as const, flip: false } : this.#place;
+      const part = this.#newPart(type, cursor, orientation);
+      if (part) return { circuit: addComponents(circuit, [part]), ghost: selectionOf([part.id]) };
+    }
+    return undefined;
+  }
+
+  /** Where the ghost touches what is drawn (it will connect there). */
+  #ghostConnections(scene: Scene, ghost: Selection): Point[] {
+    if (selectionSize(ghost) === 0) return [];
+    const index = this.#connectionIndex();
+    const out: Point[] = [];
+    for (const id of ghost.parts) {
+      for (const pin of scene.partById.get(id)?.pins ?? []) {
+        if (index.connectsEnd(pin.at)) out.push(pin.at);
+      }
+    }
+    const wire = this.#wire;
+    if (wire) out.push(...pathConnections(index, this.#wirePath()));
+    else {
+      for (const id of ghost.wires) {
+        const w = scene.wireById.get(id);
+        if (w) out.push(...pathConnections(index, [w.from, w.to]));
+      }
+    }
+    return out;
   }
 
   // ── Camera ──────────────────────────────────────────────────────────────────────────────
@@ -400,11 +893,34 @@ export class Editor {
     };
     watchDpr();
 
-    canvas.addEventListener('pointerdown', (e) => this.#onPointerDown(e), { signal });
-    canvas.addEventListener('pointermove', (e) => this.#onPointerMove(e), { signal });
-    canvas.addEventListener('pointerup', (e) => this.#onPointerUp(e), { signal });
-    canvas.addEventListener('pointercancel', () => this.#endGesture(), { signal });
-    canvas.addEventListener('pointerleave', () => this.#onPointerLeave(), { signal });
+    const input = (e: PointerEvent | MouseEvent): PointerInput => ({
+      at: this.#local(e),
+      button: e.button,
+      shift: e.shiftKey,
+      client: [e.clientX, e.clientY],
+    });
+    canvas.addEventListener(
+      'pointerdown',
+      (e) => {
+        canvas.focus({ preventScroll: true });
+        if (e.button === 1) e.preventDefault();
+        if (e.button !== 2) canvas.setPointerCapture(e.pointerId);
+        this.pointerDown(input(e));
+      },
+      { signal },
+    );
+    canvas.addEventListener('pointermove', (e) => this.pointerMove(input(e)), { signal });
+    canvas.addEventListener(
+      'pointerup',
+      (e) => {
+        if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
+        this.pointerUp(input(e));
+      },
+      { signal },
+    );
+    canvas.addEventListener('pointercancel', () => this.#cancelGesture(), { signal });
+    canvas.addEventListener('pointerleave', () => this.pointerLeave(), { signal });
+    canvas.addEventListener('dblclick', (e) => this.doubleClick(input(e)), { signal });
     canvas.addEventListener('wheel', (e) => this.#onWheel(e), { signal, passive: false });
     canvas.addEventListener('contextmenu', (e) => e.preventDefault(), { signal });
     window.addEventListener('keydown', (e) => this.#onKey(e, true), { signal });
@@ -458,7 +974,15 @@ export class Editor {
     if (!ctx) return;
     const start = performance.now();
     const { camera, viewport } = this.view.get();
-    const { scene, selection } = this.state.get();
+    const { selection } = this.state.get();
+    const preview = this.#preview;
+    let scene = this.scene;
+    if (preview) {
+      this.#previewScene ??= buildScene(preview.circuit, this.registry, {
+        layouts: this.#layouts,
+      });
+      scene = this.#previewScene;
+    }
     const { theme, gateStyle, showGrid } = this.#settings;
     renderScene(
       ctx,
@@ -469,19 +993,27 @@ export class Editor {
         gateStyle,
         showGrid,
         selection,
-        ...(this.#hover && { hover: this.#hover }),
+        ...(this.#hover && !preview && { hover: this.#hover }),
         ...(this.#box && { box: this.#box }),
+        ...(preview && {
+          ghost: preview.ghost,
+          connections: this.#ghostConnections(scene, preview.ghost),
+        }),
       },
     );
     const frameMs = performance.now() - start;
     this.view.update((view) => ({ ...view, frameMs }));
   }
 
-  // ── Input ───────────────────────────────────────────────────────────────────────────────
+  // ── Input (no DOM below this line except in the event adapters) ─────────────────────────
 
   #local(e: MouseEvent): Point {
     const rect = this.#canvas!.getBoundingClientRect();
     return [e.clientX - rect.left, e.clientY - rect.top];
+  }
+
+  #world(screen: Point): Point {
+    return toWorld(this.view.get().camera, screen);
   }
 
   #hitAt(screen: Point): Hit | undefined {
@@ -489,46 +1021,94 @@ export class Editor {
     return hitTest(this.scene, toWorld(camera, screen), HIT_TOLERANCE / camera.scale);
   }
 
-  #onPointerDown(e: PointerEvent): void {
-    const canvas = this.#canvas!;
-    canvas.focus({ preventScroll: true });
-    const at = this.#local(e);
-    if (e.button === 1 || (e.button === 0 && (this.#space || this.tool.get() === 'pan'))) {
-      e.preventDefault();
-      canvas.setPointerCapture(e.pointerId);
+  /** A pin tip or a free (dangling) wire end near the pointer: where a wire can start. */
+  #wireStartAt(screen: Point): Point | undefined {
+    const { camera } = this.view.get();
+    const world = toWorld(camera, screen);
+    const tolerance = HIT_TOLERANCE / camera.scale;
+    const near = (p: Point) =>
+      Math.abs(p[0] - world[0]) <= tolerance && Math.abs(p[1] - world[1]) <= tolerance;
+    const scene = this.scene;
+    for (let i = scene.parts.length - 1; i >= 0; i--) {
+      const part = scene.parts[i]!;
+      for (const pin of part.pins) if (near(pin.at)) return pin.at;
+    }
+    return scene.danglingEnds.find(near);
+  }
+
+  /** Records the grid point under the pointer; true if it changed. */
+  #setCursorCell(cursor: Point): boolean {
+    const previous = this.view.get().cursor;
+    if (previous && samePoint(previous, cursor)) return false;
+    this.view.update((view) => ({ ...view, cursor }));
+    return true;
+  }
+
+  pointerDown(input: PointerInput): void {
+    const { at, button } = input;
+    const tool = this.tool.get();
+    if (button === 2) {
+      this.#contextMenu(input);
+      return;
+    }
+    if (button === 1 || (button === 0 && (this.#space || tool === 'pan'))) {
       this.#gesture = { kind: 'pan', last: at };
+      this.#setMode('panning');
       this.#updateCursor();
       return;
     }
-    if (e.button !== 0) return;
-    canvas.setPointerCapture(e.pointerId);
+    if (button !== 0) return;
+    const here = cell(this.#world(at));
+    this.#setCursorCell(here);
+
+    if (this.#floating) {
+      this.#dropFloating();
+      return;
+    }
+    if (typeof tool === 'object') {
+      this.#placeAt(tool.type, here);
+      return;
+    }
+    if (tool === 'wire') {
+      if (this.#wire) this.#wireClick(here);
+      else this.#startWire(here);
+      return;
+    }
+
     const hit = this.#hitAt(at);
     const { selection } = this.state.get();
     if (hit) {
-      if (e.shiftKey) this.setSelection(toggleHit(selection, hit));
-      else if (!isSelected(selection, hit)) this.setSelection(selectHit(hit));
-      this.#gesture = { kind: 'press' };
+      if (input.shift) {
+        this.setSelection(toggleHit(selection, hit));
+        return;
+      }
+      const wireFrom = this.#wireStartAt(at);
+      if (!wireFrom && !isSelected(selection, hit)) this.setSelection(selectHit(hit));
+      this.#gesture = {
+        kind: 'press',
+        start: at,
+        startWorld: this.#world(at),
+        hit,
+        ...(wireFrom && { wireFrom }),
+        selectOnClick: wireFrom !== undefined,
+      };
       return;
     }
     this.#gesture = {
       kind: 'box',
       start: at,
-      startWorld: toWorld(this.view.get().camera, at),
-      additive: e.shiftKey,
+      startWorld: this.#world(at),
+      additive: input.shift,
       before: selection,
       active: false,
     };
   }
 
-  #onPointerMove(e: PointerEvent): void {
-    const at = this.#local(e);
+  pointerMove(input: PointerInput): void {
+    const { at } = input;
     const { camera } = this.view.get();
     const world = toWorld(camera, at);
-    const cursor: Point = [Math.round(world[0]), Math.round(world[1])];
-    const previous = this.view.get().cursor;
-    if (!previous || previous[0] !== cursor[0] || previous[1] !== cursor[1]) {
-      this.view.update((view) => ({ ...view, cursor }));
-    }
+    const cellChanged = this.#setCursorCell(cell(world));
 
     const gesture = this.#gesture;
     if (gesture?.kind === 'pan') {
@@ -540,6 +1120,7 @@ export class Editor {
       const moved = Math.hypot(at[0] - gesture.start[0], at[1] - gesture.start[1]);
       if (!gesture.active && moved < DRAG_THRESHOLD) return;
       gesture.active = true;
+      this.#setMode('boxing');
       // Left-to-right selects what is inside, right-to-left what the box touches.
       const mode: BoxMode = at[0] >= gesture.start[0] ? 'inside' : 'touching';
       const rect = rectFromPoints(gesture.startWorld, world);
@@ -550,39 +1131,117 @@ export class Editor {
       this.invalidate();
       return;
     }
-    if (gesture) return;
+    if (gesture?.kind === 'press') {
+      const moved = Math.hypot(at[0] - gesture.start[0], at[1] - gesture.start[1]);
+      if (moved < DRAG_THRESHOLD) return;
+      if (gesture.wireFrom) {
+        this.#gesture = { kind: 'wire-drag' };
+        this.#startWire(gesture.wireFrom);
+      } else {
+        this.#gesture = {
+          kind: 'move',
+          startWorld: gesture.startWorld,
+          delta: [0, 0],
+          circuit: this.state.get().circuit,
+        };
+        this.#setMode('moving');
+      }
+      this.#hover = undefined;
+      this.#updateCursor();
+      // Fall through to update the new gesture's preview.
+    }
+    const current = this.#gesture;
+    if (current?.kind === 'move') {
+      const delta: Point = cell([
+        world[0] - current.startWorld[0],
+        world[1] - current.startWorld[1],
+      ]);
+      if (samePoint(delta, current.delta)) return;
+      current.delta = delta;
+      const { selection } = this.state.get();
+      current.circuit = moveSelection(this.scene, selection, delta[0], delta[1]);
+      this.#updatePreview();
+      return;
+    }
+    if (this.#wire || this.#floating || typeof this.tool.get() === 'object') {
+      if (cellChanged || !this.#preview) this.#updatePreview();
+      return;
+    }
+    if (current) return;
     const hover = this.#hitAt(at);
     if (hover?.kind !== this.#hover?.kind || hover?.id !== this.#hover?.id) {
       this.#hover = hover;
       this.invalidate();
     }
+    this.#updateCursor(at);
   }
 
-  #onPointerUp(e: PointerEvent): void {
+  pointerUp(input: PointerInput): void {
     const gesture = this.#gesture;
-    if (gesture?.kind === 'box' && !gesture.active && !gesture.additive) this.clearSelection();
-    if (this.#canvas?.hasPointerCapture(e.pointerId)) {
-      this.#canvas.releasePointerCapture(e.pointerId);
-    }
-    this.#endGesture();
-  }
-
-  #endGesture(): void {
     this.#gesture = undefined;
-    if (this.#box) {
+    if (gesture?.kind === 'box') {
+      if (!gesture.active && !gesture.additive) this.clearSelection();
       this.#box = undefined;
       this.invalidate();
+    } else if (gesture?.kind === 'press') {
+      if (gesture.selectOnClick) this.setSelection(selectHit(gesture.hit));
+    } else if (gesture?.kind === 'move') {
+      this.#updatePreview();
+      if (!samePoint(gesture.delta, [0, 0])) this.edit('Move', gesture.circuit);
+    } else if (gesture?.kind === 'wire-drag') {
+      const here = cell(this.#world(input.at));
+      this.#setCursorCell(here);
+      const wire = this.#wire;
+      if (wire && !samePoint(wire.points[0]!, here)) {
+        wire.points.splice(0, wire.points.length, ...this.#wirePath());
+      }
+      this.#finishWire();
     }
-    this.#updateCursor();
+    if (this.mode.get() !== 'wiring' && this.mode.get() !== 'floating') this.#setMode('idle');
+    this.#updatePreview();
+    this.#updateCursor(input.at);
   }
 
-  #onPointerLeave(): void {
+  /** Double-click: finishes a wire (Wire tool) or asks the UI to edit the part's properties. */
+  doubleClick(input: PointerInput): void {
+    if (input.button !== 0) return;
+    if (this.#wire) {
+      this.#finishWire();
+      return;
+    }
+    if (this.tool.get() !== 'select') return;
+    const hit = this.#hitAt(input.at);
+    if (hit?.kind === 'part') {
+      this.setSelection(selectHit(hit));
+      this.#request({ kind: 'edit-properties' });
+    }
+  }
+
+  pointerLeave(): void {
     if (this.#gesture) return;
     this.view.update(({ cursor: _, ...view }) => view);
-    if (this.#hover) {
-      this.#hover = undefined;
-      this.invalidate();
+    this.#hover = undefined;
+    this.#updatePreview();
+  }
+
+  #contextMenu(input: PointerInput): void {
+    // Right-click ends what is in progress instead of opening the menu.
+    if (this.#gesture || this.#wire || this.#floating) {
+      this.#cancelGesture();
+      return;
     }
+    if (typeof this.tool.get() === 'object') {
+      this.setTool('select');
+      return;
+    }
+    const hit = this.#hitAt(input.at);
+    const { selection } = this.state.get();
+    if (hit && !isSelected(selection, hit)) this.setSelection(selectHit(hit));
+    this.#request({
+      kind: 'context-menu',
+      client: input.client ?? input.at,
+      ...(hit && { hit }),
+    });
   }
 
   #onWheel(e: WheelEvent): void {
@@ -609,7 +1268,13 @@ export class Editor {
   }
 
   #onKey(e: KeyboardEvent, down: boolean): void {
-    if (e.code !== 'Space' || isTyping(e.target)) return;
+    if (isTyping(e.target)) return;
+    if (e.key === 'Tab' && down && this.#wire) {
+      e.preventDefault();
+      this.swapWirePosture();
+      return;
+    }
+    if (e.code !== 'Space') return;
     if (down && !this.#pointerOverCanvas()) return;
     e.preventDefault();
     this.#setSpace(down);
@@ -625,14 +1290,21 @@ export class Editor {
     this.#updateCursor();
   }
 
-  #updateCursor(): void {
+  #updateCursor(at?: Point): void {
     const canvas = this.#canvas;
     if (!canvas) return;
-    canvas.style.cursor =
-      this.#gesture?.kind === 'pan'
-        ? 'grabbing'
-        : this.#space || this.tool.get() === 'pan'
-          ? 'grab'
-          : 'default';
+    const tool = this.tool.get();
+    const gesture = this.#gesture;
+    let cursor = 'default';
+    if (gesture?.kind === 'pan') cursor = 'grabbing';
+    else if (this.#space || tool === 'pan') cursor = 'grab';
+    else if (gesture?.kind === 'move' || this.#floating) cursor = 'move';
+    else if (tool === 'wire' || typeof tool === 'object' || this.#wire) cursor = 'crosshair';
+    else if (at && this.#wireStartAt(at)) cursor = 'crosshair';
+    else if (at) {
+      const hit = this.#hitAt(at);
+      if (hit && isSelected(this.state.get().selection, hit)) cursor = 'move';
+    }
+    canvas.style.cursor = cursor;
   }
 }

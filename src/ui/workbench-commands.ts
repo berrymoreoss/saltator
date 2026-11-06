@@ -168,10 +168,7 @@ export function createCommands({ editor, settings, ui, examples }: WorkbenchCont
       id: 'edit.deselect',
       label: 'Deselect',
       shortcuts: ['Escape'],
-      run: () => {
-        editor.clearSelection();
-        editor.setTool('select');
-      },
+      run: () => editor.escape(),
     },
 
     {

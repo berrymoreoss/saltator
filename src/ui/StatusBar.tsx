@@ -1,5 +1,13 @@
 import { CircleX, TriangleExclamationPoint } from 'lucide-react';
-import { type Editor, type Scene, type Selection, zoomPercent } from '../editor';
+import type { ComponentRegistry } from '../core';
+import {
+  type Editor,
+  type EditorMode,
+  type Scene,
+  type Selection,
+  type Tool,
+  zoomPercent,
+} from '../editor';
 import { useStore } from './hooks';
 
 /** One line about the selection: `U1 · NAND`, `3 parts, 2 wires`, or nothing. */
@@ -28,15 +36,41 @@ interface StatusBarProps {
   readonly onShowMessages: () => void;
 }
 
-const HINTS = {
-  select: 'Click to select · Shift-click to add · Drag right for inside, left for touching',
-  pan: 'Drag to pan · V to select',
-} as const;
+/** What the pointer does now, for the status bar. */
+export function statusHint(tool: Tool, mode: EditorMode, registry: ComponentRegistry): string {
+  switch (mode) {
+    case 'moving':
+      return 'Release to drop · Esc to cancel';
+    case 'boxing':
+      return 'Drag right to select what is inside, left for what the box touches';
+    case 'panning':
+      return 'Release to stop panning';
+    case 'wiring':
+      return 'Click to add a corner · Click a pin or wire to finish · Double-click to end · Tab other bend · ⌫ undo corner · Esc cancel';
+    case 'floating':
+      return 'Click to drop · R rotate · F flip · Esc cancel';
+    case 'idle':
+      break;
+  }
+  if (typeof tool === 'object') {
+    const name = registry.get(tool.type)?.name ?? tool.type;
+    return `Click to place ${name} · R rotate · F flip · Esc to stop`;
+  }
+  switch (tool) {
+    case 'select':
+      return 'Click to select · Drag to move · Drag from a pin to draw a wire · Shift-click to add';
+    case 'pan':
+      return 'Drag to pan · V to select';
+    case 'wire':
+      return 'Click to start a wire · Esc for Select';
+  }
+}
 
 export function StatusBar({ editor, onShowMessages }: StatusBarProps) {
   const { scene, selection } = useStore(editor.state);
   const view = useStore(editor.view);
   const tool = useStore(editor.tool);
+  const mode = useStore(editor.mode);
   const errors = scene.issues.filter((i) => i.severity === 'error').length;
   const warnings = scene.issues.length - errors;
   return (
@@ -50,7 +84,9 @@ export function StatusBar({ editor, onShowMessages }: StatusBarProps) {
       <span className="status-cell" data-testid="selection-summary">
         {selectionSummary(selection, scene)}
       </span>
-      <span className="status-cell status-hint">{HINTS[tool]}</span>
+      <span className="status-cell status-hint" data-testid="status-hint">
+        {statusHint(tool, mode, editor.registry)}
+      </span>
       <span className="status-spacer" />
       <span className="status-cell">
         {scene.parts.length} parts · {scene.wires.length} wires

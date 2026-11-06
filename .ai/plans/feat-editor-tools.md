@@ -217,8 +217,8 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   Edit ▸ Undo/Redo with dynamic labels, File ▸ New.
 - [x] 4. editor: delete, rotate/flip about the selection center, arrow nudges (coalesced);
   commands, toolbar, shortcuts.
-- [ ] 5. editor: rubber-band move (`move.ts`) + drag gesture with live preview.
-- [ ] 6. editor: wire tool (click-click, L posture, finish/cancel rules) and drag-from-pin in the
+- [x] 5. editor: rubber-band move (`move.ts`) + drag gesture with live preview.
+- [x] 6. editor: wire tool (click-click, L posture, finish/cancel rules) and drag-from-pin in the
   Select tool; preview with connection marks.
 - [ ] 7. editor + ui: place tool (arm from Parts, ghost, R/F before placing, sticky) and
   drag-and-drop from the Parts panel.
