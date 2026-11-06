@@ -10,6 +10,7 @@ import {
   type Netlist,
   NetlistBuilder,
   ns,
+  pinsOf,
   Simulator,
   type Time,
   us,
@@ -150,6 +151,45 @@ describe('recompiling an unchanged netlist is invisible', () => {
       const at = Array.from({ length: 10 }, () => Math.floor(random() * us(2)));
       expectInvisible(netlist, us(2), pokes, at);
     }
+  });
+
+  it('in random networks of 74xx chips: gates, buffers, transceivers on shared nets (seeded)', () => {
+    const chips = ['00', '02', '04', '10', '20', '86', '125', '126', '240', '244', '245'];
+    let total = 0;
+    for (let seed = 1; seed <= 30; seed++) {
+      const random = rng(seed);
+      const pick = <T>(items: readonly T[]): T => items[Math.floor(random() * items.length)]!;
+      const b = new NetlistBuilder();
+      const outputs: string[] = [];
+      const inputs: string[] = [];
+      for (let i = 0; i < 2; i++) {
+        b.add(`X${i}`, 'io/clock', { frequency: 10e6 + Math.floor(random() * 40e6), duty: 50 });
+        b.add(`T${i}`, 'test/driver');
+        outputs.push(`X${i}.Y`, `T${i}.Y`);
+      }
+      for (let i = 0; i < 5; i++) {
+        const type = `74xx/74hc${pick(chips)}`;
+        b.add(`U${i}`, type);
+        for (const pin of pinsOf(registry.get(type)!, {})) {
+          if (pin.dir === 'in' || pin.dir === 'bidir') inputs.push(`U${i}.${pin.name}`);
+          if (pin.dir === 'out' || pin.dir === 'tristate' || pin.dir === 'bidir') {
+            outputs.push(`U${i}.${pin.name}`);
+          }
+        }
+      }
+      // Every input on a random output (feedback, shared buses and fights included); some left
+      // floating. A 245 port picked as an output joins two buses.
+      for (const input of inputs) if (random() < 0.85) b.connect(pick(outputs), input);
+      const netlist = b.build();
+      const pokes: Poke[] = Array.from({ length: 8 }, () => ({
+        time: Math.floor(random() * us(2)),
+        component: pick(['T0', 'T1']),
+        action: pick([Drive.STRONG_0, Drive.STRONG_1, Drive.Z]),
+      }));
+      const at = Array.from({ length: 10 }, () => Math.floor(random() * us(2)));
+      total += expectInvisible(netlist, us(2), pokes, at).changes.length;
+    }
+    expect(total).toBeGreaterThan(3000); // the networks really switch
   });
 });
 

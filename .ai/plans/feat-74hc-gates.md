@@ -208,7 +208,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   unknown enable, groups independent).
 - [x] 6. 74HC245 with tests (both directions, isolation, direction switch, unknown DIR/OE,
   floating input side).
-- [ ] 7. Registry: `74xx` family in `createDefaultRegistry()`; carry-over property over random
+- [x] 7. Registry: `74xx` family in `createDefaultRegistry()`; carry-over property over random
   74xx networks (gates, buffers, 245 on shared nets); scenarios: M1 circuit with a 74HC00
   built as a document, a shared bus (two 244s → contention diagnostic when both enabled;
   245 between two buses). Circuit benchmark: a 74HC00 grid next to the `prim/nand` grid.
@@ -284,13 +284,21 @@ Checkable statements; verified one by one in the finish-branch workflow.
   `~/Downloads/nexperia-74hc/` (read with `pdftotext -layout`). Typical `ten`/`tdis` exist only
   at 4.5 V/50 pF → Q5. All 18 chips in `src/library/74xx/` and the default registry; per-section
   evaluation dropped (see Design ▸ Behavior). 930 tests green.
+- 2026-11-07 — task 7: carry-over property over 30 random 74xx networks (gates, buffers, 245
+  on shared nets); bus scenario (`tests/scenarios/bus-74hc.test.ts`: 244s taking turns on a bus
+  fight for 1 ns at a handover, ten 13 < tdis 14 ns; contention; 245 both ways). The M1 circuit
+  scenario moves to task 8 (it is Hello, LED). Benchmark (`pnpm bench`, Apple M3 Pro): inverter
+  chain ×1000 13.2M events/s, 74HC04 chain ×1002 8.4M events/s (all six inverters re-evaluated
+  per event), ring oscillator 13.4M events/s. Per-section evaluation would need a kernel flag
+  for the forced evaluation → backlog if chips ever dominate.
 
 ## Handoff
 
-- **State:** tasks 1–6 done: all 18 chips registered and tested (`src/library/74xx/`).
-- **Next step:** task 7 — carry-over property over random 74xx networks, bus scenarios, M1
-  circuit scenario with a 74HC00, circuit benchmark with a 74HC00 grid.
-- **Watch out:** data sheets are outside the repo (`~/Downloads/nexperia-74hc/`); the extracted
-  numbers live in `hc-timing.ts` and the tests. Text cells in function tables (`A=B`) are
-  display-only; the 245 test transcribes its rows in letters.
-- **Verify with:** `pnpm check`.
+- **State:** tasks 1–7 done: 18 chips registered and tested, carry-over property and bus
+  scenarios green, benchmark recorded in the log.
+- **Next step:** task 8 — DIP drawing check with real chips (`NC`, `1OE`/`1A0` at DIP-20),
+  Symbol Gallery 74HC row, Hello, LED with a 74HC00 (unused inputs tied to GND) plus a scenario
+  that runs it; update `tests/scenarios/editing.test.ts`, which redraws Hello, LED by gestures.
+- **Watch out:** data sheets are outside the repo (`~/Downloads/nexperia-74hc/`). Text cells in
+  function tables (`A=B`) are display-only.
+- **Verify with:** `pnpm check`; `pnpm bench` for throughput.

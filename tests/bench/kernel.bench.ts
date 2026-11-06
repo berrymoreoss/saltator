@@ -21,6 +21,20 @@ function chain(length: number): Simulator {
   return new Simulator(b.build(), registry);
 }
 
+/** `chips` 74HC04s, their six inverters chained through all of them (6 × chips stages). */
+function hc04Chain(chips: number): Simulator {
+  const b = new NetlistBuilder().add('IN', 'test/driver');
+  let previous = 'IN.Y';
+  for (let i = 0; i < chips; i++) {
+    b.add(`U${i}`, '74xx/74hc04');
+    for (let g = 1; g <= 6; g++) {
+      b.connect(previous, `U${i}.${g}A`);
+      previous = `U${i}.${g}Y`;
+    }
+  }
+  return new Simulator(b.build(), registry);
+}
+
 function ring(stages: number): Simulator {
   const b = new NetlistBuilder().add('EN', 'test/driver').add('N0', 'prim/nand', { delay: ns(1) });
   b.connect('EN.Y', 'N0.A');
@@ -59,6 +73,19 @@ describe('kernel', () => {
     };
     toggle(); // warm up past power-on
     await measure(bench, 'inverter chain ×1000', sim, toggle);
+  });
+
+  test('74HC04 chain ×1002 (167 chips): toggle input and settle', async ({ bench }) => {
+    // Every inverter of a chip is re-evaluated on each change (R06): compare with the chain above.
+    const sim = hc04Chain(167);
+    let level: 0 | 1 = 0;
+    const toggle = () => {
+      level = level === 0 ? 1 : 0;
+      sim.action('IN', strong(level));
+      sim.settle();
+    };
+    toggle();
+    await measure(bench, '74HC04 chain ×1002', sim, toggle);
   });
 
   test('ring oscillator ×1001: 100 µs of simulated time', async ({ bench }) => {
