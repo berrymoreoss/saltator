@@ -31,6 +31,17 @@ export interface LightsState {
   readonly onTime: Float64Array;
 }
 
+/** True for an indicator's state (LEDs, LED bars, 7-segment displays). */
+export function isLightsState(value: unknown): value is LightsState {
+  if (typeof value !== 'object' || value === null) return false;
+  const state = value as Partial<LightsState>;
+  return (
+    state.light instanceof Uint8Array &&
+    state.since instanceof Float64Array &&
+    state.onTime instanceof Float64Array
+  );
+}
+
 /** `count` lights, off since t = 0. */
 export function createLights(count: number): LightsState {
   return {

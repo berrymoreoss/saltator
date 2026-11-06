@@ -274,7 +274,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   it in dev builds.
 - [x] 4. editor: level colors in both canvas themes; wires and junctions by level (weak tint,
   contention flash); preview during gestures; redraw only on change.
-- [ ] 5. editor: live part drawing (`DrawContext.live`, light samples and brightness, switch /
+- [x] 5. editor: live part drawing (`DrawContext.live`, light samples and brightness, switch /
   button / DIP / clock / hex / probe); drawing scenario with live states.
 - [ ] 6. editor: Interact tool and the click→action table; Run arms it, Stop leaves it; button
   release on leave/cancel/blur/tool change; gesture tests.

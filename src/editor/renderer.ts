@@ -5,14 +5,15 @@
  * Spec: docs/editor.md#rendering.
  */
 import type { Point, Rect } from '../circuit';
+import type { Level } from '../core';
 import { type Camera, type Viewport, visibleRect } from './camera';
 import { CanvasGraphics, LINE_WIDTH, MIN_LINE_PX, WIRE_WIDTH } from './graphics';
 import { gridSpacing } from './grid';
 import type { BoxMode, Hit } from './hit-test';
 import type { Scene, ScenePart } from './scene';
 import type { Selection } from './selection';
-import { drawPartBody, type GateStyle } from './symbols';
-import { type CanvasTheme, type SignalStyle, signalColor } from './theme';
+import { drawPartBody, type GateStyle, type LiveDraw, type PartLive } from './symbols';
+import { type CanvasTheme, SignalStyle, signalColor } from './theme';
 
 export interface Frame {
   readonly camera: Camera;
@@ -30,6 +31,8 @@ export interface SignalView {
   point(p: Point): SignalStyle;
   /** Contention is in its bright phase (it flashes while running). */
   readonly flash: boolean;
+  /** A part as it is in the simulation; undefined for parts the simulation doesn't have. */
+  part(id: string): PartLive | undefined;
 }
 
 export interface RenderOptions {
@@ -49,6 +52,14 @@ export interface RenderOptions {
   /** Live levels while simulating: wires and junctions take the colors of their nets. */
   readonly signals?: SignalView;
 }
+
+/** Wire style of each level, for parts that show a level (probes, clocks). */
+const LEVEL_STYLES: readonly SignalStyle[] = [
+  SignalStyle.L0,
+  SignalStyle.L1,
+  SignalStyle.X,
+  SignalStyle.Z,
+];
 
 /** Opacity of ghost parts. */
 const GHOST_ALPHA = 0.55;
@@ -88,10 +99,13 @@ export function renderScene(
   drawWires(g, scene, view, options);
   drawJunctions(g, scene, view, options);
   const ghost = options.ghost;
+  const signals = options.signals;
+  const levelColor = (level: Level) => signalColor(theme, LEVEL_STYLES[level]!);
   for (const part of parts) {
     const isGhost = ghost?.parts.has(part.id) === true;
     if (isGhost) ctx.globalAlpha = GHOST_ALPHA;
-    drawPart(g, part, options);
+    const live = isGhost ? undefined : signals?.part(part.id);
+    drawPart(g, part, options, live && { part: live, levelColor });
     if (isGhost) ctx.globalAlpha = 1;
   }
   drawMarks(g, scene, parts, view, ghost);
@@ -236,7 +250,12 @@ function drawJunctions(g: CanvasGraphics, scene: Scene, view: Rect, options: Ren
   }
 }
 
-function drawPart(g: CanvasGraphics, part: ScenePart, options: RenderOptions): void {
+function drawPart(
+  g: CanvasGraphics,
+  part: ScenePart,
+  options: RenderOptions,
+  live: LiveDraw | undefined,
+): void {
   const { selection, theme, gateStyle } = options;
   g.highlight = selection.parts.has(part.id) ? theme.selection : undefined;
   g.place(part.placement);
@@ -263,7 +282,7 @@ function drawPart(g: CanvasGraphics, part: ScenePart, options: RenderOptions): v
     }
     g.stroke('pin', LINE_WIDTH);
   }
-  drawPartBody(g, part, gateStyle, theme.error);
+  drawPartBody(g, part, gateStyle, theme.error, live);
 
   g.world();
   for (const text of part.texts) {

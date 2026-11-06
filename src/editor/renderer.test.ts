@@ -66,6 +66,7 @@ const signals = (styles: Record<string, SignalStyle>, flash = true): SignalView 
   wire: (id) => styles[id] ?? SignalStyle.NONE,
   point: () => SignalStyle.NONE,
   flash,
+  part: () => undefined,
 });
 /** Strokes of the given width (in cells), as `color: segments`. */
 const wireStrokes = (strokes: [string, number, number][], width = WIRE_WIDTH) =>

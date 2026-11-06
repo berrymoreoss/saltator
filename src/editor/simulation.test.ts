@@ -4,6 +4,7 @@ import { type Level, levelChar, ms, ns } from '../core';
 import { createDefaultRegistry } from '../library';
 import { Editor } from './editor';
 import { ALL_SPEEDS, formatRate, MAX_SPEED, REAL_TIME, type SimClock, SPEEDS } from './simulation';
+import { UNKNOWN_LIGHT } from './symbols';
 import { SignalStyle } from './theme';
 
 const registry = createDefaultRegistry();
@@ -409,5 +410,75 @@ describe('Simulation: signal view', () => {
     simulation.revision.subscribe(() => redraws++);
     clock.frames(30);
     expect(redraws).toBe(0);
+  });
+});
+
+describe('Simulation: lights', () => {
+  const light = (simulation: Editor['simulation'], id: string, i = 0) =>
+    simulation.signalView()!.part(id)!.light(i);
+
+  it('shows an LED on a fast clock at its average brightness', () => {
+    const { clock, simulation } = setup(hello(1e6)); // 1 MHz, 50 % duty
+    simulation.run();
+    clock.frame(16);
+    expect(light(simulation, 'D2')).toBeCloseTo(0.5, 1);
+    simulation.action('SW1', { type: 'toggle' }); // D1 goes dark
+    clock.frame(16);
+    expect(light(simulation, 'D1')).toBe(0);
+    simulation.action('SW1', { type: 'toggle' });
+    clock.frame(16);
+    expect(light(simulation, 'D1')).toBeGreaterThan(0.9);
+  });
+
+  it('shows what a light does at this instant while paused or stepping', () => {
+    const { simulation } = setup(hello(1e6));
+    simulation.step(); // t = 0
+    simulation.step(); // 1 ns: the NAND output rises, D1 lights
+    expect(light(simulation, 'D1')).toBe(1);
+    expect(light(simulation, 'D2')).toBe(0);
+  });
+
+  it('marks a light whose state is unknown', () => {
+    const unknown = new CircuitBuilder(registry)
+      .add('U1', 'prim/not', { at: [0, 0] }) // floating input: Y = X
+      .add('D1', 'io/led', { at: [10, 0] })
+      .add('PWR1', 'io/gnd', { at: [16, 1] })
+      .connect('U1.Y', 'D1.A', [8, 1])
+      .connect('D1.K', 'PWR1.Y')
+      .build();
+    const { clock, simulation } = setup(unknown);
+    simulation.run();
+    clock.frame(16);
+    expect(light(simulation, 'D1')).toBe(UNKNOWN_LIGHT);
+  });
+
+  it('keeps brightness across an edit and starts over on reset', () => {
+    const { clock, editor, simulation } = setup(hello(1e6));
+    simulation.run();
+    clock.frame(16);
+    const { circuit } = editor.state.get();
+    editor.edit(
+      'Place LED',
+      addComponents(circuit, [
+        { id: 'D3', type: 'io/led', x: 40, y: 0, rotation: 0, flip: false, props: {} },
+      ]),
+    );
+    clock.frame(16);
+    expect(light(simulation, 'D2')).toBeCloseTo(0.5, 1);
+    simulation.pause();
+    simulation.reset();
+    expect(light(simulation, 'D2')).toBe(0);
+  });
+
+  it('gives drawers the state and pin levels of a part', () => {
+    const { clock, simulation } = setup();
+    simulation.run();
+    simulation.action('SW1', { type: 'toggle' });
+    clock.frame(16);
+    const sw = simulation.signalView()!.part('SW1')!;
+    expect(sw.state).toEqual({ on: true });
+    expect(levelChar(sw.level('Y'))).toBe('1');
+    expect(levelChar(sw.level('NOPE'))).toBe('Z');
+    expect(simulation.signalView()!.part('NOPE')).toBeUndefined();
   });
 });

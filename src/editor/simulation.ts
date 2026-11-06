@@ -13,6 +13,7 @@ import {
   type Diagnostic,
   Drive,
   formatTime,
+  Level,
   type Netlist,
   ns,
   type RunStatus,
@@ -21,9 +22,11 @@ import {
   type Time,
   us,
 } from '../core';
+import { isLightsState, Light, type LightsState, onTimeAt } from '../library';
 import type { SignalView } from './renderer';
 import type { Scene } from './scene';
 import { Store } from './store';
+import { type PartLive, UNKNOWN_LIGHT } from './symbols';
 import { SignalStyle } from './theme';
 
 /**
@@ -123,6 +126,45 @@ const LAG_FRAMES = 30;
 const MAX_SETTLE = 3_600 * PS_PER_SECOND;
 /** Half period of a flashing contention, wall-clock ms. */
 const FLASH_MS = 250;
+/** Brightness steps: finer changes (a multiplexed display's frame-to-frame jitter) don't redraw. */
+const BRIGHTNESS_STEPS = 32;
+
+/** The last brightness sample of an indicator: on-time per light at `time`, brightness since. */
+interface LightSample {
+  readonly state: LightsState;
+  time: Time;
+  readonly onTime: Float64Array;
+  readonly brightness: Float32Array;
+}
+
+/** A part of the running simulation, as its drawer sees it. */
+class LivePart implements PartLive {
+  readonly #sim: Simulator;
+  readonly #id: string;
+  readonly #lights: ReadonlyMap<string, LightSample>;
+
+  constructor(sim: Simulator, id: string, lights: ReadonlyMap<string, LightSample>) {
+    this.#sim = sim;
+    this.#id = id;
+    this.#lights = lights;
+  }
+
+  get state(): unknown {
+    return this.#sim.stateOf(this.#id);
+  }
+
+  level(pin: string): Level {
+    try {
+      return this.#sim.pinLevel(this.#id, pin);
+    } catch {
+      return Level.Z;
+    }
+  }
+
+  light(i: number): number {
+    return this.#lights.get(this.#id)?.brightness[i] ?? 0;
+  }
+}
 
 /** Signal style of each kernel drive value (level + strength). */
 const DRIVE_STYLES: readonly SignalStyle[] = (() => {
@@ -164,6 +206,10 @@ export class Simulation {
   #events = 0;
   #diagnosticsKey = '';
   #flash = true;
+  /** Brightness samples of the indicators, by component id. */
+  readonly #lights = new Map<string, LightSample>();
+  /** Live views of the parts in the simulator, by component id (rebuilt with the simulator). */
+  #parts = new Map<string, LivePart>();
 
   constructor(registry: ComponentRegistry, scene: Scene, options: SimulationOptions = {}) {
     this.#registry = registry;
@@ -210,6 +256,7 @@ export class Simulation {
       wire: (id: string) => style(wires.get(id)),
       point: (p: Point) => style(points.get(pointKey(p))),
       flash: this.#flash || this.state !== 'running',
+      part: (id: string) => this.#parts.get(id),
     };
   }
 
@@ -230,6 +277,7 @@ export class Simulation {
   pause(): void {
     if (this.state !== 'running') return;
     this.#unschedule();
+    this.#sampleLights(false);
     this.#setState('paused');
   }
 
@@ -270,6 +318,8 @@ export class Simulation {
     this.#unschedule();
     this.#sim = undefined;
     this.#signals = EMPTY_SIGNALS;
+    this.#parts = new Map();
+    this.#lights.clear();
     this.#setState('stopped');
   }
 
@@ -343,6 +393,7 @@ export class Simulation {
 
   /** A fresh simulator at t = 0 for the current netlist; false if it can't be built. */
   #powerOn(): boolean {
+    this.#lights.clear();
     if (!this.#build(undefined)) return false;
     this.#signals = signalMap(this.#scene, this.#sim!);
     this.#events = 0;
@@ -351,13 +402,19 @@ export class Simulation {
 
   #build(carry: ReturnType<Simulator['carryOver']> | undefined): boolean {
     try {
-      this.#sim = new Simulator(this.#netlist, this.#registry, carry ? { carry } : {});
+      const sim = new Simulator(this.#netlist, this.#registry, carry ? { carry } : {});
+      this.#sim = sim;
+      this.#parts = new Map(
+        this.#netlist.components.map((c) => [c.id, new LivePart(sim, c.id, this.#lights)]),
+      );
+      this.#collectLights(sim);
       return true;
     } catch (error) {
       // The compiler leaves broken parts out, so this is a library bug: say so, don't crash.
       this.#unschedule();
       this.#sim = undefined;
       this.#signals = EMPTY_SIGNALS;
+      this.#parts = new Map();
       const message = error instanceof Error ? error.message : String(error);
       this.status.update((status) => ({ ...status, state: 'stopped', time: 0, error: message }));
       this.#bump();
@@ -421,7 +478,8 @@ export class Simulation {
       this.#setState('halted');
       return;
     }
-    let changed = sim.stats.events !== this.#events;
+    let changed = this.#sampleLights(true);
+    changed ||= sim.stats.events !== this.#events;
     this.#events = sim.stats.events;
     const flash = Math.floor(wall / FLASH_MS) % 2 === 0;
     if (flash !== this.#flash) {
@@ -442,8 +500,71 @@ export class Simulation {
       return;
     }
     this.#events = sim?.stats.events ?? 0;
+    this.#sampleLights(false);
     this.#refreshStatus(this.#clock.now());
     this.#bump();
+  }
+
+  /**
+   * Indicators of a new simulator: carried ones keep their state object and so their samples;
+   * the others start sampling now.
+   */
+  #collectLights(sim: Simulator): void {
+    const previous = new Map(this.#lights);
+    this.#lights.clear();
+    for (const { id } of this.#netlist.components) {
+      const state = sim.stateOf(id);
+      if (!isLightsState(state)) continue;
+      const old = previous.get(id);
+      if (old?.state === state) {
+        this.#lights.set(id, old);
+        continue;
+      }
+      const count = state.light.length;
+      const sample: LightSample = {
+        state,
+        time: sim.now,
+        onTime: new Float64Array(count),
+        brightness: new Float32Array(count),
+      };
+      for (let i = 0; i < count; i++) sample.onTime[i] = onTimeAt(state, i, sim.now);
+      this.#lights.set(id, sample);
+    }
+  }
+
+  /**
+   * Brightness of every light: while running, its on-time over the time since the last sample
+   * (a multiplexed digit or an LED on a fast clock shows its average); otherwise what it shows
+   * now. True if any brightness changed by a visible step.
+   */
+  #sampleLights(running: boolean): boolean {
+    const sim = this.#sim;
+    if (!sim) return false;
+    const now = sim.now;
+    let changed = false;
+    for (const sample of this.#lights.values()) {
+      const { state } = sample;
+      const span = now - sample.time;
+      for (let i = 0; i < state.light.length; i++) {
+        const on = onTimeAt(state, i, now);
+        const light = state.light[i];
+        let b: number;
+        if (running && span > 0) {
+          b = Math.min(1, Math.max(0, (on - sample.onTime[i]!) / span));
+          if (b === 0 && light === Light.UNKNOWN) b = UNKNOWN_LIGHT;
+        } else {
+          b = light === Light.ON ? 1 : light === Light.UNKNOWN ? UNKNOWN_LIGHT : 0;
+        }
+        if (b !== UNKNOWN_LIGHT) b = Math.round(b * BRIGHTNESS_STEPS) / BRIGHTNESS_STEPS;
+        if (b !== sample.brightness[i]) {
+          sample.brightness[i] = b;
+          changed = true;
+        }
+        sample.onTime[i] = on;
+      }
+      sample.time = now;
+    }
+    return changed;
   }
 
   #refreshStatus(wall: number): void {
