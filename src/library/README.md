@@ -3,9 +3,10 @@
 Definitions of parts: pinout, package, properties, timing (with datasheet source), symbol
 geometry as data, and behavior written against the `core` component API.
 
-Planned layout: `primitives/`, `io/`, `74xx/`, `memory/`, `cpu/`, `peripherals/`, plus
-`registry.ts`. One part per file, with a colocated `*.test.ts` built from the datasheet function
-table.
+Layout: `primitives/` (`prim/*`, R01) and `registry.ts` (`createDefaultRegistry()`); planned:
+`io/`, `74xx/`, `memory/`, `cpu/`, `peripherals/`. One part per file (or one factory file for a
+family of near-identical parts, like `primitives/gates.ts`), with a colocated `*.test.ts` built
+from the datasheet function table. Recipe: `.ai/workflows/add-component.md`.
 
 - **Depends on:** `core`.
 - **Pure:** no DOM, no React. Drawing code lives in `editor`; the library only describes geometry.

@@ -123,7 +123,7 @@ tests/bench/          kernel benchmark
   `X` means _don't care_ — **not** our `X` (unknown); the helper must expand or reject it
   explicitly, never pass it through as unknown.
 
-### Deviations from the draft docs (apply in task 11)
+### Deviations from the draft docs (applied to docs/ in task 11)
 
 - `ComponentDefinition` has no `family` field: it is derived from the type id (`familyOf`).
 - `timing` is `{ typical: { tpd, … }, max?, conditions?, source? }` (a typed record instead of
@@ -172,7 +172,7 @@ tests/bench/          kernel benchmark
   diagnostic; determinism (two runs ⇒ identical trace hash).
 - [x] 10. `tests/bench/kernel.bench.ts`: long inverter chain toggled repeatedly; 1001-inverter
   ring for a fixed simulated time. Record events/s below.
-- [ ] 11. Docs: update docs/simulation.md + docs/components.md to the real API (drop "draft");
+- [x] 11. Docs: update docs/simulation.md + docs/components.md to the real API (drop "draft");
   write `.ai/workflows/add-component.md`; coverage threshold for `src/core` in `vite.config.ts`;
   lessons; ADR if a decision deviates from ADR-0003; roadmap status.
 

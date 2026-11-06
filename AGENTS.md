@@ -21,7 +21,8 @@ building them: _test before fab_. Start with [docs/vision.md](docs/vision.md) if
 5. **The kernel is deterministic.** No `Date.now()`, `performance.now()` or `Math.random()` in pure
    layers; pass a seeded RNG if randomness is needed.
 6. **Parts follow their datasheet.** Real pinout and timing with the source cited; tests built from
-   the datasheet function table ([docs/components.md](docs/components.md)).
+   the datasheet function table ([docs/components.md](docs/components.md); recipe:
+   [.ai/workflows/add-component.md](.ai/workflows/add-component.md)).
 7. **Green before commit.** `pnpm check` passes before every commit. Don't weaken a test or a lint
    rule to get there — fix the cause or ask.
 8. **Docs move with code.** If behavior and docs disagree, fix one of them in the same branch.
@@ -34,7 +35,7 @@ pnpm dev              # Vite dev server
 pnpm check            # typecheck + lint + layer check + tests — run before every commit
 pnpm test             # tests once; pnpm test:watch for watch mode; pnpm test <path> for a subset
 pnpm coverage         # tests with coverage (v8)
-pnpm bench            # benchmarks (tests/bench)
+pnpm bench            # benchmarks (tests/bench), on native imports for realistic numbers
 pnpm lint:fix         # format + autofix with Biome
 pnpm build            # typecheck + production build
 ```
