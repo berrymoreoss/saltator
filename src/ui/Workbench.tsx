@@ -4,6 +4,7 @@ import { CommandRegistry, dispatchShortcut } from './commands';
 import { useMediaQuery, useStore } from './hooks';
 import { MenuBar } from './MenuBar';
 import { Panel, Splitter } from './Panel';
+import { PartsPanel } from './PartsPanel';
 import { StatusBar } from './StatusBar';
 import { effectiveTheme, PANEL_LIMITS, type PanelId, type Settings } from './settings';
 import { isMacPlatform } from './shortcuts';
@@ -12,6 +13,7 @@ import type { Example, UiState } from './ui-state';
 import { createCommands, TOOLBAR, workbenchMenus } from './workbench-commands';
 import './styles/tokens.css';
 import './styles/workbench.css';
+import './styles/panels.css';
 
 export interface WorkbenchProps {
   readonly editor: Editor;
@@ -32,6 +34,8 @@ export function Workbench({ editor, settings: settingsStore, ui, examples }: Wor
   useStore(editor.tool);
   const prefersDark = useMediaQuery('(prefers-color-scheme: dark)');
   const theme = effectiveTheme(settings.theme, prefersDark);
+  const canvasTheme = theme === 'dark' ? DARK_CANVAS : LIGHT_CANVAS;
+  const uiState = useStore(ui);
 
   const commands = useMemo(
     () => new CommandRegistry(createCommands({ editor, settings: settingsStore, ui, examples })),
@@ -45,12 +49,12 @@ export function Workbench({ editor, settings: settingsStore, ui, examples }: Wor
 
   useEffect(() => {
     editor.setSettings({
-      theme: theme === 'dark' ? DARK_CANVAS : LIGHT_CANVAS,
+      theme: canvasTheme,
       gateStyle: settings.gateStyle,
       showGrid: settings.showGrid,
       wheel: settings.wheel,
     });
-  }, [editor, theme, settings.gateStyle, settings.showGrid, settings.wheel]);
+  }, [editor, canvasTheme, settings.gateStyle, settings.showGrid, settings.wheel]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => dispatchShortcut(commands, e, MAC);
@@ -82,7 +86,12 @@ export function Workbench({ editor, settings: settingsStore, ui, examples }: Wor
                 onClose={() => setPanel('parts', { visible: false })}
                 testId="parts-panel"
               >
-                {null}
+                <PartsPanel
+                  registry={editor.registry}
+                  theme={canvasTheme}
+                  gateStyle={settings.gateStyle}
+                  searchRequest={uiState.searchRequest}
+                />
               </Panel>
             </div>
             <Splitter

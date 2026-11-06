@@ -1,0 +1,179 @@
+/* Panel contents: Parts, Properties, Messages, dialogs. */
+
+.muted {
+  color: var(--fg-muted);
+}
+
+.empty-note {
+  padding: 12px;
+  color: var(--fg-subtle);
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+/* ── Parts ────────────────────────────────────────────────────────────────── */
+
+.panel-body:has(> .parts) {
+  overflow: hidden;
+}
+
+.parts {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px;
+  padding: 0 4px 0 7px;
+  height: 24px;
+  background: var(--input-bg);
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  color: var(--fg-subtle);
+  flex: none;
+}
+
+.search-box:focus-within {
+  border-color: var(--focus);
+}
+
+.search-box input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  user-select: text;
+}
+
+.search-box input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.parts-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding-bottom: 6px;
+}
+
+.group-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  height: var(--row);
+  padding: 0 8px 0 6px;
+  border: 0;
+  background: none;
+  color: var(--fg-muted);
+  font-size: var(--text-small);
+  font-weight: 600;
+  text-align: left;
+}
+
+.group-header:hover {
+  color: var(--fg);
+}
+
+.group-count {
+  margin-left: auto;
+  color: var(--fg-subtle);
+  font-weight: 400;
+}
+
+.part-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  height: var(--row);
+  padding: 0 8px 0 24px;
+  border: 0;
+  background: none;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.part-row:hover {
+  background: var(--hover-bg);
+}
+
+.part-row.selected {
+  background: var(--active-bg);
+}
+
+.part-name {
+  font-weight: 600;
+  flex: none;
+}
+
+.part-title {
+  color: var(--fg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.part-details {
+  flex: none;
+  border-top: 1px solid var(--border);
+  background: var(--panel-header-bg);
+}
+
+.part-preview {
+  display: block;
+  width: 100%;
+  background: var(--canvas-bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.part-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px 10px;
+}
+
+.part-info-name {
+  font-weight: 600;
+}
+
+.part-info-name .mono {
+  margin-left: 6px;
+  font-weight: 400;
+  font-size: var(--text-small);
+}
+
+.part-pins {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  max-height: 64px;
+  overflow: auto;
+}
+
+.pin-chip {
+  display: inline-flex;
+  gap: 3px;
+  padding: 0 5px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font: var(--text-small) / 16px var(--font-mono);
+}

@@ -8,6 +8,7 @@ export * from './editor';
 export * from './graphics';
 export * from './grid';
 export * from './hit-test';
+export * from './preview';
 export * from './recording-graphics';
 export * from './renderer';
 export * from './scene';
