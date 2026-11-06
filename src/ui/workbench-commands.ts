@@ -4,9 +4,11 @@ import {
   ClipboardPaste,
   Copy,
   CopyPlus,
+  FileDown,
   FilePlus,
   FlipHorizontal2,
   FlipVertical2,
+  FolderOpen,
   Grid3x3,
   Hand,
   Info,
@@ -33,16 +35,17 @@ import {
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
-import { type Circuit, emptyCircuit } from '../circuit';
-import { ALL_SPEEDS, type Editor, EMPTY_SELECTION, type Store } from '../editor';
+import { ALL_SPEEDS, type Editor, type Store } from '../editor';
 import type { ClipboardBridge } from './clipboard';
 import type { Command } from './commands';
+import type { DocumentController } from './document-controller';
 import { GateIcon, WireIcon } from './icons';
 import type { PanelId, Settings, ThemeSetting } from './settings';
 import type { Example, UiState } from './ui-state';
 
 export interface WorkbenchContext {
   readonly editor: Editor;
+  readonly documents: DocumentController;
   readonly clipboard: ClipboardBridge;
   readonly settings: Store<Settings>;
   readonly ui: Store<UiState>;
@@ -65,6 +68,7 @@ const THEME_ICONS = { system: Monitor, dark: Moon, light: Sun } as const;
 
 export function createCommands({
   editor,
+  documents,
   clipboard,
   settings,
   ui,
@@ -77,27 +81,48 @@ export function createCommands({
       panels: { ...s.panels, [id]: { ...s.panels[id], visible } },
     }));
 
-  // Until R07 brings files, opening a document is an undoable edit: nothing is lost by accident.
-  // A running simulation stops first: the new document's U1 is not the old one's.
-  const open = (label: string, circuit: Circuit) => {
-    editor.simulation.stop();
-    editor.edit(label, circuit, { selection: EMPTY_SELECTION, fit: true });
-  };
   const simulation = editor.simulation;
   const simState = () => simulation.state;
 
   return [
+    // File commands ask before replacing unsaved changes (DocumentController). Mod+N belongs to
+    // Chrome (a new window) and never reaches the page. The keys are global: the browser's own
+    // Save Page and Open File must not show up, even while typing in a field.
     {
       id: 'file.new',
       label: 'New Circuit',
       icon: FilePlus,
-      run: () => open('New Circuit', emptyCircuit()),
+      shortcuts: ['Mod+Alt+N'],
+      run: () => void documents.newDocument(),
+    },
+    {
+      id: 'file.open',
+      label: 'Open…',
+      icon: FolderOpen,
+      shortcuts: ['Mod+O'],
+      global: true,
+      run: () => void documents.open(),
+    },
+    {
+      id: 'file.save',
+      label: 'Save',
+      icon: FileDown,
+      shortcuts: ['Mod+S'],
+      global: true,
+      run: () => void documents.save(),
+    },
+    {
+      id: 'file.saveAs',
+      label: 'Save As…',
+      shortcuts: ['Mod+Shift+S'],
+      global: true,
+      run: () => void documents.saveAs(),
     },
     ...examples.map(
       (example): Command => ({
         id: `file.example.${example.id}`,
         label: example.label,
-        run: () => open(`Open ${example.label}`, example.circuit()),
+        run: () => void documents.openExample(example.label, example.document),
       }),
     ),
 
@@ -480,6 +505,10 @@ export function workbenchMenus(examples: readonly Example[]): MenuDef[] {
       label: 'File',
       items: [
         'file.new',
+        'file.open',
+        SEPARATOR,
+        'file.save',
+        'file.saveAs',
         SEPARATOR,
         { label: 'Examples', items: examples.map((e) => `file.example.${e.id}`) },
       ],

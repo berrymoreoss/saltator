@@ -3,6 +3,9 @@
  * Spec: docs/editor.md#shell.
  */
 export * from './commands';
+export * from './document-controller';
+export * from './document-session';
+export * from './files';
 export * from './settings';
 export * from './shortcuts';
 export * from './ui-state';

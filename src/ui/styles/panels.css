@@ -484,6 +484,50 @@ select.prop-input {
   user-select: text;
 }
 
+.dialog-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.dialog-actions-gap {
+  flex: 1;
+}
+
+.dialog-button {
+  min-width: 84px;
+  height: 26px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  background: var(--input-bg);
+}
+
+.dialog-button:hover {
+  background: var(--hover-bg);
+}
+
+.dialog-button.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+
+.dialog-button.primary:hover {
+  background: color-mix(in srgb, var(--accent) 88%, black);
+}
+
+.file-problems {
+  max-height: 240px;
+  margin: 8px 0 0;
+  padding: 6px 8px 6px 24px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--input-bg);
+  font-size: 11px;
+}
+
 .about-title {
   margin: 4px 0;
   font-size: 18px;

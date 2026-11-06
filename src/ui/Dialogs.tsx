@@ -1,6 +1,7 @@
 import { X } from 'lucide-react';
 import { type ReactNode, useEffect, useRef } from 'react';
 import type { CommandRegistry } from './commands';
+import type { FileProblem, UnsavedChoice } from './document-controller';
 import { formatShortcut } from './shortcuts';
 
 interface DialogProps {
@@ -14,7 +15,8 @@ interface DialogProps {
 export function Dialog({ title, onClose, children, testId }: DialogProps) {
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    box.current?.focus();
+    // Unless a button took the focus (the default answer), the box takes it for Escape.
+    if (!box.current?.contains(document.activeElement)) box.current?.focus();
   }, []);
   return (
     <div
@@ -52,10 +54,12 @@ export function Dialog({ title, onClose, children, testId }: DialogProps) {
 }
 
 const SECTIONS: readonly (readonly [prefix: string, title: string])[] = [
+  ['file.', 'File'],
   ['tool.', 'Tools'],
   ['edit.', 'Edit'],
   ['parts.', 'Parts'],
   ['view.', 'View'],
+  ['sim.', 'Simulate'],
   ['help.', 'Help'],
 ];
 
@@ -154,6 +158,74 @@ export function AboutDialog({ onClose }: { readonly onClose: () => void }) {
         4-state logic with drive strengths, datasheet timing, 74HC parts, memories and CPUs as the
         roadmap grows.
       </p>
+    </Dialog>
+  );
+}
+
+/** "Save changes to “name”?" — Save / Don’t Save / Cancel; closing the dialog cancels. */
+export function UnsavedChangesDialog({
+  name,
+  onAnswer,
+}: {
+  readonly name: string;
+  readonly onAnswer: (choice: UnsavedChoice) => void;
+}) {
+  return (
+    <Dialog title="Unsaved Changes" onClose={() => onAnswer('cancel')} testId="unsaved-dialog">
+      <p>Save changes to “{name}” before closing it?</p>
+      <p className="muted">Changes you don’t save are lost.</p>
+      <div className="dialog-actions">
+        <button type="button" className="dialog-button" onClick={() => onAnswer('discard')}>
+          Don’t Save
+        </button>
+        <span className="dialog-actions-gap" />
+        <button type="button" className="dialog-button" onClick={() => onAnswer('cancel')}>
+          Cancel
+        </button>
+        <button
+          type="button"
+          className="dialog-button primary"
+          // biome-ignore lint/a11y/noAutofocus: the default answer, as in desktop apps
+          autoFocus
+          onClick={() => onAnswer('save')}
+        >
+          Save
+        </button>
+      </div>
+    </Dialog>
+  );
+}
+
+/** A file that didn't open or save, with every problem found. */
+export function FileProblemDialog({
+  problem,
+  onClose,
+}: {
+  readonly problem: FileProblem;
+  readonly onClose: () => void;
+}) {
+  return (
+    <Dialog title={problem.title} onClose={onClose} testId="file-problem-dialog">
+      <p>{problem.message}</p>
+      {problem.details && (
+        <ul className="file-problems mono">
+          {problem.details.map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+      )}
+      <div className="dialog-actions">
+        <span className="dialog-actions-gap" />
+        <button
+          type="button"
+          className="dialog-button primary"
+          // biome-ignore lint/a11y/noAutofocus: Enter closes the message
+          autoFocus
+          onClick={onClose}
+        >
+          OK
+        </button>
+      </div>
     </Dialog>
   );
 }

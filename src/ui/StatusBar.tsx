@@ -101,7 +101,7 @@ export function StatusBar({ editor, onShowMessages, onShowSimulation }: StatusBa
         {statusHint(tool, mode, editor.registry, simulating)}
       </span>
       <span className="status-spacer" />
-      <span className="status-cell">
+      <span className="status-cell" data-testid="counts">
         {scene.parts.length} parts · {scene.wires.length} wires
       </span>
       {import.meta.env.DEV && (

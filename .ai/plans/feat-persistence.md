@@ -187,7 +187,7 @@ permission (a user gesture); a file that is gone is dropped from the list with a
   files; `editing.test.ts` reads the file; the `helloLed` builder removed.
 - [x] 2. Document session model + file-name rules (pure, unit tests).
 - [x] 3. `FileAccess`: File System Access and fallback implementations, feature detection.
-- [ ] 4. File commands: New, Open, Save, Save As; open = `setCircuit`; the unsaved-changes and
+- [x] 4. File commands: New, Open, Save, Save As; open = `setCircuit`; the unsaved-changes and
   load-error dialogs; title and name in the menu bar; drop a file to open; e2e.
 - [ ] 5. Autosave and session restore (`SessionStore`, IndexedDB adapter, start-up order,
   per-tab sessions, camera); e2e reload restore.
@@ -238,11 +238,21 @@ permission (a user gesture); a file that is gone is dropped from the list with a
   (index + `import.meta.glob` `?raw`, eager) kept apart from `examples.ts`, which the benchmark
   imports natively (no `import.meta.glob` there); `tests/scenarios/examples.test.ts` keeps files
   canonical. Tests are typed without Node APIs: list files with `import.meta.glob`, not `fs`.
+- 2026-11-07 — tasks 2–4: `document-session.ts` (pure), `files.ts` (native + fallback, browser
+  primitives injected), `document-controller.ts` (New/Open/Save/Save As/examples/drop; asks and
+  reports through callbacks wired to `UiState.unsavedQuestion` / `fileProblem`; one file
+  operation at a time). Opening is `setCircuit` now (not undoable). `Mod+Alt+N` for New: with Alt
+  a shortcut's letter is read from `event.code` (⌥N types `˜` on a Mac). The shortcuts dialog got
+  File and Simulate sections (Simulate was missing). E2E stubs the pickers in memory
+  (`addInitScript`) and hides them for the fallback; specs have no Node types — read a download
+  with `for await` over `createReadStream()`, hand files over by path (`download.saveAs`).
+  Docs (editor.md history note, Files section) still to update in task 10.
 
 ## Handoff
 
-- **State:** tasks 1–3 done (examples as files, `src/ui/document-session.ts`, `src/ui/files.ts`).
-- **Next step:** task 4 (File commands, dialogs, title, drop).
+- **State:** tasks 1–4 done: examples as files, session model, `FileAccess`, File commands with
+  `DocumentController` (`src/ui/document-controller.ts`), dialogs, title, drop; e2e `files.spec.ts`.
+- **Next step:** task 5 (autosave and session restore).
 - **Watch out:** Biome reformats `.json` (exclude `**/*.logic.json` first); Chrome reserves
   `Mod+N`.
 - **Verify with:** `pnpm check`, `pnpm e2e`.

@@ -79,6 +79,26 @@ button {
   background: var(--hover-bg);
 }
 
+.menubar-document {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin-left: auto;
+  padding: 0 8px;
+  color: var(--fg-muted);
+  white-space: nowrap;
+}
+
+.menubar-document-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.menubar-document-unsaved {
+  color: var(--fg);
+}
+
 .menu {
   position: absolute;
   top: calc(100% + 2px);

@@ -31,14 +31,23 @@ export function parseShortcut(text: string): Shortcut {
 }
 
 /** The parts of a keyboard event a shortcut looks at. */
-export type KeyLike = Pick<KeyboardEvent, 'key' | 'metaKey' | 'ctrlKey' | 'shiftKey' | 'altKey'>;
+export type KeyLike = Pick<KeyboardEvent, 'key' | 'metaKey' | 'ctrlKey' | 'shiftKey' | 'altKey'> &
+  Partial<Pick<KeyboardEvent, 'code'>>;
 
 /** Keys whose character needs Shift on common layouts: Shift is not part of the shortcut. */
 const SHIFTED = new Set(['+', '?', '_', ':', '{', '}', '|', '"', '<', '>', '!', '@', '#']);
 
+/** The key a shortcut compares: letters lower-cased. */
+function keyOf(event: KeyLike): string {
+  // Alt (Option on macOS) changes the character — ⌥N types a dead `˜` — so with Alt a letter or
+  // digit is read from the physical key.
+  const physical = event.altKey && event.code?.match(/^(?:Key([A-Z])|Digit([0-9]))$/);
+  if (physical) return (physical[1] ?? physical[2]!).toLowerCase();
+  return event.key.length === 1 ? event.key.toLowerCase() : event.key;
+}
+
 export function matchesShortcut(shortcut: Shortcut, event: KeyLike, mac: boolean): boolean {
-  const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
-  if (key !== shortcut.key) return false;
+  if (keyOf(event) !== shortcut.key) return false;
   const mod = mac ? event.metaKey : event.ctrlKey;
   const other = mac ? event.ctrlKey : event.metaKey;
   if (mod !== shortcut.mod || other || event.altKey !== shortcut.alt) return false;
