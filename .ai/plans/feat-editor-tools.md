@@ -211,7 +211,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 
 - [x] 1. core + library: `designatorPrefix` (registry validation) and prefixes for every
   built-in part; `examples.ts` uses them; docs/components.md.
-- [ ] 2. circuit: `edit.ts` — designators and wire ids, add/remove/update/rename/translate,
+- [x] 2. circuit: `edit.ts` — designators and wire ids, add/remove/update/rename/translate,
   `normalizeWires`, fragments + tests.
 - [ ] 3. editor: `History` + `editor.edit()`, undo/redo restoring selection, renames record;
   Edit ▸ Undo/Redo with dynamic labels, File ▸ New.
