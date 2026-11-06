@@ -342,11 +342,25 @@ place tool stay active after a click; designator prefixes per part.
 
 - 2026-11-06 — branch created; Q1–Q7 answered; R04 split into R04a/R04b; plan drafted.
 - 2026-11-06 — plan approved by the user; status in-progress; roadmap split into R04a/R04b.
+- 2026-11-06 — tasks 1–11 done: Playwright (`pnpm e2e`, CI step; `webServer` calls vite directly,
+  see lessons), camera, scene + text placement, hit-testing + selection, renderer + canvas themes,
+  all symbol drawers (ANSI/IEC gates, power, IO, DIP; scenario test over every part and prop
+  variant), `Editor` facade (input, stores, select/pan tool), settings/commands/shortcuts, the
+  workbench shell (menu bar, toolbar, docks, splitters, status bar), Parts panel with preview.
+  App opens Hello LED (`?gallery` opens the symbol gallery; dev builds add `dev/*` fixtures and
+  expose `window.logicEditor`). Checked in headless Chromium screenshots (no Chrome extension):
+  both themes, gallery at several zooms.
 
 ## Handoff
 
-- **State:** plan approved, roadmap split; no production code yet.
-- **Next step:** task 1 (dependencies, Playwright config, first smoke test, CI step).
+- **State:** tasks 1–11 committed; `pnpm check` and `pnpm e2e` green. Properties and Messages
+  panels are still empty frames in `src/ui/Workbench.tsx`; Help dialogs not rendered yet
+  (`ui-state.ts` has `dialog`).
+- **Next step:** task 12 (Properties read-only, Messages with click-to-locate via
+  `editor.locate`, shortcuts/about dialogs), then 13 (e2e smoke extended, bench schematic redraw
+  time — a gallery frame took ~13 ms in dev at 113 %, check text cost), then 14 (docs, ADR-0008).
 - **Watch out:** `pnpm check` must stay browser-free (e2e is separate); keep React out of
-  `src/editor`; Biome formats Markdown (run `pnpm lint:fix` after editing docs).
+  `src/editor`; Biome formats Markdown and reformats JSX (re-read before editing); a `switch`
+  inside `map` trips `useIterableCallbackReturn` (move it to a helper). Screenshots: a
+  Playwright script in the scratchpad (`chromium.launch`, `colorScheme`, `deviceScaleFactor: 2`).
 - **Verify with:** `pnpm check && pnpm build && pnpm e2e`.
