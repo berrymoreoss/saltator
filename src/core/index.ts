@@ -23,7 +23,13 @@ export {
   type TimingDef,
   type UnitDef,
 } from './component';
-export { type ComponentDiagnostic, type Diagnostic, KernelDiagnosticKind } from './diagnostics';
+export {
+  type ComponentDiagnostic,
+  type Diagnostic,
+  type DiagnosticInput,
+  DiagnosticLog,
+  KernelDiagnosticKind,
+} from './diagnostics';
 export {
   and,
   DRIVES,
@@ -59,4 +65,13 @@ export {
   resolveNetlist,
 } from './netlist';
 export { type ComponentRegistry, familyOf, Registry } from './registry';
+export {
+  type NetChangeListener,
+  type RunOptions,
+  type RunStatus,
+  type SettleOptions,
+  Simulator,
+  type SimulatorOptions,
+  type SimulatorStats,
+} from './simulator';
 export { formatTime, ms, ns, ps, TIME_MAX, type Time, us } from './time';

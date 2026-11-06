@@ -132,6 +132,17 @@ tests/bench/          kernel benchmark
 - `defineComponent()` gives authors typed props/state and returns the erased form registries store.
 - `resolveProps()` validates raw props (unknown key, type, integer, min/max, enum) and fills defaults.
 - `symbol` is not defined yet (R03).
+- **Power-on**: `out` pins start driving strong `X` (a push-pull output always drives something);
+  `tristate`/`bidir` start at `Z`. `init` runs in the constructor; at t = 0 every component with
+  `evaluate` is evaluated once, after the t = 0 events from `init`/actions were applied. Without
+  this, an unconnected gate input would never be read (no `floating-input`), and gate outputs
+  would sit at `Z` and trigger spurious floating diagnostics downstream.
+- `settle()` returns `idle` with `now` = time of the last event (not the limit); `runUntil(t)`
+  always ends at `now = t` unless `budget`/`halted`. Defaults: `maxTime` 1 ms, `maxEvents` 1M.
+- Diagnostics carry `count` and `lastTime`; repeats with the same kind/net/component/pin merge.
+  `floating-input` is reported once per net until the net changes (first reader wins).
+- A zero-delay or delayed ring of inverters starting at `X` stays `X` forever (4-state
+  pessimism) — scenario tests must start oscillators through a NAND with an enable.
 
 ## Tasks
 
@@ -145,10 +156,10 @@ tests/bench/          kernel benchmark
 - [x] 4. `netlist.ts`: `Netlist` type, `NetlistBuilder` (add component, connect pins, union-find
   merge, implicit nets for unconnected pins), validation with precise error messages
   (unknown type, unknown pin, duplicate id). Tests.
-- [ ] 5. `simulator.ts` core loop: compile, `init`, delta cycles, inertial `drive`, `wakeAfter`
+- [x] 5. `simulator.ts` core loop: compile, `init`, delta cycles, inertial `drive`, `wakeAfter`
   timers, `action`, `runUntil/runFor/settle` with statuses, levels snapshot, `onNetChange`,
   stats. Unit tests with tiny inline test components.
-- [ ] 6. `diagnostics.ts` + wiring: `contention`, `floating-input`, `oscillation` (halt,
+- [x] 6. `diagnostics.ts` + wiring: `contention`, `floating-input`, `oscillation` (halt,
   `maxDeltaCycles`), component-reported diagnostics; dedupe + cap. Tests.
 - [ ] 7. `src/core/testing`: bench + function-table helper. Tests of the bench itself.
 - [ ] 8. `src/library/primitives` + `createDefaultRegistry()`: all `prim/*` parts with props
@@ -205,6 +216,9 @@ Asked at branch start (2026-11-06); all answered.
 - 2026-11-06 — branch created; plan refined: state model (plain-data `ctx.state`), event-queue
   layout, wake/evaluate ordering, primitive pin names, time props in ps, Q5 (edges with `X`).
 - 2026-11-06 — Q1–Q5 answered (all as proposed); plan approved by the user; status in-progress.
+- 2026-11-06 — tasks 1–6 done: time/logic, event queue, component types + registry, netlist +
+  builder + resolution, simulator loop, diagnostics. Tasks 5 and 6 landed in one commit (the
+  diagnostics are part of the loop). Core coverage ≈ 98 % lines.
 
 ## Handoff
 
