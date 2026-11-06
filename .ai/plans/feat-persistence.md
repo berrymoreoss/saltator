@@ -156,7 +156,7 @@ permission (a user gesture); a file that is gone is dropped from the list with a
   app and saved), plus the learning circuits (Q2): **half adder** (switches A, B → 74HC86 and
   74HC08 → LEDs Sum, Carry), **SR latch** (buttons /S, /R → two cross-coupled 74HC00 NANDs →
   LEDs Q, /Q), **ring oscillator** (74HC04 inverters in a ring through a 74HC00 NAND enable
-  switch, an LED on the output; runs at a slow simulation speed). `examples/index.ts` lists id, file,
+  switch, an LED on the output; runs at a slow simulation speed). `src/app/example-files.ts` lists id, file,
   title, one-line description, in gallery order; the app imports the files as raw text
   (`import.meta.glob`, `?raw`) and parses them on demand.
 - Symbol Gallery (every registered part, so it must stay generated) and the dev Stress Test stay
@@ -182,8 +182,8 @@ permission (a user gesture); a file that is gone is dropped from the list with a
 
 ## Tasks
 
-- [ ] 1. Examples as files: Biome ignores `**/*.logic.json`; `examples/hello-led.logic.json`
-  written from the builder; `examples/index.ts`; the app loads it; scenario test for example
+- [x] 1. Examples as files: Biome ignores `**/*.logic.json`; `examples/hello-led.logic.json`
+  written from the builder; `src/app/example-files.ts`; the app loads it; scenario test for example
   files; `editing.test.ts` reads the file; the `helloLed` builder removed.
 - [ ] 2. Document session model + file-name rules (pure, unit tests).
 - [ ] 3. `FileAccess`: File System Access and fallback implementations, feature detection.
@@ -233,11 +233,16 @@ permission (a user gesture); a file that is gone is dropped from the list with a
 - 2026-11-07 — plan drafted; Q1 (a), Q2 (Hello LED, half adder, SR latch, ring oscillator), Q3
   (Open Recent in R07) answered.
 - 2026-11-07 — plan approved; started.
+- 2026-11-07 — task 1: `examples/hello-led.logic.json` written once from the old builder (all
+  resolved props, wires normalized), then the builder removed; `src/app/example-files.ts`
+  (index + `import.meta.glob` `?raw`, eager) kept apart from `examples.ts`, which the benchmark
+  imports natively (no `import.meta.glob` there); `tests/scenarios/examples.test.ts` keeps files
+  canonical. Tests are typed without Node APIs: list files with `import.meta.glob`, not `fs`.
 
 ## Handoff
 
-- **State:** plan approved; no code yet.
-- **Next step:** task 1 (examples as files).
+- **State:** task 1 done (examples as files).
+- **Next step:** task 2 (document session model).
 - **Watch out:** Biome reformats `.json` (exclude `**/*.logic.json` first); Chrome reserves
   `Mod+N`.
 - **Verify with:** `pnpm check`, `pnpm e2e`.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { helloLed } from '../../src/app/examples';
+import { exampleDocument } from '../../src/app/example-files';
 import { type Circuit, compileCircuit, type Point } from '../../src/circuit';
 import { Editor, type PointerInput } from '../../src/editor';
 import { createDefaultRegistry } from '../../src/library';
@@ -87,7 +87,7 @@ describe('editing scenario: Hello, LED by hand', () => {
     expect(editor.setPartProp('D1', 'color', 'mauve')).toMatch(/prop "color" must be one of/);
 
     const drawn = editor.state.get().circuit;
-    const example = helloLed(registry);
+    const example = exampleDocument('hello-led').circuits[0]!;
     expect(nets(drawn)).toEqual(nets(example));
     expect(compileCircuit(drawn, registry).issues).toEqual([]);
     expect(drawn.components.map((c) => [c.id, c.type, c.label, c.props.color])).toEqual(

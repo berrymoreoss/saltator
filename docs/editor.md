@@ -493,14 +493,21 @@ Dev builds expose the editor as `window.logicEditor`.
 
 ## Examples
 
-Until R07 brings files, File ▸ Examples opens documents built in code (`src/app/examples.ts`):
-**Hello, LED** (the M1 circuits, opened at start-up: a switch through a 74HC00 gate to an LED,
-with the chip's power pins wired and its unused inputs tied to GND, and a 1 Hz clock blinking
-an LED), **Symbol Gallery** (every part with prop variants and placements, the 74HC chips and a
-74HC245 in every orientation; dev builds add the `dev/*` renderer fixtures — a DIP-14 with a
-clock pin, DIP-28, generic box, unknown kind — and two broken parts) and, in dev builds, a **Stress Test** (3 600 NANDs,
-`nandGrid`, shared with the circuit benchmark). `?example=<id>` (or `?gallery`) in the URL opens
-one directly.
+File ▸ Examples opens the **example files** — ordinary saved documents in `examples/` at the
+repository root, bundled as text and loaded like any file (`src/app/example-files.ts` lists
+them with a title and a description, in gallery order): **Hello, LED** (the M1 circuits, opened
+at start-up: a switch through a 74HC00 gate to an LED, with the chip's power pins wired and its
+unused inputs tied to GND, and a 1 Hz clock blinking an LED). Two examples stay built in code
+(`src/app/examples.ts`): **Symbol Gallery** (every registered part with prop variants and
+placements, the 74HC chips and a 74HC245 in every orientation; dev builds add the `dev/*`
+renderer fixtures — a DIP-14 with a clock pin, DIP-28, generic box, unknown kind — and two
+broken parts) and, in dev builds, a **Stress Test** (3 600 NANDs, `nandGrid`, shared with the
+circuit benchmark). `?example=<id>` (or `?gallery`) in the URL opens one directly.
+
+Example files are kept canonical (`tests/scenarios/examples.test.ts`): exactly what
+`serializeDocument` writes, wires normalized, every resolved prop stored, no design issues.
+Biome ignores `*.logic.json`, which it would reformat. To change an example, open it in the app,
+edit, and save over the file.
 
 ## Testing
 

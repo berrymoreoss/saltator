@@ -2,7 +2,8 @@ import { Registry } from '../core';
 import { DEV_PARTS, Editor } from '../editor';
 import { createDefaultRegistry } from '../library';
 import { createSettingsStore, createUiState, type Example, Workbench } from '../ui';
-import { helloLed, nandGrid, symbolGallery } from './examples';
+import { exampleDocument } from './example-files';
+import { nandGrid, symbolGallery } from './examples';
 
 // The renderer fixtures (a clock pin and a 28-pin DIP no shipped part has yet, the generic box)
 // exist in dev builds only.
@@ -12,7 +13,11 @@ const registry = new Registry([
 ]);
 
 const examples: readonly Example[] = [
-  { id: 'hello-led', label: 'Hello, LED', circuit: () => helloLed(registry) },
+  {
+    id: 'hello-led',
+    label: 'Hello, LED',
+    circuit: () => exampleDocument('hello-led').circuits[0]!,
+  },
   {
     id: 'gallery',
     label: 'Symbol Gallery',
