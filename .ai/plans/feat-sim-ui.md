@@ -266,7 +266,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   events; `carryOver()` and `SimulatorOptions.carry/renames/diagnostics` with the kept /
   changed / new rules and the start at the carried time; unit tests; the invariance property
   and latch/clock scenarios; simulation.md and components.md (idempotent `evaluate`).
-- [ ] 2. circuit: `inverseTransformPoint` (world → local) + tests.
+- [x] 2. circuit: `inverseTransformPoint` (world → local) + tests.
 - [ ] 3. editor: `Simulation` host — run states, run/pause/step/stop/reset, speed presets,
   pacing with frame budget and actual speed; on edit: same structure keeps the simulator (net
   mapping through pins), otherwise rebuild with carry-over and renames; accumulated

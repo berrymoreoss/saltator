@@ -136,7 +136,8 @@ A 2-input gate at (0, 0): `A` (0, 1), `B` (0, 2), `Y` (5, 1).
 
 **Placement**: instance pin position = mirror x (if `flip`) → rotate clockwise around the local
 origin → translate by `(x, y)` (`placementOf`, `placePins`, `transformPoint`). Pin sides
-(`left`, `top`, …) are transformed the same way, for drawing stubs.
+(`left`, `top`, …) are transformed the same way, for drawing stubs. `inverseTransformPoint` maps
+a grid point back into the part's local cells (which DIP switch a click hit).
 
 ## Connectivity
 
