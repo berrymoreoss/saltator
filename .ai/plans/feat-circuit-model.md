@@ -4,7 +4,7 @@
 | ---------- | ---------------------------------------------------------------------------- |
 | Branch     | `feat/circuit-model`                                                         |
 | Roadmap    | R02 — Circuit document & netlist compiler ([roadmap](../../docs/roadmap.md)) |
-| Status     | in-progress                                                                  |
+| Status     | done                                                                         |
 | Depends on | R01                                                                          |
 | Created    | 2026-11-06                                                                   |
 
@@ -323,13 +323,16 @@ Asked at branch start (2026-11-06); all answered.
   `CircuitBuilder`; scenarios (drawn latch/fan-out ≡ coded); benchmark (compile ≈ 9 ms for
   10 620 wires); docs (`docs/circuit.md`, ADR-0006, architecture, components, glossary).
   Acceptance criteria verified. 342 tests.
+- 2026-11-06 — finished: acceptance criteria re-verified (check, build, coverage 100 % lines in
+  `src/circuit`, bench: compile ≈ 8 ms, kernel ≈ 13–14M events/s). Roadmap: R02 `done`, R03
+  `next`. Summary: versioned circuit documents with lossless, diff-friendly JSON; derived pin
+  layouts; Logisim-style geometric connectivity; compiler to `Netlist` with design checks;
+  `CircuitBuilder`; ADR-0006.
 
 ## Handoff
 
-- **State:** all tasks done, acceptance criteria verified; branch not merged yet.
-- **Next step:** `/finish-branch` — plan status `done`, roadmap R02 `done` / R03 `next`, merge
-  with the user's approval.
-- **Follow-ups (already noted in the roadmap):** R03 decides whether `prim/*` gates get symbols
-  (pin positions change); R05 carries state across designator renames; R07 must exclude saved
-  example documents from Biome.
+- **State:** finished; merged to `main` with `--no-ff` after the user's approval. Nothing pending.
+- **Follow-ups (in the roadmap):** R03 decides whether `prim/*` gates get symbols (pin positions
+  change); R05 carries simulator state across designator renames; R07 excludes saved example
+  documents from Biome.
 - **Verify with:** `pnpm check && pnpm build && pnpm coverage && pnpm bench`.
