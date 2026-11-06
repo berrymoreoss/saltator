@@ -351,10 +351,26 @@ Asked at branch start (2026-11-07); all answered.
   snapshot when counts change. 17 headless tests with a fake clock. Note for task 7: opening an
   example or File ▸ New must `stop()` first, or ids of the new document would pick up state
   from the old one.
+- 2026-11-07 — tasks 4–7 done: level colors (`SignalStyle`, `CanvasTheme.levels`, renderer
+  `SignalView` with a recording-context unit test); live drawers (`DrawContext.live`,
+  `LivePart`, light samples quantized to 1/32 so jitter doesn't redraw); Interact tool
+  (`symbols/interact.ts` table, `hold` gesture released on up/cancel/blur/tool change, Run arms
+  it, Stop leaves it); UI: Simulate menu, toolbar group + `SpeedSelect` (`widget:speed` entries
+  in `TOOLBAR`), `SimulationStatus` in the status bar, `Command.stateIcon`, global commands keep
+  F-keys from the browser even when disabled, `open()` stops the simulation. Looked at it in the
+  dev build (headless screenshots, both themes): colors readable, F5 doesn't reload.
 
 ## Handoff
 
-- **State:** plan approved; implementation starting.
-- **Next step:** task 1 (core carry-over).
-- **Watch out:** —
-- **Verify with:** `pnpm check`.
+- **State:** tasks 1–7 done and committed; `pnpm check` green (767 tests).
+- **Next step:** task 8 — Simulation tab in the bottom dock (runtime diagnostics from
+  `editor.simulation.diagnostics`, locate component/pin or net → its wires, clear, active tab as
+  a settings field) and live levels in Properties (pins, wire net, interactive part state;
+  refresh from `simulation.status` ticks, not per frame). Then task 9 (e2e
+  `tests/e2e/simulation.spec.ts`, screenshots, stress measurement) and task 10 (docs, ADR-0010).
+- **Watch out:** `Simulation.diagnostics` is a snapshot store refreshed with the status (≤10×/s);
+  `Diagnostic.net` ids come from the simulator's netlist — after a same-structure edit they may
+  differ from the scene's net ids, so locate a net through its pins (`signalMap`-style) rather
+  than by id. Dev server for looking: `node_modules/.bin/vite --port 5199`, scripts in the
+  scratchpad drive `window.logicEditor.simulation`.
+- **Verify with:** `pnpm check && pnpm build && pnpm e2e`.
