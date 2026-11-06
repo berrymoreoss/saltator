@@ -17,6 +17,7 @@ describe('parseShortcut', () => {
     expect(parseShortcut('Shift+Mod+Z')).toEqual({ key: 'z', mod: true, shift: true, alt: false });
     expect(parseShortcut('Home')).toEqual({ key: 'Home', mod: false, shift: false, alt: false });
     expect(parseShortcut('Mod++')).toEqual({ key: '+', mod: true, shift: false, alt: false });
+    expect(parseShortcut('+')).toEqual({ key: '+', mod: false, shift: false, alt: false });
   });
 
   it('rejects unknown modifiers', () => {

@@ -197,21 +197,22 @@ function diode(
 }
 
 function arrow(g: SymbolGraphics, x: number, y: number): void {
-  const dx = 0.35;
+  const d = 0.3;
   g.beginPath();
   g.moveTo(x, y);
-  g.lineTo(x + dx, y - dx);
-  g.moveTo(x + dx - 0.18, y - dx);
-  g.lineTo(x + dx, y - dx);
-  g.lineTo(x + dx, y - dx + 0.18);
+  g.lineTo(x + d, y - d);
+  g.moveTo(x + d - 0.15, y - d);
+  g.lineTo(x + d, y - d);
+  g.lineTo(x + d, y - d + 0.15);
   g.stroke('line', 0.07);
 }
 
+/** A diode on the pin row with two emission arrows above it. */
 const led: Drawer = (g, { body, props }) => {
-  const y = body.y + body.height / 2 + 0.2;
+  const y = body.y + body.height / 2;
   diode(g, body.x, body.x + body.width, y, 0.8, props.color);
-  arrow(g, body.x + 0.95, body.y + 0.65);
-  arrow(g, body.x + 1.3, body.y + 0.8);
+  arrow(g, body.x + 0.95, body.y + 0.5);
+  arrow(g, body.x + 1.3, body.y + 0.6);
 };
 
 const ledBar: Drawer = (g, { body, props }) => {

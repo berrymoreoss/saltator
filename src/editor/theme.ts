@@ -32,8 +32,8 @@ export interface CanvasTheme {
 export const DARK_CANVAS: CanvasTheme = {
   name: 'dark',
   background: '#17191d',
-  gridDot: '#30343b',
-  gridMajor: '#4a505a',
+  gridDot: '#3a3f48',
+  gridMajor: '#5a616c',
   wire: '#9fb3c8',
   junction: '#9fb3c8',
   partStroke: '#e0b979',

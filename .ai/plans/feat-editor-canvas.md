@@ -272,7 +272,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   middle/Space-drag pan, click/Shift-click/box select, hover), state and view stores.
 - [x] 9. ui: theme tokens (dark/light/system), settings store (persisted, guarded), command
   registry and shortcut matching (Mod = ⌘/Ctrl, ignore inputs) + tests of the pure parts.
-- [ ] 10. ui: shell — menu bar (dropdowns, hover-switching, Esc), toolbar with icons and
+- [x] 10. ui: shell — menu bar (dropdowns, hover-switching, Esc), toolbar with icons and
   tooltips, dock layout with splitters and hide/show, bottom dock tabs, status bar, canvas host.
 - [ ] 11. ui: Parts panel — family tree, search, preview (symbol canvas, title, pins, datasheet).
 - [ ] 12. ui: Properties (read-only), Messages (click to locate), status bar counters, Keyboard

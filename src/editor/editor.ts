@@ -40,6 +40,9 @@ import { type CanvasTheme, DARK_CANVAS } from './theme';
 /** What the scroll wheel does without modifiers: pan (Figma, trackpads) or zoom (KiCad, mice). */
 export type WheelMode = 'pan' | 'zoom';
 
+/** What a left-button drag does: select (click, box) or pan the view. R04b adds editing tools. */
+export type Tool = 'select' | 'pan';
+
 export interface EditorSettings {
   readonly theme: CanvasTheme;
   readonly gateStyle: GateStyle;
@@ -104,6 +107,7 @@ export class Editor {
   readonly registry: ComponentRegistry;
   readonly state: Store<EditorState>;
   readonly view: Store<ViewState>;
+  readonly tool = new Store<Tool>('select');
   #settings: EditorSettings;
   readonly #layouts = new LayoutCache();
   #hover: Hit | undefined;
@@ -163,6 +167,11 @@ export class Editor {
     if (sameSelection(selection, current.selection)) return;
     this.state.set({ ...current, selection });
     this.invalidate();
+  }
+
+  setTool(tool: Tool): void {
+    this.tool.set(tool);
+    this.#updateCursor();
   }
 
   selectAll(): void {
@@ -350,7 +359,7 @@ export class Editor {
     const canvas = this.#canvas!;
     canvas.focus({ preventScroll: true });
     const at = this.#local(e);
-    if (e.button === 1 || (e.button === 0 && this.#space)) {
+    if (e.button === 1 || (e.button === 0 && (this.#space || this.tool.get() === 'pan'))) {
       e.preventDefault();
       canvas.setPointerCapture(e.pointerId);
       this.#gesture = { kind: 'pan', last: at };
@@ -486,6 +495,10 @@ export class Editor {
     const canvas = this.#canvas;
     if (!canvas) return;
     canvas.style.cursor =
-      this.#gesture?.kind === 'pan' ? 'grabbing' : this.#space ? 'grab' : 'default';
+      this.#gesture?.kind === 'pan'
+        ? 'grabbing'
+        : this.#space || this.tool.get() === 'pan'
+          ? 'grab'
+          : 'default';
   }
 }

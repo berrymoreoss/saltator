@@ -12,10 +12,11 @@ export interface Shortcut {
 }
 
 export function parseShortcut(text: string): Shortcut {
-  const parts = text.split('+');
-  // `Mod++` ends in an empty part for the `+` key.
-  const key = text.endsWith('++') ? '+' : parts[parts.length - 1]!;
-  const modifiers = new Set(parts.slice(0, text.endsWith('++') ? -2 : -1));
+  // A trailing `+` is the plus key itself (`+`, `Mod++`), not a separator.
+  const plusKey = text.endsWith('+');
+  const parts = (plusKey ? text.slice(0, -1) : text).split('+').filter((p) => p !== '');
+  const key = plusKey ? '+' : (parts.pop() ?? '');
+  const modifiers = new Set(parts);
   for (const m of modifiers) {
     if (m !== 'Mod' && m !== 'Shift' && m !== 'Alt') {
       throw new Error(`unknown modifier "${m}" in shortcut "${text}"`);
