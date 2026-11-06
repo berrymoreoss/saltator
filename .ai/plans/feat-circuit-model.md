@@ -234,11 +234,26 @@ it is used from code. Auto-routing is a plain L-shape; anything smarter is edito
   simulate, matching the same circuits built with `NetlistBuilder` (identical trace lines; the
   trace hash mixes net indices, which differ between the two netlists by construction); crossing
   wires stay separate; save → load → same netlist.
-- [ ] 9. `tests/bench/circuit.bench.ts`: compile a large synthetic document (thousands of parts,
+- [x] 9. `tests/bench/circuit.bench.ts`: compile a large synthetic document (thousands of parts,
   ~10 000 wires); record the time below.
 - [ ] 10. Docs: `docs/circuit.md` (document format, layouts, connectivity, checks, compiler,
   builder); architecture.md circuit section (drop _(planned)_); ADR-0006; `src/circuit/README.md`;
   glossary (junction, designator); coverage threshold for `src/circuit`; lessons; roadmap.
+
+## Benchmark results
+
+`pnpm bench`, 2026-11-06, Apple M3 Pro, Node 24.4.0 (native `import`). Synthetic grid of 60 × 60
+`prim/nand` gates with chain wires, per-column buses and T-junction stubs (3 600 parts,
+10 620 wires):
+
+| Operation                            | Time / iteration |
+| ------------------------------------ | ---------------: |
+| `compileCircuit` (layouts → netlist) |           ≈ 9 ms |
+| `serializeDocument`                  |          ≈ 10 ms |
+| `parseDocument` (JSON + validation)  |           ≈ 5 ms |
+
+Well within a frame, so R05 can recompile on every edit without incremental tricks. Kernel
+numbers unchanged (≈ 13–14M events/s).
 
 ## Acceptance criteria
 
