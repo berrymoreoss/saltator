@@ -4,7 +4,7 @@
 | ---------- | ----------------------------------------------------------------- |
 | Branch     | `feat/74hc-gates`                                                 |
 | Roadmap    | R06 — 74HC gates & bus buffers ([roadmap](../../docs/roadmap.md)) |
-| Status     | in-progress                                                       |
+| Status     | done                                                              |
 | Depends on | R01, R02, R03, R04a, R05                                          |
 | Created    | 2026-11-07                                                        |
 
@@ -220,7 +220,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   unit tests for the pure parts (building the tables).
 - [x] 10. e2e: place a 74HC00 from the Parts panel, wire switch → gate → LED, run, the LED
   follows the switch; Part Info shows the pinout and datasheet of the selected chip.
-- [ ] 11. Docs: components.md (74xx section, parts table, statuses), editor.md (Part Info,
+- [x] 11. Docs: components.md (74xx section, parts table, statuses), editor.md (Part Info,
   gallery), architecture.md, glossary, ADR-0011, `src/library/README.md`, lessons; roadmap
   status.
 
@@ -228,19 +228,19 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 
 Checkable statements; verified one by one in the finish-branch workflow.
 
-- [ ] `pnpm check` and `pnpm build` are green; `pnpm e2e` is green.
-- [ ] All 18 chips are in `createDefaultRegistry()` under `74xx/74hc…` with datasheet pin
+- [x] `pnpm check` and `pnpm build` are green; `pnpm e2e` is green.
+- [x] All 18 chips are in `createDefaultRegistry()` under `74xx/74hc…` with datasheet pin
   numbers and names, a datasheet URL, timing with source and conditions, and units.
-- [ ] Every chip has a test with its datasheet function table (every unit), unknown/floating
+- [x] Every chip has a test with its datasheet function table (every unit), unknown/floating
   inputs, and a timing assertion for each distinct delay it uses (`tpd`, `ten`, `tdis`).
-- [ ] The carry-over invariance property passes on random networks of 74xx chips.
-- [ ] A scenario shows two enabled 244 outputs on one bus reported as contention, and a 245
+- [x] The carry-over invariance property passes on random networks of 74xx chips.
+- [x] A scenario shows two enabled 244 outputs on one bus reported as contention, and a 245
   passing data both ways between two buses.
-- [ ] In the browser: a 74HC00 placed from the Parts panel, wired switch → gate → LED, runs and
+- [x] In the browser: a 74HC00 placed from the Parts panel, wired switch → gate → LED, runs and
   the LED follows the switch (e2e and looked at by hand).
-- [ ] The Part tab shows the drawing, pin numbers, names and descriptions, the function table and
+- [x] The Part tab shows the drawing, pin numbers, names and descriptions, the function table and
   the datasheet link for a 74HC chip, and degrades gracefully for parts without them.
-- [ ] Hello, LED uses a 74HC00 and compiles with no design issues.
+- [x] Hello, LED uses a 74HC00 and compiles with no design issues.
 
 ## Open questions
 
@@ -304,12 +304,19 @@ Checkable statements; verified one by one in the finish-branch workflow.
 - 2026-11-07 — task 10: `tests/e2e/chips.spec.ts` (74HC00 from the Parts panel runs switch →
   gate → LED; Part tab from the panel, the canvas and the context menu); the start-up selection
   box test now counts Hello, LED's 10 parts and 20 wires. `pnpm e2e`: 28 passed.
+- 2026-11-07 — task 11 and finish: components.md 74xx section, ADR-0011, architecture, glossary,
+  READMEs, backlog (logic families; a kernel flag for the forced evaluation); a per-chip unknown
+  and floating input test for every gate chip (found missing while checking the acceptance
+  criteria). Acceptance verified: `pnpm check` (959 tests), `pnpm build`, `pnpm e2e` (28) green;
+  Hello, LED looked at running in Chromium (D1 lit, no X, no diagnostics; the Part tab of an LED
+  degrades to its pins).
+- **Summary:** 18 74HC chips from the Nexperia data sheets with pin descriptions and function
+  tables on their definitions, every delay at 4.5 V / 50 pF; tested through pin numbers; a Part
+  tab; Hello, LED on a 74HC00. Found on the way: per-section evaluation is wrong under the
+  forced evaluation (lesson, ADR-0011).
 
 ## Handoff
 
-- **State:** tasks 1–10 done; `pnpm check` and `pnpm e2e` green.
-- **Next step:** task 11 — docs: components.md 74xx section (parts table, behavior, timing,
-  statuses), architecture.md, glossary, ADR-0011, `src/library/README.md`, roadmap; then the
-  finish-branch workflow (acceptance criteria one by one, `pnpm build`).
-- **Watch out:** data sheets are outside the repo (`~/Downloads/nexperia-74hc/`).
-- **Verify with:** `pnpm check`; `pnpm build`; `pnpm e2e`.
+- **State:** done; waiting for the user's approval to merge into `main`.
+- **Follow-ups:** R07 `feat/persistence` (next). Backlog: more logic families (74HCT/74AC
+  timing, 74LS with TTL inputs); a kernel flag for the forced evaluation.
