@@ -4,7 +4,7 @@
 | ---------- | -------------------------------------------------------------------- |
 | Branch     | `feat/editor-canvas`                                                 |
 | Roadmap    | R04a — App shell & schematic view ([roadmap](../../docs/roadmap.md)) |
-| Status     | in-progress                                                          |
+| Status     | done                                                                 |
 | Depends on | R02, R03                                                             |
 | Created    | 2026-11-06                                                           |
 
@@ -307,12 +307,11 @@ Checkable statements; verified one by one in the finish-branch workflow.
   gallery rotations row checked by eye).
 - [x] Navigation: scroll pans and pinch/`Mod`+wheel zooms about the cursor (default); the KiCad
   setting makes the wheel zoom; zoom in/out/fit/100 % from menu, toolbar and keyboard — e2e
-  `the wheel pans…`, `keyboard zoom…`; middle-drag, Space-drag and the Pan tool pan
-  (`editor.ts`, tried in the browser); HiDPI: backing store × devicePixelRatio, screenshots at 2×
+  `the wheel pans…`, `keyboard zoom…`, `Space-drag, middle-drag and the Pan tool…`; HiDPI: backing store × devicePixelRatio, screenshots at 2×
   are crisp.
 - [x] Selection: click, Shift-click, box left-to-right (inside) and right-to-left (touching),
   `Mod+A`, Esc; Properties shows the selection — `hit-test.test.ts`, `selection.test.ts`,
-  `editor.test.ts`, e2e canvas click, box and Escape.
+  `editor.test.ts`, e2e canvas click, box (both directions), Shift-click, `Mod+A`, Escape.
 - [x] Messages lists the current document's design issues; clicking one selects and centers its
   item; status-bar counts match — e2e `clicking a message selects and centers its part…`.
 - [x] A full redraw of the 3 600-part, 10 620-wire stress schematic: median 4.2 ms at fit zoom
@@ -364,17 +363,23 @@ place tool stay active after a click; designator prefixes per part.
   architecture, components, circuit, glossary, AGENTS (`pnpm e2e`), layer READMEs, lessons.
   Redraw: 4.2 ms at fit / 1.1 ms at 100 % on the stress schematic (Apple M3 Pro). Bench: compile
   ≈ 8.6 ms, serialize ≈ 10.7 ms, parse ≈ 5.3 ms (unchanged). All acceptance criteria verified.
+- 2026-11-06 — finished: criteria re-verified; three more e2e tests for what was only unit-tested
+  (Shift-click, `Mod+A`, right-to-left box, Space/middle/Pan-tool panning, View ▸ Panels) — 12
+  e2e tests, 575 unit/scenario tests; check, build, coverage green (pure editor modules ~100 %,
+  the DOM side — renderer, `Editor` input, `CanvasGraphics` — is covered by e2e). Roadmap: R04a
+  `done`, R04b `next`. Summary: a desktop CAD-style workbench (menu bar, toolbar, Parts with
+  search and preview, Properties, Messages, status bar, fixed docks with splitters, dark/light
+  themes following the OS); a Canvas2D schematic view with every part drawn by kind (ANSI/IEC
+  gates, IO symbols, DIP packages), upright text, Figma/KiCad navigation, click and box
+  selection, locate from design checks; one command registry for menus, toolbar and shortcuts;
+  Playwright in CI; ADR-0008.
 
 ## Handoff
 
-- **State:** all 14 tasks done and committed; acceptance criteria verified; `pnpm check`,
-  `pnpm build`, `pnpm e2e` green. Waiting for the user to look at the app (`pnpm dev`) and
-  approve; then the finish-branch workflow (roadmap R04a `done`, R04b `next`, merge `--no-ff`).
-- **Follow-ups:** R04b — editing tools; its plan asks: wires follow a moved part (rubber-band)
-  or detach; undo as document snapshots vs do/undo commands; place tool stays active after a
-  click; designator prefixes per part (the gallery's `PREFIX` map in `src/app/examples.ts` is a
-  stand-in). R05 — level colors in `CanvasTheme`, lit LEDs/displays in the drawers (they draw
-  the idle look now), clickable switches.
-- **Watch out:** `pnpm check` must stay browser-free; keep React out of `src/editor`; Biome
-  reformats JSX and Markdown (re-read before editing).
+- **State:** merged; nothing pending.
+- **Follow-ups (in the roadmap):** R04b `feat/editor-tools` — editing; its plan asks: wires follow
+  a moved part (rubber-band) or detach; undo as document snapshots vs do/undo commands; place
+  tool stays active after a click; designator prefixes per part (the gallery's `PREFIX` map in
+  `src/app/examples.ts` is a stand-in). R05 — level colors in `CanvasTheme`, lit LEDs/displays
+  in the drawers (idle look now), clickable switches.
 - **Verify with:** `pnpm check && pnpm build && pnpm e2e`.

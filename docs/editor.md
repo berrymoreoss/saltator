@@ -214,6 +214,7 @@ one directly.
   boundary and enum props, both gate styles) with a recording `SymbolGraphics`: something is
   drawn, everything stays inside the layout, and drawn pins equal the compiler's pin positions.
 - The browser — Playwright (`pnpm e2e`, `tests/e2e/`, Chromium against a production build):
-  shell regions, drawing, gallery without errors, locate from Messages, canvas click and box
-  selection, keyboard and wheel zoom in both wheel modes, theme switch, persisted panel layout,
+  shell regions, drawing, gallery without errors, locate from Messages, canvas click,
+  Shift-click, select all, box selection in both directions, keyboard and wheel zoom in both wheel
+  modes, Space/middle/Pan-tool panning, theme switch, View ▸ Panels, persisted panel layout,
   shortcuts dialog. Not part of `pnpm check` (it needs a browser); CI runs it after the build.

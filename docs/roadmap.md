@@ -13,30 +13,30 @@ How to read this file:
 
 ## Overview
 
-| ID   | Branch                       | Title                                    | Status      |
-| ---- | ---------------------------- | ---------------------------------------- | ----------- |
-| R00  | — (initial commit on `main`) | Foundation                               | done        |
-| R01  | `feat/engine-core`           | Simulation kernel                        | done        |
-| R02  | `feat/circuit-model`         | Circuit document & netlist compiler      | done        |
-| R03  | `feat/io-basic`              | Basic IO parts (headless)                | done        |
-| R04a | `feat/editor-canvas`         | App shell & schematic view               | in-progress |
-| R04b | `feat/editor-tools`          | Schematic editing                        | planned     |
-| R05  | `feat/sim-ui`                | Running simulations in the editor        | planned     |
-| R06  | `feat/74hc-gates`            | 74HC gates & bus buffers                 | planned     |
-| R07  | `feat/persistence`           | Save, load, examples                     | planned     |
-| R08  | `feat/74hc-msi`              | 74HC combinational MSI                   | planned     |
-| R09  | `feat/74hc-sequential`       | 74HC sequential parts + timing checks    | planned     |
-| R10  | `feat/nets-and-buses`        | Net labels, tunnels, buses               | planned     |
-| R11  | `feat/subcircuits`           | Hierarchical design                      | planned     |
-| R12  | `feat/memory`                | ROM / RAM + memory inspector             | planned     |
-| R13  | `feat/logic-analyzer`        | Waveforms & probes                       | planned     |
-| R14  | `feat/debugger`              | Breakpoints, stepping, watches           | planned     |
-| R15  | `feat/test-benches`          | Circuit test benches ("test before fab") | planned     |
-| R16  | `example/sap-1`              | Ben Eater SAP-1 reference build          | planned     |
-| R17  | `feat/cpu-6502`              | W65C02S CPU                              | planned     |
-| R18  | `feat/peripherals`           | VIA, LCD, serial, buzzer                 | planned     |
-| R19  | `feat/toolchain`             | 6502 assembler & flashing                | planned     |
-| R20  | `example/be6502`             | Ben Eater 6502 reference build           | planned     |
+| ID   | Branch                       | Title                                    | Status  |
+| ---- | ---------------------------- | ---------------------------------------- | ------- |
+| R00  | — (initial commit on `main`) | Foundation                               | done    |
+| R01  | `feat/engine-core`           | Simulation kernel                        | done    |
+| R02  | `feat/circuit-model`         | Circuit document & netlist compiler      | done    |
+| R03  | `feat/io-basic`              | Basic IO parts (headless)                | done    |
+| R04a | `feat/editor-canvas`         | App shell & schematic view               | done    |
+| R04b | `feat/editor-tools`          | Schematic editing                        | next    |
+| R05  | `feat/sim-ui`                | Running simulations in the editor        | planned |
+| R06  | `feat/74hc-gates`            | 74HC gates & bus buffers                 | planned |
+| R07  | `feat/persistence`           | Save, load, examples                     | planned |
+| R08  | `feat/74hc-msi`              | 74HC combinational MSI                   | planned |
+| R09  | `feat/74hc-sequential`       | 74HC sequential parts + timing checks    | planned |
+| R10  | `feat/nets-and-buses`        | Net labels, tunnels, buses               | planned |
+| R11  | `feat/subcircuits`           | Hierarchical design                      | planned |
+| R12  | `feat/memory`                | ROM / RAM + memory inspector             | planned |
+| R13  | `feat/logic-analyzer`        | Waveforms & probes                       | planned |
+| R14  | `feat/debugger`              | Breakpoints, stepping, watches           | planned |
+| R15  | `feat/test-benches`          | Circuit test benches ("test before fab") | planned |
+| R16  | `example/sap-1`              | Ben Eater SAP-1 reference build          | planned |
+| R17  | `feat/cpu-6502`              | W65C02S CPU                              | planned |
+| R18  | `feat/peripherals`           | VIA, LCD, serial, buzzer                 | planned |
+| R19  | `feat/toolchain`             | 6502 assembler & flashing                | planned |
+| R20  | `example/be6502`             | Ben Eater 6502 reference build           | planned |
 
 ---
 
@@ -75,7 +75,7 @@ SPST to a rail) and two-terminal LEDs ([ADR-0007](adr/0007-io-electrical-model.m
 on-time accounting for multiplexed displays. Spec: [components.md](components.md#io-parts-io).
 Plan: `.ai/plans/feat-io-basic.md`.
 
-### R04a · App shell & schematic view — `feat/editor-canvas` — `in-progress`
+### R04a · App shell & schematic view — `feat/editor-canvas` — `done`
 
 R04 was split at its start into a view (R04a) and editing (R04b). Desktop CAD-style React shell
 (menu bar, toolbar, Parts panel with search and preview, Properties panel, tabbed bottom dock
@@ -84,15 +84,17 @@ command registry for menus/toolbar/shortcuts. Canvas2D renderer (HiDPI, grid, la
 camera pan/zoom (Figma-style with a KiCad-style wheel setting), symbol renderers keyed by
 `symbol.kind` (gates in ANSI or IEC style, LEDs, switches, displays), generic DIP renderer,
 designator and label placement, selection (click, box), design-check messages with
-click-to-locate, demo documents (Hello LED, symbol gallery), Playwright smoke test.
-Plan: `.ai/plans/feat-editor-canvas.md`.
+click-to-locate, demo documents (Hello LED, symbol gallery), Playwright browser tests in CI.
+Spec: [editor.md](editor.md). Decision: [ADR-0008](adr/0008-desktop-workbench.md). Plan:
+`.ai/plans/feat-editor-canvas.md`.
 
-### R04b · Schematic editing — `feat/editor-tools`
+### R04b · Schematic editing — `feat/editor-tools` — `next`
 
 Place parts from the palette (click or drag), move/rotate/flip/delete, orthogonal wire drawing
 with junctions, copy/paste/duplicate, undo/redo, editing shortcuts, context menu, editing props,
 designator and label in the Properties panel, designator prefixes per part (`U`, `SW`, `D`, …).
-Open questions are listed in R04a's plan.
+Open questions are listed in R04a's plan (Open questions, last paragraph). Spec to extend:
+[editor.md](editor.md).
 
 ### R05 · Running simulations in the editor — `feat/sim-ui`
 
