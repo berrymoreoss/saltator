@@ -1,0 +1,405 @@
+/* The desktop shell: dense, bordered, no page scroll (every region scrolls itself). */
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  background: var(--app-bg);
+  color: var(--fg);
+  font: var(--text-ui) / 1.35 var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+/* While a splitter is dragged, its cursor wins over every element's own (the canvas sets one). */
+body.resizing-x,
+body.resizing-x * {
+  /* biome-ignore lint/complexity/noImportantStyles: must beat inline cursor styles */
+  cursor: col-resize !important;
+}
+
+body.resizing-y,
+body.resizing-y * {
+  /* biome-ignore lint/complexity/noImportantStyles: must beat inline cursor styles */
+  cursor: row-resize !important;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.workbench {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* ── Menu bar ─────────────────────────────────────────────────────────────── */
+
+.menubar {
+  display: flex;
+  align-items: stretch;
+  height: var(--menubar-h);
+  padding: 0 4px;
+  background: var(--panel-header-bg);
+  border-bottom: 1px solid var(--border);
+  flex: none;
+}
+
+.menubar-item {
+  position: relative;
+}
+
+.menubar-title {
+  height: 100%;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+}
+
+.menubar-title:hover,
+.menubar-title.open {
+  background: var(--hover-bg);
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  z-index: 100;
+  min-width: 220px;
+  padding: 4px;
+  background: var(--menu-bg);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  box-shadow: var(--shadow);
+}
+
+.submenu {
+  top: -5px;
+  left: calc(100% + 2px);
+}
+
+.menu-sub {
+  position: relative;
+}
+
+.menu-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: var(--row);
+  padding: 0 8px 0 4px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.menu-row:hover:not(:disabled),
+.menu-row.active {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+
+.menu-row:disabled {
+  color: var(--fg-subtle);
+}
+
+.menu-check {
+  display: inline-flex;
+  justify-content: center;
+  width: 20px;
+  flex: none;
+}
+
+.menu-label {
+  flex: 1;
+}
+
+.menu-shortcut {
+  margin-left: 24px;
+  color: var(--fg-muted);
+  font-size: var(--text-small);
+}
+
+.menu-row:hover:not(:disabled) .menu-shortcut {
+  color: inherit;
+  opacity: 0.85;
+}
+
+.menu-separator {
+  height: 1px;
+  margin: 4px 6px;
+  border: 0;
+  background: var(--border);
+}
+
+/* ── Toolbar ──────────────────────────────────────────────────────────────── */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: var(--toolbar-h);
+  padding: 0 6px;
+  background: var(--toolbar-bg);
+  border-bottom: 1px solid var(--border);
+  flex: none;
+}
+
+.toolbar-divider {
+  width: 1px;
+  height: 18px;
+  margin: 0 6px;
+  background: var(--border-strong);
+}
+
+.tool-button,
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: none;
+  color: var(--fg-muted);
+}
+
+.tool-button {
+  min-width: 26px;
+  height: 26px;
+  padding: 0 4px;
+}
+
+.icon-button {
+  width: 20px;
+  height: 20px;
+}
+
+.tool-button:hover:not(:disabled),
+.icon-button:hover {
+  background: var(--hover-bg);
+  color: var(--fg);
+}
+
+.tool-button:active:not(:disabled) {
+  background: var(--pressed-bg);
+}
+
+.tool-button.pressed {
+  background: var(--active-bg);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--accent);
+}
+
+.tool-button:disabled {
+  opacity: 0.4;
+}
+
+/* ── Docks, panels, splitters ─────────────────────────────────────────────── */
+
+.workbench-main {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.dock {
+  display: flex;
+  flex: none;
+  min-width: 0;
+  min-height: 0;
+  background: var(--panel-bg);
+}
+
+.dock-bottom {
+  border-top: 1px solid var(--border);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  height: var(--header-h);
+  padding: 0 4px 0 10px;
+  background: var(--panel-header-bg);
+  border-bottom: 1px solid var(--border);
+  flex: none;
+}
+
+.panel-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  color: var(--fg-muted);
+  font-size: var(--text-small);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.panel-title .tab {
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.panel-title .tab.active {
+  color: var(--fg);
+  background: var(--hover-bg);
+}
+
+.panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.splitter {
+  position: relative;
+  flex: none;
+  background: var(--border);
+  z-index: 10;
+}
+
+.splitter.vertical {
+  width: 1px;
+  cursor: col-resize;
+}
+
+.splitter.horizontal {
+  height: 1px;
+  cursor: row-resize;
+}
+
+/* A wider invisible grab area around the 1 px line. */
+.splitter::after {
+  content: "";
+  position: absolute;
+  inset: -3px 0;
+}
+
+.splitter.vertical::after {
+  inset: 0 -3px;
+}
+
+.splitter:hover,
+.splitter:active {
+  background: var(--splitter-hover);
+}
+
+/* ── Canvas ───────────────────────────────────────────────────────────────── */
+
+.canvas-host {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  background: var(--canvas-bg);
+}
+
+.canvas-host canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  outline: none;
+  touch-action: none;
+}
+
+/* ── Status bar ───────────────────────────────────────────────────────────── */
+
+.statusbar {
+  display: flex;
+  align-items: stretch;
+  height: var(--statusbar-h);
+  background: var(--panel-header-bg);
+  border-top: 1px solid var(--border);
+  color: var(--fg-muted);
+  font-size: var(--text-small);
+  flex: none;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.status-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 10px;
+  border: 0;
+  border-right: 1px solid var(--border);
+  background: none;
+}
+
+.status-hint {
+  color: var(--fg-subtle);
+  border-right: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.status-spacer {
+  flex: 1;
+}
+
+.status-issues {
+  gap: 10px;
+  border-left: 1px solid var(--border);
+  border-right: 0;
+}
+
+.status-issues:hover {
+  background: var(--hover-bg);
+  color: var(--fg);
+}
+
+.issue-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.issue-count.error {
+  color: var(--error);
+}
+
+.issue-count.warning {
+  color: var(--warning);
+}

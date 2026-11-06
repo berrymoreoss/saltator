@@ -7,4 +7,9 @@ dock panels (diagnostics, memory inspector, logic analyzer), dialogs.
 - Talks to the editor and simulator through their public APIs and subscriptions
   (`useSyncExternalStore`), never by reaching into internals.
 
-First implemented in R04 (feat/editor-canvas).
+Implemented in R04a: `Workbench` (the shell), `MenuBar`, `Toolbar`, `Panel`/`Splitter`,
+`StatusBar`, `PartsPanel`, `PropertiesPanel`, `MessagesPanel`, `Dialogs`; `commands` +
+`workbench-commands` (one registry for menus, toolbar and shortcuts), `shortcuts`, `settings`
+(persisted view preferences), `ui-state`; styles in `styles/` (tokens for both themes).
+
+Spec: [docs/editor.md](../../docs/editor.md#shell).

@@ -44,7 +44,7 @@ interface Wire {
 - **Coordinates** are integer grid cells within ±1 000 000; x grows to the right, y downwards
   (as on a canvas), so a clockwise rotation looks clockwise on screen.
 - **A wire is one straight horizontal or vertical segment** of non-zero length. An L-shaped
-  connection is two wires sharing an end; the editor (R04) splits and merges segments.
+  connection is two wires sharing an end; the editor (R04b) splits and merges segments.
 - **Ids**: a letter or `_`, then letters, digits, `_` or `-` (`ID_PATTERN`). No dots, because
   netlists address pins as `U1.Y`. Component and wire ids are unique together within a circuit.
 - **A component's id is its designator** (`U1`, `SW1`): it is what netlists, diagnostics, the

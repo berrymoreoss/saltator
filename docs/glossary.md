@@ -37,6 +37,10 @@ to the notch, numbering runs counter-clockwise (seen from the top).
 **Floating input** — an input connected to a net that nothing drives (`Z`). On CMOS parts it reads
 randomly and may oscillate; the simulator treats it as `X` and reports it.
 
+**Gate style** — how logic gates are drawn: ANSI/IEEE 91 distinctive shapes (the D-shaped AND,
+the curved OR) or IEC 60617 rectangles with a qualifying symbol (`&`, `≥1`, `=1`). A view setting
+in the editor; the pins are the same either way.
+
 **Inertial delay** — a delay model in which input pulses shorter than the element's delay do not
 reach the output.
 
@@ -77,6 +81,9 @@ open, so it needs a pull resistor.
 **Symbol** — how a part that isn't drawn as a chip package looks on the schematic (LED, switch,
 gate shape). Parts describe it as data (body size, pin sides and offsets); the editor draws it.
 
+**Stub (pin stub)** — the short line from a part's body to the pin's connection point, where a
+wire must end to connect.
+
 **Test bench** — a harness that applies stimulus to a part or circuit and checks the outputs over
 time.
 
@@ -84,6 +91,9 @@ time.
 
 **Tri-state output** — an output that can drive 0, 1, or be disabled (high impedance `Z`), allowing
 several outputs to share a bus.
+
+**Workbench** — the application window: menu bar, toolbar, docked panels (Parts, Properties,
+Messages), canvas and status bar.
 
 **Unit (gate section)** — one of several identical functions inside a chip (the four NAND gates of
 a 74HC00), drawn separately in symbol view.

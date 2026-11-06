@@ -4,39 +4,13 @@
  * what users feel. Results are recorded in the plan of the branch that changed them.
  */
 import { describe, type TestContext, test } from 'vitest';
-import {
-  type Circuit,
-  CircuitBuilder,
-  compileCircuit,
-  parseDocument,
-  serializeDocument,
-} from '../../src/circuit';
+import { nandGrid } from '../../src/app/examples';
+import { compileCircuit, parseDocument, serializeDocument } from '../../src/circuit';
 import { createDefaultRegistry } from '../../src/library';
 
 const registry = createDefaultRegistry();
 
-/**
- * A grid of 2-input NANDs (A (x, y+1), B (x, y+3), Y (x+6, y+2)); each column sits one cell lower
- * than the one before, so an output runs straight to the next gate's input A. Each column has a
- * vertical bus (one wire per row, end to end) with a T-junction stub to the next gate's input B.
- * The chain wires cross the buses without connecting. ~3 wires per gate.
- */
-function grid(rows: number, columns: number): Circuit {
-  const b = new CircuitBuilder(registry);
-  const at = (r: number, c: number): [number, number] => [c * 12, r * 6 + c];
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < columns; c++) b.add(`U${r}_${c}`, 'prim/nand', { at: at(r, c) });
-  }
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < columns - 1; c++) {
-      const [x, y] = at(r, c);
-      b.wire([x + 6, y + 2], [x + 12, y + 2]); // Y → next A
-      b.wire([x + 9, y + 4], [x + 9, y + 10]); // bus segment
-      b.wire([x + 9, y + 4], [x + 12, y + 4]); // stub → next B
-    }
-  }
-  return b.build();
-}
+const grid = (rows: number, columns: number) => nandGrid(registry, rows, columns);
 
 async function measure(bench: TestContext['bench'], name: string, iterate: () => void) {
   const result = await bench(name, iterate).run();

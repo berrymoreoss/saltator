@@ -1,0 +1,100 @@
+/*
+ * Design tokens of the desktop shell, for both themes. `data-theme` on <html> is set by the app
+ * (following the OS unless overridden in View > Theme); before that, the OS preference applies.
+ * The canvas has its own matching palette (src/editor/theme.ts).
+ */
+:root,
+:root[data-theme="light"] {
+  color-scheme: light;
+  --app-bg: #dfe1e5;
+  --panel-bg: #f6f7f8;
+  --panel-header-bg: #eceef1;
+  --toolbar-bg: #f0f1f3;
+  --menu-bg: #ffffff;
+  --input-bg: #ffffff;
+  --hover-bg: rgba(0, 0, 0, 0.06);
+  --active-bg: rgba(9, 105, 218, 0.14);
+  --pressed-bg: rgba(0, 0, 0, 0.1);
+  --border: #d3d6db;
+  --border-strong: #b9bdc4;
+  --splitter-hover: #0969da;
+  --fg: #1f2328;
+  --fg-muted: #57606a;
+  --fg-subtle: #8c959f;
+  --accent: #0969da;
+  --accent-fg: #ffffff;
+  --focus: #0969da;
+  --error: #cf222e;
+  --warning: #9a6700;
+  --ok: #1a7f37;
+  --shadow: 0 6px 24px rgba(0, 0, 0, 0.16), 0 1px 3px rgba(0, 0, 0, 0.1);
+  --canvas-bg: #fbfaf6;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --app-bg: #121316;
+    --panel-bg: #1f2125;
+    --panel-header-bg: #26292e;
+    --toolbar-bg: #26292e;
+    --menu-bg: #2b2e34;
+    --input-bg: #17191c;
+    --hover-bg: rgba(255, 255, 255, 0.07);
+    --active-bg: rgba(88, 166, 255, 0.2);
+    --pressed-bg: rgba(255, 255, 255, 0.12);
+    --border: #33363c;
+    --border-strong: #464a52;
+    --splitter-hover: #58a6ff;
+    --fg: #d8dbe0;
+    --fg-muted: #9aa1ab;
+    --fg-subtle: #6c727b;
+    --accent: #58a6ff;
+    --accent-fg: #0d1117;
+    --focus: #58a6ff;
+    --error: #f85149;
+    --warning: #d29922;
+    --ok: #3fb950;
+    --shadow: 0 8px 28px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4);
+    --canvas-bg: #17191d;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --app-bg: #121316;
+  --panel-bg: #1f2125;
+  --panel-header-bg: #26292e;
+  --toolbar-bg: #26292e;
+  --menu-bg: #2b2e34;
+  --input-bg: #17191c;
+  --hover-bg: rgba(255, 255, 255, 0.07);
+  --active-bg: rgba(88, 166, 255, 0.2);
+  --pressed-bg: rgba(255, 255, 255, 0.12);
+  --border: #33363c;
+  --border-strong: #464a52;
+  --splitter-hover: #58a6ff;
+  --fg: #d8dbe0;
+  --fg-muted: #9aa1ab;
+  --fg-subtle: #6c727b;
+  --accent: #58a6ff;
+  --accent-fg: #0d1117;
+  --focus: #58a6ff;
+  --error: #f85149;
+  --warning: #d29922;
+  --ok: #3fb950;
+  --shadow: 0 8px 28px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4);
+  --canvas-bg: #17191d;
+}
+
+:root {
+  --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --text-ui: 12px;
+  --text-small: 11px;
+  --row: 22px;
+  --toolbar-h: 32px;
+  --menubar-h: 26px;
+  --statusbar-h: 22px;
+  --header-h: 24px;
+}
