@@ -281,10 +281,24 @@ Asked at branch start (2026-11-06); all answered.
 
 - 2026-11-06 — branch created; plan drafted.
 - 2026-11-06 — Q1–Q5 answered as proposed; plan approved by the user; status in-progress.
+- 2026-11-06 — the user went out and asked to drive the branch to the end; finish/merge waits for
+  their approval. Tasks 1–6 done: designator prefixes; `circuit/edit.ts` (ids, part ops,
+  `normalizeWires` with a connectivity property test, fragments); snapshot history +
+  `Editor.edit`; `move.ts` rubber-band (pin stubs leave pins head-on — a straight stub along a
+  pin column connected to the neighbour pin); delete/rotate/flip/nudge; the Editor's gestures now
+  run on `PointerInput` (DOM adapters only), so drag-move, Wire tool, drag-from-pin, place tool,
+  floating paste/duplicate and context-menu requests are unit-tested headless
+  (`gestures.test.ts`). Place/paste UI wiring (tasks 7–8) still to do.
 
 ## Handoff
 
-- **State:** plan approved, nothing implemented yet.
-- **Next step:** task 1 (designator prefixes).
-- **Watch out:** —
+- **State:** tasks 1–6 committed; the editor side of tasks 7–8 (place tool, drop, clipboard,
+  floating paste) is implemented and tested in `src/editor/editor.ts` + `gestures.test.ts`.
+- **Next step:** UI — Parts panel arms `editor.placePart(type)` on click and drag-and-drop
+  (`editor.dragPart`/`dropPart`), Wire tool command (`W`, own icon), clipboard commands
+  (keyboard via `copy`/`paste` events, menus via async Clipboard API + in-memory fallback),
+  Duplicate; then task 9 (editable Properties; `requests` store asks to focus it), task 10
+  (context menu from `editor.requests`; status hints exist: `statusHint`).
+- **Watch out:** `edit()` compares circuits by value (`sameCircuit`), so a no-op edit records
+  nothing. Biome reflows nested arrays in tests; compare wires as `'x,y-x,y'` strings.
 - **Verify with:** `pnpm check && pnpm build && pnpm e2e`.
