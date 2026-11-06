@@ -16,8 +16,8 @@ How to read this file:
 | ID  | Branch                       | Title                                    | Status  |
 | --- | ---------------------------- | ---------------------------------------- | ------- |
 | R00 | — (initial commit on `main`) | Foundation                               | done    |
-| R01 | `feat/engine-core`           | Simulation kernel                        | next    |
-| R02 | `feat/circuit-model`         | Circuit document & netlist compiler      | planned |
+| R01 | `feat/engine-core`           | Simulation kernel                        | done    |
+| R02 | `feat/circuit-model`         | Circuit document & netlist compiler      | next    |
 | R03 | `feat/io-basic`              | Basic IO parts (headless)                | planned |
 | R04 | `feat/editor-canvas`         | App shell & schematic editor             | planned |
 | R05 | `feat/sim-ui`                | Running simulations in the editor        | planned |
@@ -49,7 +49,7 @@ boundaries, docs (vision, architecture, simulation, components, ADRs), AI workfl
 
 ## Phase 1 — Kernel & sandbox → **M1 "Hello, LED"**
 
-### R01 · Simulation kernel — `feat/engine-core` — `next`
+### R01 · Simulation kernel — `feat/engine-core` — `done`
 
 Headless event-driven kernel per [simulation.md](simulation.md): time, 4-state levels with drive
 strengths, resolution, event queue, inertial delays, delta cycles, oscillation guard, netlist +
@@ -57,7 +57,7 @@ builder, component runtime API, diagnostics (contention, floating input, oscilla
 Abstract primitives (`prim/*` gates, buffers, tri-state buffer, constant, pull resistor).
 Kernel benchmark. Plan: `.ai/plans/feat-engine-core.md`.
 
-### R02 · Circuit document & netlist compiler — `feat/circuit-model`
+### R02 · Circuit document & netlist compiler — `feat/circuit-model` — `next`
 
 Document schema (components, wires, labels) with `schemaVersion` and migrations; geometric
 connectivity (union-find over grid points, T-junctions); compiler to `Netlist`; design checks
@@ -184,6 +184,7 @@ Promote to a numbered item when needed.
 
 - Symbol view: Proteus/KiCad-style multi-unit symbols (U1A…), hidden power pins, per-part toggle.
 - Simulation in a Web Worker with SharedArrayBuffer levels; fast mode for synchronous designs.
+- Seeded random power-on state as a simulator option (default stays `X`; decided in R01, Q2).
 - Design checks: unconnected power pins, fan-out/load limits, worst-case timing corner.
 - More CPUs/MCUs: Z80, 8080/8085, 6800/6809, AVR (ATmega328P, ATtiny85), PIC.
 - Video output: VGA (Ben Eater's video card), composite.

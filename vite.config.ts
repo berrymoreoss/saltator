@@ -10,6 +10,8 @@ export default defineConfig({
       provider: 'v8',
       include: ['src/**/*.{ts,tsx}'],
       exclude: ['src/**/*.test.{ts,tsx}', 'src/**/*.bench.ts', 'src/main.tsx'],
+      // The kernel must stay thoroughly tested (R01 acceptance criterion).
+      thresholds: { 'src/core/**': { lines: 90 } },
     },
   },
 });

@@ -11,7 +11,8 @@ lives in [`docs/`](../docs/README.md); this folder is about **process and state*
 │   ├── start-branch.md    pick a roadmap item, branch, write/approve the plan
 │   ├── resume-branch.md   continue a branch in a fresh session (after /clear)
 │   ├── handoff.md         end a session cleanly so the next one can resume
-│   └── finish-branch.md   verify, document, merge
+│   ├── finish-branch.md   verify, document, merge
+│   └── add-component.md   recipe for adding a part (definition, registry, datasheet tests)
 ├── plans/                 one plan per branch: <branch with "/" → "-">.md
 │   └── _template.md
 └── lessons.md             non-obvious things learned the hard way (append-only log)

@@ -1,5 +1,6 @@
 /**
- * Component library: definitions of parts (primitives, IO, 74xx, memory, CPUs) and the registry.
- * First parts arrive in R01 (primitives). See docs/components.md.
+ * Component library: definitions of parts (primitives now; IO, 74xx, memory, CPUs later) and the
+ * default registry. See docs/components.md.
  */
-export {};
+export * from './primitives';
+export { createDefaultRegistry } from './registry';

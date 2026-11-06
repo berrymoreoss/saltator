@@ -1,5 +1,77 @@
 /**
  * Public API of the simulation kernel (signal model, scheduler, netlist runtime, component API).
- * Implemented in R01 (feat/engine-core). See docs/simulation.md.
+ * Spec: docs/simulation.md.
  */
-export {};
+
+export {
+  type AnyComponentDefinition,
+  type Behavior,
+  type ComponentDefinition,
+  defineComponent,
+  type EvalContext,
+  isDriverPin,
+  isReadPin,
+  type PackageDef,
+  type PinDef,
+  type PinDir,
+  type PinRef,
+  type PropDef,
+  type PropValue,
+  pinIndex,
+  pinsOf,
+  resolveProps,
+  type TimingDef,
+  type UnitDef,
+} from './component';
+export {
+  type ComponentDiagnostic,
+  type Diagnostic,
+  type DiagnosticInput,
+  DiagnosticLog,
+  KernelDiagnosticKind,
+} from './diagnostics';
+export {
+  and,
+  DRIVES,
+  Drive,
+  driveName,
+  isContention,
+  LEVELS,
+  Level,
+  levelChar,
+  levelOf,
+  not,
+  or,
+  resolve,
+  Strength,
+  strengthOf,
+  strong,
+  toInput,
+  weak,
+  xor,
+} from './logic';
+export {
+  type Netlist,
+  NetlistBuilder,
+  type NetlistComponent,
+  NetlistError,
+  type NetlistNet,
+  type NetlistPin,
+  type PinSpec,
+  type ResolvedComponent,
+  type ResolvedNet,
+  type ResolvedNetlist,
+  type ResolvedPin,
+  resolveNetlist,
+} from './netlist';
+export { type ComponentRegistry, familyOf, Registry } from './registry';
+export {
+  type NetChangeListener,
+  type RunOptions,
+  type RunStatus,
+  type SettleOptions,
+  Simulator,
+  type SimulatorOptions,
+  type SimulatorStats,
+} from './simulator';
+export { formatTime, ms, ns, ps, TIME_MAX, type Time, us } from './time';

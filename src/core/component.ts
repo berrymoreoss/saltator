@@ -1,0 +1,247 @@
+/**
+ * Component definitions and the runtime contract between parts and the simulator.
+ * Spec: docs/components.md (definition shape), docs/simulation.md#components-at-runtime.
+ */
+import type { ComponentDiagnostic } from './diagnostics';
+import type { Drive, Level } from './logic';
+import type { Time } from './time';
+
+/** Index of a pin in an instance's pin list (resolved once; no string lookups while running). */
+export type PinRef = number;
+
+/**
+ * - `in` reads the net; `out` drives strong 0/1; `tristate` drives 0/1 or releases (Z);
+ * - `bidir` reads and drives (RAM/CPU data pins);
+ * - `power` and `nc` are neither read nor driven (power is not simulated in the MVP).
+ */
+export type PinDir = 'in' | 'out' | 'tristate' | 'bidir' | 'power' | 'nc';
+
+export interface PinDef {
+  /** Datasheet name: `1A`, `1Y`, `OE`, `VCC`. Unique within the part. */
+  readonly name: string;
+  /** Physical pin number (required when the part has a `package`). */
+  readonly number?: number;
+  readonly dir: PinDir;
+  /** Drawn with a bubble/overline: `OE`, `CE`, `WE`. */
+  readonly activeLow?: boolean;
+  /** Drawn with a clock triangle. */
+  readonly clock?: boolean;
+}
+
+/** True for pins whose net level the component may read. */
+export function isReadPin(dir: PinDir): boolean {
+  return dir === 'in' || dir === 'bidir';
+}
+
+/** True for pins that own a driver slot. */
+export function isDriverPin(dir: PinDir): boolean {
+  return dir === 'out' || dir === 'tristate' || dir === 'bidir';
+}
+
+export interface PackageDef {
+  readonly kind: 'dip';
+  /** Total pin count, e.g. 14 for a 74HC00. */
+  readonly pins: number;
+}
+
+/** A gate section of a multi-gate chip (`U1A` … `U1D`), for the future symbol view. */
+export interface UnitDef {
+  readonly name: string;
+  readonly pins: readonly string[];
+}
+
+export type PropValue = number | boolean | string;
+
+export interface PropDef {
+  readonly key: string;
+  readonly label: string;
+  /** `time` values are integer picoseconds, like every time in the kernel. */
+  readonly type: 'number' | 'integer' | 'boolean' | 'enum' | 'color' | 'string' | 'time';
+  readonly default: PropValue;
+  readonly min?: number;
+  readonly max?: number;
+  readonly step?: number;
+  /** Allowed values of an `enum` prop. */
+  readonly options?: readonly { readonly value: string; readonly label: string }[];
+  /** Display unit: `Hz`, `ns`. */
+  readonly unit?: string;
+}
+
+/** Datasheet timing, in picoseconds, keyed by datasheet symbol (`tpd`, `tPLH`, `tsu`, …). */
+export interface TimingDef {
+  /** Values the behavior uses (typical at VCC = 5 V unless `conditions` says otherwise). */
+  readonly typical: Readonly<Record<string, Time>>;
+  /** Maximum values, for a future worst-case mode. */
+  readonly max?: Readonly<Record<string, Time>>;
+  readonly conditions?: string;
+  /** Where the numbers came from: datasheet, revision, table. */
+  readonly source?: string;
+}
+
+/**
+ * The view a behavior has of the simulator while one of its callbacks runs. The simulator reuses
+ * one context object for all components: never keep a reference to it after the callback.
+ */
+export interface EvalContext<State = unknown> {
+  /** Current simulation time. */
+  readonly now: Time;
+  /** Per-instance mutable state (from `createState`). */
+  readonly state: State;
+  /** Instance id from the netlist (for messages). */
+  readonly id: string;
+  /** Current resolved level of the pin's net. Reading `Z` records a `floating-input`. */
+  read(pin: PinRef): Level;
+  /** Level of the pin's net before the change in the triggering delta (= `read` if unchanged). */
+  prev(pin: PinRef): Level;
+  /** Did this pin's net change in the triggering delta cycle? */
+  changed(pin: PinRef): boolean;
+  /** Changed from exactly 0 to exactly 1 (edges from/to `X`/`Z` don't count; see `prev`). */
+  rose(pin: PinRef): boolean;
+  /** Changed from exactly 1 to exactly 0. */
+  fell(pin: PinRef): boolean;
+  /** Schedules `drive` on a driver pin after `delay` (inertial; see docs/simulation.md). */
+  drive(pin: PinRef, drive: Drive, delay: Time): void;
+  /** Calls `wake(ctx, token)` after `delay`. */
+  wakeAfter(delay: Time, token?: number): void;
+  /** Reports a diagnostic (setup/hold violation, …); the kernel adds time and component id. */
+  report(diagnostic: ComponentDiagnostic): void;
+}
+
+/** Per-instance runtime behavior. All mutable state lives in `ctx.state`. */
+export interface Behavior<State = unknown> {
+  /**
+   * Initial state; must be plain structured-clone-able data (objects, arrays, typed arrays) so
+   * the simulator can preserve it across recompiles and snapshot it. Default: `undefined`.
+   */
+  createState?(): State;
+  /** Called once at t = 0, before any events. Set initial outputs here. */
+  init?(ctx: EvalContext<State>): void;
+  /** Called when nets this component reads changed (at most once per delta cycle). */
+  evaluate?(ctx: EvalContext<State>): void;
+  /** Called when a timer scheduled with `ctx.wakeAfter()` fires. */
+  wake?(ctx: EvalContext<State>, token: number): void;
+  /** External action from the UI or a test bench (press a button, flip a switch). */
+  action?(ctx: EvalContext<State>, action: unknown): void;
+}
+
+/** A part type. Written once per part in `src/library`; looked up by `type` in a registry. */
+export interface ComponentDefinition<
+  Props extends object = Record<string, PropValue>,
+  State = unknown,
+> {
+  /** Stable type id `family/part`, e.g. `74xx/74hc00`. Never rename (saved documents use it). */
+  readonly type: string;
+  /** Short name shown on the part: `74HC00`. */
+  readonly name: string;
+  /** What it is: `Quad 2-input NAND gate`. */
+  readonly title: string;
+  /** Extra palette search terms. */
+  readonly keywords?: readonly string[];
+  /** URL of the datasheet the pins, function table and timing come from. */
+  readonly datasheet?: string;
+  /** Pin list (order defines `PinRef`s), or a function of props for parts like N-input gates. */
+  readonly pins: readonly PinDef[] | ((props: Props) => readonly PinDef[]);
+  readonly package?: PackageDef;
+  readonly units?: readonly UnitDef[];
+  readonly props?: readonly PropDef[];
+  readonly timing?: TimingDef;
+  /** Creates the behavior of one instance. `props` are validated and defaulted. */
+  create(props: Props): Behavior<State>;
+}
+
+/** A definition with its generic parameters erased, as stored in a registry. */
+export type AnyComponentDefinition = ComponentDefinition<Record<string, PropValue>, unknown>;
+
+/**
+ * Declares a part with full type inference for its props and state and returns it in the erased
+ * form registries store. Safe because the simulator only ever passes `create`/`pins` props that
+ * were resolved against this same definition's `props`.
+ */
+export function defineComponent<Props extends object, State>(
+  definition: ComponentDefinition<Props, State>,
+): AnyComponentDefinition {
+  return definition as unknown as AnyComponentDefinition;
+}
+
+/** Pin list of an instance with the given (resolved) props. */
+export function pinsOf(
+  definition: AnyComponentDefinition,
+  props: Record<string, PropValue>,
+): readonly PinDef[] {
+  return typeof definition.pins === 'function' ? definition.pins(props) : definition.pins;
+}
+
+/** Index of the pin called `name`; throws if there is none. */
+export function pinIndex(pins: readonly PinDef[], name: string): PinRef {
+  const index = pins.findIndex((p) => p.name === name);
+  if (index < 0) throw new Error(`no pin "${name}" (pins: ${pins.map((p) => p.name).join(', ')})`);
+  return index;
+}
+
+/** Throws if pin names are empty or not unique. `where` prefixes the message. */
+export function validatePins(pins: readonly PinDef[], where: string): void {
+  const seen = new Set<string>();
+  for (const pin of pins) {
+    if (pin.name === '') throw new Error(`${where}: empty pin name`);
+    if (seen.has(pin.name)) throw new Error(`${where}: duplicate pin "${pin.name}"`);
+    seen.add(pin.name);
+  }
+}
+
+/**
+ * Validates raw props (from a netlist or document) against a definition and fills in defaults.
+ * Throws with a precise message on unknown keys, wrong types, out-of-range values.
+ */
+export function resolveProps(
+  definition: AnyComponentDefinition,
+  raw: Readonly<Record<string, unknown>> = {},
+  where = definition.type,
+): Record<string, PropValue> {
+  const defs = definition.props ?? [];
+  const known = new Set(defs.map((d) => d.key));
+  for (const key of Object.keys(raw)) {
+    if (!known.has(key)) {
+      const list = defs.length > 0 ? defs.map((d) => d.key).join(', ') : 'none';
+      throw new Error(`${where}: unknown prop "${key}" (props: ${list})`);
+    }
+  }
+  const props: Record<string, PropValue> = {};
+  for (const def of defs) {
+    const value = raw[def.key] ?? def.default;
+    const expected = propProblem(def, value);
+    if (expected !== undefined) {
+      throw new Error(
+        `${where}: prop "${def.key}" must be ${expected}, got ${JSON.stringify(value)}`,
+      );
+    }
+    props[def.key] = value as PropValue;
+  }
+  return props;
+}
+
+/** Returns what the value should have been, or `undefined` if it is valid. */
+function propProblem(def: PropDef, value: unknown): string | undefined {
+  switch (def.type) {
+    case 'number':
+    case 'integer':
+    case 'time':
+      if (typeof value !== 'number' || !Number.isFinite(value)) return 'a finite number';
+      if (def.type !== 'number' && !Number.isInteger(value)) {
+        return def.type === 'time' ? 'an integer number of picoseconds' : 'an integer';
+      }
+      if (def.min !== undefined && value < def.min) return `≥ ${def.min}`;
+      if (def.max !== undefined && value > def.max) return `≤ ${def.max}`;
+      return undefined;
+    case 'boolean':
+      return typeof value === 'boolean' ? undefined : 'a boolean';
+    case 'enum': {
+      const options = (def.options ?? []).map((o) => o.value);
+      return typeof value === 'string' && options.includes(value)
+        ? undefined
+        : `one of ${options.map((o) => JSON.stringify(o)).join(', ')}`;
+    }
+    case 'color':
+    case 'string':
+      return typeof value === 'string' ? undefined : 'a string';
+  }
+}

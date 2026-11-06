@@ -1,25 +1,28 @@
 # Components
 
 How parts are described in `src/library`. Rationale for modeling chips as packages:
-[ADR-0004](adr/0004-chips-as-packages.md).
+[ADR-0004](adr/0004-chips-as-packages.md). Runtime contract (behaviors, context, delays):
+[simulation.md](simulation.md#components-at-runtime). Step-by-step recipe for adding a part:
+[.ai/workflows/add-component.md](../.ai/workflows/add-component.md).
 
-> Status: **draft**. The definition shape below is the target for R01 (primitives) and R03 (IO);
-> those branches finalize names and types and update this document. The step-by-step recipe for
-> adding a part will live in `.ai/workflows/add-component.md` (written in R01).
+> Status: the definition shape is implemented (R01) and used by the `prim/*` parts. IO parts
+> (R03) add `symbol`; 74xx parts (R06) are the first to use `package` and `units`.
 
 ## Families and type ids
 
-A part is identified by a stable **type id** `family/part`, stored in saved documents. Never
-rename a type id; add a migration if you must.
+A part is identified by a stable **type id** `family/part` (lowercase letters, digits, dashes),
+stored in saved documents. Never rename a type id; add a migration if you must. The family is
+the part before the slash (`familyOf(type)`).
 
 | Family   | Examples                                                           | Notes                                                                                                  |
 | -------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
 | `prim`   | `prim/nand`, `prim/tristate-buffer`, `prim/pull`                   | Abstract building blocks (Logisim-style), configurable inputs and delay. For prototyping and learning. |
-| `io`     | `io/switch`, `io/button`, `io/led`, `io/clock`, `io/seven-segment` | Interaction and indication.                                                                            |
-| `74xx`   | `74xx/74hc00`, `74xx/74hc245`, `74xx/74ls189`                      | Real logic chips. Behavior shared per function; timing per logic family (HC first).                    |
-| `mem`    | `mem/at28c256`, `mem/62256`                                        | ROM/EEPROM/SRAM with inspectors.                                                                       |
-| `cpu`    | `cpu/w65c02s`                                                      | Processors (pin-level). Later: Z80, AVR, PIC.                                                          |
-| `periph` | `periph/w65c22`, `periph/hd44780`                                  | Peripherals.                                                                                           |
+| `io`     | `io/switch`, `io/button`, `io/led`, `io/clock`, `io/seven-segment` | Interaction and indication _(planned, R03)_.                                                           |
+| `74xx`   | `74xx/74hc00`, `74xx/74hc245`, `74xx/74ls189`                      | Real logic chips. Behavior shared per function; timing per logic family (HC first) _(planned, R06)_.   |
+| `mem`    | `mem/at28c256`, `mem/62256`                                        | ROM/EEPROM/SRAM with inspectors _(planned, R12)_.                                                      |
+| `cpu`    | `cpu/w65c02s`                                                      | Processors (pin-level) _(planned, R17)_. Later: Z80, AVR, PIC.                                         |
+| `periph` | `periph/w65c22`, `periph/hd44780`                                  | Peripherals _(planned, R18)_.                                                                          |
+| `test`   | `test/driver`                                                      | Test-only parts from `src/core/testing`; not in the default registry.                                  |
 
 ## Definition shape
 
@@ -28,22 +31,21 @@ interface ComponentDefinition<Props, State> {
   type: string; // '74xx/74hc00'
   name: string; // '74HC00' (shown on the part)
   title: string; // 'Quad 2-input NAND gate'
-  family: string; // '74xx'
   keywords?: string[]; // palette search: ['nand', 'gate']
   datasheet?: string; // URL of the datasheet used for pins, function table, timing
 
-  pins: PinDef[]; // order defines pin indices
-  package?: PackageDef; // e.g. { kind: 'dip', pins: 14 }; absent for abstract parts
+  pins: PinDef[] | ((props: Props) => PinDef[]); // order defines PinRef indices
+  package?: PackageDef; // { kind: 'dip', pins: 14 }; absent for abstract parts
   units?: UnitDef[]; // gate sections, for the future symbol view
   props?: PropDef[]; // user-editable properties (inspector)
   timing?: TimingDef; // datasheet numbers + source/conditions
-  symbol?: SymbolDef; // geometry for non-package rendering (data only)
+  // symbol?: SymbolDef — geometry for non-package rendering (planned, R03)
 
   create(props: Props): Behavior<State>; // see docs/simulation.md
 }
 
 interface PinDef {
-  name: string; // datasheet name: '1A', '1Y', 'OE', 'VCC'
+  name: string; // datasheet name: '1A', '1Y', 'OE', 'VCC' (unique within the part)
   number?: number; // physical pin number (required when `package` is set)
   dir: 'in' | 'out' | 'tristate' | 'bidir' | 'power' | 'nc';
   activeLow?: boolean; // drawn with a bubble/overline: OE, CE, WE
@@ -51,16 +53,25 @@ interface PinDef {
 }
 ```
 
+Write definitions with `defineComponent<Props, State>({ … })`: it type-checks `create`, `pins`
+and the behavior against your props and state types, and returns the erased
+`AnyComponentDefinition` that registries store. A `Registry` rejects malformed or duplicate type
+ids and duplicate pin names.
+
+`pins` may be a function of the (resolved) props, for parts whose pin count is configurable
+(N-input gates, DIP-switch banks, LED bars). `pinsOf(definition, props)` returns an instance's
+pins and `pinIndex(pins, name)` finds a `PinRef`.
+
 Pin directions:
 
-| `dir`      | Reads net | Drives net      | Typical                              |
-| ---------- | --------- | --------------- | ------------------------------------ |
-| `in`       | yes       | no              | gate inputs, control pins            |
-| `out`      | no        | strong 0/1      | push-pull outputs                    |
-| `tristate` | no        | strong 0/1 or Z | 74HC245/173/374 outputs              |
-| `bidir`    | yes       | strong 0/1 or Z | data buses of RAM, CPUs, 74HC245 A/B |
-| `power`    | —         | —               | VCC, GND (not simulated in the MVP)  |
-| `nc`       | —         | —               | not connected                        |
+| `dir`      | Reads net | Drives net      | Power-on       | Typical                              |
+| ---------- | --------- | --------------- | -------------- | ------------------------------------ |
+| `in`       | yes       | no              | —              | gate inputs, control pins            |
+| `out`      | no        | strong 0/1      | strong `X`     | push-pull outputs                    |
+| `tristate` | no        | strong 0/1 or Z | released (`Z`) | 74HC245/173/374 outputs              |
+| `bidir`    | yes       | strong 0/1 or Z | released (`Z`) | data buses of RAM, CPUs, 74HC245 A/B |
+| `power`    | —         | —               | —              | VCC, GND (not simulated in the MVP)  |
+| `nc`       | —         | —               | —              | not connected                        |
 
 ## Packages and pin numbering
 
@@ -84,8 +95,8 @@ units: [
 ];
 ```
 
-Optional in R01–R06; recommended for every multi-gate chip from the start (cheap now, saves a
-migration later).
+Optional; recommended for every multi-gate chip from the start (cheap now, saves a migration
+later).
 
 ## Properties
 
@@ -94,52 +105,78 @@ interface PropDef {
   key: string; // 'color', 'frequency', 'inputs', 'delay'
   label: string;
   type: 'number' | 'integer' | 'boolean' | 'enum' | 'color' | 'string' | 'time';
-  default: unknown;
+  default: number | boolean | string;
   min?: number;
   max?: number;
   step?: number;
   options?: { value: string; label: string }[]; // for 'enum'
-  unit?: string; // 'Hz', 'ns'
+  unit?: string; // display unit: 'Hz'
 }
 ```
 
-Props are part of the saved document; changing one recompiles the netlist.
+- `time` props are integer **picoseconds**, like every time in the kernel; the inspector
+  converts for display.
+- Props are part of the saved document; changing one recompiles the netlist.
+- `resolveProps(definition, raw)` (used by the netlist resolver) fills in defaults and rejects
+  unknown keys, wrong types, non-integers for `integer`/`time`, out-of-range values and unknown
+  `enum` options, with a message naming the component and prop.
 
 ## Timing
 
 ```ts
 timing: {
-  tpd: ns(7),                   // value the behavior uses (typical)
-  max: { tpd: ns(15) },         // optional, for a future worst-case mode
+  typical: { tpd: ns(7) },       // values the behavior uses (typical)
+  max: { tpd: ns(15) },          // optional, for a future worst-case mode
   conditions: 'VCC = 5 V, CL = 15 pF, Tamb = 25 °C',
   source: 'Nexperia 74HC00 datasheet, rev. 9, table 8',
 }
 ```
 
-Use the datasheet's typical value at 5 V when available. Record where the number came from.
-Separate rise/fall (`tPLH`, `tPHL`), enable/disable (`tPZH`, `tPHZ`…) and setup/hold values are
-added when a part needs them.
+Use the datasheet's typical value at 5 V when available, keyed by the datasheet symbol (`tpd`,
+`tPLH`, `tPHL`, `tPZH`, `tPHZ`, `tsu`, `th`, …). Record where the numbers came from. Abstract
+`prim/*` parts have no `timing`; they take a `delay` prop instead.
 
 ## Behavior guidelines
 
-- Read inputs with `ctx.read`; treat `X`/`Z` inputs conservatively (an AND with a 0 input is 0 even
-  if the other input is `X`; otherwise `X`).
-- Drive outputs with the datasheet delay. Never use zero delay for real chips.
-- Keep state in `ctx.state`; no module-level mutable variables (multiple instances!).
-- Edge-triggered logic uses `ctx.rose(clk)` / `ctx.fell(clk)`.
+- Read inputs with `ctx.read` and combine them with the 4-state operators (`and`, `or`, `xor`,
+  `not`, `toInput`): an AND with a 0 input is 0 even if another input is `X`; otherwise `X`.
+- Drive outputs with the datasheet delay: `ctx.drive(pin, strong(level), delay)`, `Drive.Z` to
+  release. Never use zero delay for real chips.
+- Keep mutable state in `ctx.state` (from `createState()`, plain data); closures may hold only
+  immutable configuration. No module-level mutable variables (multiple instances!).
+- Edge-triggered logic uses `ctx.rose(clk)` / `ctx.fell(clk)`, which are strict 0↔1. If
+  `ctx.changed(clk)` but the edge involves `X`/`Z` (`ctx.prev(clk)`), go `X` pessimistically.
 - No randomness or wall-clock time; no allocations in `evaluate` for hot parts.
 
 ## Testing a part
 
-Every part ships with `<part>.test.ts` next to it:
+Every part ships with `<part>.test.ts` next to it, using `src/core/testing`:
 
-1. **Function table**: transcribe the datasheet function table into a table-driven test using the
-   core test bench.
-2. **Timing**: at least one assertion that an output changes exactly `tpd` after the input.
-3. **Edge cases**: `X`/`Z` handling on inputs, tri-state enable/disable, reset behavior.
+1. **Function table**: transcribe the datasheet function table with `functionTable(bench, …)`
+   (letters `H`, `L`, `X` = don't care, `Z`).
+2. **Unknown / floating inputs**: `truthTable(bench, …)` with `0`, `1`, `'X'`, `'Z'`.
+3. **Timing**: at least one assertion that an output changes exactly `tpd` after the input
+   (`bench.measure`).
+4. **Edge cases**: tri-state enable/disable, reset behavior, prop limits.
+
+## Primitives (`prim/*`)
+
+Abstract parts in `src/library/primitives`, all in `createDefaultRegistry()`. Every one with an
+input has a `delay` prop (`time`, default **1 ns**, 0 allowed for Logisim-like behavior).
+
+| Type                    | Pins                       | Props                                 | Behavior                                                  |
+| ----------------------- | -------------------------- | ------------------------------------- | --------------------------------------------------------- |
+| `prim/buffer`           | `A` → `Y`                  | `delay`                               | Y = A (`X`/`Z` → `X`)                                     |
+| `prim/not`              | `A` → `Y`                  | `delay`                               | Y = ¬A                                                    |
+| `prim/and`, `prim/or`   | `A`, `B`, … `H` → `Y`      | `inputs` (2–8, default 2), `delay`    | 4-state AND / OR                                          |
+| `prim/nand`, `prim/nor` | `A`, `B`, … `H` → `Y`      | `inputs`, `delay`                     | inverted AND / OR                                         |
+| `prim/xor`, `prim/xnor` | `A`, `B`, … `H` → `Y`      | `inputs`, `delay`                     | odd / even parity; any `X`/`Z` input → `X`                |
+| `prim/tristate-buffer`  | `A`, `EN` → `Y` (tristate) | `delay`                               | EN = 1 → Y = A; EN = 0 → `Z`; EN unknown → `X`            |
+| `prim/constant`         | `Y`                        | `value`: `'0'`, `'1'`, `'X'` (def. 1) | drives the value strongly from t = 0                      |
+| `prim/pull`             | `Y`                        | `direction`: `up` (default), `down`   | drives weak 1 / weak 0 from t = 0; any strong driver wins |
 
 ## Symbols (non-package parts)
 
-`symbol` describes geometry in grid units: bounding box, pin positions (side + offset), label
-anchors. The editor maps `symbol.kind` to a drawing function (`led`, `switch`, `seven-segment`,
-`gate-and`, …). The library never draws.
+_(planned, R03)_ `symbol` describes geometry in grid units: bounding box, pin positions (side +
+offset), label anchors. The editor maps `symbol.kind` to a drawing function (`led`, `switch`,
+`seven-segment`, `gate-and`, …). The library never draws.
