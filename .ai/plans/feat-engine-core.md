@@ -161,7 +161,7 @@ tests/bench/          kernel benchmark
   stats. Unit tests with tiny inline test components.
 - [x] 6. `diagnostics.ts` + wiring: `contention`, `floating-input`, `oscillation` (halt,
   `maxDeltaCycles`), component-reported diagnostics; dedupe + cap. Tests.
-- [ ] 7. `src/core/testing`: bench + function-table helper. Tests of the bench itself.
+- [x] 7. `src/core/testing`: bench + function-table helper. Tests of the bench itself.
 - [ ] 8. `src/library/primitives` + `createDefaultRegistry()`: all `prim/*` parts with props
   (`inputs`, `delay`, `value`, `direction`). Function-table tests incl. X/Z inputs and one
   timing test per part.
