@@ -97,3 +97,17 @@ test('?example= opens the example instead of the restored session', async ({ pag
   await page.goto('/?gallery');
   await expect(page).toHaveTitle('Symbol Gallery — Logic');
 });
+
+test('a reload right after an edit keeps it (written synchronously on unload)', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await expect.poll(() => storedSessions(page)).toEqual([{ name: 'Hello, LED', unsaved: false }]);
+  await edit(page);
+  await page.reload();
+  await expect(page).toHaveTitle('• Hello, LED — Logic');
+  await pick(page, 'save', 'quick.logic.json');
+  await page.keyboard.press('ControlOrMeta+S');
+  await expect(page).toHaveTitle('quick — Logic');
+  expect(firstX(await readFile(page, 'quick.logic.json'))).toBe(1);
+});

@@ -100,7 +100,7 @@ export interface AutosaveOptions {
   readonly now: () => number;
   /** Runs `callback` after `ms`; returns a cancel function. */
   readonly schedule: (callback: () => void, ms: number) => () => void;
-  /** Debounce after a change, ms. */
+  /** How soon after a change it is written, ms. */
   readonly delay?: number;
   /** A write failed (storage full or blocked): reported once. */
   readonly onError?: (error: unknown) => void;
@@ -114,7 +114,10 @@ interface Written {
   readonly camera: Camera;
 }
 
-/** Writes the open document to the store after changes (debounced) and on `flush`. */
+/**
+ * Writes the open document to the store at most `delay` ms after a change (later changes in that
+ * time ride along), on `flush`, and synchronously to `localStorage` on `flushOnUnload`.
+ */
 export class Autosave {
   readonly #options: AutosaveOptions;
   #cancel: (() => void) | undefined;
@@ -134,8 +137,7 @@ export class Autosave {
     const { editor, documents } = this.#options;
     if (stored) this.#last = this.#current();
     else this.#schedule();
-    // Only real changes (re)start the debounce: selection clicks and pointer moves also notify
-    // these stores and must not keep pushing a pending write back.
+    // Only real changes count: selection clicks and pointer moves also notify these stores.
     let seen = this.#current();
     const onChange = () => {
       const now = this.#current();
@@ -165,14 +167,38 @@ export class Autosave {
   flush(): Promise<void> {
     this.#cancel?.();
     this.#cancel = undefined;
-    return this.#write();
+    const record = this.#record();
+    return record ? this.#put(record) : Promise.resolve();
+  }
+
+  /**
+   * For `pagehide`: the page may be gone before an IndexedDB write finishes, so what changed is
+   * also written synchronously to `storage` (without the file handle, which only IndexedDB can
+   * keep); `recoverUnloadWrites` moves it into the store at the next start.
+   */
+  flushOnUnload(storage: KeyValueStorage | undefined): void {
+    this.#cancel?.();
+    this.#cancel = undefined;
+    const record = this.#record();
+    if (!record) return;
+    const { file, ...rest } = record;
+    try {
+      storage?.setItem(
+        UNLOAD_PREFIX + record.id,
+        JSON.stringify({ ...rest, fileName: file?.name }),
+      );
+    } catch {
+      // Full or blocked: the IndexedDB write below may still make it.
+    }
+    void this.#put(record);
   }
 
   #schedule(): void {
-    this.#cancel?.();
+    // A pending write is not pushed back: every change is stored within `delay`.
+    if (this.#cancel) return;
     this.#cancel = this.#options.schedule(() => {
       this.#cancel = undefined;
-      void this.#write();
+      void this.flush();
     }, this.#options.delay ?? AUTOSAVE_DELAY);
   }
 
@@ -185,7 +211,8 @@ export class Autosave {
     };
   }
 
-  async #write(): Promise<void> {
+  /** The record to write, or undefined if nothing changed since the last one. */
+  #record(): StoredSession | undefined {
     const now = this.#current();
     const last = this.#last;
     if (
@@ -194,11 +221,11 @@ export class Autosave {
       now.session === last.session &&
       sameCamera(now.camera, last.camera)
     ) {
-      return;
+      return undefined;
     }
     this.#last = now;
     const { session, circuit, camera } = now;
-    const stored: StoredSession = {
+    return {
       id: this.#options.id,
       name: session.name,
       text: documentText(session, circuit),
@@ -207,8 +234,11 @@ export class Autosave {
       updated: this.#options.now(),
       ...(session.file && { file: session.file }),
     };
+  }
+
+  async #put(record: StoredSession): Promise<void> {
     try {
-      await this.#options.store.put(stored);
+      await this.#options.store.put(record);
     } catch (error) {
       this.#last = undefined; // try again with the next change
       if (!this.#failed) this.#options.onError?.(error);
@@ -219,6 +249,46 @@ export class Autosave {
 
 function sameCamera(a: Camera, b: Camera): boolean {
   return a.x === b.x && a.y === b.y && a.scale === b.scale;
+}
+
+const UNLOAD_PREFIX = 'logic.unload.';
+
+/** The parts of `localStorage` recovery needs: listing keys. */
+export interface ListableStorage extends KeyValueStorage {
+  readonly length: number;
+  key(index: number): string | null;
+  removeItem(key: string): void;
+}
+
+/**
+ * Moves sessions written by `flushOnUnload` into the store when they are newer than the stored
+ * ones (the file handle is kept if the file name still matches). Run before restoring.
+ */
+export async function recoverUnloadWrites(
+  store: SessionStore,
+  storage: ListableStorage | undefined,
+): Promise<void> {
+  if (!storage) return;
+  const keys: string[] = [];
+  for (let i = 0; i < storage.length; i++) {
+    const key = storage.key(i);
+    if (key?.startsWith(UNLOAD_PREFIX)) keys.push(key);
+  }
+  for (const key of keys) {
+    try {
+      const { fileName, ...pending } = JSON.parse(storage.getItem(key) ?? '') as StoredSession & {
+        fileName?: string;
+      };
+      const current = await store.get(pending.id);
+      if (!current || pending.updated > current.updated) {
+        const file = current?.file?.name === fileName ? current?.file : undefined;
+        await store.put({ ...pending, ...(file && { file }) });
+      }
+    } catch {
+      // Unreadable: dropped.
+    }
+    storage.removeItem(key);
+  }
 }
 
 /** Holds a named lock for the page's lifetime (Web Locks). */

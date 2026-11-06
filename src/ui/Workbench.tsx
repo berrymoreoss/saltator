@@ -1,6 +1,6 @@
 import { Eraser } from 'lucide-react';
 import { useEffect, useMemo, useRef } from 'react';
-import { DARK_CANVAS, type Editor, LIGHT_CANVAS, type Store } from '../editor';
+import { DARK_CANVAS, type Editor, LIGHT_CANVAS, Store } from '../editor';
 import { ContextMenu } from './ContextMenu';
 import { ClipboardBridge } from './clipboard';
 import { CommandRegistry, dispatchShortcut } from './commands';
@@ -16,6 +16,7 @@ import { PartInfoPanel } from './PartInfoPanel';
 import { PartsPanel } from './PartsPanel';
 import { PropertiesPanel } from './PropertiesPanel';
 import { PART_DRAG_TYPE } from './parts-filter';
+import type { RecentFile, RecentFiles } from './recent-files';
 import { SpeedSelect } from './SimControls';
 import { SimulationBadges, SimulationPanel } from './SimulationPanel';
 import { StatusBar } from './StatusBar';
@@ -37,12 +38,15 @@ import './styles/panels.css';
 export interface WorkbenchProps {
   readonly editor: Editor;
   readonly documents: DocumentController;
+  /** File ▸ Open Recent (where the browser gives file handles). */
+  readonly recent?: RecentFiles;
   readonly settings: Store<Settings>;
   readonly ui: Store<UiState>;
   readonly examples: readonly Example[];
 }
 
 const MAC = typeof navigator !== 'undefined' && isMacPlatform(navigator.platform);
+const NO_RECENT = new Store<readonly RecentFile[]>([]);
 
 /**
  * The desktop CAD-style shell: menu bar, toolbar, Parts dock (left), canvas, Properties dock
@@ -51,6 +55,7 @@ const MAC = typeof navigator !== 'undefined' && isMacPlatform(navigator.platform
 export function Workbench({
   editor,
   documents,
+  recent,
   settings: settingsStore,
   ui,
   examples,
@@ -75,12 +80,24 @@ export function Workbench({
   const commands = useMemo(
     () =>
       new CommandRegistry(
-        createCommands({ editor, documents, clipboard, settings: settingsStore, ui, examples }),
+        createCommands({
+          editor,
+          documents,
+          recent,
+          clipboard,
+          settings: settingsStore,
+          ui,
+          examples,
+        }),
       ),
-    [editor, documents, clipboard, settingsStore, ui, examples],
+    [editor, documents, recent, clipboard, settingsStore, ui, examples],
   );
   const tool = useStore(editor.tool);
-  const menus = useMemo(() => workbenchMenus(examples), [examples]);
+  const recentCount = useStoreValue(recent?.list ?? NO_RECENT, (list) => list.length);
+  const menus = useMemo(
+    () => workbenchMenus(examples, recent && recentCount),
+    [examples, recent, recentCount],
+  );
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;

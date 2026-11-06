@@ -40,12 +40,15 @@ import type { ClipboardBridge } from './clipboard';
 import type { Command } from './commands';
 import type { DocumentController } from './document-controller';
 import { GateIcon, WireIcon } from './icons';
+import { RECENT_LIMIT, type RecentFiles } from './recent-files';
 import type { PanelId, Settings, ThemeSetting } from './settings';
 import type { Example, UiState } from './ui-state';
 
 export interface WorkbenchContext {
   readonly editor: Editor;
   readonly documents: DocumentController;
+  /** File ▸ Open Recent; none without file handles (Firefox, Safari). */
+  readonly recent?: RecentFiles;
   readonly clipboard: ClipboardBridge;
   readonly settings: Store<Settings>;
   readonly ui: Store<UiState>;
@@ -69,6 +72,7 @@ const THEME_ICONS = { system: Monitor, dark: Moon, light: Sun } as const;
 export function createCommands({
   editor,
   documents,
+  recent,
   clipboard,
   settings,
   ui,
@@ -117,6 +121,31 @@ export function createCommands({
       shortcuts: ['Mod+Shift+S'],
       global: true,
       run: () => void documents.saveAs(),
+    },
+    ...Array.from(
+      { length: RECENT_LIMIT },
+      (_, i): Command => ({
+        id: `file.recent.${i}`,
+        label: `Recent File ${i + 1}`,
+        menuLabel: () => recent?.list.get()[i]?.name ?? '',
+        enabled: () => recent?.list.get()[i] !== undefined,
+        run: () => {
+          const file = recent?.list.get()[i];
+          if (recent && file) void documents.openFile(() => recent.read(file, documents.files));
+        },
+      }),
+    ),
+    {
+      id: 'file.recent.none',
+      label: 'No Recent Files',
+      enabled: () => false,
+      run: () => {},
+    },
+    {
+      id: 'file.recent.clear',
+      label: 'Clear Recent Files',
+      enabled: () => (recent?.list.get().length ?? 0) > 0,
+      run: () => void recent?.clear(),
     },
     ...examples.map(
       (example): Command => ({
@@ -499,13 +528,34 @@ export interface MenuDef {
 
 const SEPARATOR = { separator: true } as const;
 
-export function workbenchMenus(examples: readonly Example[]): MenuDef[] {
+/**
+ * The menu bar. `recentCount`: how many files File ▸ Open Recent lists; `undefined` hides it
+ * (no file handles in this browser).
+ */
+export function workbenchMenus(examples: readonly Example[], recentCount?: number): MenuDef[] {
+  const recentItems: MenuEntry[] =
+    recentCount === undefined
+      ? []
+      : [
+          {
+            label: 'Open Recent',
+            items:
+              recentCount === 0
+                ? ['file.recent.none']
+                : [
+                    ...Array.from({ length: recentCount }, (_, i) => `file.recent.${i}`),
+                    SEPARATOR,
+                    'file.recent.clear',
+                  ],
+          },
+        ];
   return [
     {
       label: 'File',
       items: [
         'file.new',
         'file.open',
+        ...recentItems,
         SEPARATOR,
         'file.save',
         'file.saveAs',

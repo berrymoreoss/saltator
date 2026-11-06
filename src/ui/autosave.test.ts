@@ -6,6 +6,7 @@ import {
   Autosave,
   claimSessionId,
   MemorySessionStore,
+  recoverUnloadWrites,
   restoreSession,
   type SessionLocks,
   type StoredSession,
@@ -57,6 +58,36 @@ class Timers {
   }
 }
 
+class ListStorage {
+  readonly data = new Map<string, string>();
+  get length() {
+    return this.data.size;
+  }
+  key(i: number) {
+    return [...this.data.keys()][i] ?? null;
+  }
+  getItem(key: string) {
+    return this.data.get(key) ?? null;
+  }
+  setItem(key: string, value: string) {
+    this.data.set(key, value);
+  }
+  removeItem(key: string) {
+    this.data.delete(key);
+  }
+}
+
+/** Moves U1 and flushes: the stored record. */
+async function autosaved(
+  autosave: Autosave,
+  moveU1: (x: number) => void,
+  store: MemorySessionStore,
+): Promise<StoredSession> {
+  moveU1(3);
+  await autosave.flush();
+  return (await store.get('tab-1'))!;
+}
+
 /** Lets pending promise callbacks (the store's writes) run. */
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -95,16 +126,16 @@ function setup(id = 'tab-1') {
 }
 
 describe('Autosave', () => {
-  it('writes once, shortly after a burst of changes', async () => {
+  it('writes within half a second of a change; later changes in that time ride along', async () => {
     const { documents, timers, puts, autosave, moveU1 } = setup();
     documents.show(openedSession('adder', nandDocument(), { name: 'adder.logic.json' }));
     autosave.start({ stored: true });
     moveU1(1);
     timers.advance(300);
     moveU1(2);
-    timers.advance(300);
+    timers.advance(199);
     expect(puts).toHaveLength(0);
-    timers.advance(200);
+    timers.advance(1);
     await settle();
     expect(puts).toHaveLength(1);
     expect(puts[0]).toMatchObject({
@@ -112,9 +143,50 @@ describe('Autosave', () => {
       name: 'adder',
       unsaved: true,
       file: { name: 'adder.logic.json' },
-      updated: 1_000_800,
+      updated: 1_000_500,
     });
     expect(parseDocument(puts[0]!.text).circuits[0]!.components[0]!.x).toBe(2);
+  });
+
+  it('on unload, writes synchronously to localStorage; the next start moves it into the store', async () => {
+    const { documents, store, puts, autosave, moveU1 } = setup();
+    documents.show(openedSession('adder', nandDocument(), { name: 'adder.logic.json' }));
+    autosave.start({ stored: true });
+    await autosaved(autosave, moveU1, store); // x = 3 in the store
+    const local = new ListStorage();
+    moveU1(7);
+    autosave.flushOnUnload(local);
+    const key = 'logic.unload.tab-1';
+    expect(JSON.parse(local.getItem(key)!)).toMatchObject({
+      name: 'adder',
+      fileName: 'adder.logic.json',
+    });
+    expect(JSON.parse(local.getItem(key)!).file).toBeUndefined();
+    autosave.flushOnUnload(local); // nothing new
+    expect(puts.at(-1)!.text).toContain('"x": 7');
+
+    // Say the IndexedDB write didn't make it (the store still has x = 3): the newer local copy
+    // wins, keeping the stored handle.
+    const handle = { name: 'adder.logic.json' };
+    await store.put({ ...puts[0]!, file: handle, updated: 1 });
+    await recoverUnloadWrites(store, local);
+    const recovered = await store.get('tab-1');
+    expect(parseDocument(recovered!.text).circuits[0]!.components[0]!.x).toBe(7);
+    expect(recovered!.file).toBe(handle);
+    expect(local.length).toBe(0);
+  });
+
+  it('recovery keeps a newer stored session and drops unreadable entries', async () => {
+    const store = new MemorySessionStore();
+    const local = new ListStorage();
+    const newer: StoredSession = { id: 'a', name: 'kept', text: '{}', unsaved: false, updated: 9 };
+    await store.put(newer);
+    local.setItem('logic.unload.a', JSON.stringify({ ...newer, name: 'older', updated: 5 }));
+    local.setItem('logic.unload.b', 'not json');
+    local.setItem('logic.settings.v1', '{}');
+    await recoverUnloadWrites(store, local);
+    expect((await store.get('a'))!.name).toBe('kept');
+    expect([...local.data.keys()]).toEqual(['logic.settings.v1']);
   });
 
   it('a selection change is not a change; a camera move is (the view comes back too)', async () => {

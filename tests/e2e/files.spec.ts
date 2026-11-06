@@ -136,6 +136,42 @@ test.describe('with the File System Access API', () => {
     await expect(page).toHaveTitle('dropped — Logic');
     await expect(counts(page)).toHaveText('1 parts · 0 wires');
   });
+
+  test('Open Recent lists saved and opened files, survives a reload, can be cleared', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    await pick(page, 'save', 'first.logic.json');
+    await page.keyboard.press('ControlOrMeta+S');
+    await expect(page).toHaveTitle('first — Logic');
+    await pick(page, 'save', 'second.logic.json');
+    await page.keyboard.press('ControlOrMeta+Shift+S');
+    await expect(page).toHaveTitle('second — Logic');
+
+    await page.getByRole('menuitem', { name: 'File', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Open Recent' }).click();
+    const items = page.locator('.submenu [role="menuitem"]');
+    await expect(items).toHaveText([/second\.logic\.json/, /first\.logic\.json/, /Clear Recent/]);
+    await page.keyboard.press('Escape');
+
+    await menu(page, 'File', 'New Circuit');
+    await page.reload();
+    await expect(page).toHaveTitle('Untitled — Logic');
+    await page.getByRole('menuitem', { name: 'File', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Open Recent' }).click();
+    await page.getByRole('menuitem', { name: 'first.logic.json' }).click();
+    await expect(page).toHaveTitle('first — Logic');
+    await expect(counts(page)).toHaveText(HELLO_COUNTS);
+    expect(await pickerCount(page)).toBe(0);
+
+    await page.getByRole('menuitem', { name: 'File', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Open Recent' }).click();
+    await expect(items.first()).toHaveText(/first\.logic\.json/);
+    await page.getByRole('menuitem', { name: 'Clear Recent Files' }).click();
+    await page.getByRole('menuitem', { name: 'File', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Open Recent' }).click();
+    await expect(items).toHaveText([/No Recent Files/]);
+  });
 });
 
 test.describe('without the File System Access API (Firefox, Safari)', () => {
@@ -167,5 +203,9 @@ test.describe('without the File System Access API (Firefox, Safari)', () => {
     await (await chooser).setFiles(path);
     await expect(page).toHaveTitle('mine — Logic');
     await expect(counts(page)).toHaveText(HELLO_COUNTS);
+    // No file handles, no Open Recent.
+    await page.getByRole('menuitem', { name: 'File', exact: true }).click();
+    await expect(page.getByRole('menuitem', { name: 'Open…' })).toBeVisible();
+    await expect(page.getByRole('menuitem', { name: 'Open Recent' })).toHaveCount(0);
   });
 });

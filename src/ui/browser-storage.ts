@@ -4,10 +4,13 @@
  * browser tests.
  */
 import type { SessionLocks, SessionStore, StoredSession } from './autosave';
+import type { RecentFile, RecentStore } from './recent-files';
 
 export const DATABASE = 'logic';
-const VERSION = 1;
+// 1: sessions (autosave); 2: recent (Open Recent).
+const VERSION = 2;
 const SESSIONS = 'sessions';
+const RECENT = 'recent';
 
 function request<T>(r: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -34,6 +37,7 @@ export function openDatabase(name = DATABASE, timeout = 3000): Promise<IDBDataba
       if (!db.objectStoreNames.contains(SESSIONS)) {
         db.createObjectStore(SESSIONS, { keyPath: 'id' }).createIndex('updated', 'updated');
       }
+      if (!db.objectStoreNames.contains(RECENT)) db.createObjectStore(RECENT, { keyPath: 'id' });
     };
     open.onsuccess = () => {
       clearTimeout(timer);
@@ -82,6 +86,37 @@ export class IndexedDbSessionStore implements SessionStore {
     };
     await done(transaction);
   }
+}
+
+export class IndexedDbRecentStore implements RecentStore {
+  readonly #db: IDBDatabase;
+
+  constructor(db: IDBDatabase) {
+    this.#db = db;
+  }
+
+  async list(): Promise<RecentFile[]> {
+    const store = this.#db.transaction(RECENT).objectStore(RECENT);
+    return (await request(store.getAll())) as RecentFile[];
+  }
+
+  async put(file: RecentFile): Promise<void> {
+    const transaction = this.#db.transaction(RECENT, 'readwrite');
+    transaction.objectStore(RECENT).put(file);
+    await done(transaction);
+  }
+
+  async delete(id: string): Promise<void> {
+    const transaction = this.#db.transaction(RECENT, 'readwrite');
+    transaction.objectStore(RECENT).delete(id);
+    await done(transaction);
+  }
+}
+
+/** `FileSystemHandle.isSameEntry` (Chromium). */
+export async function sameFileHandle(a: unknown, b: unknown): Promise<boolean> {
+  const handle = a as { isSameEntry?: (other: unknown) => Promise<boolean> };
+  return (await handle.isSameEntry?.(b)) ?? false;
 }
 
 /** Web Locks, where the browser has them: a lock is held until the page closes. */

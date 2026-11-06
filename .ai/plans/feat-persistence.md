@@ -191,7 +191,7 @@ permission (a user gesture); a file that is gone is dropped from the list with a
   load-error dialogs; title and name in the menu bar; drop a file to open; e2e.
 - [x] 5. Autosave and session restore (`SessionStore`, IndexedDB adapter, start-up order,
   per-tab sessions, camera); e2e reload restore.
-- [ ] 6. Open Recent (Q3).
+- [x] 6. Open Recent (Q3).
 - [ ] 7. Example gallery dialog with thumbnails; New from Example; e2e.
 - [ ] 8. Learning examples (Q2) — half adder, SR latch, ring oscillator — as files, each with a
   scenario test that runs it (truth table, set/reset/hold, oscillation period).
@@ -255,14 +255,21 @@ permission (a user gesture); a file that is gone is dropped from the list with a
   `sessions` with an `updated` index); App awaits the restore before rendering (top-level await);
   `setCircuit(circuit, { camera })` cancels the pending fit. E2E pickers return OPFS handles
   (`navigator.storage.getDirectory()`): real, cloneable into IndexedDB, persistent across reloads.
+- 2026-11-07 — task 6: `RecentFiles` (10 newest, deduplicated with `isSameEntry`, a gone file
+  leaves the list with a message), IndexedDB version 2 adds `recent`; App records every file the
+  session gets. Open Recent submenu built from the list (hidden without handles). Found while
+  testing: a reload within the 500 ms debounce lost the last change — IndexedDB writes started
+  in `pagehide` don't finish. Now a pending write is never pushed back (≤ 500 ms latency) and
+  `pagehide` also writes the session synchronously to localStorage (`logic.unload.<id>`, no
+  handle); `recoverUnloadWrites` moves newer ones into IndexedDB at start-up.
 
 ## Handoff
 
 - **State:** tasks 1–4 done: examples as files, session model, `FileAccess`, File commands with
   `DocumentController` (`src/ui/document-controller.ts`), dialogs, title, drop; e2e `files.spec.ts`;
   autosave (`src/ui/autosave.ts`, `browser-storage.ts`, start-up in `App.tsx`); e2e
-  `autosave.spec.ts`.
-- **Next step:** task 6 (Open Recent; bump the IndexedDB version to add a `recent` store).
+  `autosave.spec.ts`; Open Recent (`src/ui/recent-files.ts`).
+- **Next step:** task 7 (example gallery dialog with thumbnails, New from Example).
 - **Watch out:** Biome reformats `.json` (exclude `**/*.logic.json` first); Chrome reserves
   `Mod+N`.
 - **Verify with:** `pnpm check`, `pnpm e2e`.
