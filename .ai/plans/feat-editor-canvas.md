@@ -256,7 +256,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   smoke test (app loads, no console errors); CI step installs Chromium and runs e2e; Biome/TS
   configs cover `tests/e2e`.
 - [x] 2. editor: camera (transforms, zoom about a point, limits, √2 steps, fit) + tests.
-- [ ] 3. editor: scene builder (placed parts, bounds, wires, junctions, unconnected pin ends,
+- [x] 3. editor: scene builder (placed parts, bounds, wires, junctions, unconnected pin ends,
   issues) + text placement for all 8 placements + tests.
 - [ ] 4. editor: hit-testing and selection model (click, toggle, box enclosed/crossing, select
   all, survival across document changes) + tests.

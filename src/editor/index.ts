@@ -3,3 +3,6 @@
  * and the `Editor` facade the UI mounts on a canvas. Spec: docs/editor.md.
  */
 export * from './camera';
+export * from './dev-parts';
+export * from './scene';
+export * from './text-placement';
