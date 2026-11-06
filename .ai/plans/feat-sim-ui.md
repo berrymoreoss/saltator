@@ -293,24 +293,44 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 
 Checkable statements; verified one by one in the finish-branch workflow.
 
-- [ ] `pnpm check`, `pnpm build` and `pnpm e2e` are green.
-- [ ] Hello LED runs in the browser: after Run the clock LED blinks at 1 Hz in real time and
-  flipping SW1 on the canvas turns D1 on and off (e2e).
-- [ ] Run, Pause, Step (to the next event), Stop and Reset work from menu, toolbar and
-  shortcuts; F5 never reloads the page; the status bar shows state, simulated time and speed.
-- [ ] Speed presets from 1 ns/s to real time and Max; when the kernel can't keep up the actual
-  speed is shown (headless pacing tests; stress schematic in the browser).
-- [ ] Wires show 0, 1, Z, X (and weak levels) in both themes; contention flashes.
-- [ ] Switches, buttons (held), DIP switches (any orientation) and a manual clock are operated
+- [x] `pnpm check`, `pnpm build` and `pnpm e2e` are green — 771 unit/scenario tests, 26 e2e (12
+  workbench, 8 editing, 6 simulation), run twice in a row without a flake; kernel benchmark
+  unchanged (11.9M / 13.8M events/s).
+- [x] Hello LED runs in the browser: after Run the clock LED blinks at 1 Hz in real time and
+  flipping SW1 on the canvas turns D1 on and off — e2e `Hello, LED runs…` (drawn by hand; D1's
+  level follows the switch through the NAND, the lit LED sampled on the canvas, D2's anode goes
+  1 and 0 within a period); `simulation.test.ts` (1 kHz clock, D1 brightness).
+- [x] Run, Pause, Step (to the next event), Stop and Reset work from menu, toolbar and
+  shortcuts; F5 never reloads the page; the status bar shows state, simulated time and speed —
+  e2e `Step, Pause, Stop and Reset…` (F10 → `Paused · 0 ps`, `1 ns`; toolbar Run; F5 from the
+  search field; Reset back under a second; Shift+F5 twice; no reload), `simulation.test.ts`,
+  `commands.test.ts` (disabled global commands still keep F5 from the browser).
+- [x] Speed presets from 1 ns/s to real time and Max; when the kernel can't keep up the actual
+  speed is shown — `simulation.test.ts` (1 µs/s, the 100 ms frame cap, a 100 MHz clock with a
+  slow fake clock: lagging + measured speed; Max), e2e speed select (1 ms/s → µs after 0.5 s),
+  `format.test.ts` (status line).
+- [x] Wires show 0, 1, Z, X (and weak levels) in both themes; contention flashes —
+  `renderer.test.ts` (colors per style, halo, ghost, both flash phases), `simulation.test.ts`
+  (styles from drives, weak pull-up, contention flashing and redraws), screenshots in both
+  themes.
+- [x] Switches, buttons (held), DIP switches (any orientation) and a manual clock are operated
   with the Interact tool; LEDs, LED bars and 7-segment displays show their average brightness
   (a fast clock at 50 % duty lights an LED at half brightness); hex display and probe show their
-  inputs.
-- [ ] Editing while running carries state: moving parts with their wires doesn't touch the
+  inputs — `gestures.test.ts` (Interact tool, DIP switch rotated 90° and flipped), e2e held
+  button, `simulation.test.ts` (0.5 brightness at 1 MHz, instant while paused, unknown),
+  `symbol-drawing.test.ts` (every part with live state; digit, probe level, positions).
+- [x] Editing while running carries state: moving parts with their wires doesn't touch the
   simulator; recompiling an unchanged netlist doesn't change the trace (property test); a gate
   latch keeps its value and a clock its phase across structural edits; renamed parts keep their
-  state; undo while running works.
-- [ ] Runtime diagnostics are listed with time and count, located by click, cleared on Reset.
-- [ ] docs, ADR-0010 and the roadmap describe what was built.
+  state; undo while running works — `carry-over.test.ts` (IO bench at 9 instants, 40 random
+  networks, latch, clock phase across a rename), `simulation.test.ts` (same instance after a
+  nudge, carry-over after placing a part, rename/undo/redo), e2e edit + rename while running.
+- [x] Runtime diagnostics are listed with time and count, located by click, cleared on Reset —
+  e2e short circuit (row, status count, click selects the wires, Clear), `simulation.test.ts`
+  (diagnostics, Clear and recurrence, cleared on Stop/Reset, `wiresOfNet`, `locateNet`).
+- [x] docs, ADR-0010 and the roadmap describe what was built — editor.md (Simulation section),
+  simulation.md, components.md, circuit.md, architecture.md, glossary, READMEs, lessons, ADR-0010;
+  the roadmap is set to `done` at finish.
 
 ## Open questions
 
@@ -370,18 +390,17 @@ Asked at branch start (2026-11-07); all answered.
   with glow, hex digit, probes, DIP sliders, level badges. Possible follow-ups (not in scope): a
   dim yellow LED is hard to see on the light theme's cream; a wire toggling faster than the
   frame rate flickers between 0 and 1 (Logisim does too) — a "toggling" style could show it.
+- 2026-11-07 — task 10 done (docs, ADR-0010, glossary, READMEs, lessons). Acceptance criteria
+  verified: check (771), build, e2e 26 (three runs), bench 11.9M / 13.8M events/s. Waiting for
+  the user's review.
 
 ## Handoff
 
-- **State:** tasks 1–7 done and committed; `pnpm check` green (767 tests).
-- **Next step:** task 8 — Simulation tab in the bottom dock (runtime diagnostics from
-  `editor.simulation.diagnostics`, locate component/pin or net → its wires, clear, active tab as
-  a settings field) and live levels in Properties (pins, wire net, interactive part state;
-  refresh from `simulation.status` ticks, not per frame). Then task 9 (e2e
-  `tests/e2e/simulation.spec.ts`, screenshots, stress measurement) and task 10 (docs, ADR-0010).
-- **Watch out:** `Simulation.diagnostics` is a snapshot store refreshed with the status (≤10×/s);
-  `Diagnostic.net` ids come from the simulator's netlist — after a same-structure edit they may
-  differ from the scene's net ids, so locate a net through its pins (`signalMap`-style) rather
-  than by id. Dev server for looking: `node_modules/.bin/vite --port 5199`, scripts in the
-  scratchpad drive `window.logicEditor.simulation`.
+- **State:** all tasks done and committed; acceptance criteria verified (check, build, e2e ×3,
+  bench). Waiting for the user's review before finish-branch (roadmap R05 `done`, R06 `next`,
+  merge with `--no-ff`).
+- **Next step:** after approval, follow `.ai/workflows/finish-branch.md`.
+- **Watch out:** possible follow-ups noted in the progress log (dim yellow LED on the light
+  theme; wires toggling faster than the frame rate flicker) — not in scope, could go to the
+  backlog.
 - **Verify with:** `pnpm check && pnpm build && pnpm e2e`.
