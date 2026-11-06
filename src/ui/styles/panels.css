@@ -177,3 +177,245 @@
   border-radius: 3px;
   font: var(--text-small) / 16px var(--font-mono);
 }
+
+/* ── Properties ───────────────────────────────────────────────────────────── */
+
+.props {
+  padding-bottom: 10px;
+}
+
+.props-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 10px 10px 2px;
+}
+
+.props-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.props-subtitle {
+  padding: 0 10px 6px;
+  color: var(--fg-muted);
+}
+
+.props-error {
+  margin: 4px 10px;
+  padding: 6px 8px;
+  border-left: 3px solid var(--error);
+  background: color-mix(in srgb, var(--error) 10%, transparent);
+  color: var(--error);
+  user-select: text;
+}
+
+.prop-section {
+  padding: 6px 0 2px;
+}
+
+.prop-section-title {
+  padding: 4px 10px;
+  color: var(--fg-subtle);
+  font-size: var(--text-small);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.prop-row {
+  display: grid;
+  grid-template-columns: minmax(80px, 40%) 1fr;
+  align-items: center;
+  min-height: var(--row);
+  padding: 0 10px;
+}
+
+.prop-row:hover {
+  background: var(--hover-bg);
+}
+
+.prop-label {
+  color: var(--fg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prop-value {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.swatch {
+  width: 10px;
+  height: 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 2px;
+  flex: none;
+}
+
+/* ── Messages ─────────────────────────────────────────────────────────────── */
+
+.tab-badge {
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 8px;
+  font-size: 10px;
+  letter-spacing: 0;
+}
+
+.tab-badge.error {
+  background: color-mix(in srgb, var(--error) 20%, transparent);
+  color: var(--error);
+}
+
+.tab-badge.warning {
+  background: color-mix(in srgb, var(--warning) 20%, transparent);
+  color: var(--warning);
+}
+
+.messages {
+  margin: 0;
+  padding: 2px 0;
+  list-style: none;
+}
+
+.messages-empty {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px;
+  color: var(--ok);
+}
+
+.message {
+  display: grid;
+  grid-template-columns: 18px 130px 1fr auto;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: var(--row);
+  padding: 0 10px;
+  border: 0;
+  background: none;
+  text-align: left;
+}
+
+.message:hover {
+  background: var(--hover-bg);
+}
+
+.message.error .message-icon {
+  color: var(--error);
+}
+
+.message.warning .message-icon {
+  color: var(--warning);
+}
+
+.message-code {
+  color: var(--fg-muted);
+  font-size: var(--text-small);
+}
+
+.message-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.message-where {
+  color: var(--fg-subtle);
+  font-size: var(--text-small);
+}
+
+/* ── Dialogs ──────────────────────────────────────────────────────────────── */
+
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.dialog {
+  width: min(640px, calc(100vw - 32px));
+  max-height: calc(100vh - 64px);
+  display: flex;
+  flex-direction: column;
+  background: var(--panel-bg);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  outline: none;
+}
+
+.dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 32px;
+  padding: 0 8px 0 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-header-bg);
+  border-radius: 8px 8px 0 0;
+  font-weight: 600;
+}
+
+.dialog-body {
+  padding: 10px 14px 14px;
+  overflow: auto;
+  user-select: text;
+}
+
+.about-title {
+  margin: 4px 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.shortcut-columns {
+  columns: 2 260px;
+  column-gap: 24px;
+}
+
+.shortcut-section {
+  break-inside: avoid;
+  margin-bottom: 10px;
+}
+
+.shortcut-section .prop-section-title {
+  padding-left: 0;
+}
+
+.shortcut-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: var(--row);
+  align-items: center;
+}
+
+.shortcut-keys {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  color: var(--fg-muted);
+}
+
+kbd {
+  padding: 1px 5px;
+  border: 1px solid var(--border-strong);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--input-bg);
+  color: var(--fg);
+  font: var(--text-small) var(--font-ui);
+}

@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { DARK_CANVAS, type Editor, LIGHT_CANVAS, type Store } from '../editor';
 import { CommandRegistry, dispatchShortcut } from './commands';
+import { AboutDialog, ShortcutsDialog } from './Dialogs';
 import { useMediaQuery, useStore } from './hooks';
 import { MenuBar } from './MenuBar';
+import { MessagesPanel, MessagesTab } from './MessagesPanel';
 import { Panel, Splitter } from './Panel';
 import { PartsPanel } from './PartsPanel';
+import { PropertiesPanel } from './PropertiesPanel';
 import { StatusBar } from './StatusBar';
 import { effectiveTheme, PANEL_LIMITS, type PanelId, type Settings } from './settings';
 import { isMacPlatform } from './shortcuts';
@@ -72,6 +75,7 @@ export function Workbench({ editor, settings: settingsStore, ui, examples }: Wor
     setPanel(id, { size: Math.round(Math.min(max, Math.max(min, size))) });
   };
   const { parts, properties, bottom } = settings.panels;
+  const closeDialog = () => ui.update(({ dialog: _, ...rest }) => rest);
 
   return (
     <div className="workbench">
@@ -119,7 +123,7 @@ export function Workbench({ editor, settings: settingsStore, ui, examples }: Wor
                 onClose={() => setPanel('properties', { visible: false })}
                 testId="properties-panel"
               >
-                {null}
+                <PropertiesPanel editor={editor} />
               </Panel>
             </div>
           </>
@@ -136,16 +140,20 @@ export function Workbench({ editor, settings: settingsStore, ui, examples }: Wor
           />
           <div className="dock dock-bottom" style={{ height: bottom.size }}>
             <Panel
-              title={<span className="tab active">Messages</span>}
+              title={<MessagesTab editor={editor} />}
               onClose={() => setPanel('bottom', { visible: false })}
               testId="bottom-panel"
             >
-              {null}
+              <MessagesPanel editor={editor} />
             </Panel>
           </div>
         </>
       )}
       <StatusBar editor={editor} onShowMessages={() => setPanel('bottom', { visible: true })} />
+      {uiState.dialog === 'shortcuts' && (
+        <ShortcutsDialog commands={commands} mac={MAC} onClose={closeDialog} />
+      )}
+      {uiState.dialog === 'about' && <AboutDialog onClose={closeDialog} />}
     </div>
   );
 }
