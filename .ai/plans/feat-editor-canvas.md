@@ -258,7 +258,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 2. editor: camera (transforms, zoom about a point, limits, √2 steps, fit) + tests.
 - [x] 3. editor: scene builder (placed parts, bounds, wires, junctions, unconnected pin ends,
   issues) + text placement for all 8 placements + tests.
-- [ ] 4. editor: hit-testing and selection model (click, toggle, box enclosed/crossing, select
+- [x] 4. editor: hit-testing and selection model (click, toggle, box enclosed/crossing, select
   all, survival across document changes) + tests.
 - [ ] 5. editor: renderer core — HiDPI canvas, resize/DPR handling, on-demand redraw, canvas
   theme, adaptive grid, wires, junctions, pin stubs, box/unknown fallbacks, text with LOD,

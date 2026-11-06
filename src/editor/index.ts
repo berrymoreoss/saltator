@@ -4,5 +4,7 @@
  */
 export * from './camera';
 export * from './dev-parts';
+export * from './hit-test';
 export * from './scene';
+export * from './selection';
 export * from './text-placement';
