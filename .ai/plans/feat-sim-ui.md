@@ -282,9 +282,9 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   prevented), status bar (state, time, speed, actual speed), status hints.
 - [x] 8. ui: Simulation tab (runtime diagnostics, locate, clear), tab setting; live levels in
   Properties.
-- [ ] 9. Tests: `tests/e2e/simulation.spec.ts`; look at it in the browser in both themes (lit
+- [x] 9. Tests: `tests/e2e/simulation.spec.ts`; look at it in the browser in both themes (lit
   LEDs, level colors, displays); measure the stress schematic while running.
-- [ ] 10. Docs: simulation.md, editor.md (Simulation section, shortcuts, API, testing),
+- [x] 10. Docs: simulation.md, editor.md (Simulation section, shortcuts, API, testing),
   components.md, architecture.md (data flow, editor overlay), circuit.md (planned extension
   done), ADR-0010, glossary, `src/*` READMEs, lessons; roadmap R05 done, R06 next (at finish,
   after the user's review).
@@ -359,6 +359,17 @@ Asked at branch start (2026-11-07); all answered.
   in `TOOLBAR`), `SimulationStatus` in the status bar, `Command.stateIcon`, global commands keep
   F-keys from the browser even when disabled, `open()` stops the simulation. Looked at it in the
   dev build (headless screenshots, both themes): colors readable, F5 doesn't reload.
+- 2026-11-07 — tasks 8–9 done: bottom-dock tabs (Messages, Simulation; `Settings.bottomTab`),
+  `SimulationPanel` (locate a net through its wires: `Editor.locateNet`), Clear, live level
+  badges in Properties (`LiveLevel`, refreshed by `Simulation.ticks`); e2e
+  `tests/e2e/simulation.spec.ts` (6 tests; helpers moved to `tests/e2e/support.ts`), full e2e 26
+  green twice. Measured on the 3 600-part stress schematic (dev build, headless Chromium, Apple
+  M3 Pro): redraw at fit 4.4 ms median running vs 3.9 ms stopped (p90 6.1 / 5.2); `run()` (new
+  simulator + signal map) 46 ms; Reset 13 ms; a structural edit while running 39 ms (compile,
+  scene, carry-over); a nudge 47 ms and keeps the same simulator. Seen in both themes: lit LEDs
+  with glow, hex digit, probes, DIP sliders, level badges. Possible follow-ups (not in scope): a
+  dim yellow LED is hard to see on the light theme's cream; a wire toggling faster than the
+  frame rate flickers between 0 and 1 (Logisim does too) — a "toggling" style could show it.
 
 ## Handoff
 

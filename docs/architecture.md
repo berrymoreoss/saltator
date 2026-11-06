@@ -75,8 +75,10 @@ flowchart LR
    subscribe to change streams (waveforms, memory accesses, diagnostics).
 5. User interaction with parts (pressing a button) goes to the simulator as an external event at
    the current simulation time.
-6. On edit, the document is recompiled and the simulator rebuilt _(planned: preserving per-instance
-   state such as memory contents and flip-flop states, keyed by component id)_.
+6. On edit, the document is recompiled. A running simulation goes on: an edit that keeps the
+   structure keeps the simulator; any other continues in the new netlist with every unchanged
+   part's state, drives, pending changes and timers carried over by component id, through the
+   edit's renames (`Simulator.carryOver`, [ADR-0010](adr/0010-running-simulations.md)).
 
 ## Simulation kernel (core)
 
@@ -85,9 +87,9 @@ delays, delta cycles for zero-delay elements, deterministic ordering. Full spec:
 [simulation.md](simulation.md). Rationale: [ADR-0003](adr/0003-event-driven-simulation.md).
 
 Run control (real-time pacing, speed factor, frame budget) is **not** in core: core exposes
-`runUntil(time, budget)`, and a _simulator host_ in the app/editor layer drives it from
-`requestAnimationFrame`. This keeps core pure and makes moving the kernel into a Web Worker a
-host-only change _(planned, backlog)_.
+`runUntil(time, budget)`, and the _simulator host_ in the editor layer (`Simulation`, R05)
+drives it from `requestAnimationFrame` with an injected clock. This keeps core pure and makes
+moving the kernel into a Web Worker a host-only change _(planned, backlog)_.
 
 ## Component library
 
@@ -128,15 +130,15 @@ Implemented in R02. Full spec: [circuit.md](circuit.md). Rationale:
 
 ## Editor
 
-Implemented in R04a (view, navigation, selection) and R04b (editing); the live signal overlay
-comes in R05. Full spec: [editor.md](editor.md). Framework-agnostic TypeScript on a `<canvas>`:
+Implemented in R04a (view, navigation, selection), R04b (editing) and R05 (running the
+simulation). Full spec: [editor.md](editor.md). Framework-agnostic TypeScript on a `<canvas>`:
 
 - **Scene** (pure): the circuit's parts with layouts, placements, bounds, pins with nets and
   text, wires, junctions and issues, rebuilt once per document change.
 - **Renderer**: Canvas2D, HiDPI-aware, redraws on demand (dirty flag + `requestAnimationFrame`),
   layered (grid → wires → parts → overlays), culled to the view with text level of detail.
-  _(R05)_ Wire colors reflect net level (e.g. 1 = bright green, 0 = dark green, Z = blue, X = red;
-  contention flashes).
+  While simulating, wires and junctions take their net's level color (1 bright green, 0 dark
+  green, Z blue, X red, weakly pulled levels paler; contention flashes).
 - **Camera**: pan/zoom with world ↔ screen transforms; world unit = grid cell; Figma-style or
   KiCad-style wheel.
 - **Symbol drawing**: drawers keyed by `symbol.kind` on a small `SymbolGraphics` surface in local
@@ -145,32 +147,37 @@ comes in R05. Full spec: [editor.md](editor.md). Framework-agnostic TypeScript o
   connectivity always agree.
 - **Hit-testing and selection**: parts, pin stubs and wires under a point; click, Shift-click and
   box selection (inside or touching).
-- **`Editor` facade**: owns circuit, scene, selection, camera and tool; exposes them as small
-  observable stores.
+- **`Editor` facade**: owns circuit, scene, selection, camera, tool and the simulator host;
+  exposes them as small observable stores.
 - **Tools and gestures**: select/move, pan, wire (click by click or dragged from a pin, L-shaped
   preview), place (armed from the Parts panel, sticky); rotate, flip, delete, nudge; floating
   copy/paste and duplicate. Moves keep wires connected (rubber-banding); wires are normalized into
   straight runs after every edit ([ADR-0009](adr/0009-editing-model.md)). Gestures take plain
   `PointerInput`s, so they are unit-tested without a browser.
 - **Undo/redo**: every document change is one `edit()` that records a snapshot of the circuit and
-  selection before and after; renames are recorded for the simulator host (R05).
-- _(R05)_ **Interaction with running simulation**: clicking an interactive part (button, switch)
-  sends an external event; LEDs and displays render from their state.
+  selection before and after; renames are recorded for the simulator host.
+- **Simulator host** (`Simulation`): stopped until Run; run, pause, step to the next event, stop,
+  reset; speed presets and a frame budget; follows every edit ([ADR-0010](adr/0010-running-simulations.md)).
+- **Interaction with the running simulation**: the Interact tool sends a part's action (flip a
+  switch, hold a button, toggle a DIP switch, step a manual clock); drawers get the part's live
+  state, indicators their average brightness from on-time.
 
 ## UI
 
 Implemented in R04a ([editor.md](editor.md#shell), [ADR-0008](adr/0008-desktop-workbench.md)):
 a desktop CAD-style React shell; R04b made it edit — Parts arms the place tool or drags parts in,
 Properties edits the selected part, a context menu and the Edit/Place menus carry the editing
-commands, and the clipboard goes through the browser's clipboard events.
+commands, and the clipboard goes through the browser's clipboard events; R05 made it run — a
+Simulate menu and toolbar group with a speed select, the simulation in the status bar, a
+Simulation tab with runtime diagnostics, live levels in Properties.
 
 ```
 ┌───────────────────────── menu bar · toolbar (tools, zoom, grid, gate style) ─────────────────────────┐
 │ Parts    │                                canvas                                    │ Properties    │
 │ (search, │                                                                          │ (of the       │
 │ preview) │                                                                          │ selection)    │
-├──────────┴──────────────── bottom dock: Messages (later: memory · logic analyzer) ───┴───────────────┤
-│ status bar: cursor · zoom · selection · counts · issues                                               │
+├──────────┴─────── bottom dock: Messages · Simulation (later: memory · logic analyzer) ┴───────────────┤
+│ status bar: cursor · zoom · selection · simulation · counts · issues                                  │
 ```
 
 State that lives outside React (document, simulator, editor) is exposed through small observable

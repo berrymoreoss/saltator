@@ -190,7 +190,7 @@ interface CompileResult {
   editor can color every wire.
 - **Never throws on user mistakes.** Components with errors (unknown type, invalid props) are
   left out of the netlist and reported; the rest compiles. Whether to simulate with errors is the
-  host's decision (R05). Only library bugs throw (an inconsistent package definition).
+  host's decision: it simulates anyway, without them (R05). Only library bugs throw (an inconsistent package definition).
 
 ## Design checks
 
@@ -263,7 +263,6 @@ validation costs nothing per instance. Recompiling on every edit is affordable.
 
 ## Planned extensions
 
-- Recompiling while running, preserving component state by id _(R05)_.
 - Net labels and tunnels (named nets joining by name), buses with rippers _(R10)_.
 - Several circuits per document with subcircuit instances _(R11)_.
 - Unconnected power-pin and fan-out checks _(backlog)_.

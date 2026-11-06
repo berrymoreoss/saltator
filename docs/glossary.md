@@ -10,6 +10,10 @@ bubble.
 hardware it causes excess current and undefined levels; the simulator reports a `contention`
 diagnostic and resolves the net to `X`.
 
+**Carry-over** — continuing a running simulation in a recompiled netlist after an edit: unchanged
+parts keep their state, outputs, pending changes and timers (matched by designator, through
+renames), so the run goes on as if nothing happened (`Simulator.carryOver`).
+
 **Common anode / common cathode** — the two kinds of LED displays: all segment anodes (or
 cathodes) joined into one common pin (`COM`). Common cathode: a segment lights when its pin is 1
 and COM is 0; common anode: when its pin is 0 and COM is 1.
@@ -47,6 +51,9 @@ randomly and may oscillate; the simulator treats it as `X` and reports it.
 the curved OR) or IEC 60617 rectangles with a qualifying symbol (`&`, `≥1`, `=1`). A view setting
 in the editor; the pins are the same either way.
 
+**Interact tool** — the tool that operates parts while simulating: flip a switch or DIP switch,
+hold a push button, step a manual clock (`I`; Run selects it).
+
 **Inertial delay** — a delay model in which input pulses shorter than the element's delay do not
 reach the output.
 
@@ -67,6 +74,9 @@ vision), each at the fraction of time it is enabled.
 
 **Part / component** — a simulated device: a real chip (`74xx/74hc00`), an IO element
 (`io/led`), or an abstract primitive (`prim/nand`).
+
+**On-time / brightness** — how long an indicator's light has been on; its share of a frame is
+the brightness drawn, so a multiplexed display or an LED on a fast clock shows its average.
 
 **Propagation delay (tpd, tPLH, tPHL)** — time from an input change to the resulting output
 change; tPLH for low→high, tPHL for high→low output transitions.
@@ -92,6 +102,9 @@ gate shape). Parts describe it as data (body size, pin sides and offsets); the e
 
 **Stub (pin stub)** — the short line from a part's body to the pin's connection point, where a
 wire must end to connect.
+
+**Simulator host** — what runs the kernel against the wall clock in the app (`Simulation` in the
+editor): run, pause, step, stop, reset, speed, frame budget, following edits.
 
 **Test bench** — a harness that applies stimulus to a part or circuit and checks the outputs over
 time.

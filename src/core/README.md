@@ -12,7 +12,8 @@ queue, net resolution, component runtime API, test bench utilities.
 Modules: `time`, `logic` (levels, drives, resolution, 4-state operators), `event-queue`,
 `component` (definition types, `defineComponent`, `resolveProps`), `symbol` (symbol geometry,
 `validateSymbol`), `registry`, `netlist`
-(`NetlistBuilder`, `resolveNetlist`), `diagnostics`, `simulator`. Test utilities (`Bench`,
+(`NetlistBuilder`, `resolveNetlist`, `sameNetlistStructure`), `diagnostics`, `simulator`
+(including `carryOver` for editing while running). Test utilities (`Bench`,
 `functionTable`, `truthTable`, `Trace`) live in `testing/` and are imported from
 `src/core/testing`, not from the main index.
 

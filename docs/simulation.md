@@ -242,9 +242,10 @@ Run status (`RunStatus`): `idle` (nothing left to do), `reached` (time limit rea
 still pending — e.g. a clock), `budget` (event budget used up; checked between timestamps),
 `halted` (oscillation; final for this simulator, every later run returns `halted`).
 
-A **simulator host** outside core maps wall-clock to simulation time (speed factor, frame budget,
-"can't keep up" reporting) and offers debugger conveniences (step to next clock edge, run until
-breakpoint) _(planned, R05, R14)_.
+A **simulator host** outside core maps wall-clock to simulation time: the editor's `Simulation`
+(R05, [editor.md](editor.md#simulation)) with speed presets, a frame budget and "can't keep up"
+reporting, run/pause/step to the next event/stop/reset. Debugger conveniences (step to the next
+clock edge, run until a breakpoint) come in R14 _(planned)_.
 
 ## Editing while running: carry-over
 

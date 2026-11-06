@@ -1,9 +1,10 @@
 # Editor and workbench
 
 Specification of `src/editor` (the canvas engine, no React) and `src/ui` (the React shell around
-it): the workbench and schematic view (R04a) and editing (R04b); running the simulation in the
-editor is R05 _(planned)_. Rationale: [ADR-0008](adr/0008-desktop-workbench.md) (workbench),
-[ADR-0009](adr/0009-editing-model.md) (editing).
+it): the workbench and schematic view (R04a), editing (R04b) and running the simulation (R05).
+Rationale: [ADR-0008](adr/0008-desktop-workbench.md) (workbench),
+[ADR-0009](adr/0009-editing-model.md) (editing), [ADR-0010](adr/0010-running-simulations.md)
+(simulation).
 
 ## Shell
 
@@ -21,7 +22,7 @@ A desktop CAD-style window (`Workbench`), dense like KiCad or Altium: 12 px UI t
 │ ▾ IO       │                                      │ Delay 1 ns   │
 │ ── preview │                                      │              │
 ├────────────┴──────────────────────────────────────┴──────────────┤
-│ MESSAGES  2  78   (tabs; Memory, Analyzer later)                  │
+│ MESSAGES  2  78 · SIMULATION  1   (Memory, Analyzer later)        │
 ├──────────────────────────────────────────────────────────────────┤
 │ X 12  Y 4 │ 100 % │ U1 · NAND │ hint …        14 parts · 20 wires │ ✖ 0 ⚠ 1 │
 └──────────────────────────────────────────────────────────────────┘
@@ -39,12 +40,14 @@ A desktop CAD-style window (`Workbench`), dense like KiCad or Altium: 12 px UI t
   editable ([Properties](#properties)), plus type, datasheet and pins with their nets; one wire —
   endpoints, length, net and the pins on it; several items — counts by part name; nothing — the
   circuit's name and counts.
-- **Messages**: the compile result's design issues, errors first, with code, message and location
-  (`U1.A`, `wire w3`). Click selects the item and brings it into view; double-click zooms to it.
-  The tab title and the status bar show the counts.
-- **Status bar**: grid position under the pointer, zoom, a one-line selection summary, a hint for
-  the current tool and gesture (`statusHint`), part/wire counts, redraw time (dev builds),
-  error/warning counts (click opens Messages).
+- **Bottom dock tabs** (the active one is a setting): **Messages** — the compile result's design
+  issues, errors first, with code, message and location (`U1.A`, `wire w3`); click selects the
+  item and brings it into view, double-click zooms to it; the tab and the status bar show the
+  counts. **Simulation** — what happened while running ([Simulation](#simulation)).
+- **Status bar**: grid position under the pointer, zoom, a one-line selection summary, the
+  simulation (state, simulated time, the speed reached when lagging, runtime problems; click opens
+  the Simulation tab), a hint for the current tool and gesture (`statusHint`), part/wire counts,
+  redraw time (dev builds), error/warning counts (click opens Messages).
 - **Context menu** (right click on the canvas): over a part or wire (selected first) — Cut, Copy,
   Paste, Duplicate, Delete, Rotate, Rotate Counter-clockwise, Flip Horizontal, Flip Vertical,
   Properties; over empty canvas — Paste, Select All, Zoom to Fit. A right click while drawing a
@@ -80,6 +83,12 @@ the shortcuts dialog all read the same `CommandRegistry`, which rejects duplicat
 | Zoom to Fit         | `Mod+0`, `Home`            | Show Grid                  | `Shift+G`                 |
 | Actual Size (100 %) | `Mod+1`                    | Toggle Gate Style          | `Shift+I`                 |
 | Keyboard Shortcuts  | `?`, `Mod+/`               | Swap wire bend (drawing)   | `Tab`                     |
+| Interact tool       | `I`                        | Run / Pause                | `F5`                      |
+| Step                | `F10`                      | Stop                       | `Shift+F5`                |
+| Reset               | `Mod+Shift+F5`             |                            |                           |
+
+Commands marked `global` run while typing in a text field and keep their key from the browser
+even while disabled: F5 never reloads the page (and loses an unsaved circuit).
 
 **Escape** goes one step back: it cancels the current gesture (a drag, a wire being drawn, a
 floating paste), else leaves the Wire or place tool for Select, else clears the selection.
@@ -87,7 +96,8 @@ floating paste), else leaves the Wire or place tool for Select, else clears the 
 ## Settings and themes
 
 `Settings` (`src/ui/settings.ts`): theme (`system` · `dark` · `light`), gate style (`ansi` ·
-`iec`), grid on/off, scroll-wheel mode (`pan` · `zoom`), and each dock's visibility and size.
+`iec`), grid on/off, scroll-wheel mode (`pan` · `zoom`), each dock's visibility and size, and
+the bottom dock's tab (`messages` · `simulation`).
 They live in `localStorage` (`logic.settings.v1`), saved with a short debounce; reading repairs
 each invalid field to its default, and blocked storage (private mode) just means nothing is
 remembered.
@@ -95,7 +105,8 @@ remembered.
 - **Themes**: CSS custom properties in `src/ui/styles/tokens.css` for both themes, selected by
   `data-theme` on `<html>`; `system` follows `prefers-color-scheme` live. The canvas gets the
   matching `CanvasTheme` (`src/editor/theme.ts`): dark — warm part outlines on near-black; light —
-  a KiCad-like maroon on cream "paper". R05 adds signal-level colors.
+  a KiCad-like maroon on cream "paper"; each with level colors for wires while simulating
+  (`CanvasTheme.levels`, mirrored as `--level-*` CSS tokens for the Properties badges).
 - Settings are view preferences, never part of the document: the same file looks the same on
   every machine apart from them.
 
@@ -177,8 +188,9 @@ editor doesn't know.
   `pull-up`, `pull-down`, `vcc`, `gnd`, `switch` and `button` (SPDT/SPST contacts with `1`/`0`
   throws; switches show their power-on position, buttons a plunger), `dip-switch`, `clock`
   (square wave, or a single pulse in manual mode), `led` and `led-bar` (diodes tinted with the LED
-  color), `seven-segment`, `hex-display`, `probe`. R04a draws the idle look; R05 draws lit LEDs,
-  displayed digits and live switch positions.
+  color), `seven-segment`, `hex-display`, `probe`. Stopped, drawers show the idle look
+  (power-on switch positions, unlit lights); while simulating they get `DrawContext.live`
+  ([Simulation](#live-drawing)).
 - **DIP**: body with the notch at the top, pin numbers outside next to each stub, pin names
   inside (overlined when `activeLow`, after a clock triangle when `clock`), the part name down
   the middle.
@@ -220,8 +232,9 @@ a gesture is in progress the canvas draws a **preview** circuit instead of the d
 
 ### Tools
 
-`Tool = 'select' | 'pan' | 'wire' | { kind: 'place', type }`, in the toolbar and View menu
-(`V`, `H`, `W`; the place tool is armed from the Parts panel). Tools are sticky: they stay until
+`Tool = 'select' | 'pan' | 'wire' | 'interact' | { kind: 'place', type }`, in the toolbar and
+View menu (`V`, `H`, `W`, `I`; the place tool is armed from the Parts panel; the Interact tool
+operates parts while simulating, [below](#interacting-with-parts)). Tools are sticky: they stay until
 another tool is chosen or Escape. The editor's `mode` store says what is going on (`idle`,
 `moving`, `boxing`, `panning`, `wiring`, `floating`) for the status-bar hint.
 
@@ -301,7 +314,8 @@ touches connects); the design checks report what came loose or got shorted.
 The Properties panel edits a single selected part: double-click it, or Edit ▸ Properties, to
 focus its designator.
 
-- **Designator**: Enter applies a rename (one step; the edit records `old → new` for R05);
+- **Designator**: Enter applies a rename (one step; the edit records `old → new`, which carries
+  the part's simulation state over);
   invalid or taken designators show the reason and are not applied (`designatorError`); Escape
   reverts.
 - **Label** (empty removes it), **position** (whole cells), **rotation** (0/90/180/270) and
@@ -323,10 +337,114 @@ key merge (nudges of one selection). Undo and redo restore the selection too and
 renames they undo or redo in `state.renames`. Opening an example and File ▸ New are undoable
 edits until R07 brings files; loading a circuit with `setCircuit` clears the history.
 
+## Simulation
+
+The simulator host (`src/editor/simulation.ts`, `editor.simulation`) runs the kernel for the
+circuit in the editor ([ADR-0010](adr/0010-running-simulations.md)). Commands: Simulate menu,
+the toolbar group (Run/Pause, Step, Stop, Reset, speed select) and `F5`, `F10`, `Shift+F5`,
+`Mod+Shift+F5`.
+
+### Run control
+
+`SimState`: **stopped** (no simulator; the plain drawing — where a session starts), **running**,
+**paused**, **halted** (the kernel stopped on an oscillation).
+
+- **Run** powers on (a new `Simulator` at t = 0 from the scene's compiled netlist) and runs;
+  from paused it continues. It arms the Interact tool. **Pause** freezes time.
+- **Step** (stopped or paused) runs to the next timestamp with events, all its delta cycles:
+  propagation can be followed gate delay by gate delay. Stale (cancelled) events are skipped;
+  with nothing pending it does nothing. From stopped it powers on and runs t = 0.
+- **Stop** discards the simulator; the tool goes back to Select. **Reset** powers on again at
+  t = 0 (diagnostics and brightness samples cleared), keeping running or paused; a halted
+  simulation runs again.
+- Design errors don't block running: parts the compiler left out are missing.
+- Opening an example or File ▸ New stops the simulation first.
+
+### Pacing
+
+- **Speed** (`Speed`, `ALL_SPEEDS`): simulated time per wall second — 1 ns/s, 10 ns/s, … 100 ms/s,
+  **real time** (1 s/s, the default), **Max** (as much as the frame budget allows).
+- Each animation frame: `target = now + min(wall Δ, 100 ms) × speed`; the kernel runs in chunks of
+  20 000 events until the target or the frame budget (8 ms of wall time) is reached. Behind
+  schedule, the backlog is dropped, not caught up; the status bar then shows the speed reached
+  (smoothed), in the warning color, for a while after the last overrun. Max runs `settle` and
+  stops advancing when nothing is pending.
+- The clock and the frame scheduler are injected (`SimClock`; `BROWSER_CLOCK` uses
+  `performance.now` and `requestAnimationFrame`), so pacing is tested with a fake clock.
+- Stores: `status` (state, time, speed, measured speed, lagging, error — refreshed at most 10×
+  per second while running), `diagnostics`, `ticks` (panels showing live values refresh on it),
+  `revision` (the canvas redraws on it, synchronously inside the host's frame). The canvas
+  redraws only when events were processed, a light's brightness changed by a visible step
+  (1/32), or a contention flash phase is due.
+
+### Editing while running
+
+Every committed edit, undo and redo is followed (`Simulation.sync`, from `editor.state`):
+
+- **Same structure** (`sameNetlistStructure`: same components in order with type and props, same
+  pins connected; net ids don't matter) — moving, rotating, relabelling, rerouting: the simulator
+  goes on untouched; only the map from scene wires to simulator nets (`signalMap`, through the
+  pins of each net) is rebuilt.
+- **Otherwise** the run continues in the recompiled netlist with `Simulator.carryOver`, through
+  the edit's renames ([simulation.md](simulation.md#editing-while-running-carry-over)): unchanged
+  parts keep everything, parts with other props power on without an `X` glitch, new parts power
+  on. A halted simulation becomes paused.
+
+### Interacting with parts
+
+The **Interact tool** (`I`, a pointing hand): a press on a part looks up its symbol kind in
+`INTERACTIONS` (`src/editor/symbols/interact.ts`) with the press in the part's local cells
+(`inverseTransformPoint`), and sends the action to the simulator:
+
+| Part                    | Press                           | Release   |
+| ----------------------- | ------------------------------- | --------- |
+| `io/switch`             | `toggle`                        | —         |
+| `io/button`             | `press`                         | `release` |
+| `io/dip-switch`         | `toggle` the switch on that row | —         |
+| `io/clock`, manual mode | `step` (one pulse)              | —         |
+
+A held button is released when the press ends, is cancelled, the window loses focus or the tool
+changes. Elsewhere a click selects (Properties shows live levels) and a drag pans; over an
+interactive part the pointer is a hand. While stopped the tool only selects and pans. While
+paused, an action's zero-delay effects are applied at once (`runUntil(now)`); gate delays wait for
+time to move.
+
+### Live drawing
+
+- **Wires and junctions** take the color of their net's `SignalStyle`: `L1` bright green, `L0`
+  dark green, `Z` blue, `X` red, `WEAK_1`/`WEAK_0` (only a pull resistor) paler, `CONTENTION`
+  (`sim.contended`) flashing red twice a second while running. Wires the simulation doesn't know
+  (new ones during a gesture) keep the plain color; ghosts the selection color; a selected wire
+  keeps its level color over a selection halo. Pin stubs keep the part color.
+- **Parts** get `DrawContext.live` (`PartLive`: `state`, `level(pin)`, `light(i)`) and
+  `levelColor`: switches, buttons and DIP switches show their positions; LEDs, LED bars and
+  7-segment segments their brightness, with a glow; an unknown light is drawn in the `X` color;
+  the clock's wave takes its output's level color; the hex display shows its digit (unknown: a
+  dash in the `X` color); the probe its level letter in the level color.
+- **Brightness** while running is the on-time over the last frame
+  (`(onTimeAt(t1) − onTimeAt(t0)) / (t1 − t0)`, from samples the host keeps per indicator), so a
+  multiplexed display or an LED on a fast clock shows its average; while paused or stepping, what
+  the light shows at that instant. Samples survive a carry-over and are cleared on Reset.
+- **Budget**: redrawing the 3 600-part, 10 620-wire stress schematic with level colors takes
+  ≈ 4.4 ms at fit zoom (3.9 ms stopped); Run ≈ 46 ms, a structural edit while running ≈ 39 ms, a
+  nudge ≈ 47 ms with the same simulator (dev build, headless Chromium, Apple M3 Pro, R05).
+
+### Diagnostics and live values
+
+- The **Simulation** tab lists the kernel's and parts' diagnostics (`contention`,
+  `floating-input`, `oscillation`, part-reported kinds) in order of first occurrence: kind,
+  message, first time, last time and count, where (`U1.A`, `net U1.Y`). Contention and
+  oscillation are errors, the rest warnings. Click locates the part, or selects the wires of the
+  net (`Editor.locateNet`); double-click zooms. **Clear** hides the current entries until they
+  happen again. The tab shows the counts; so does the status bar's simulation cell.
+- **Properties** shows a live level badge (`0`, `1`, `Z`, `X`; weak levels paler, contention red)
+  next to each pin of the selected part, the net of a selected wire and the pins on it.
+
 ## Editor API
 
-`new Editor(registry, circuit?, settings?)` (`src/editor/editor.ts`) owns the circuit, its scene,
-the selection, the undo history, the camera and the tool. The UI mounts it with
+`new Editor(registry, circuit?, settings?, options?)` (`src/editor/editor.ts`) owns the circuit,
+its scene, the selection, the undo history, the camera, the tool and the simulator host
+(`editor.simulation`; `options.simulation` injects its clock in tests). The UI mounts it with
 `editor.mount(canvas)` (returns the detach function) and reads through `useSyncExternalStore`:
 `editor.state` (circuit, scene, selection, renames), `editor.view` (camera, viewport, pointer
 position, last redraw time — changes often, keep consumers small), `editor.tool`, `editor.mode`,
@@ -342,7 +460,11 @@ focus Properties).
 - Tools: `setTool`, `placePart(type)`, `dragPart(type, client?)`, `dropPart(type, client)`,
   `swapWirePosture`, `escape`, `cancel`.
 - View and selection: `setSettings`, `setSelection`, `selectAll`, `clearSelection`, `zoomIn`,
-  `zoomOut`, `zoomActual`, `zoomToFit`, `locate(item, { zoom? })`.
+  `zoomOut`, `zoomActual`, `zoomToFit`, `locate(item, { zoom? })`, `locateNet(net, { zoom? })`.
+- Simulation (`editor.simulation`): `run`, `pause`, `toggle`, `step`, `stop`, `reset`,
+  `setSpeed`, `action(component, payload)`, `clearDiagnostics`; `state`, `simulator`,
+  `signalView()`, `pinStyle`, `wireStyle`, `wiresOfNet`; stores `status`, `diagnostics`,
+  `ticks`, `revision`.
 - Input: the DOM layer converts events into `PointerInput` (canvas pixels, button, Shift, client
   position) and calls `pointerDown`, `pointerMove`, `pointerUp`, `doubleClick`, `pointerLeave` —
   so every gesture runs, and is tested, without a browser.
@@ -366,12 +488,19 @@ one directly.
 - Gestures — `src/editor/gestures.test.ts` drives the `Editor` with `PointerInput`s: drag-move
   and cancel, nudges, the Wire tool (corners, Tab, Delete, double-click, Escape), wires dragged
   from a pin, the place tool, drop from the panel, floating paste and duplicate, cut, context-menu
-  and properties requests.
+  and properties requests, the Interact tool (switch, held button, DIP switch on a rotated and
+  flipped part, manual clock, click-to-select and drag-to-pan, nothing while stopped).
+- Simulation — `src/editor/simulation.test.ts` with a fake clock: run control, pacing, frame
+  budget and measured speed, Max, step, actions while paused and running, the same simulator
+  after a move, carry-over after structural edits and renames (undo/redo), halting, diagnostics
+  and Clear, signal styles, contention flashing, redraws only on change, brightness from on-time;
+  `renderer.test.ts` checks wire colors with a recording 2D context.
 - Editing scenario — `tests/scenarios/editing.test.ts` draws Hello, LED from an empty document
   with gestures only and checks it compiles to the example's nets with no design issues.
 - Drawers — `tests/scenarios/symbol-drawing.test.ts` draws every registered part (default,
   boundary and enum props, both gate styles) with a recording `SymbolGraphics`: something is
-  drawn, everything stays inside the layout, and drawn pins equal the compiler's pin positions.
+  drawn, everything stays inside the layout, and drawn pins equal the compiler's pin positions;
+  again with live state (lit, half lit, unknown), plus switch positions, digits and probe levels.
 - The browser — Playwright (`pnpm e2e`, `tests/e2e/`, Chromium against a production build):
   shell regions, drawing, gallery without errors, locate from Messages, canvas click,
   Shift-click, select all, box selection in both directions, keyboard and wheel zoom in both wheel
@@ -379,5 +508,8 @@ one directly.
   shortcuts dialog; editing (`editing.spec.ts`): a circuit drawn by hand, drag-and-drop from the
   panel, moving with wires, undo/redo and the Undo label, rotate/flip/delete, floating paste,
   duplicate, paste into a second tab, keyboard clipboard events, Properties edits and invalid
-  input, the context menu. Not part of `pnpm check` (it needs a browser); CI runs it after the
-  build.
+  input, the context menu; simulation (`simulation.spec.ts`): Hello, LED drawn by hand runs (the
+  switch drives the LED, the clock blinks), Step/Pause/Stop/Reset from keys and toolbar with F5
+  never reloading, a held button, edits and a rename while running, a short located from the
+  Simulation tab, the speed select. Not part of `pnpm check` (it needs a browser); CI runs it
+  after the build.
