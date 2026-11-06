@@ -4,7 +4,12 @@
  */
 export * from './camera';
 export * from './dev-parts';
+export * from './graphics';
+export * from './grid';
 export * from './hit-test';
+export * from './renderer';
 export * from './scene';
 export * from './selection';
+export * from './symbols';
 export * from './text-placement';
+export * from './theme';

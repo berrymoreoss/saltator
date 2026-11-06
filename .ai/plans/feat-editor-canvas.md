@@ -260,7 +260,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   issues) + text placement for all 8 placements + tests.
 - [x] 4. editor: hit-testing and selection model (click, toggle, box enclosed/crossing, select
   all, survival across document changes) + tests.
-- [ ] 5. editor: renderer core — HiDPI canvas, resize/DPR handling, on-demand redraw, canvas
+- [x] 5. editor: renderer core — HiDPI canvas, resize/DPR handling, on-demand redraw, canvas
   theme, adaptive grid, wires, junctions, pin stubs, box/unknown fallbacks, text with LOD,
   culling, hover/selection overlays; pure helpers (grid spacing, visible rect) tested.
 - [ ] 6. editor: gate drawers (ANSI + IEC; buffer, inverter, tri-state), `constant`,
