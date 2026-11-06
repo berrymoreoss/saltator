@@ -7,8 +7,9 @@
  *
  * Run: pnpm check:layers
  */
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
+import { layerOf } from './layers.ts';
 
 const SRC = resolve(import.meta.dirname, '..', 'src');
 
@@ -44,11 +45,6 @@ function listFiles(dir: string): string[] {
   });
 }
 
-function layerOf(file: string): string {
-  const parts = relative(SRC, file).split(sep);
-  return parts.length === 1 ? 'app' : parts[0]!;
-}
-
 function packageName(specifier: string): string {
   const parts = specifier.split('/');
   return specifier.startsWith('@') ? parts.slice(0, 2).join('/') : parts[0]!;
@@ -57,7 +53,7 @@ function packageName(specifier: string): string {
 const violations: string[] = [];
 
 for (const file of listFiles(SRC)) {
-  const layer = layerOf(file);
+  const layer = layerOf(file, SRC);
   const allowed = ALLOWED[layer];
   const where = relative(process.cwd(), file);
 
@@ -76,7 +72,8 @@ for (const file of listFiles(SRC)) {
         violations.push(`${where}: imports "${specifier}" from outside src/`);
         continue;
       }
-      const targetLayer = layerOf(target);
+      const isDirectory = existsSync(target) && statSync(target).isDirectory();
+      const targetLayer = layerOf(target, SRC, isDirectory);
       if (targetLayer !== layer && !allowed.includes(targetLayer)) {
         violations.push(`${where}: layer "${layer}" must not import from "${targetLayer}"`);
       }
