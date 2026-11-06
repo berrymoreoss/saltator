@@ -77,6 +77,25 @@ describe('pins', () => {
     expect(() => validatePins([{ name: '', dir: 'in' }], 'x/y')).toThrow('x/y: empty pin name');
   });
 
+  it('validatePins allows sense only on inputs', () => {
+    expect(() => validatePins([{ name: 'A', dir: 'in', sense: true }], 'x/y')).not.toThrow();
+    expect(() => validatePins([{ name: 'D', dir: 'bidir', sense: true }], 'x/y')).toThrow(
+      'x/y: pin "D" is "bidir" and cannot be sense',
+    );
+  });
+
+  it('validatePins allows constant only on strong outputs, with level 0 or 1', () => {
+    expect(() => validatePins([{ name: 'Y', dir: 'out', constant: 0 }], 'x/y')).not.toThrow();
+    expect(() => validatePins([{ name: 'Y', dir: 'tristate', constant: 1 }], 'x/y')).toThrow(
+      'x/y: pin "Y" is "tristate" and cannot be constant',
+    );
+    expect(() => validatePins([{ name: 'Y', dir: 'out', weak: true, constant: 1 }], 'x/y')).toThrow(
+      'x/y: pin "Y" cannot be weak and constant',
+    );
+    const two = { name: 'Y', dir: 'out', constant: 2 } as unknown as PinDef;
+    expect(() => validatePins([two], 'x/y')).toThrow('x/y: pin "Y" constant must be 0 or 1');
+  });
+
   it('validatePins allows weak only on driver pins', () => {
     expect(() => validatePins([{ name: 'Y', dir: 'out', weak: true }], 'x/y')).not.toThrow();
     expect(() => validatePins([{ name: 'A', dir: 'in', weak: true }], 'x/y')).toThrow(

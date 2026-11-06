@@ -161,7 +161,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 
 - [x] 1. core: `PinSide`, `SymbolDef`, `ComponentDefinition.symbol`, `symbolOf`,
   `validateSymbol`; registry validates static symbols.
-- [ ] 2. core: `PinDef.sense` (no `floating-input` through sense pins) and `PinDef.constant`
+- [x] 2. core: `PinDef.sense` (no `floating-input` through sense pins) and `PinDef.constant`
   (validated: sense only on `in`, constant only on `out`).
 - [ ] 3. circuit: symbol layouts in `partLayout` (package → symbol → box); `undriven-input`
   skips sense pins; `shorted-outputs` merges outputs tied to the same level.
