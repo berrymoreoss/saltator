@@ -193,7 +193,7 @@ permission (a user gesture); a file that is gone is dropped from the list with a
   per-tab sessions, camera); e2e reload restore.
 - [x] 6. Open Recent (Q3).
 - [x] 7. Example gallery dialog with thumbnails; New from Example; e2e.
-- [ ] 8. Learning examples (Q2) — half adder, SR latch, ring oscillator — as files, each with a
+- [x] 8. Learning examples (Q2) — half adder, SR latch, ring oscillator — as files, each with a
   scenario test that runs it (truth table, set/reset/hold, oscillation period).
 - [ ] 9. M1 acceptance e2e; look at it in the browser (both themes).
 - [ ] 10. Docs: editor.md (Files, examples, history note), architecture.md (Persistence),
@@ -267,6 +267,11 @@ permission (a user gesture); a file that is gone is dropped from the list with a
   restore, so a key pressed right after `goto` was lost — every spec loads through
   `openApp(page)` (waits for the canvas); `newCircuit` answers "Don't Save" when a second tab
   starts from another tab's unsaved session.
+- 2026-11-07 — task 8: `half-adder`, `sr-latch` (buttons to GND with pull-ups; starts unknown —
+  the missing-reset lesson), `ring-oscillator` (EN NAND + 6/5 inverters of a 74HC04; period
+  54 ns) written once by a throwaway builder script that also checked every net, then looked
+  at in the browser (layouts adjusted so labels and parts don't overlap). Behavior tested in
+  `tests/scenarios/example-circuits.test.ts`.
 
 ## Handoff
 
@@ -275,7 +280,7 @@ permission (a user gesture); a file that is gone is dropped from the list with a
   autosave (`src/ui/autosave.ts`, `browser-storage.ts`, start-up in `App.tsx`); e2e
   `autosave.spec.ts`; Open Recent (`src/ui/recent-files.ts`); gallery (`ExampleGallery.tsx`,
   `drawCircuitPreview` in `src/editor/preview.ts`).
-- **Next step:** task 8 (learning examples: half adder, SR latch, ring oscillator).
+- **Next step:** task 9 (M1 acceptance e2e; look at it in the browser, both themes).
 - **Watch out:** Biome reformats `.json` (exclude `**/*.logic.json` first); Chrome reserves
   `Mod+N`.
 - **Verify with:** `pnpm check`, `pnpm e2e`.

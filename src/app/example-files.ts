@@ -19,6 +19,23 @@ export const EXAMPLE_FILES: readonly ExampleFile[] = [
     title: 'Hello, LED',
     description: 'A switch through a 74HC00 gate to an LED, and a 1 Hz clock blinking another.',
   },
+  {
+    id: 'half-adder',
+    title: 'Half Adder',
+    description: 'A + B with a 74HC86 (XOR → Sum) and a 74HC08 (AND → Carry).',
+  },
+  {
+    id: 'sr-latch',
+    title: 'SR Latch',
+    description:
+      'Two cross-coupled 74HC00 NANDs remember a bit: SET and RESET buttons with pull-ups.',
+  },
+  {
+    id: 'ring-oscillator',
+    title: 'Ring Oscillator',
+    description:
+      'A NAND enable and two 74HC04 inverters in a ring: 54 ns period. Run at 10 ns/s to watch.',
+  },
 ];
 
 // Not a JSON import: the text is kept as saved and parsed (migrated, validated) like any file.
