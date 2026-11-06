@@ -192,14 +192,18 @@ runs with `--experimental.viteModuleRunner=false` plus `scripts/bench-resolve-ho
 
 ## Acceptance criteria
 
-- [ ] `pnpm check` and `pnpm build` are green; `src/core` has no DOM/package imports (enforced).
-- [ ] `pnpm coverage`: `src/core` ≥ 90 % lines.
-- [ ] All scenario tests from task 9 pass.
-- [ ] Every primitive has function-table tests (incl. X/Z inputs) and a timing test.
-- [ ] Benchmark numbers recorded in this plan (target ≥ 5M events/s; below target → profiling
-  notes + backlog entry, not a blocker).
-- [ ] docs/simulation.md and docs/components.md describe the implemented API;
-  `.ai/workflows/add-component.md` exists and was followed for at least one primitive.
+Verified 2026-11-06 at the end of task 11.
+
+- [x] `pnpm check` and `pnpm build` are green; `src/core` has no DOM/package imports (enforced).
+- [x] `pnpm coverage`: `src/core` ≥ 90 % lines — 99.9 %; now enforced by a threshold in
+  `vite.config.ts`.
+- [x] All scenario tests from task 9 pass (6 files, 25 tests in `tests/scenarios`).
+- [x] Every primitive has function-table tests (incl. X/Z inputs) and a timing test. Gates,
+  buffer, NOT and tri-state buffer: `functionTable` + `truthTable` + `measure`; `prim/constant`
+  and `prim/pull` have no inputs, so they are tested per prop value and for driving at t = 0.
+- [x] Benchmark numbers recorded in this plan (≈ 12–13.5M events/s, target 5M).
+- [x] docs/simulation.md and docs/components.md describe the implemented API;
+  `.ai/workflows/add-component.md` exists and was followed for the primitives.
 
 ## Open questions
 
@@ -233,11 +237,19 @@ Asked at branch start (2026-11-06); all answered.
 - 2026-11-06 — tasks 1–6 done: time/logic, event queue, component types + registry, netlist +
   builder + resolution, simulator loop, diagnostics. Tasks 5 and 6 landed in one commit (the
   diagnostics are part of the loop). Core coverage ≈ 98 % lines.
+- 2026-11-06 — tasks 7–11 done: test bench + function/truth tables + traces, `prim/*` parts and
+  `createDefaultRegistry()`, scenario tests, benchmark (native imports; module runner ~3× slower),
+  docs. Fixed `scripts/check-layers.ts` misclassifying directory imports (`'../../core'`) as the
+  app layer. No decision deviates from ADR-0003, so no new ADR. Acceptance criteria verified.
 
 ## Handoff
 
-- **State:** plan approved, branch started. No production code yet.
-- **Next step:** task 1 (`time.ts`, `logic.ts` + exhaustive tests).
-- **Watch out:** datasheet `X` = don't care ≠ simulator `X` = unknown. No TS enums. `core` may
-  not import `library`; scenario tests that need parts go to `tests/scenarios`.
-- **Verify with:** `pnpm check`.
+- **State:** all 11 tasks done and committed; acceptance criteria verified; `pnpm check`,
+  `pnpm build`, `pnpm coverage`, `pnpm bench` green. Roadmap still says R01 `in-progress`.
+- **Next step:** run the finish-branch workflow (`/finish-branch`): set plan status `done`,
+  roadmap R01 → `done`, R02 → `next`, commit `docs(plan): finish feat/engine-core`, then **ask the
+  user** before merging to `main` (no remote: `git merge --no-ff`).
+- **Watch out:** R02 builds on `NetlistBuilder`/`resolveNetlist`/`ComponentRegistry` from
+  `src/core`; the builder's `net(name)` already joins same-named nets (net-label semantics).
+  Benchmarks must run via `pnpm bench` (native imports), not plain `vitest bench`.
+- **Verify with:** `pnpm check && pnpm build && pnpm coverage && pnpm bench`.
