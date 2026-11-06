@@ -170,8 +170,8 @@ labels `A`, `B` in one place; labels `A`, `B` → the 74HC00 inputs in another. 
 label's name (Properties, Messages, later the analyzer); a name used by a single label is a
 design warning (likely a typo). Scope: the whole circuit until R11 decides local vs global
 labels. VCC and GND symbols join by name the same way
-([ADR-0007](adr/0007-io-electrical-model.md)). Placed from the quick-place toolbar group
-(backlog) as well as the Parts panel.
+([ADR-0007](adr/0007-io-electrical-model.md)). Placed from the canvas context menu's Place
+submenu (backlog) as well as the Parts panel.
 
 ### R11 · Hierarchical design — `feat/subcircuits`
 
@@ -266,9 +266,13 @@ Promote to a numbered item when needed.
 - Simulation view extras (R05 follow-ups): LED colors that stay visible on the light theme's
   cream when dim (a dim yellow LED is hard to see); a "toggling" wire style for nets that change
   faster than the frame rate, which now flicker between 0 and 1 from frame to frame.
-- Quick-place toolbar group: one-click buttons for the parts placed most often — VCC, GND and
-  Net Label — that arm the sticky place tool like a click in the Parts panel, with shortcuts
-  (KiCad uses `P` for power and `L` for a label; both are free). VCC and GND can land any time;
-  the Net Label button comes with R10.
+- Place submenu (instead of a quick-place toolbar group, to keep the toolbar clean): right click
+  on empty canvas ▸ **Place** ▸ Power (VCC), Ground (GND), Pull-up, Pull-down (the pull part with
+  its direction preset), Wire, Net Label (with R10), Port (a subcircuit's interface pin, with
+  R11), then Part… (Search Parts). The menu bar's Place menu shows the same list. A part item arms
+  the sticky place tool like a click in the Parts panel (ghost under the cursor, R/F before
+  placing, Escape leaves); Wire switches to the Wire tool. Shortcuts can follow (KiCad uses `P`
+  for power and `L` for a label; both are free). Everything but Net Label and Port can land any
+  time.
 - Documents (R07 follow-ups): several documents open in one window (tabs); a title, notes and
   simulation settings (speed) stored in the file (schema v2).
