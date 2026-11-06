@@ -12,6 +12,9 @@ Implemented in R04a: `Workbench` (the shell), `MenuBar`, `Toolbar`, `Panel`/`Spl
 `workbench-commands` (one registry for menus, toolbar and shortcuts), `shortcuts`, `settings`
 (persisted view preferences), `ui-state`; styles in `styles/` (tokens for both themes). R04b:
 `ContextMenu`, editable `PropertiesPanel` (`prop-input` parses typed values), `clipboard` (the
-browser's clipboard events and the async Clipboard API), place/drag from `PartsPanel`.
+browser's clipboard events and the async Clipboard API), place/drag from `PartsPanel`. R05:
+Simulate menu and toolbar commands, `SimControls` (speed select, the status bar's simulation
+cell), `SimulationPanel` (runtime diagnostics tab), `LiveLevel` (level badges in Properties),
+bottom-dock tabs.
 
 Spec: [docs/editor.md](../../docs/editor.md#shell).

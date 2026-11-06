@@ -3,6 +3,7 @@ import { designatorError } from '../circuit';
 import { formatTime, type PropDef, type PropValue, pinsOf } from '../core';
 import { type Editor, LED_COLORS, type Scene, type ScenePart, type SceneWire } from '../editor';
 import { useStore } from './hooks';
+import { LiveLevel } from './LiveLevel';
 import { parsePropText, propText } from './prop-input';
 
 /** A prop value as shown to the user: units, enum labels, time in ns/µs/ms. */
@@ -65,7 +66,7 @@ export function PropertiesPanel({
     return <PartProperties key={part.id} part={part} editor={editor} designatorRef={designator} />;
   }
   if (parts.length === 0 && wires.length === 1) {
-    return <WireProperties wire={wires[0]!} scene={scene} />;
+    return <WireProperties wire={wires[0]!} scene={scene} editor={editor} />;
   }
   if (parts.length + wires.length > 1) return <MultiProperties parts={parts} wires={wires} />;
   return (
@@ -289,7 +290,8 @@ function PartProperties({
                   <span className="muted">open</span>
                 ) : (
                   <span className="mono">{pin.net}</span>
-                )}
+                )}{' '}
+                <LiveLevel editor={editor} pin={[instance.id, pin.name]} />
               </Row>
             );
           })}
@@ -363,7 +365,15 @@ function PropEditor({
   );
 }
 
-function WireProperties({ wire, scene }: { readonly wire: SceneWire; readonly scene: Scene }) {
+function WireProperties({
+  wire,
+  scene,
+  editor,
+}: {
+  readonly wire: SceneWire;
+  readonly scene: Scene;
+  readonly editor: Editor;
+}) {
   const net = scene.compiled.nets.find((n) => n.id === wire.net);
   const length = Math.abs(wire.to[0] - wire.from[0]) + Math.abs(wire.to[1] - wire.from[1]);
   return (
@@ -380,14 +390,15 @@ function WireProperties({ wire, scene }: { readonly wire: SceneWire; readonly sc
         </Row>
         <Row label="Length">{length} cells</Row>
         <Row label="Net">
-          <span className="mono">{wire.net}</span>
+          <span className="mono">{wire.net}</span> <LiveLevel editor={editor} wire={wire.id} />
         </Row>
       </Section>
       {net && net.pins.length > 0 && (
         <Section title="Connected pins">
           {net.pins.map((pin) => (
             <Row key={`${pin.component}.${pin.pin}`} label={`${pin.component}.${pin.pin}`}>
-              <span className="muted">{pin.dir}</span>
+              <span className="muted">{pin.dir}</span>{' '}
+              <LiveLevel editor={editor} pin={[pin.component, pin.pin]} />
             </Row>
           ))}
         </Section>

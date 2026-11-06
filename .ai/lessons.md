@@ -74,3 +74,17 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
   must wait for the floating state (status hint) before clicking to drop, or the click lands
   first. Playwright e2e specs can import `src/` modules (layouts) directly to compute pin
   positions.
+- 2026-11-07 (R05) — Two actions on one part at the same instant cancel out: the second drive
+  replaces the pending first (inertial delay), so "toggle, toggle" with no time between does
+  nothing. Tests (and test benches) must let time pass between actions they want to see.
+- 2026-11-07 (R05) — The host refreshes `status` and `diagnostics` at most every 100 ms of wall
+  time while running: a fake-clock test must run ≥ 7 frames of 16 ms before reading them (state
+  changes, steps and actions refresh at once).
+- 2026-11-07 (R05) — Playwright names: a toolbar button's accessible name is the command's
+  `title` (falling back to `label`), and a menu command with `checked` is a `menuitemcheckbox`,
+  not a `menuitem`. In Properties rows the label and value texts run together ("Ain SW1.Y"):
+  match the `.prop-label` exactly instead of a `^A\b` regex on the row.
+- 2026-11-07 (R05) — `Simulator.carryOver` relies on `evaluate` being idempotent with nothing
+  changed; the invariance property test (`tests/scenarios/carry-over.test.ts`) catches a part
+  that counts or toggles in `evaluate`, and was mutation-checked (shifting carried timers or
+  re-running `init` fails it). Keep it green when the kernel or parts grow.

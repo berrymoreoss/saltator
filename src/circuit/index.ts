@@ -48,6 +48,7 @@ export {
   COORD_LIMIT,
   comparePoints,
   inSegmentInterior,
+  inverseTransformPoint,
   isAxisAligned,
   isRotation,
   type Placement,

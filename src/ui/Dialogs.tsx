@@ -128,6 +128,14 @@ export function ShortcutsDialog({
             <span>Context menu</span>
             <span className="shortcut-keys">right click</span>
           </div>
+          <div className="shortcut-row">
+            <span>Flip a switch, step a manual clock</span>
+            <span className="shortcut-keys">click it (Interact tool, while simulating)</span>
+          </div>
+          <div className="shortcut-row">
+            <span>Press a button</span>
+            <span className="shortcut-keys">hold it (Interact tool)</span>
+          </div>
         </div>
       </div>
     </Dialog>

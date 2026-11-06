@@ -52,16 +52,15 @@ export function MessagesPanel({ editor }: { readonly editor: Editor }) {
   );
 }
 
-/** Tab title with the issue counts. */
-export function MessagesTab({ editor }: { readonly editor: Editor }) {
+/** The Messages tab's badges: design-check errors and warnings. */
+export function MessagesBadges({ editor }: { readonly editor: Editor }) {
   const { scene } = useStore(editor.state);
   const errors = scene.issues.filter((i) => i.severity === 'error').length;
   const warnings = scene.issues.length - errors;
   return (
-    <span className="tab active">
-      Messages
+    <>
       {errors > 0 && <span className="tab-badge error">{errors}</span>}
       {warnings > 0 && <span className="tab-badge warning">{warnings}</span>}
-    </span>
+    </>
   );
 }

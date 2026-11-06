@@ -22,6 +22,7 @@ export { hexDigit, hexDisplay } from './hex-display';
 export { led, ledBar, MAX_LED_BAR } from './led';
 export {
   createLights,
+  isLightsState,
   LED_COLORS,
   type LedColor,
   Light,

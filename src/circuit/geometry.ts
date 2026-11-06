@@ -67,6 +67,32 @@ export function transformPoint(local: Point, placement: Placement): Point {
   }
 }
 
+/**
+ * Maps a grid point (fractional too, e.g. under the pointer) back into a part's local
+ * coordinates: the inverse of `transformPoint`.
+ */
+export function inverseTransformPoint(world: Point, placement: Placement): Point {
+  const dx = world[0] - placement.origin[0];
+  const dy = world[1] - placement.origin[1];
+  let x: number;
+  let y: number;
+  switch (placement.rotation) {
+    case 0:
+      [x, y] = [dx, dy];
+      break;
+    case 90:
+      [x, y] = [dy, -dx];
+      break;
+    case 180:
+      [x, y] = [-dx, -dy];
+      break;
+    case 270:
+      [x, y] = [-dy, dx];
+      break;
+  }
+  return [(placement.flip ? -x : x) + 0, y + 0];
+}
+
 /** Side of a part a pin sticks out of (the same type as core's `PinSide`). */
 export type Side = PinSide;
 

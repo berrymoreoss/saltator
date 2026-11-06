@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { type Circuit, CircuitBuilder, compileCircuit, type Point } from '../circuit';
+import {
+  type Circuit,
+  CircuitBuilder,
+  compileCircuit,
+  type Point,
+  transformPoint,
+} from '../circuit';
 import { createDefaultRegistry } from '../library';
 import { Editor, type PointerInput } from './editor';
+import { FakeClock } from './fake-clock';
 import { selectionOf } from './selection';
 
 // Gestures driven through `PointerInput`s, without a canvas. The default camera puts world (0, 0)
@@ -325,5 +332,105 @@ describe('Properties edits', () => {
     expect([...editor.state.get().selection.parts]).toEqual(['GATE']);
     expect(editor.state.get().renames).toEqual(new Map([['U1', 'GATE']]));
     expect(nets(editor.state.get().circuit)).toEqual([['GATE.A', 'SW1.Y']]);
+  });
+});
+
+describe('Interact tool', () => {
+  // SW1 (switch), SW2 (button), SW3 (8 DIP switches, rotated and flipped), X1 (manual clock),
+  // X2 (free-running clock), U1 (a gate: nothing to operate).
+  const circuit = new CircuitBuilder(registry)
+    .add('SW1', 'io/switch', { at: [0, 0] })
+    .add('SW2', 'io/button', { at: [0, 4] })
+    .add('SW3', 'io/dip-switch', { at: [20, 0], rotation: 90, flip: true })
+    .add('X1', 'io/clock', { at: [0, 10], props: { mode: 'manual', frequency: 1000 } })
+    .add('X2', 'io/clock', { at: [0, 14] })
+    .add('U1', 'prim/nand', { at: [40, 0] })
+    .build();
+
+  function running() {
+    const clock = new FakeClock();
+    const editor = new Editor(registry, circuit, {}, { simulation: { clock } });
+    editor.simulation.run();
+    return { clock, editor, state: (id: string) => editor.simulation.simulator!.stateOf(id) };
+  }
+
+  /** World point of a part's local point. */
+  const at = (editor: Editor, id: string, local: Point): Point => {
+    const part = editor.scene.partById.get(id)!;
+    return transformPoint(local, part.placement);
+  };
+
+  it('is armed by Run and left by Stop; V edits while running', () => {
+    const { editor } = running();
+    expect(editor.tool.get()).toBe('interact');
+    editor.setTool('select');
+    editor.simulation.pause();
+    expect(editor.tool.get()).toBe('select');
+    editor.setTool('interact');
+    editor.simulation.stop();
+    expect(editor.tool.get()).toBe('select');
+  });
+
+  it('flips a switch per click without selecting it', () => {
+    const { editor, state } = running();
+    click(editor, [1.5, 1]);
+    expect(state('SW1')).toEqual({ on: true });
+    click(editor, [1.5, 1]);
+    expect(state('SW1')).toEqual({ on: false });
+    expect(editor.state.get().selection.parts.size).toBe(0);
+  });
+
+  it('holds a button while pressed; lets go on release, cancel or tool change', () => {
+    const { editor, state } = running();
+    editor.pointerDown(input([1.5, 5]));
+    expect(state('SW2')).toEqual({ pressed: true });
+    editor.pointerMove(input([30, 30])); // moving away keeps it pressed (pointer capture)
+    expect(state('SW2')).toEqual({ pressed: true });
+    editor.pointerUp(input([30, 30]));
+    expect(state('SW2')).toEqual({ pressed: false });
+
+    editor.pointerDown(input([1.5, 5]));
+    editor.escape();
+    expect(state('SW2')).toEqual({ pressed: false });
+    editor.pointerDown(input([1.5, 5]));
+    editor.setTool('select');
+    expect(state('SW2')).toEqual({ pressed: false });
+  });
+
+  it('toggles the DIP switch under the press, whatever the placement', () => {
+    const { editor, state } = running();
+    const body = editor.scene.partById.get('SW3')!.layout.body;
+    click(editor, at(editor, 'SW3', [body.x + 1.5, body.y + 3.2])); // row 3: switch 3
+    click(editor, at(editor, 'SW3', [body.x + 2, body.y + 8])); // row 8: switch 8
+    expect(state('SW3')).toEqual({ on: [false, false, true, false, false, false, false, true] });
+    click(editor, at(editor, 'SW3', [body.x + 1.5, body.y + 0.2])); // the ON label: nothing
+    expect(editor.state.get().selection.parts).toEqual(new Set(['SW3']));
+  });
+
+  it('steps a manual clock; a free-running one and a gate are just selected', () => {
+    const { clock, editor, state } = running();
+    click(editor, [1.5, 11]);
+    expect(state('X1')).toEqual({ high: true });
+    clock.frames(40); // the 0.5 ms pulse ends
+    expect(state('X1')).toEqual({ high: false });
+    click(editor, [1.5, 15]);
+    expect(editor.state.get().selection.parts).toEqual(new Set(['X2']));
+    click(editor, [42, 2]);
+    expect(editor.state.get().selection.parts).toEqual(new Set(['U1']));
+  });
+
+  it('pans when dragged, and only selects while stopped', () => {
+    const { editor, state } = running();
+    const before = editor.view.get().camera;
+    drag(editor, [30, 30], [32, 31], [35, 33]);
+    const after = editor.view.get().camera;
+    expect([before.x - after.x, before.y - after.y]).toEqual([5, 3]);
+    expect(state('SW1')).toEqual({ on: false });
+
+    const stopped = new Editor(registry, circuit, {}, { simulation: { clock: new FakeClock() } });
+    stopped.setTool('interact');
+    click(stopped, [1.5, 1]);
+    expect(stopped.state.get().selection.parts).toEqual(new Set(['SW1']));
+    expect(stopped.simulation.simulator).toBeUndefined();
   });
 });

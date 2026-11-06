@@ -9,6 +9,7 @@ import {
   zoomPercent,
 } from '../editor';
 import { useStore } from './hooks';
+import { SimulationStatus } from './SimControls';
 
 /** One line about the selection: `U1 · NAND`, `3 parts, 2 wires`, or nothing. */
 export function selectionSummary(selection: Selection, scene: Scene): string {
@@ -34,10 +35,16 @@ export function selectionSummary(selection: Selection, scene: Scene): string {
 interface StatusBarProps {
   readonly editor: Editor;
   readonly onShowMessages: () => void;
+  readonly onShowSimulation: () => void;
 }
 
-/** What the pointer does now, for the status bar. */
-export function statusHint(tool: Tool, mode: EditorMode, registry: ComponentRegistry): string {
+/** What the pointer does now, for the status bar (`simulating`: a simulator exists). */
+export function statusHint(
+  tool: Tool,
+  mode: EditorMode,
+  registry: ComponentRegistry,
+  simulating = false,
+): string {
   switch (mode) {
     case 'moving':
       return 'Release to drop · Esc to cancel';
@@ -63,14 +70,19 @@ export function statusHint(tool: Tool, mode: EditorMode, registry: ComponentRegi
       return 'Drag to pan · V to select';
     case 'wire':
       return 'Click to start a wire · Esc for Select';
+    case 'interact':
+      return simulating
+        ? 'Click switches and DIP switches · Hold buttons · Click a manual clock to step · Drag to pan · V to edit'
+        : 'Run (F5) to operate switches and buttons · Drag to pan · V to select';
   }
 }
 
-export function StatusBar({ editor, onShowMessages }: StatusBarProps) {
+export function StatusBar({ editor, onShowMessages, onShowSimulation }: StatusBarProps) {
   const { scene, selection } = useStore(editor.state);
   const view = useStore(editor.view);
   const tool = useStore(editor.tool);
   const mode = useStore(editor.mode);
+  const simulating = useStore(editor.simulation.status).state !== 'stopped';
   const errors = scene.issues.filter((i) => i.severity === 'error').length;
   const warnings = scene.issues.length - errors;
   return (
@@ -84,8 +96,9 @@ export function StatusBar({ editor, onShowMessages }: StatusBarProps) {
       <span className="status-cell" data-testid="selection-summary">
         {selectionSummary(selection, scene)}
       </span>
+      <SimulationStatus simulation={editor.simulation} onClick={onShowSimulation} />
       <span className="status-cell status-hint" data-testid="status-hint">
-        {statusHint(tool, mode, editor.registry)}
+        {statusHint(tool, mode, editor.registry, simulating)}
       </span>
       <span className="status-spacer" />
       <span className="status-cell">

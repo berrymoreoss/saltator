@@ -1,11 +1,14 @@
 /**
  * Drawers for IO parts: contacts (switch, button, DIP switch), clock, LEDs, LED bar, 7-segment
- * and hex displays, probe. R04a draws the idle look (power-on switch positions, unlit lights);
- * R05 draws the live state.
+ * and hex displays, probe. Without a simulation they show the idle look (power-on switch
+ * positions, unlit lights); with `live` the state in the simulation: lever and slider positions,
+ * a pressed plunger, lights at their average brightness, the digit, the probed level.
  */
 import type { Rect } from '../../circuit';
+import { Level, levelChar } from '../../core';
+import { hexDigit } from '../../library';
 import type { SymbolGraphics } from '../graphics';
-import type { DrawContext, Drawer } from './types';
+import { type DrawContext, type Drawer, type PartLive, UNKNOWN_LIGHT } from './types';
 
 /** CSS colors of the `color` prop of LEDs and displays. */
 export const LED_COLORS: Readonly<Record<string, string>> = {
@@ -19,7 +22,44 @@ export const LED_COLORS: Readonly<Record<string, string>> = {
 
 /** An LED color as drawn while unlit: the color, mostly transparent. */
 export function unlit(color: unknown): string {
-  return `${LED_COLORS[String(color)] ?? LED_COLORS.red}55`;
+  return lit(color, 0);
+}
+
+const UNLIT_ALPHA = 0x55;
+
+/** An LED color at a brightness from 0 (unlit) to 1 (fully on). */
+export function lit(color: unknown, brightness: number): string {
+  const alpha = Math.round(
+    UNLIT_ALPHA + (0xff - UNLIT_ALPHA) * Math.min(1, Math.max(0, brightness)),
+  );
+  return `${LED_COLORS[String(color)] ?? LED_COLORS.red}${alpha.toString(16).padStart(2, '0')}`;
+}
+
+/** How light `i` of a part is painted: its brightness, or the `X` color when unknown. */
+function lightPaint(c: DrawContext, i: number): { paint: string; brightness: number } {
+  const b = c.live?.light(i) ?? 0;
+  if (b === UNKNOWN_LIGHT)
+    return { paint: `${c.levelColor?.(Level.X) ?? '#ff0000'}99`, brightness: 0 };
+  return { paint: lit(c.props.color, b), brightness: b };
+}
+
+/** A soft halo around a lit light (no gradients on `SymbolGraphics`: one translucent disc). */
+function glow(g: SymbolGraphics, x: number, y: number, r: number, color: unknown, b: number): void {
+  if (b <= 0) return;
+  const alpha = Math.round(0x48 * b)
+    .toString(16)
+    .padStart(2, '0');
+  g.beginPath();
+  g.arc(x, y, r, 0, Math.PI * 2);
+  g.fill(`${LED_COLORS[String(color)] ?? LED_COLORS.red}${alpha}`);
+}
+
+/** A boolean field of a part's live state (`on`, `pressed`). */
+function stateFlag(live: PartLive | undefined, key: string): boolean | undefined {
+  const state = live?.state;
+  if (typeof state !== 'object' || state === null) return undefined;
+  const value = (state as Record<string, unknown>)[key];
+  return typeof value === 'boolean' ? value : undefined;
 }
 
 const CONTACT_R = 0.12;
@@ -81,30 +121,41 @@ function contacts(g: SymbolGraphics, body: Rect, contact: unknown, on: boolean):
   }
 }
 
-const toggleSwitch: Drawer = (g, { body, props }) => {
-  contacts(g, body, props.contact, props.on === true);
+const toggleSwitch: Drawer = (g, { body, props, live }) => {
+  contacts(g, body, props.contact, stateFlag(live, 'on') ?? props.on === true);
 };
 
-/** A momentary button: contacts in the released position under a push plunger. */
-const button: Drawer = (g, { body, props }) => {
-  contacts(g, body, props.contact, false);
+/** A momentary button: contacts under a push plunger, released unless pressed while running. */
+const button: Drawer = (g, { body, props, live }) => {
+  const pressed = stateFlag(live, 'pressed') === true;
+  contacts(g, body, props.contact, pressed);
   const x = body.x + 1.5;
+  const top = body.y + (pressed ? 0.35 : 0.15);
   g.setDash([0.15, 0.12]);
   g.beginPath();
-  g.moveTo(x, body.y + 0.15);
+  g.moveTo(x, top);
   g.lineTo(x, body.y + 0.85);
   g.stroke();
   g.setDash([]);
   g.beginPath();
-  g.moveTo(x - 0.35, body.y + 0.15);
-  g.lineTo(x + 0.35, body.y + 0.15);
+  g.moveTo(x - 0.35, top);
+  g.lineTo(x + 0.35, top);
   g.stroke('line', 0.14);
 };
 
+/** Positions of a DIP switch bank: live while simulating, else the power-on bitmask. */
+function dipPositions(c: DrawContext, count: number): boolean[] {
+  const state = c.live?.state as { on?: unknown } | undefined;
+  if (Array.isArray(state?.on)) return state.on.map((on) => on === true);
+  const mask = Number(c.props.on ?? 0);
+  return Array.from({ length: count }, (_, i) => ((mask >> i) & 1) === 1);
+}
+
 /** A bank of slide switches, `ON` towards the pins, numbered like the real part. */
-const dipSwitch: Drawer = (g, { body, props }) => {
+const dipSwitch: Drawer = (g, c) => {
+  const { body } = c;
   const count = body.height - 1;
-  const on = Number(props.on ?? 0);
+  const on = dipPositions(c, count);
   g.beginPath();
   g.rect(body.x, body.y, body.width, body.height);
   g.fill('body');
@@ -118,7 +169,7 @@ const dipSwitch: Drawer = (g, { body, props }) => {
   });
   for (let i = 0; i < count; i++) {
     const y = body.y + 1 + i;
-    const closed = ((on >> i) & 1) === 1;
+    const closed = on[i] === true;
     g.beginPath();
     g.rect(body.x + 1.5, y - 0.3, 1.3, 0.6);
     g.stroke();
@@ -136,8 +187,11 @@ const dipSwitch: Drawer = (g, { body, props }) => {
   }
 };
 
-/** A box with a square wave (auto) or a single pulse (manual step). */
-const clock: Drawer = (g, { body, props }) => {
+/**
+ * A box with a square wave (auto) or a single pulse (manual step); while simulating the wave is
+ * drawn in the color of the output's level.
+ */
+const clock: Drawer = (g, { body, props, live, levelColor }) => {
   const x = body.x;
   const lo = body.y + 1.45;
   const hi = body.y + 0.55;
@@ -163,28 +217,34 @@ const clock: Drawer = (g, { body, props }) => {
     g.lineTo(x + 2.05, hi);
     g.lineTo(x + 2.55, hi);
   }
-  g.stroke('line', 0.12);
+  g.stroke(live && levelColor ? levelColor(live.level('Y')) : 'line', 0.12);
 };
 
-/** A diode pointing right at row y between x0 and x1 (leads included), `size` = triangle height. */
+/**
+ * A diode pointing right at row y between x0 and x1 (leads included), `size` = triangle height,
+ * filled with light `light` of the part (unlit without a simulation).
+ */
 function diode(
   g: SymbolGraphics,
+  c: DrawContext,
   x0: number,
   x1: number,
   y: number,
   size: number,
-  color: unknown,
+  light: number,
 ): void {
   const cx = (x0 + x1) / 2;
   const half = size / 2;
   const left = cx - half * 0.9;
   const right = cx + half * 0.9;
+  const { paint, brightness } = lightPaint(c, light);
+  glow(g, cx, y, size * 0.95, c.props.color, brightness);
   g.beginPath();
   g.moveTo(left, y - half);
   g.lineTo(right, y);
   g.lineTo(left, y + half);
   g.closePath();
-  g.fill(unlit(color));
+  g.fill(paint);
   g.stroke();
   g.beginPath();
   g.moveTo(right, y - half);
@@ -208,20 +268,22 @@ function arrow(g: SymbolGraphics, x: number, y: number): void {
 }
 
 /** A diode on the pin row with two emission arrows above it. */
-const led: Drawer = (g, { body, props }) => {
+const led: Drawer = (g, c) => {
+  const { body } = c;
   const y = body.y + body.height / 2;
-  diode(g, body.x, body.x + body.width, y, 0.8, props.color);
+  diode(g, c, body.x, body.x + body.width, y, 0.8, 0);
   arrow(g, body.x + 0.95, body.y + 0.5);
   arrow(g, body.x + 1.3, body.y + 0.6);
 };
 
-const ledBar: Drawer = (g, { body, props }) => {
+const ledBar: Drawer = (g, c) => {
+  const { body } = c;
   g.beginPath();
   g.rect(body.x + 0.2, body.y + 0.3, body.width - 0.4, body.height - 0.6);
   g.fill('body');
   g.stroke();
   for (let i = 1; i < body.height; i++) {
-    diode(g, body.x, body.x + body.width, body.y + i, 0.55, props.color);
+    diode(g, c, body.x, body.x + body.width, body.y + i, 0.55, i - 1);
   }
 };
 
@@ -258,8 +320,12 @@ function pinLabels(g: SymbolGraphics, c: DrawContext): void {
   }
 }
 
+/** Segment names in light order (the part's `SEGMENTS` without `dp`). */
+const SEGMENT_ORDER = ['a', 'b', 'c', 'd', 'e', 'f', 'g'] as const;
+const DP_LIGHT = 7;
+
 const sevenSegment: Drawer = (g, c) => {
-  const { body, props } = c;
+  const { body } = c;
   g.beginPath();
   g.rect(body.x, body.y, body.width, body.height);
   g.fill('body');
@@ -269,21 +335,34 @@ const sevenSegment: Drawer = (g, c) => {
   const w = 2.2;
   const h = 4.4;
   const slant = 0.25;
-  const color = unlit(props.color);
-  g.beginPath();
-  for (const [x0, y0, x1, y1] of Object.values(segments(x, y, w, h))) {
-    g.moveTo(x0 + slant * (1 - (y0 - y) / h), y0);
-    g.lineTo(x1 + slant * (1 - (y1 - y) / h), y1);
+  const shape = segments(x, y, w, h);
+  // One stroke per paint: unlit segments share one, lit ones differ by brightness.
+  const byPaint = new Map<string, Segment[]>();
+  SEGMENT_ORDER.forEach((name, i) => {
+    const { paint } = lightPaint(c, i);
+    const list = byPaint.get(paint);
+    if (list) list.push(shape[name]!);
+    else byPaint.set(paint, [shape[name]!]);
+  });
+  for (const [paint, list] of byPaint) {
+    g.beginPath();
+    for (const [x0, y0, x1, y1] of list) {
+      g.moveTo(x0 + slant * (1 - (y0 - y) / h), y0);
+      g.lineTo(x1 + slant * (1 - (y1 - y) / h), y1);
+    }
+    g.stroke(paint, 0.32);
   }
-  g.stroke(color, 0.32);
   g.beginPath();
   g.arc(x + w + 0.45, y + h, 0.18, 0, Math.PI * 2);
-  g.fill(color);
+  g.fill(lightPaint(c, DP_LIGHT).paint);
   pinLabels(g, c);
 };
 
+const HEX_INPUTS = ['D0', 'D1', 'D2', 'D3'] as const;
+
+/** The digit of its inputs while simulating (unknown inputs: a dash in the `X` color). */
 const hexDisplay: Drawer = (g, c) => {
-  const { body, props } = c;
+  const { body, props, live, levelColor } = c;
   g.beginPath();
   g.rect(body.x, body.y, body.width, body.height);
   g.fill('body');
@@ -291,19 +370,31 @@ const hexDisplay: Drawer = (g, c) => {
   g.beginPath();
   g.rect(body.x + 0.6, body.y + 0.6, body.width - 1.2, body.height - 2.2);
   g.stroke();
-  g.text('–', body.x + body.width / 2, body.y + 0.6 + (body.height - 2.2) / 2, {
-    size: 2.4,
-    align: 'center',
-    baseline: 'middle',
-    paint: unlit(props.color),
-    font: 'mono',
-    bold: true,
-  });
+  const digit = live ? hexDigit(HEX_INPUTS.map((pin) => live.level(pin))) : undefined;
+  const unknown = live !== undefined && digit === undefined;
+  g.text(
+    digit === undefined ? '–' : digit.toString(16).toUpperCase(),
+    body.x + body.width / 2,
+    body.y + 0.6 + (body.height - 2.2) / 2,
+    {
+      size: 2.4,
+      align: 'center',
+      baseline: 'middle',
+      paint:
+        digit !== undefined
+          ? lit(props.color, 1)
+          : unknown && levelColor
+            ? levelColor(Level.X)
+            : unlit(props.color),
+      font: 'mono',
+      bold: true,
+    },
+  );
   pinLabels(g, c);
 };
 
-/** A round probe head with its level shown inside while simulating (R05). */
-const probe: Drawer = (g, { body }) => {
+/** A round probe head showing the level of its net while simulating. */
+const probe: Drawer = (g, { body, live, levelColor }) => {
   const cx = body.x + body.width / 2;
   const cy = body.y + body.height / 2;
   g.beginPath();
@@ -314,6 +405,18 @@ const probe: Drawer = (g, { body }) => {
   g.arc(cx, cy, 0.8, 0, Math.PI * 2);
   g.fill('body');
   g.stroke();
+  if (live && levelColor) {
+    const level = live.level('A');
+    g.text(levelChar(level), cx, cy, {
+      size: 0.95,
+      align: 'center',
+      baseline: 'middle',
+      paint: levelColor(level),
+      font: 'mono',
+      bold: true,
+    });
+    return;
+  }
   g.text('·', cx, cy, { size: 0.9, align: 'center', baseline: 'middle', paint: 'pinText' });
 };
 

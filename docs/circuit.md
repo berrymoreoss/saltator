@@ -136,7 +136,8 @@ A 2-input gate at (0, 0): `A` (0, 1), `B` (0, 2), `Y` (5, 1).
 
 **Placement**: instance pin position = mirror x (if `flip`) → rotate clockwise around the local
 origin → translate by `(x, y)` (`placementOf`, `placePins`, `transformPoint`). Pin sides
-(`left`, `top`, …) are transformed the same way, for drawing stubs.
+(`left`, `top`, …) are transformed the same way, for drawing stubs. `inverseTransformPoint` maps
+a grid point back into the part's local cells (which DIP switch a click hit).
 
 ## Connectivity
 
@@ -189,7 +190,7 @@ interface CompileResult {
   editor can color every wire.
 - **Never throws on user mistakes.** Components with errors (unknown type, invalid props) are
   left out of the netlist and reported; the rest compiles. Whether to simulate with errors is the
-  host's decision (R05). Only library bugs throw (an inconsistent package definition).
+  host's decision: it simulates anyway, without them (R05). Only library bugs throw (an inconsistent package definition).
 
 ## Design checks
 
@@ -262,7 +263,6 @@ validation costs nothing per instance. Recompiling on every edit is affordable.
 
 ## Planned extensions
 
-- Recompiling while running, preserving component state by id _(R05)_.
 - Net labels and tunnels (named nets joining by name), buses with rippers _(R10)_.
 - Several circuits per document with subcircuit instances _(R11)_.
 - Unconnected power-pin and fan-out checks _(backlog)_.

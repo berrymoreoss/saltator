@@ -3,7 +3,7 @@
  * symbol drawer, the DIP package, the generic box, or a broken-part placeholder.
  * Spec: docs/editor.md#symbol-drawing.
  */
-import { pinsOf } from '../../core';
+import { type Level, pinsOf } from '../../core';
 import type { SymbolGraphics } from '../graphics';
 import type { ScenePart } from '../scene';
 import { drawDip } from './dip';
@@ -11,12 +11,13 @@ import { drawBroken, drawLabeledBox } from './fallback';
 import { GATE_DRAWERS } from './gates';
 import { IO_DRAWERS } from './io';
 import { POWER_DRAWERS } from './power';
-import type { Drawer, GateStyle } from './types';
+import type { Drawer, GateStyle, PartLive } from './types';
 
 export { drawDip } from './dip';
 export * from './fallback';
 export { BUBBLE } from './gates';
-export { LED_COLORS, unlit } from './io';
+export * from './interact';
+export { LED_COLORS, lit, unlit } from './io';
 export * from './types';
 
 /** Every symbol kind the editor can draw. Kinds missing here are drawn as a labeled box. */
@@ -26,12 +27,22 @@ export const DRAWERS: Readonly<Record<string, Drawer>> = {
   ...IO_DRAWERS,
 };
 
-/** Draws the body of a part in its local coordinates (the caller sets up the placement). */
+/** What a part looks like in the running simulation, for its drawer. */
+export interface LiveDraw {
+  readonly part: PartLive;
+  readonly levelColor: (level: Level) => string;
+}
+
+/**
+ * Draws the body of a part in its local coordinates (the caller sets up the placement); with
+ * `live`, as it is in the running simulation.
+ */
 export function drawPartBody(
   g: SymbolGraphics,
   part: ScenePart,
   gateStyle: GateStyle,
   errorColor: string,
+  live?: LiveDraw,
 ): void {
   const { drawing, layout, definition } = part;
   switch (drawing.kind) {
@@ -45,6 +56,7 @@ export function drawPartBody(
           body: layout.body,
           props: part.props,
           gateStyle,
+          ...(live && { live: live.part, levelColor: live.levelColor }),
         });
       } else {
         drawLabeledBox(g, layout.body, definition?.name ?? drawing.symbol.kind, layout.pins);

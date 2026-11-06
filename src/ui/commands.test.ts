@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CommandRegistry } from './commands';
+import { CommandRegistry, dispatchShortcut } from './commands';
 
 const noop = () => {};
 
@@ -36,5 +36,52 @@ describe('CommandRegistry', () => {
 
   it('throws on unknown ids', () => {
     expect(() => new CommandRegistry([]).get('x')).toThrow(/unknown command/);
+  });
+});
+
+describe('dispatchShortcut', () => {
+  /** A key press as the dispatcher sees it; records preventDefault. */
+  const press = (key: string, extra: Partial<KeyboardEvent> = {}) => {
+    const event = {
+      key,
+      metaKey: false,
+      ctrlKey: false,
+      shiftKey: false,
+      altKey: false,
+      isComposing: false,
+      target: null,
+      prevented: false,
+      get defaultPrevented(): boolean {
+        return this.prevented;
+      },
+      preventDefault() {
+        this.prevented = true;
+      },
+      ...extra,
+    };
+    return event as unknown as KeyboardEvent & { prevented: boolean };
+  };
+
+  it('runs enabled commands and takes the key from the browser', () => {
+    let runs = 0;
+    const registry = new CommandRegistry([
+      { id: 'a', label: 'A', shortcuts: ['W'], run: () => runs++ },
+    ]);
+    const event = press('w');
+    expect(dispatchShortcut(registry, event, true)).toBe(true);
+    expect([runs, event.prevented]).toEqual([1, true]);
+  });
+
+  it('leaves disabled keys to the browser, except for global commands (F5 never reloads)', () => {
+    const registry = new CommandRegistry([
+      { id: 'local', label: 'L', shortcuts: ['Mod+D'], enabled: () => false, run: noop },
+      { id: 'run', label: 'R', shortcuts: ['F5'], global: true, enabled: () => false, run: noop },
+    ]);
+    const bookmark = press('d', { metaKey: true });
+    expect(dispatchShortcut(registry, bookmark, true)).toBe(false);
+    expect(bookmark.prevented).toBe(false);
+    const reload = press('F5');
+    expect(dispatchShortcut(registry, reload, true)).toBe(false);
+    expect(reload.prevented).toBe(true);
   });
 });

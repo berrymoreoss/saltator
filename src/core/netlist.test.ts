@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { defineComponent, type PinDef } from './component';
-import { NetlistBuilder, NetlistError, resolveNetlist } from './netlist';
+import {
+  type Netlist,
+  NetlistBuilder,
+  NetlistError,
+  resolveNetlist,
+  sameNetlistStructure,
+} from './netlist';
 import { Registry } from './registry';
 
 const registry = new Registry([
@@ -234,5 +240,80 @@ describe('resolveNetlist', () => {
     const error = new NetlistError(['a', 'b']);
     expect(error.message).toBe('invalid netlist:\n  a\n  b');
     expect(error.name).toBe('NetlistError');
+  });
+});
+
+describe('sameNetlistStructure', () => {
+  const base: Netlist = {
+    components: [
+      { id: 'U1', type: 'x/nand', props: { delay: 1000 } },
+      { id: 'U2', type: 'x/not' },
+    ],
+    nets: [
+      {
+        id: 'U1.Y',
+        pins: [
+          { component: 'U1', pin: 'Y' },
+          { component: 'U2', pin: 'A' },
+        ],
+      },
+      { id: 'U1.A', pins: [{ component: 'U1', pin: 'A' }] },
+      { id: 'w7', pins: [] },
+    ],
+  };
+  const variant = (change: Partial<Netlist>): Netlist => ({ ...base, ...change });
+
+  it('ignores net ids, net order, pin order and nets with fewer than two pins', () => {
+    const same = variant({
+      nets: [
+        { id: 'w3', pins: [] },
+        {
+          id: 'other',
+          pins: [
+            { component: 'U2', pin: 'A' },
+            { component: 'U1', pin: 'Y' },
+          ],
+        },
+      ],
+    });
+    expect(sameNetlistStructure(base, same)).toBe(true);
+    expect(sameNetlistStructure(base, base)).toBe(true);
+  });
+
+  it('sees changed components: id, type, props, order, count', () => {
+    const [u1, u2] = base.components as [Netlist['components'][0], Netlist['components'][0]];
+    const differs = [
+      [{ ...u1, id: 'U3' }, u2],
+      [{ ...u1, type: 'x/and' }, u2],
+      [{ ...u1, props: { delay: 2000 } }, u2],
+      [{ ...u1, props: { delay: 1000, inputs: 3 } }, u2],
+      [u2, u1],
+      [u1],
+    ];
+    for (const components of differs) {
+      expect(sameNetlistStructure(base, variant({ components }))).toBe(false);
+    }
+    // Missing props and empty props are the same.
+    expect(sameNetlistStructure(base, variant({ components: [u1, { ...u2, props: {} }] }))).toBe(
+      true,
+    );
+  });
+
+  it('sees changed connections', () => {
+    const joined = variant({
+      nets: [
+        {
+          id: 'U1.Y',
+          pins: [
+            { component: 'U1', pin: 'Y' },
+            { component: 'U2', pin: 'A' },
+            { component: 'U1', pin: 'A' },
+          ],
+        },
+      ],
+    });
+    const split = variant({ nets: [] });
+    expect(sameNetlistStructure(base, joined)).toBe(false);
+    expect(sameNetlistStructure(base, split)).toBe(false);
   });
 });

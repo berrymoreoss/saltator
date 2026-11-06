@@ -3,6 +3,7 @@ import {
   COORD_LIMIT,
   comparePoints,
   inSegmentInterior,
+  inverseTransformPoint,
   isAxisAligned,
   isRotation,
   type Placement,
@@ -172,5 +173,24 @@ describe('segments', () => {
     expect(inSegmentInterior([1, 1], [0, 0], [3, 0])).toBe(false);
     expect(inSegmentInterior([0, 2], [0, 0], [0, 3])).toBe(true);
     expect(inSegmentInterior([1, 2], [0, 0], [0, 3])).toBe(false);
+  });
+});
+
+describe('inverseTransformPoint', () => {
+  it('undoes every placement, for fractional points too', () => {
+    const points: Point[] = [
+      [0, 0],
+      [2, 0],
+      [0, 1],
+      [3.25, -1.5],
+    ];
+    for (const rotation of ROTATIONS) {
+      for (const flip of [false, true]) {
+        const placement = at(rotation, flip, [7, -4]);
+        for (const p of points) {
+          expect(inverseTransformPoint(transformPoint(p, placement), placement)).toEqual(p);
+        }
+      }
+    }
   });
 });

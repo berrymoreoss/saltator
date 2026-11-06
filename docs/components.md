@@ -174,6 +174,10 @@ Use the datasheet's typical value at 5 V when available, keyed by the datasheet 
   immutable configuration. No module-level mutable variables (multiple instances!).
 - Edge-triggered logic uses `ctx.rose(clk)` / `ctx.fell(clk)`, which are strict 0↔1. If
   `ctx.changed(clk)` but the edge involves `X`/`Z` (`ctx.prev(clk)`), go `X` pessimistically.
+- `evaluate` may run when none of its inputs changed (once at power-on, once after every
+  recompile while running): then it must only re-drive what its inputs imply, never count or
+  toggle. Edge logic uses `rose`/`fell`, which are false then. This is what lets an edit carry a
+  running simulation over without changing it ([simulation.md](simulation.md#editing-while-running-carry-over)).
 - No randomness or wall-clock time; no allocations in `evaluate` for hot parts.
 
 ## Testing a part
@@ -270,7 +274,9 @@ rails change with zero delay, the clock's edges are exact.
   mode and while a pulse is under way.
 - **Actions** are objects with a `type` (`{ type: 'toggle' }`, `{ type: 'set', index: 2, on:
   true }`, …), sent with `sim.action(id, action)`; unknown ones throw (a host bug). Types:
-  `SwitchAction`, `ButtonAction`, `DipSwitchAction`, `ClockAction`.
+  `SwitchAction`, `ButtonAction`, `DipSwitchAction`, `ClockAction`. In the editor the Interact
+  tool sends them (`INTERACTIONS` in `src/editor/symbols/interact.ts`, keyed by symbol kind;
+  [editor.md](editor.md#interacting-with-parts)); a new interactive part adds a row there.
 - **State** (`sim.stateOf(id)`) is the renderer's contract: `{ on }` (switch), `{ pressed }`
   (button), `{ on: boolean[] }` (DIP switch), `{ high }` (clock). LEDs, LED bars and 7-segment
   displays keep `LightsState`: per light (segments in `SEGMENTS` order) what it shows
