@@ -444,6 +444,14 @@ describe('running', () => {
     expect(s.stats).toEqual({ events: 7, deltaCycles: 7, evaluations: 7 });
   });
 
+  it('tells the time of the next queued event', () => {
+    const s = clocked();
+    expect(s.nextEventTime).toBe(0); // the clock's power-on drive
+    s.runUntil(ns(5));
+    expect(s.nextEventTime).toBe(ns(10));
+    expect(sim((b) => b.add('S', 'test/source')).nextEventTime).toBe(Number.POSITIVE_INFINITY);
+  });
+
   it('notifies listeners until unsubscribed', () => {
     const s = clocked();
     const seen: number[] = [];

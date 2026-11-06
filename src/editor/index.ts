@@ -13,6 +13,7 @@ export * from './recording-graphics';
 export * from './renderer';
 export * from './scene';
 export * from './selection';
+export * from './simulation';
 export * from './store';
 export * from './symbols';
 export * from './text-placement';

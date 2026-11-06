@@ -233,6 +233,8 @@ const sim = new Simulator(netlist, registry, { maxDeltaCycles: 1000, maxDiagnost
   events.
 - `action(componentId, payload)` — deliver an external action at `now`; throws if the part has
   no `action` handler.
+- `nextEventTime` — time of the earliest queued event (`Infinity` if none), for stepping to the
+  next event; it may be a cancelled change, after which `stats.events` hasn't moved.
 - `carryOver({ renames? })` — hand the simulation over to a recompiled netlist
   ([below](#editing-while-running-carry-over)).
 

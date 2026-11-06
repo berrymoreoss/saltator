@@ -71,6 +71,7 @@ import {
   toggleHit,
   unionSelection,
 } from './selection';
+import { Simulation, type SimulationOptions } from './simulation';
 import { Store } from './store';
 import type { GateStyle } from './symbols';
 import { type CanvasTheme, DARK_CANVAS } from './theme';
@@ -145,6 +146,12 @@ export interface EditOptions {
   readonly renames?: ReadonlyMap<string, string>;
   /** Zoom to fit the new circuit (opening an example). */
   readonly fit?: boolean;
+}
+
+/** How an `Editor` is wired up beyond its document and view settings. */
+export interface EditorOptions {
+  /** The simulator host's clock and frame budget (a fake clock in tests). */
+  readonly simulation?: SimulationOptions;
 }
 
 /** View state: changes with every pan, zoom and pointer move (keep its consumers small). */
@@ -251,6 +258,8 @@ export class Editor {
   readonly history = new Store<History>(EMPTY_HISTORY);
   /** Requests to the UI: open the context menu, focus the Properties panel. */
   readonly requests = new Store<EditorRequest | undefined>(undefined);
+  /** Runs the circuit (R05); follows every document change. */
+  readonly simulation: Simulation;
   #settings: EditorSettings;
   readonly #layouts = new LayoutCache();
   #hover: Hit | undefined;
@@ -277,11 +286,18 @@ export class Editor {
     registry: ComponentRegistry,
     circuit: Circuit = emptyCircuit(),
     settings: Partial<EditorSettings> = {},
+    options: EditorOptions = {},
   ) {
     this.registry = registry;
     this.#settings = { ...DEFAULT_SETTINGS, ...settings };
     const scene = buildScene(circuit, registry, { layouts: this.#layouts });
     this.state = new Store<EditorState>({ circuit, scene, selection: EMPTY_SELECTION });
+    this.simulation = new Simulation(registry, scene, options.simulation);
+    this.state.subscribe(() => {
+      const { scene, renames } = this.state.get();
+      this.simulation.sync(scene, renames);
+    });
+    this.simulation.revision.subscribe(() => this.#redrawNow());
     this.view = new Store<ViewState>({
       camera: DEFAULT_CAMERA,
       viewport: { width: 0, height: 0 },
@@ -1031,6 +1047,16 @@ export class Editor {
       this.#frame = 0;
       this.#draw();
     });
+  }
+
+  /** Draws right away (the simulation advanced inside an animation frame). */
+  #redrawNow(): void {
+    if (!this.#ctx) return;
+    if (this.#frame !== 0) {
+      cancelAnimationFrame(this.#frame);
+      this.#frame = 0;
+    }
+    this.#draw();
   }
 
   #resize(): void {

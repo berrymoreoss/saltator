@@ -345,6 +345,15 @@ export class Simulator {
     return this.isHalted;
   }
 
+  /**
+   * Time of the earliest queued event (`Infinity` when none): where a step to the next event
+   * goes. It may be a cancelled change; running to it then changes nothing (`stats.events`
+   * stays), and the next one is tried.
+   */
+  get nextEventTime(): Time {
+    return this.queue.peekTime();
+  }
+
   get netCount(): number {
     return this.levels.length;
   }

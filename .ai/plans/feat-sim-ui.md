@@ -267,7 +267,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   changed / new rules and the start at the carried time; unit tests; the invariance property
   and latch/clock scenarios; simulation.md and components.md (idempotent `evaluate`).
 - [x] 2. circuit: `inverseTransformPoint` (world → local) + tests.
-- [ ] 3. editor: `Simulation` host — run states, run/pause/step/stop/reset, speed presets,
+- [x] 3. editor: `Simulation` host — run states, run/pause/step/stop/reset, speed presets,
   pacing with frame budget and actual speed; on edit: same structure keeps the simulator (net
   mapping through pins), otherwise rebuild with carry-over and renames; accumulated
   diagnostics, stores; injected clock and frames; headless tests; `window.logicEditor` exposes
@@ -345,6 +345,12 @@ Asked at branch start (2026-11-07); all answered.
   keeps the simulator"); `tests/scenarios/carry-over.test.ts` checks the invariance on a bench of
   IO parts and 40 random gate networks (mutation-checked: shifting carried timers or re-running
   `init` fails it).
+- 2026-11-07 — task 3 done: `src/editor/simulation.ts` (`Simulation`, owned by the `Editor` and
+  synced from `editor.state`; `revision` store redraws the canvas synchronously inside the
+  host's frame); core got `nextEventTime` for Step. Status refreshes ≤ 10×/s; diagnostics
+  snapshot when counts change. 17 headless tests with a fake clock. Note for task 7: opening an
+  example or File ▸ New must `stop()` first, or ids of the new document would pick up state
+  from the old one.
 
 ## Handoff
 

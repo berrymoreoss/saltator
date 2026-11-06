@@ -1,0 +1,349 @@
+import { describe, expect, it } from 'vitest';
+import { addComponents, addWires, type Circuit, CircuitBuilder, updateComponent } from '../circuit';
+import { type Level, levelChar, ms, ns } from '../core';
+import { createDefaultRegistry } from '../library';
+import { Editor } from './editor';
+import { ALL_SPEEDS, formatRate, MAX_SPEED, REAL_TIME, type SimClock, SPEEDS } from './simulation';
+
+const registry = createDefaultRegistry();
+
+/** Wall clock and frames under the test's control. `cost`: ms each `now()` call takes. */
+class FakeClock implements SimClock {
+  time = 1000;
+  cost = 0;
+  #frames: (() => void)[] = [];
+
+  now = (): number => {
+    const t = this.time;
+    this.time += this.cost;
+    return t;
+  };
+
+  requestFrame(callback: () => void): () => void {
+    this.#frames.push(callback);
+    return () => {
+      this.#frames = this.#frames.filter((f) => f !== callback);
+    };
+  }
+
+  get pending(): number {
+    return this.#frames.length;
+  }
+
+  /** Lets `ms` of wall time pass, then runs the frame callbacks. */
+  frame(ms: number): void {
+    this.time += ms;
+    const frames = this.#frames;
+    this.#frames = [];
+    for (const f of frames) f();
+  }
+
+  frames(count: number, ms = 16): void {
+    for (let i = 0; i < count; i++) this.frame(ms);
+  }
+}
+
+/** SW1 → U1 (NAND, B tied high) → D1; X1 (clock) → D2; a 1 kHz clock by default. */
+function hello(frequency = 1000): Circuit {
+  return new CircuitBuilder(registry)
+    .add('SW1', 'io/switch', { at: [0, 0] })
+    .add('U1', 'prim/nand', { at: [10, 0] })
+    .add('PWR1', 'io/vcc', { at: [7, -4] })
+    .add('D1', 'io/led', { at: [20, 0] })
+    .add('PWR2', 'io/gnd', { at: [26, 1] })
+    .connect('SW1.Y', 'U1.A')
+    .connect('PWR1.Y', 'U1.B', [8, 3])
+    .connect('U1.Y', 'D1.A', [18, 2], [18, 1])
+    .connect('D1.K', 'PWR2.Y')
+    .add('X1', 'io/clock', { at: [0, 12], props: { frequency } })
+    .add('D2', 'io/led', { at: [20, 12] })
+    .add('PWR3', 'io/gnd', { at: [26, 13] })
+    .connect('X1.Y', 'D2.A')
+    .connect('D2.K', 'PWR3.Y')
+    .build();
+}
+
+function setup(circuit = hello(), frameBudget?: number) {
+  const clock = new FakeClock();
+  const editor = new Editor(
+    registry,
+    circuit,
+    {},
+    {
+      simulation: { clock, ...(frameBudget !== undefined && { frameBudget }) },
+    },
+  );
+  return { clock, editor, simulation: editor.simulation };
+}
+
+const pin = (editor: Editor, component: string, name: string) =>
+  levelChar(editor.simulation.simulator!.pinLevel(component, name));
+
+describe('Simulation: run control', () => {
+  it('starts stopped, powers on at t = 0 with Run and follows the wall clock', () => {
+    const { clock, simulation } = setup();
+    expect(simulation.state).toBe('stopped');
+    expect(simulation.simulator).toBeUndefined();
+    simulation.run();
+    expect(simulation.state).toBe('running');
+    expect(simulation.simulator!.now).toBe(0);
+    clock.frame(16);
+    expect(simulation.simulator!.now).toBe(ms(16));
+    clock.frames(10, 20);
+    expect(simulation.simulator!.now).toBe(ms(216));
+    expect(simulation.status.get()).toMatchObject({ state: 'running', time: ms(216) });
+    expect(simulation.status.get().actual).toBeCloseTo(1e12, -6); // real time
+    expect(simulation.status.get().lagging).toBe(false);
+  });
+
+  it('runs at the chosen speed and never jumps more than 100 ms of wall time', () => {
+    const { clock, simulation } = setup();
+    simulation.setSpeed(SPEEDS.find((s) => s.id === '1us')!);
+    simulation.run();
+    clock.frame(50);
+    expect(simulation.simulator!.now).toBe(ns(50));
+    clock.frame(5000); // a background tab
+    expect(simulation.simulator!.now).toBe(ns(150));
+  });
+
+  it('pause stops time; run goes on; stop discards the simulator; reset powers on again', () => {
+    const { clock, simulation } = setup();
+    simulation.run();
+    clock.frame(30);
+    simulation.pause();
+    expect(simulation.state).toBe('paused');
+    expect(clock.pending).toBe(0);
+    clock.frame(30);
+    expect(simulation.simulator!.now).toBe(ms(30));
+    simulation.toggle();
+    clock.frame(10);
+    expect(simulation.simulator!.now).toBe(ms(40));
+    simulation.reset();
+    expect(simulation.state).toBe('running');
+    expect(simulation.simulator!.now).toBe(0);
+    simulation.stop();
+    expect(simulation.state).toBe('stopped');
+    expect(simulation.simulator).toBeUndefined();
+    expect(simulation.signals.wires.size).toBe(0);
+    expect(clock.pending).toBe(0);
+    simulation.reset(); // nothing to reset
+    expect(simulation.state).toBe('stopped');
+  });
+
+  it('steps to the next moment something happens', () => {
+    const { simulation } = setup(hello(1e6)); // edges every 500 ns
+    expect(simulation.step()).toBe(true); // powers on, runs t = 0
+    expect(simulation.state).toBe('paused');
+    expect(simulation.simulator!.now).toBe(0);
+    simulation.step(); // the NAND's output settles after its delay
+    expect(simulation.simulator!.now).toBe(ns(1));
+    simulation.step();
+    expect(simulation.simulator!.now).toBe(ns(500)); // the clock's first rising edge
+    expect(simulation.status.get().time).toBe(ns(500));
+  });
+
+  it('a step with nothing pending does nothing', () => {
+    const circuit = new CircuitBuilder(registry).add('SW1', 'io/switch', { at: [0, 0] }).build();
+    const { simulation } = setup(circuit);
+    simulation.step();
+    expect(simulation.step()).toBe(false);
+    expect(simulation.simulator!.now).toBe(0);
+  });
+
+  it('measures the actual speed when the kernel cannot keep up', () => {
+    // A 100 MHz clock at real time: 3.2M edges per 16 ms frame; each kernel call "costs" 5 ms.
+    const { clock, simulation } = setup(hello(1e8), 8);
+    simulation.run();
+    clock.cost = 5;
+    clock.frames(8); // the status refreshes every 100 ms of wall time
+    const status = simulation.status.get();
+    const now = simulation.simulator!.now;
+    expect(now).toBeGreaterThan(0);
+    expect(now).toBeLessThan(ms(8 * 16));
+    expect(status.lagging).toBe(true);
+    expect(status.actual).toBeLessThan(1e12);
+    expect(formatRate(1e9)).toBe('1 ms/s');
+  });
+
+  it('Max runs as far as the frame budget allows, and stops when nothing is pending', () => {
+    const { clock, simulation } = setup(hello(1e6));
+    simulation.setSpeed(MAX_SPEED);
+    simulation.run();
+    clock.cost = 5;
+    clock.frame(16);
+    expect(simulation.simulator!.now).toBeGreaterThan(ms(1));
+
+    const idle = setup(
+      new CircuitBuilder(registry).add('SW1', 'io/switch', { at: [0, 0] }).build(),
+    );
+    idle.simulation.setSpeed(MAX_SPEED);
+    idle.simulation.run();
+    idle.clock.frame(16);
+    expect(idle.simulation.simulator!.now).toBe(0);
+  });
+
+  it('lists the speeds slowest first, real time and Max last', () => {
+    expect(ALL_SPEEDS.map((s) => s.label)).toEqual([
+      '1 ns/s',
+      '10 ns/s',
+      '100 ns/s',
+      '1 µs/s',
+      '10 µs/s',
+      '100 µs/s',
+      '1 ms/s',
+      '10 ms/s',
+      '100 ms/s',
+      REAL_TIME.label,
+      'Max',
+    ]);
+  });
+});
+
+describe('Simulation: actions', () => {
+  it('applies an action at once while paused, and in the next frame while running', () => {
+    const { clock, editor, simulation } = setup();
+    expect(simulation.action('SW1', { type: 'toggle' })).toBe(false); // stopped
+    simulation.step();
+    expect(simulation.action('SW1', { type: 'toggle' })).toBe(true);
+    expect(pin(editor, 'SW1', 'Y')).toBe('1'); // zero delay: right away
+    expect(pin(editor, 'U1', 'Y')).not.toBe('0'); // the gate delay waits for time to move
+    simulation.run();
+    clock.frame(16);
+    expect(pin(editor, 'U1', 'Y')).toBe('0');
+    simulation.action('SW1', { type: 'toggle' });
+    clock.frame(16);
+    expect(pin(editor, 'U1', 'Y')).toBe('1');
+  });
+
+  it('refuses actions a part does not take', () => {
+    const { simulation } = setup();
+    simulation.run();
+    expect(simulation.action('U1', { type: 'toggle' })).toBe(false);
+    expect(simulation.action('NOPE', { type: 'toggle' })).toBe(false);
+  });
+});
+
+describe('Simulation: following the document', () => {
+  it('keeps the very same simulator when a part moves with its wires', () => {
+    const { clock, editor, simulation } = setup();
+    simulation.run();
+    clock.frame(16);
+    const before = simulation.simulator;
+    const { circuit } = editor.state.get();
+    editor.edit('Label', updateComponent(circuit, 'D2', { label: 'BLINK' }));
+    expect(simulation.simulator).toBe(before);
+    editor.setSelection({ parts: new Set(['D2', 'PWR3']), wires: new Set() });
+    editor.nudge(0, 3);
+    expect(editor.state.get().circuit).not.toBe(circuit);
+    expect(simulation.simulator).toBe(before);
+    // The moved wires still map to their nets.
+    const wire = editor.scene.wires.find((w) => w.net === 'X1.Y')!;
+    expect(simulation.signals.wires.get(wire.id)).toBe(before!.netIndex('X1.Y'));
+  });
+
+  it('continues in the recompiled netlist after a structural edit, carrying state', () => {
+    const { clock, editor, simulation } = setup();
+    simulation.run();
+    simulation.action('SW1', { type: 'toggle' });
+    clock.frame(16);
+    const before = simulation.simulator!;
+    const { circuit } = editor.state.get();
+    const added = addComponents(circuit, [
+      { id: 'D3', type: 'io/led', x: 40, y: 0, rotation: 0, flip: false, props: {} },
+    ]);
+    editor.edit('Place LED', added);
+    const after = simulation.simulator!;
+    expect(after).not.toBe(before);
+    expect(after.now).toBe(ms(16));
+    expect(after.stateOf('SW1')).toEqual({ on: true });
+    expect(pin(editor, 'U1', 'Y')).toBe('0');
+    clock.frame(16);
+    expect(after.now).toBe(ms(32));
+  });
+
+  it('carries state across renames, their undo and redo', () => {
+    const { clock, editor, simulation } = setup();
+    simulation.run();
+    simulation.action('SW1', { type: 'toggle' });
+    clock.frame(16);
+    expect(editor.renamePart('SW1', 'SW7')).toBeUndefined();
+    expect(simulation.simulator!.stateOf('SW7')).toEqual({ on: true });
+    editor.undo();
+    expect(simulation.simulator!.stateOf('SW1')).toEqual({ on: true });
+    editor.redo();
+    expect(simulation.simulator!.stateOf('SW7')).toEqual({ on: true });
+  });
+
+  it('only remembers the document while stopped', () => {
+    const { editor, simulation } = setup();
+    editor.edit('Label', updateComponent(editor.state.get().circuit, 'D1', { label: 'X' }));
+    expect(simulation.simulator).toBeUndefined();
+    simulation.run();
+    expect(simulation.simulator!.componentIndex('D1')).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe('Simulation: oscillation and diagnostics', () => {
+  /** A zero-delay NAND fed back to itself, enabled by a switch: oscillates once it is on. */
+  function ring(): Circuit {
+    return new CircuitBuilder(registry)
+      .add('SW1', 'io/switch', { at: [0, 0] })
+      .add('U1', 'prim/nand', { at: [10, 0], props: { delay: 0 } })
+      .connect('SW1.Y', 'U1.A')
+      .connect('U1.Y', 'U1.B', [17, 2], [17, 5], [9, 5], [9, 3])
+      .build();
+  }
+
+  it('halts on an oscillation; an edit or reset gets out', () => {
+    const { clock, editor, simulation } = setup(ring());
+    simulation.run();
+    clock.frame(16);
+    expect(simulation.state).toBe('running');
+    simulation.action('SW1', { type: 'toggle' });
+    clock.frame(16);
+    expect(simulation.state).toBe('halted');
+    expect(simulation.diagnostics.get().map((d) => d.kind)).toContain('oscillation');
+    simulation.run(); // nothing: halted
+    expect(simulation.state).toBe('halted');
+    const { circuit } = editor.state.get();
+    editor.edit('Delay', updateComponent(circuit, 'U1', { props: { delay: ns(1) } }));
+    expect(simulation.state).toBe('paused');
+    simulation.reset();
+    expect(simulation.state).toBe('paused');
+    expect(simulation.simulator!.now).toBe(0);
+    expect(simulation.diagnostics.get()).toEqual([]);
+  });
+
+  it('publishes diagnostics with their counts, and clears them on stop', () => {
+    const floating = new CircuitBuilder(registry).add('U1', 'prim/not', { at: [0, 0] }).build();
+    const { clock, simulation } = setup(floating);
+    simulation.run();
+    clock.frames(10, 20);
+    const [d] = simulation.diagnostics.get();
+    expect(d).toMatchObject({ kind: 'floating-input', component: 'U1', pin: 'A', count: 1 });
+    simulation.stop();
+    expect(simulation.diagnostics.get()).toEqual([]);
+  });
+});
+
+describe('Simulation: signals', () => {
+  it('maps every wire to its net, and wires on no pin to −1', () => {
+    const { circuit } = addWires(hello(), [
+      [
+        [40, 40],
+        [44, 40],
+      ],
+    ]);
+    const { simulation } = setup(circuit);
+    simulation.run();
+    const sim = simulation.simulator!;
+    const { wires } = simulation.signals;
+    const lone = circuit.wires.find((w) => w.from[0] === 40)!;
+    expect(wires.get(lone.id)).toBe(-1);
+    const levels = circuit.wires
+      .filter((w) => w !== lone)
+      .map((w) => wires.get(w.id)!)
+      .map((n) => sim.levels[n] as Level);
+    expect(levels.every((l) => l !== undefined)).toBe(true);
+  });
+});
