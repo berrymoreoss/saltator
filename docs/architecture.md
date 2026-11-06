@@ -128,8 +128,8 @@ Implemented in R02. Full spec: [circuit.md](circuit.md). Rationale:
 
 ## Editor
 
-Implemented in R04a (view, navigation, selection); editing tools come in R04b, the live signal
-overlay in R05. Full spec: [editor.md](editor.md). Framework-agnostic TypeScript on a `<canvas>`:
+Implemented in R04a (view, navigation, selection) and R04b (editing); the live signal overlay
+comes in R05. Full spec: [editor.md](editor.md). Framework-agnostic TypeScript on a `<canvas>`:
 
 - **Scene** (pure): the circuit's parts with layouts, placements, bounds, pins with nets and
   text, wires, junctions and issues, rebuilt once per document change.
@@ -147,15 +147,22 @@ overlay in R05. Full spec: [editor.md](editor.md). Framework-agnostic TypeScript
   box selection (inside or touching).
 - **`Editor` facade**: owns circuit, scene, selection, camera and tool; exposes them as small
   observable stores.
-- _(R04b)_ **Tools**: place part, draw wire (orthogonal, L-shaped auto-route), move, rotate,
-  delete, duplicate, copy/paste. **Commands**: every document mutation can be undone.
+- **Tools and gestures**: select/move, pan, wire (click by click or dragged from a pin, L-shaped
+  preview), place (armed from the Parts panel, sticky); rotate, flip, delete, nudge; floating
+  copy/paste and duplicate. Moves keep wires connected (rubber-banding); wires are normalized into
+  straight runs after every edit ([ADR-0009](adr/0009-editing-model.md)). Gestures take plain
+  `PointerInput`s, so they are unit-tested without a browser.
+- **Undo/redo**: every document change is one `edit()` that records a snapshot of the circuit and
+  selection before and after; renames are recorded for the simulator host (R05).
 - _(R05)_ **Interaction with running simulation**: clicking an interactive part (button, switch)
   sends an external event; LEDs and displays render from their state.
 
 ## UI
 
 Implemented in R04a ([editor.md](editor.md#shell), [ADR-0008](adr/0008-desktop-workbench.md)):
-a desktop CAD-style React shell.
+a desktop CAD-style React shell; R04b made it edit — Parts arms the place tool or drags parts in,
+Properties edits the selected part, a context menu and the Edit/Place menus carry the editing
+commands, and the clipboard goes through the browser's clipboard events.
 
 ```
 ┌───────────────────────── menu bar · toolbar (tools, zoom, grid, gate style) ─────────────────────────┐

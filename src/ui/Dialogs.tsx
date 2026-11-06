@@ -112,6 +112,22 @@ export function ShortcutsDialog({
               <kbd>{mac ? '⇧' : 'Shift'}</kbd>+click
             </span>
           </div>
+          <div className="shortcut-row">
+            <span>Move the selection</span>
+            <span className="shortcut-keys">drag it</span>
+          </div>
+          <div className="shortcut-row">
+            <span>Draw a wire</span>
+            <span className="shortcut-keys">drag from a pin tip</span>
+          </div>
+          <div className="shortcut-row">
+            <span>Edit a part</span>
+            <span className="shortcut-keys">double-click</span>
+          </div>
+          <div className="shortcut-row">
+            <span>Context menu</span>
+            <span className="shortcut-keys">right click</span>
+          </div>
         </div>
       </div>
     </Dialog>

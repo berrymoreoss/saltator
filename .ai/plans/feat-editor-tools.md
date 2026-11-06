@@ -229,34 +229,49 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 10. ui: context menu; status-bar hints per tool and gesture.
 - [x] 11. Tests: editing scenario (Hello LED by edits) and `tests/e2e/editing.spec.ts`; look at
   everything in the browser in both themes; measure drag frame time on the stress schematic.
-- [ ] 12. Docs: editor.md (editing, tools, shortcuts), circuit.md (edit operations,
+- [x] 12. Docs: editor.md (editing, tools, shortcuts), circuit.md (edit operations,
   normalization), architecture.md, ADR-0009 (editing model), glossary, `src/*` READMEs,
-  roadmap (R04b done, R05 next), lessons.
+  lessons. (Roadmap R04b → done, R05 → next is the finish-branch step, after the user's review.)
 
 ## Acceptance criteria
 
 Checkable statements; verified one by one in the finish-branch workflow.
 
-- [ ] `pnpm check`, `pnpm build` and `pnpm e2e` are green.
-- [ ] Every built-in part has a designator prefix; placing parts numbers them `U1`, `U2`, `SW1`,
-  … filling gaps.
-- [ ] The M1 Hello LED circuit can be drawn from an empty document with mouse and keyboard only,
-  and compiles to the same nets as the built-in example (scenario test + e2e).
-- [ ] Moving, rotating and flipping parts keeps their wire connections (move tests per rule;
-  e2e: a moved part's net is unchanged).
-- [ ] Wires are orthogonal, merged into straight runs, and never connect where they only cross.
-- [ ] Every edit is one undo step; undo/redo restore the document and the selection; the menu
-  shows what will be undone.
-- [ ] Copy/paste works within the page and between two tabs; paste and duplicate float until
-  dropped.
-- [ ] Properties edits designator (with validation), label, placement and every prop type; each
-  commit is undoable.
-- [ ] Context menu and every editing command are reachable from menu, toolbar or shortcut, and
-  listed in the shortcuts dialog.
-- [ ] Dragging a selection in the 3 600-part stress schematic stays interactive (frame time
-  recorded in the plan).
-- [ ] docs/editor.md, circuit.md, components.md, architecture.md, ADR-0009 and the roadmap
-  describe what was built.
+- [x] `pnpm check`, `pnpm build` and `pnpm e2e` are green — 704 unit/scenario tests, 20 e2e
+  (12 workbench + 8 editing).
+- [x] Every built-in part has a designator prefix; placing parts numbers them `U1`, `U2`, `SW1`,
+  … filling gaps — `src/library/registry.test.ts` (prefix table), `edit.test.ts` (lowest free
+  number), `gestures.test.ts` (place tool: `U2`, `U3`; `D1` after rotate/flip).
+- [x] The M1 Hello LED circuit can be drawn from an empty document with mouse and keyboard only,
+  and compiles to the same nets as the built-in example — `tests/scenarios/editing.test.ts`
+  (same nets, no issues, 19 undo steps back to empty); e2e `Hello, LED drawn by hand…` (all 8
+  parts placed from the Parts panel, 6 wires with the Wire tool, label and color in Properties,
+  0 errors / 0 warnings).
+- [x] Moving, rotating and flipping parts keeps their wire connections — `move.test.ts` (each
+  rubber-band rule; every transform on Hello LED keeps every net together), `gestures.test.ts`
+  (drag-move, Properties placement), e2e `moving a part keeps its wire…`.
+- [x] Wires are orthogonal, merged into straight runs, and never connect where they only cross —
+  `normalizeWires` property test (connectivity and covered points unchanged, no overlaps,
+  idempotent; 500 seeds once, 20 in CI); `addWires` rejects diagonals; Wire tool routes Ls.
+- [x] Every edit is one undo step; undo/redo restore the document and the selection; the menu
+  shows what will be undone — `history.test.ts`, `editor.test.ts`, scenario (19 steps), e2e
+  (`Undo Move` in the Edit menu, Mod+Z / Mod+Shift+Z).
+- [x] Copy/paste works within the page and between two tabs; paste and duplicate float until
+  dropped — e2e `copy and paste float…` (menus, second tab), `Mod+C and Mod+V…` (keyboard
+  events), `gestures.test.ts`.
+- [x] Properties edits designator (with validation), label, placement and every prop type; each
+  commit is undoable — e2e `Properties: rename…` (taken designator refused, integer limits,
+  time with units, undo), Hello LED e2e (label, enum color), `gestures.test.ts` (placement,
+  boolean, integer that changes the pins, label, rename), `prop-input.test.ts`.
+- [x] Context menu and every editing command are reachable from menu, toolbar or shortcut, and
+  listed in the shortcuts dialog — Edit/Place menus and toolbar in `workbench-commands.ts`; the
+  dialog lists every command with a shortcut (plus mouse gestures); e2e `the context menu…`.
+- [x] Dragging a selection in the 3 600-part stress schematic stays interactive — 100 parts:
+  3.4 ms per pointer move (rubber-band), 13 ms median frame incl. the preview's scene rebuild
+  (p90 15 ms), drop 30 ms once; 1 part: 16 ms median frame (dev build, headless Chromium, Apple
+  M3 Pro).
+- [x] docs/editor.md, circuit.md, components.md, architecture.md, ADR-0009 describe what was built
+  (roadmap at finish).
 
 ## Open questions
 
@@ -289,16 +304,25 @@ Asked at branch start (2026-11-06); all answered.
   run on `PointerInput` (DOM adapters only), so drag-move, Wire tool, drag-from-pin, place tool,
   floating paste/duplicate and context-menu requests are unit-tested headless
   (`gestures.test.ts`). Place/paste UI wiring (tasks 7–8) still to do.
+- 2026-11-07 — tasks 7–12 done: Parts panel arms the place tool and drags parts onto the canvas;
+  Wire tool + Place menu; clipboard bridge (browser clipboard events for keys, async API for
+  menus); editable Properties (`prop-input`, `parseTime` in core); context menu; status hints;
+  editing scenario test and 8 editing e2e tests (pin positions computed from `src/` layouts);
+  looked at both themes in headless screenshots; drag measured on the stress schematic. Docs:
+  editor.md (Editing section, API, shortcuts), circuit.md, architecture.md, ADR-0009, glossary,
+  READMEs, lessons. All acceptance criteria verified; waiting for the user's review before
+  finish-branch and the merge.
 
 ## Handoff
 
-- **State:** tasks 1–6 committed; the editor side of tasks 7–8 (place tool, drop, clipboard,
-  floating paste) is implemented and tested in `src/editor/editor.ts` + `gestures.test.ts`.
-- **Next step:** UI — Parts panel arms `editor.placePart(type)` on click and drag-and-drop
-  (`editor.dragPart`/`dropPart`), Wire tool command (`W`, own icon), clipboard commands
-  (keyboard via `copy`/`paste` events, menus via async Clipboard API + in-memory fallback),
-  Duplicate; then task 9 (editable Properties; `requests` store asks to focus it), task 10
-  (context menu from `editor.requests`; status hints exist: `statusHint`).
+- **State:** all tasks done and every acceptance criterion verified (see above); plan stays
+  `in-progress` until the user has looked at it.
+- **Next step:** after the user's approval run finish-branch: plan `done`, roadmap R04b `done` and
+  R05 `next`, `docs(plan): finish feat/editor-tools`, merge `--no-ff` (no remote).
+- **Follow-ups for R05:** `EditorState.renames` carries old → new designators of each edit, undo
+  and redo for state carry-over; the renderer's ghosts/connections overlays are where level
+  colors join; editing while simulating needs a decision there (edit freely and recompile, or
+  pause).
 - **Watch out:** `edit()` compares circuits by value (`sameCircuit`), so a no-op edit records
   nothing. Biome reflows nested arrays in tests; compare wires as `'x,y-x,y'` strings.
 - **Verify with:** `pnpm check && pnpm build && pnpm e2e`.

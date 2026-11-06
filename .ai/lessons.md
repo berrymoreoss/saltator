@@ -56,3 +56,21 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
 - 2026-11-06 (R04a) — Without the Chrome extension, look at the UI with a Playwright script in the
   scratchpad (`chromium.launch()`, `colorScheme`, `deviceScaleFactor: 2`, `page.evaluate` to
   drive `window.logicEditor` in dev builds) and read the PNG back.
+- 2026-11-06 (R04b) — Merging collinear wires is not connectivity-neutral at crossings: two
+  segments ending on a crossing wire connect to it, one run through it doesn't — and two corners
+  meeting at a point would merge into an unconnected crossing. `normalizeWires` splits there; any
+  future wire rewrite must keep the property test in `edit.test.ts` green.
+- 2026-11-06 (R04b) — A stub wire from a fixed pin that runs sideways along the part connects to
+  every pin tip it passes (e.g. U1.A's stub down to U1.B). New wires leave pins head-on, one cell
+  out before turning (`move.ts`).
+- 2026-11-06 (R04b) — Keep the `Editor`'s gesture logic on plain `PointerInput` values and the DOM
+  code to thin adapters: drag, wire, place and paste gestures then run in Node tests (dozens of
+  cases) instead of only in slow, coordinate-fiddly browser tests.
+- 2026-11-06 (R04b) — Playwright treats a zero-size element as hidden: a `position: fixed`
+  wrapper whose only child is `position: absolute` fails `toBeVisible()` though the menu shows.
+  Let the content size the wrapper. Also, a row's accessible name includes its shortcut text
+  (`Rotate R`): match menu items with a regex.
+- 2026-11-06 (R04b) — Menu paste is asynchronous (`navigator.clipboard.readText`): a browser test
+  must wait for the floating state (status hint) before clicking to drop, or the click lands
+  first. Playwright e2e specs can import `src/` modules (layouts) directly to compute pin
+  positions.

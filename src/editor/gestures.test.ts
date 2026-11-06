@@ -279,3 +279,51 @@ describe('requests to the UI', () => {
     expect([...editor.state.get().selection.parts]).toEqual(['SW1']);
   });
 });
+
+describe('Properties edits', () => {
+  it('moves, turns and mirrors a part from typed values, wires following, one step each', () => {
+    const editor = new Editor(registry, connected);
+    editor.setPartPlacement('U1', { y: 4 });
+    expect(editor.state.get().circuit.components[1]).toMatchObject({ x: 10, y: 4 });
+    expect(nets(editor.state.get().circuit)).toEqual([['SW1.Y', 'U1.A']]);
+    editor.setPartPlacement('U1', { rotation: 180 });
+    expect(editor.state.get().circuit.components[1]).toMatchObject({ rotation: 180 });
+    editor.setPartPlacement('U1', { flip: true });
+    expect(editor.state.get().circuit.components[1]).toMatchObject({ flip: true });
+    expect(nets(editor.state.get().circuit)).toEqual([['SW1.Y', 'U1.A']]);
+    expect(editor.undoLabel).toBe('Flip');
+    editor.undo();
+    expect(editor.undoLabel).toBe('Rotate');
+    editor.undo();
+    editor.undo();
+    expect(editor.state.get().circuit).toBe(connected);
+  });
+
+  it('sets props of every kind with all props written, and refuses invalid ones', () => {
+    const editor = new Editor(registry, connected);
+    expect(editor.setPartProp('SW1', 'on', true)).toBeUndefined();
+    expect(editor.state.get().circuit.components[0]?.props).toMatchObject({
+      on: true,
+      contact: 'spdt',
+    });
+    expect(editor.undoLabel).toBe('Change On at power-on');
+    expect(editor.setPartProp('U1', 'inputs', 3)).toBeUndefined();
+    expect(editor.scene.partById.get('U1')?.pins.map((p) => p.name)).toEqual(['A', 'B', 'C', 'Y']);
+    expect(editor.setPartProp('U1', 'inputs', 99)).toMatch(/must be ≤ 8/);
+    expect(editor.setPartProp('nope', 'inputs', 3)).toMatch(/can't be edited/);
+    editor.setPartLabel('U1', '  GATE ');
+    expect(editor.state.get().circuit.components[1]?.label).toBe('GATE');
+    editor.setPartLabel('U1', '');
+    expect(editor.state.get().circuit.components[1]).not.toHaveProperty('label');
+  });
+
+  it('renames with the reason when it can not', () => {
+    const editor = new Editor(registry, connected);
+    expect(editor.renamePart('U1', 'SW1')).toBe('"SW1" is already used.');
+    expect(editor.renamePart('U1', 'U 2')).toMatch(/no spaces/);
+    expect(editor.renamePart('U1', 'GATE')).toBeUndefined();
+    expect([...editor.state.get().selection.parts]).toEqual(['GATE']);
+    expect(editor.state.get().renames).toEqual(new Map([['U1', 'GATE']]));
+    expect(nets(editor.state.get().circuit)).toEqual([['GATE.A', 'SW1.Y']]);
+  });
+});

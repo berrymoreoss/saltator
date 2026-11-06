@@ -86,14 +86,18 @@ test('Hello, LED drawn by hand: place, wire, label, color — no design issues',
   await place(page, grid, 'io/vcc', [-6, -6]);
   await place(page, grid, 'io/led', [12, 1]);
   await place(page, grid, 'io/gnd', [18, 4]);
+  await place(page, grid, 'io/clock', [-12, 9]);
+  await place(page, grid, 'io/led', [12, 9]);
+  await place(page, grid, 'io/gnd', [18, 12]);
   await expect(page.getByTestId('status-hint')).toContainText('Click to select');
 
   await wire(page, grid, pinOf('io/switch', [-12, 0], 'Y'), pinOf('prim/nand', [0, 1], 'A'));
   await wire(page, grid, pinOf('io/vcc', [-6, -6], 'Y'), pinOf('prim/nand', [0, 1], 'B'));
   await wire(page, grid, pinOf('prim/nand', [0, 1], 'Y'), pinOf('io/led', [12, 1], 'A'));
   await wire(page, grid, pinOf('io/led', [12, 1], 'K'), pinOf('io/gnd', [18, 4], 'Y'));
-  // Each L-shaped route is two wire segments.
-  await expect(page.getByTestId('statusbar')).toContainText('5 parts · 6 wires');
+  await wire(page, grid, pinOf('io/clock', [-12, 9], 'Y'), pinOf('io/led', [12, 9], 'A'));
+  await wire(page, grid, pinOf('io/led', [12, 9], 'K'), pinOf('io/gnd', [18, 12], 'Y'));
+  await expect(page.getByTestId('statusbar')).toContainText('8 parts');
   await expect(page.getByTestId('issue-counts')).toHaveText(/0\s*0/);
 
   // Label and color in the Properties panel.
