@@ -119,6 +119,25 @@ describe.each(GATE_SPECS.map((spec) => [spec.number, spec] as const))('74HC%s', 
     expect(byPin).toEqual(GATES_BY_PIN[number]);
   });
 
+  it('reads a floating or unknown input as X unless another input decides', () => {
+    const [first, ...rest] = spec.units[0]!.pins.slice(0, -1);
+    const output = spec.units[0]!.pins.at(-1)!;
+    const pass = spec.op === 'and' ? 1 : 0;
+    const bench = new Bench(def);
+    const others = (level: 0 | 1) => Object.fromEntries(rest.map((pin) => [pin, level]));
+    for (const unknown of ['X', 'Z'] as const) {
+      bench.set({ ...others(pass), [first!]: unknown }).settle();
+      bench.expect({ [output]: 'X' });
+    }
+    if (rest.length > 0 && spec.op !== 'xor') {
+      // A controlling level on another input (0 into AND/NAND, 1 into OR/NOR) decides.
+      const decide = (1 - pass) as 0 | 1;
+      const level = (spec.op === 'and' ? 0 : 1) ^ (spec.invert ? 1 : 0);
+      bench.set({ ...others(decide), [first!]: 'Z' }).settle();
+      bench.expect({ [output]: level as 0 | 1 });
+    }
+  });
+
   it('switches its output tpd after an input, both ways', () => {
     expect(def.timing!.typical.tpd).toBe(ns(TPD_NS[number]!));
     const [first, ...rest] = spec.units[0]!.pins.slice(0, -1);
