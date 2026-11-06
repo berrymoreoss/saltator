@@ -343,12 +343,17 @@ export class Editor {
 
   /**
    * Loads a circuit: replaces the document and forgets the undo history; the selection keeps the
-   * items that still exist. Edits go through `edit` instead.
+   * items that still exist. Edits go through `edit` instead. `fit` zooms to fit once the canvas
+   * has a size; `camera` restores a view instead (and cancels a pending fit).
    */
-  setCircuit(circuit: Circuit, options: { fit?: boolean } = {}): void {
+  setCircuit(circuit: Circuit, options: { fit?: boolean; camera?: Camera } = {}): void {
     this.cancel();
-    this.#show(circuit, this.state.get().selection, undefined, options.fit);
+    this.#show(circuit, this.state.get().selection, undefined, options.fit && !options.camera);
     this.history.set(EMPTY_HISTORY);
+    if (options.camera) {
+      this.#fitPending = false;
+      this.setCamera(options.camera);
+    }
   }
 
   /**

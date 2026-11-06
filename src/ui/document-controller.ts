@@ -4,7 +4,7 @@
  * callbacks (the workbench shows them as dialogs), so every flow runs in Node tests.
  */
 import { type Circuit, type CircuitDocument, DocumentError, parseDocument } from '../circuit';
-import { type Editor, EMPTY_SELECTION, Store } from '../editor';
+import { type Camera, type Editor, EMPTY_SELECTION, Store } from '../editor';
 import {
   type DocumentSession,
   documentText,
@@ -98,12 +98,17 @@ export class DocumentController {
 
   /**
    * Shows `session` in the editor without asking (start-up, a restored session). `circuit` is the
-   * editor's circuit when it differs from the session's saved one (restored unsaved changes).
+   * editor's circuit when it differs from the session's saved one (restored unsaved changes);
+   * `camera` restores the view instead of zooming to fit.
    */
-  show(session: DocumentSession, circuit: Circuit = session.document.circuits[0]!): void {
+  show(
+    session: DocumentSession,
+    circuit: Circuit = session.document.circuits[0]!,
+    options: { readonly camera?: Camera } = {},
+  ): void {
     const editor = this.#editor;
     editor.simulation.stop();
-    editor.setCircuit(circuit, { fit: true });
+    editor.setCircuit(circuit, options.camera ? { camera: options.camera } : { fit: true });
     editor.setSelection(EMPTY_SELECTION);
     this.session.set(session);
   }

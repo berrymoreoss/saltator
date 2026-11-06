@@ -3,14 +3,21 @@ import { Registry } from '../core';
 import { DEV_PARTS, Editor } from '../editor';
 import { createDefaultRegistry } from '../library';
 import {
+  Autosave,
   askUnsavedVia,
   browserFileAccess,
+  browserLocks,
+  claimSessionId,
   createSettingsStore,
   createUiState,
   DocumentController,
   type Example,
   exampleSession,
+  IndexedDbSessionStore,
+  KEPT_SESSIONS,
+  openDatabase,
   reportVia,
+  sessionToRestore,
   Workbench,
 } from '../ui';
 import { EXAMPLE_FILES, exampleDocument } from './example-files';
@@ -52,10 +59,6 @@ const examples: readonly Example[] = [
     : []),
 ];
 
-// `?example=<id>` (or `?gallery`) opens an example instead of Hello LED.
-const params = new URLSearchParams(window.location.search);
-const startId = params.get('example') ?? (params.has('gallery') ? 'gallery' : 'hello-led');
-const start = examples.find((e) => e.id === startId) ?? examples[0]!;
 const editor = new Editor(registry);
 const settings = createSettingsStore();
 const ui = createUiState();
@@ -65,7 +68,63 @@ const documents = new DocumentController({
   askUnsaved: askUnsavedVia(ui),
   report: reportVia(ui),
 });
-documents.show(exampleSession(start.label, start.document()));
+
+/** The autosave store and this tab's session id; none where the browser blocks storage. */
+async function openSessions() {
+  try {
+    const store = new IndexedDbSessionStore(await openDatabase());
+    const tab = await claimSessionId(window.sessionStorage, browserLocks(), () =>
+      crypto.randomUUID(),
+    );
+    return { store, ...tab };
+  } catch {
+    return undefined;
+  }
+}
+
+// Start-up: `?example=<id>` (or `?gallery`) opens that example; otherwise this tab's autosaved
+// session comes back as it was (or the most recent one in a new tab); a first launch opens
+// Hello, LED.
+const params = new URLSearchParams(window.location.search);
+const exampleId = params.get('example') ?? (params.has('gallery') ? 'gallery' : undefined);
+const sessions = await openSessions();
+const restored =
+  exampleId === undefined && sessions
+    ? await sessionToRestore(sessions.store, sessions.id, sessions.restoreFrom).catch(
+        () => undefined,
+      )
+    : undefined;
+if (restored) {
+  documents.show(
+    restored.session,
+    restored.circuit,
+    restored.camera && { camera: restored.camera },
+  );
+} else {
+  const start = examples.find((e) => e.id === exampleId) ?? examples[0]!;
+  documents.show(exampleSession(start.label, start.document()));
+}
+if (sessions) {
+  const autosave = new Autosave({
+    store: sessions.store,
+    id: sessions.id,
+    editor,
+    documents,
+    now: Date.now,
+    schedule: (callback, ms) => {
+      const timer = setTimeout(callback, ms);
+      return () => clearTimeout(timer);
+    },
+    onError: (error) => console.warn('Autosave failed:', error),
+  });
+  autosave.start({ stored: restored?.stored ?? false });
+  const flush = () => void autosave.flush();
+  window.addEventListener('pagehide', flush);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flush();
+  });
+  void sessions.store.prune(KEPT_SESSIONS).catch(() => undefined);
+}
 
 // Dev builds expose the editor for poking at it from the console.
 if (import.meta.env.DEV) Object.assign(window, { logicEditor: editor, logicDocuments: documents });

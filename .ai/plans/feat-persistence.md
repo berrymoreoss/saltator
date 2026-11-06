@@ -189,7 +189,7 @@ permission (a user gesture); a file that is gone is dropped from the list with a
 - [x] 3. `FileAccess`: File System Access and fallback implementations, feature detection.
 - [x] 4. File commands: New, Open, Save, Save As; open = `setCircuit`; the unsaved-changes and
   load-error dialogs; title and name in the menu bar; drop a file to open; e2e.
-- [ ] 5. Autosave and session restore (`SessionStore`, IndexedDB adapter, start-up order,
+- [x] 5. Autosave and session restore (`SessionStore`, IndexedDB adapter, start-up order,
   per-tab sessions, camera); e2e reload restore.
 - [ ] 6. Open Recent (Q3).
 - [ ] 7. Example gallery dialog with thumbnails; New from Example; e2e.
@@ -247,12 +247,22 @@ permission (a user gesture); a file that is gone is dropped from the list with a
   (`addInitScript`) and hides them for the fallback; specs have no Node types — read a download
   with `for await` over `createReadStream()`, hand files over by path (`download.saveAs`).
   Docs (editor.md history note, Files section) still to update in task 10.
+- 2026-11-07 — task 5: `Autosave` (debounced 500 ms on document, session or camera changes —
+  camera too, because IndexedDB writes during unload aren't reliable; selection clicks and
+  pointer moves don't push a pending write back) + flush on hide; `restoreSession`,
+  `sessionToRestore`, `claimSessionId` (sessionStorage id + Web Locks: a duplicated tab gets its
+  own id and copies the session); IndexedDB adapter in `browser-storage.ts` (version 1,
+  `sessions` with an `updated` index); App awaits the restore before rendering (top-level await);
+  `setCircuit(circuit, { camera })` cancels the pending fit. E2E pickers return OPFS handles
+  (`navigator.storage.getDirectory()`): real, cloneable into IndexedDB, persistent across reloads.
 
 ## Handoff
 
 - **State:** tasks 1–4 done: examples as files, session model, `FileAccess`, File commands with
-  `DocumentController` (`src/ui/document-controller.ts`), dialogs, title, drop; e2e `files.spec.ts`.
-- **Next step:** task 5 (autosave and session restore).
+  `DocumentController` (`src/ui/document-controller.ts`), dialogs, title, drop; e2e `files.spec.ts`;
+  autosave (`src/ui/autosave.ts`, `browser-storage.ts`, start-up in `App.tsx`); e2e
+  `autosave.spec.ts`.
+- **Next step:** task 6 (Open Recent; bump the IndexedDB version to add a `recent` store).
 - **Watch out:** Biome reformats `.json` (exclude `**/*.logic.json` first); Chrome reserves
   `Mod+N`.
 - **Verify with:** `pnpm check`, `pnpm e2e`.

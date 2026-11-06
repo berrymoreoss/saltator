@@ -123,4 +123,11 @@ describe('Editor (headless)', () => {
     expect(editor.undoLabel).toBeUndefined();
     expect(editor.redoLabel).toBeUndefined();
   });
+
+  it('setCircuit can restore a view instead of fitting', () => {
+    const editor = new Editor(registry);
+    const camera = { x: -12, y: 7, scale: 24 };
+    editor.setCircuit(circuit, { camera });
+    expect(editor.view.get().camera).toEqual(camera);
+  });
 });
