@@ -165,7 +165,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   (validated: sense only on `in`, constant only on `out`).
 - [x] 3. circuit: symbol layouts in `partLayout` (package → symbol → box); `undriven-input`
   skips sense pins; `shorted-outputs` merges outputs tied to the same level.
-- [ ] 4. library: `io/` family skeleton in the default registry; `io/vcc`, `io/gnd`;
+- [x] 4. library: `io/` family skeleton in the default registry; `io/vcc`, `io/gnd`;
   `prim/constant` marks its pin `constant`; library-wide test: every part's layout resolves
   for default and boundary props.
 - [ ] 5. library: contacts — `io/switch`, `io/button`, `io/dip-switch` (actions, power-on

@@ -8,7 +8,10 @@ export const constant = defineComponent<{ value: keyof typeof VALUES }, undefine
   name: 'CONST',
   title: 'Constant',
   keywords: ['constant', 'tie', 'high', 'low', 'vcc', 'gnd', 'logic 1', 'logic 0'],
-  pins: [{ name: 'Y', dir: 'out' }],
+  // Tied to 0 or 1: a rail as far as design checks are concerned (two 1s wired together are fine).
+  pins: ({ value }) => [
+    value === 'X' ? { name: 'Y', dir: 'out' } : { name: 'Y', dir: 'out', constant: VALUES[value] },
+  ],
   props: [
     {
       key: 'value',

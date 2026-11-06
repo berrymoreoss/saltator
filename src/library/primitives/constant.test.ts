@@ -20,6 +20,14 @@ describe('prim/constant', () => {
     expect(trace.lines()).toEqual(value === 'X' ? [] : [`0 Y=${value}`]);
   });
 
+  it('marks a 0 or 1 output constant (a rail for design checks), but not X', () => {
+    expect(new Bench(constant, { value: '0' }).pins).toEqual([
+      { name: 'Y', dir: 'out', constant: 0 },
+    ]);
+    expect(new Bench(constant, { value: '1' }).pins[0]?.constant).toBe(1);
+    expect(new Bench(constant, { value: 'X' }).pins).toEqual([{ name: 'Y', dir: 'out' }]);
+  });
+
   it('defaults to 1 and rejects other values', () => {
     const bench = new Bench(constant);
     bench.settle();
