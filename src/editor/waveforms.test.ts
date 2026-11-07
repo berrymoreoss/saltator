@@ -5,9 +5,9 @@ import type { AnalyzerChannel, WaveView } from './analyzer';
 import { DARK_CANVAS, LIGHT_CANVAS } from './theme';
 import {
   drawWaveforms,
-  ROW_HEIGHT,
   rowSegments,
   rulerTicks,
+  WAVE_ROW_HEIGHT,
   type WaveCanvas,
   waveformTheme,
 } from './waveforms';
@@ -165,13 +165,13 @@ describe('drawWaveforms', () => {
     const { recorder, x1, x2 } = recorded();
     const { ctx, texts, calls } = recordingCanvas();
     const rows = [
-      { channel: channel(0, [x1]), y: 0, height: ROW_HEIGHT },
-      { channel: channel(1, [x1, x2]), y: ROW_HEIGHT, height: ROW_HEIGHT },
-      { channel: channel(1, [x1, x2]), bit: 1, y: 2 * ROW_HEIGHT, height: ROW_HEIGHT },
+      { channel: channel(0, [x1]), y: 0, height: WAVE_ROW_HEIGHT },
+      { channel: channel(1, [x1, x2]), y: WAVE_ROW_HEIGHT, height: WAVE_ROW_HEIGHT },
+      { channel: channel(1, [x1, x2]), bit: 1, y: 2 * WAVE_ROW_HEIGHT, height: WAVE_ROW_HEIGHT },
       {
         channel: channel(2, [x1], { problem: 'no part U9' }),
-        y: 3 * ROW_HEIGHT,
-        height: ROW_HEIGHT,
+        y: 3 * WAVE_ROW_HEIGHT,
+        height: WAVE_ROW_HEIGHT,
       },
     ];
     for (const theme of [DARK_CANVAS, LIGHT_CANVAS]) {
@@ -181,7 +181,7 @@ describe('drawWaveforms', () => {
           recorder,
           view: { ...view(0, ns(10), 400), cursorA: ns(500), cursorB: ns(1500), selected: 0 },
           rows,
-          height: 4 * ROW_HEIGHT + 20,
+          height: 4 * WAVE_ROW_HEIGHT + 20,
           live: true,
           trigger: us(2),
         },

@@ -139,7 +139,7 @@ floating paste), else leaves the Wire or place tool for Select, else clears the 
 
 `Settings` (`src/ui/settings.ts`): theme (`system` · `dark` · `light`), gate style (`ansi` ·
 `iec`), grid on/off, scroll-wheel mode (`pan` · `zoom`), each dock's visibility and size, and
-the bottom dock's tab (`messages` · `simulation` · `part` · `memory`) and whether the Memory tab
+the bottom dock's tab (`messages` · `simulation` · `part` · `memory` · `waves`) and whether the Memory tab
 follows the address (`memoryFollow`).
 They live in `localStorage` (`logic.settings.v1`), saved with a short debounce; reading repairs
 each invalid field to its default, and blocked storage (private mode) just means nothing is
@@ -617,6 +617,39 @@ elsewhere); the formats are `core` ([components.md](components.md#image-files)).
 R13 ([ADR-0019](adr/0019-waveforms.md)): the circuit's **probes** — nets, pins, buses and
 groups, saved in the document ([circuit.md](circuit.md#document)) — recorded over simulated time
 and shown as a timing diagram, as a logic analyzer does.
+
+### Waveforms tab
+
+```text
+ [Add signal: CLK, U1.Y, D[0..7]] Add  Group… │ Trigger… │ − + ⤢ Follow   A 1.134 s  B 2.078 s  Δ 944.75 ms · 1.058 Hz
+ Signal          at A │0 ps        500 ms        1 s     A     1.5 s        2 s  B
+ › D[0..7]  hex  0x2A │⟨          0x2A                          ⟩⟨0x2B⟩⟨0x2F⟩⟨0x0F⟩
+   U1.DIR           1 │‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
+```
+
+The fifth bottom-dock tab (`WaveformsPanel.tsx`, pure pieces in `waveforms-view.ts`); its tab
+shows how many signals are probed and `T` while a trigger is armed.
+
+- **Toolbar**: Add signal — a reference with completion from the circuit's net and bus names
+  and, once typed, part pins (`referenceSuggestions`); refused references say why under the
+  toolbar. Group… (the picked single signals, Ctrl/⌘-click to pick, into one value). Trigger…
+  (the dialog below; the button reads `Armed` or `Triggered at 1.5 µs`). Zoom out, in, fit
+  (pressed while fitting), Follow (pressed while following), the cursor readout (`A`, `B`,
+  `Δ` and the frequency `1/Δ`), and the tab's actions (Export VCD…).
+- **Signal list**: one row per probe — expand a vector into its bits (most significant first),
+  the name (double-click renames; a probe that resolves to nothing is struck through, with the
+  reason as its tooltip), a vector's radix (`hex`, `dec`, `bin`, `ascii`), the value at cursor
+  A (else at the record's end), Ungroup, Remove. Click picks a channel (for edge search and
+  Delete).
+- **Plot** (a canvas, HiDPI): click places cursor A — snapped to an edge of the row under the
+  pointer — Shift-click B; drag pans; the wheel zooms about the pointer (Shift or a sideways
+  swipe pans). Keys (`waveKey`, kept from the shortcuts): `+`/`-` zoom, ←/→ pan (Shift: a
+  window), `[`/`]` previous/next edge of the picked channel, Home fit, End follow, ↑/↓ pick,
+  Delete remove, Escape clears the cursors.
+- **Trigger dialog**: terms — a signal and a condition (`rises`, `falls`, `changes`, `is 1`,
+  `is 0`, `is X`, `is Z`; on a vector `=` or `≠` a hex value, `X` for any digit), ANDed; the
+  window (a time, the view's by default) and where the trigger sits in it (10 %…90 %); Arm,
+  Disarm, Cancel; problems are listed and keep Arm disabled.
 
 ### Model
 

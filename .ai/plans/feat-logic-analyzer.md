@@ -256,7 +256,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   clock.
 - [x] 7. `editor`: waveform renderer — 1-bit rows, buses/groups with values, dense blocks, ruler,
   cursors, trigger and capture start; recording-graphics tests; both themes.
-- [ ] 8. `ui`: the Waveforms tab — toolbar, channel list (radix, remove, reorder, group, expand),
+- [x] 8. `ui`: the Waveforms tab — toolbar, channel list (radix, remove, reorder, group, expand),
   canvas with mouse and keys, cursor readout, Add signal with completion, Trigger dialog,
   settings; canvas context menu entries; unit tests for the pure pieces; looked at in both
   themes.
@@ -365,11 +365,20 @@ Checkable statements; verified one by one in the finish-branch workflow.
   and hexagon vectors with values in their radix, ruler, grid, `now`, `T`, `A`, `B`) on a
   `WaveCanvas` subset; `waveformTheme` from the canvas theme. `Recorder.summarize` removed:
   `rowSegments` does its job from the queries, so it was dead API.
+- 2026-11-07 — task 8: the Waveforms tab (`WaveformsPanel.tsx`; `waveforms-view.ts`: rows with
+  expanded bits, `rowAt`, `cursorReadout`, `waveKey`, `wheelFactor`, `referenceSuggestions`):
+  toolbar (Add signal with completion, Group…, Trigger…, zoom, fit, Follow, readout), the
+  signal list (expand, rename, radix, value at A, ungroup, remove, pick), the plot canvas
+  (cursors with snapping, drag pan, wheel zoom, keys kept from the shortcuts), the Trigger
+  dialog on the shared `Dialog`; setting `bottomTab: 'waves'`, a tab badge. Looked at in the
+  browser: Clock Module (555 outputs; an `X` output as a red band) dark, Data Bus light with
+  DIP toggles (bus hexagons `0x2A`→`0x2B`…, cursors, `Δ 944.75 ms · 1.058 Hz`). The context
+  menu entries moved to 8b with the Probe tool (same hit rules).
 
 ## Handoff
 
-- **State:** tasks 1–7 done (core, circuit, the `Analyzer` model, the waveform renderer).
-- **Next step:** task 8 (the Waveforms tab in `src/ui`).
+- **State:** tasks 1–8 done (core, circuit, the `Analyzer` model, the renderer, the Waveforms tab).
+- **Next step:** task 8b (Probe tool `P` and the canvas context menu's Add to Waveforms).
 - **Watch out:** nets have no identity across compiles — channels are references, re-resolved
   on every carry-over; the kernel's listener reports levels only. Docs already link
   `adr/0019-waveforms.md` (write it in task 11). Max-speed tests need `clock.cost > 0`.

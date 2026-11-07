@@ -55,8 +55,8 @@ export interface WaveformScene {
   readonly trigger?: Time;
 }
 
-export const RULER_HEIGHT = 20;
-export const ROW_HEIGHT = 24;
+export const WAVE_RULER_HEIGHT = 20;
+export const WAVE_ROW_HEIGHT = 24;
 
 /** Ruler steps: 1, 2, 5 × 10^k ps. */
 function niceStep(minimum: number): number {
@@ -249,7 +249,7 @@ export function drawWaveforms(ctx: WaveCanvas, scene: WaveformScene, theme: Wave
 
   // Rows' backgrounds, and where the record has no data.
   rows.forEach((row, i) => {
-    const top = RULER_HEIGHT + row.y;
+    const top = WAVE_RULER_HEIGHT + row.y;
     if (row.channel.index === view.selected && row.bit === undefined) {
       ctx.fillStyle = theme.selected;
       ctx.fillRect(0, top, width, row.height);
@@ -265,7 +265,7 @@ export function drawWaveforms(ctx: WaveCanvas, scene: WaveformScene, theme: Wave
   for (const tick of ticks) {
     if (!tick.major) continue;
     const x = Math.round(tick.x) + 0.5;
-    ctx.moveTo(x, RULER_HEIGHT);
+    ctx.moveTo(x, WAVE_RULER_HEIGHT);
     ctx.lineTo(x, height);
   }
   ctx.stroke();
@@ -279,7 +279,7 @@ export function drawWaveforms(ctx: WaveCanvas, scene: WaveformScene, theme: Wave
 function drawRow(ctx: WaveCanvas, scene: WaveformScene, row: WaveRow, theme: WaveformTheme): void {
   const { channel } = row;
   if (channel.problem !== undefined) return;
-  const top = RULER_HEIGHT + row.y;
+  const top = WAVE_RULER_HEIGHT + row.y;
   const bits = row.bit === undefined ? channel.bits : [channel.bits[row.bit]!];
   const vector = row.bit === undefined && channel.vector;
   const segments = rowSegments(scene.recorder, bits, scene.view);
@@ -431,16 +431,16 @@ function drawRuler(
   theme: WaveformTheme,
 ): void {
   ctx.fillStyle = theme.background;
-  ctx.fillRect(0, 0, view.width, RULER_HEIGHT);
+  ctx.fillRect(0, 0, view.width, WAVE_RULER_HEIGHT);
   ctx.strokeStyle = theme.textDim;
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(0, RULER_HEIGHT - 0.5);
-  ctx.lineTo(view.width, RULER_HEIGHT - 0.5);
+  ctx.moveTo(0, WAVE_RULER_HEIGHT - 0.5);
+  ctx.lineTo(view.width, WAVE_RULER_HEIGHT - 0.5);
   for (const tick of ticks) {
     const x = Math.round(tick.x) + 0.5;
-    ctx.moveTo(x, RULER_HEIGHT - (tick.major ? 7 : 3));
-    ctx.lineTo(x, RULER_HEIGHT);
+    ctx.moveTo(x, WAVE_RULER_HEIGHT - (tick.major ? 7 : 3));
+    ctx.lineTo(x, WAVE_RULER_HEIGHT);
   }
   ctx.stroke();
   ctx.fillStyle = theme.textDim;

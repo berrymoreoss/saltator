@@ -33,6 +33,7 @@ import {
 import { isMacPlatform } from './shortcuts';
 import { Toolbar } from './Toolbar';
 import type { Example, UiState } from './ui-state';
+import { WaveformsPanel, WavesBadge } from './WaveformsPanel';
 import { createCommands, TOOLBAR, workbenchMenus } from './workbench-commands';
 import './styles/tokens.css';
 import './styles/workbench.css';
@@ -324,6 +325,16 @@ export function Workbench({
                   >
                     Memory
                   </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={tab === 'waves'}
+                    className={tab === 'waves' ? 'tab active' : 'tab'}
+                    onClick={() => showTab('waves')}
+                  >
+                    Waveforms
+                    <WavesBadge editor={editor} />
+                  </button>
                 </div>
               }
               actions={
@@ -366,6 +377,7 @@ export function Workbench({
                   }
                 />
               )}
+              {tab === 'waves' && <WaveformsPanel editor={editor} theme={canvasTheme} />}
             </Panel>
           </div>
         </>
