@@ -42,6 +42,25 @@ describe('scene parts', () => {
     expect(part.pins.every((p) => p.net !== undefined && p.open)).toBe(true);
   });
 
+  it('gives net labels their net, no text block, and marks pins open by what they touch', () => {
+    // V1, V2 are one net by name but touch nothing; NL1 sits on U1.A, NL2 alone far away.
+    const circuit = new CircuitBuilder(registry)
+      .add('V1', 'io/vcc', { at: [0, 0] })
+      .add('V2', 'io/vcc', { at: [0, 10] })
+      .add('U1', 'prim/nand', { at: [20, 0] })
+      .add('NL1', 'net/label', { at: [20, 1], props: { name: 'A' } })
+      .add('NL2', 'net/label', { at: [40, 40], props: { name: 'A' } })
+      .build();
+    const scene = buildScene(circuit, registry);
+    const pin = (id: string) => scene.partById.get(id)!.pins[0]!;
+    expect([pin('V1').net, pin('V1').open, pin('V2').open]).toEqual(['VCC', true, true]);
+    expect([pin('NL1').net, pin('NL1').open]).toEqual(['A', false]);
+    expect([pin('NL2').net, pin('NL2').open]).toEqual(['A', true]);
+    expect([pin('U1').net, pin('U1').open]).toEqual(['A', false]);
+    expect(scene.partById.get('NL1')!.texts).toEqual([]);
+    expect(scene.partById.get('NL1')!.body).toEqual({ x: 21, y: 0.5, width: 2, height: 1 });
+  });
+
   it('transforms pins and bounds with the placement', () => {
     const scene = buildScene(
       new CircuitBuilder(registry).add('U1', 'prim/nand', { at: [0, 0], rotation: 90 }).build(),

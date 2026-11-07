@@ -75,7 +75,8 @@ export function partLayout(
 
 /**
  * A symbol's body with a one-cell margin for the pin stubs on each side that has pins; the
- * origin stays at the top-left of the bounding box, as for the other layouts.
+ * origin stays at the top-left of the bounding box, as for the other layouts — except for a
+ * `centered` symbol, whose body reaches half a cell above it.
  */
 function symbolLayout(type: string, symbol: SymbolDef, pins: readonly PinDef[]): PartLayout {
   validateSymbol(symbol, pins, type);
@@ -99,7 +100,8 @@ function symbolLayout(type: string, symbol: SymbolDef, pins: readonly PinDef[]):
     const { side, offset } = symbol.pins[pin.name]!;
     return { name: pin.name, at: tip(side, offset), side };
   });
-  return { body: { x: left, y: top, width, height }, pins: layout };
+  const y = symbol.centered ? top - 0.5 : top;
+  return { body: { x: left, y, width, height }, pins: layout };
 }
 
 /**

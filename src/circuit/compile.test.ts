@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Level, Simulator } from '../core';
+import { Level, Simulator, sameNetlistStructure } from '../core';
 import { compileCircuit, compileDocument } from './compile';
 import type { Circuit, ComponentInstance, Wire } from './document';
 import { testRegistry } from './test-parts';
@@ -13,6 +13,7 @@ const registry = testRegistry();
 // Symbols:
 //   test/tie:             Y (x+1, y+2) for level 1, (x+1, y) for level 0
 //   test/lamp:            A (x, y+1), K (x+4, y+1)
+//   test/label:           N (x, y)          test/hi: Y (x+5, y+1)
 
 function part(
   id: string,
@@ -181,6 +182,158 @@ describe('compileCircuit', () => {
       const sim = new Simulator(result.netlist, registry);
       sim.settle();
       expect(sim.level('w9')).toBe(Level.Z);
+    });
+  });
+
+  describe('net labels', () => {
+    const label = (id: string, name: string, x: number, y: number) =>
+      part(id, 'test/label', x, y, { props: { name } });
+
+    // H1.Y (5,1) ─w1─ label A (8,1)   …   label A (20,1) ─w2─ U1.A (25,1)
+    const split = () =>
+      compile(
+        [
+          part('H1', 'test/high', 0, 0),
+          label('NL1', 'A', 8, 1),
+          label('NL2', 'A', 20, 1),
+          part('U1', 'test/and', 25, 0),
+        ],
+        [wire('w1', 5, 1, 8, 1), wire('w2', 20, 1, 25, 1)],
+      );
+
+    it('join the parts on labels of the same name into one net called by it', () => {
+      const result = split();
+      const net = result.nets.find((n) => n.id === 'A')!;
+      expect(net.names).toEqual(['A']);
+      expect(net.pins.map((p) => `${p.component}.${p.pin}`)).toEqual(['H1.Y', 'U1.A']);
+      expect(net.schematicPins.map((p) => p.component)).toEqual(['NL1', 'NL2']);
+      expect(net.wires.map((w) => w.id)).toEqual(['w1', 'w2']);
+      expect(result.wireNets).toEqual(
+        new Map([
+          ['w1', 'A'],
+          ['w2', 'A'],
+        ]),
+      );
+      expect(result.junctions).toEqual([]);
+      expect([...result.openPins]).toEqual(['U1.B', 'U1.Y']);
+      expect(result.issues.map((i) => `${i.code} ${i.pin}`)).toEqual(['undriven-input B']);
+      const sim = new Simulator(result.netlist, registry);
+      sim.settle();
+      expect(sim.level('A')).toBe(Level.L1);
+    });
+
+    it('stay out of the netlist', () => {
+      const result = split();
+      expect(result.netlist.components.map((c) => c.id)).toEqual(['H1', 'U1']);
+      expect(result.netlist.nets.find((n) => n.id === 'A')!.pins).toEqual([
+        { component: 'H1', pin: 'Y' },
+        { component: 'U1', pin: 'A' },
+      ]);
+      // A label that joins nothing new leaves the netlist's structure as it was.
+      const moved = compile(
+        [
+          part('H1', 'test/high', 0, 0),
+          label('NL1', 'A', 8, 1),
+          label('NL2', 'A', 20, 1),
+          label('NL3', 'A', 40, 40),
+          part('U1', 'test/and', 25, 0),
+        ],
+        [wire('w1', 5, 1, 8, 1), wire('w2', 20, 1, 25, 1)],
+      );
+      expect(sameNetlistStructure(result.netlist, moved.netlist)).toBe(true);
+    });
+
+    it('name a net by simulated pins first, then labels, each in code-point order', () => {
+      // R1.Y (5,1) with labels Z and B on its wire.
+      const result = compile(
+        [part('R1', 'test/hi', 0, 0), label('NL1', 'Z', 8, 1), label('NL2', 'B', 9, 1)],
+        [wire('w1', 5, 1, 9, 1)],
+      );
+      expect(result.nets.map((n) => [n.id, n.names])).toEqual([['HI', ['HI', 'B', 'Z']]]);
+    });
+
+    it('join named simulated pins without a wire', () => {
+      const result = compile([part('R1', 'test/hi', 0, 0), part('R2', 'test/hi', 0, 10)]);
+      expect(result.nets.map((n) => n.id)).toEqual(['HI']);
+      expect([...result.openPins]).toEqual(['R1.Y', 'R2.Y']); // they touch nothing
+      expect(result.nets[0]!.pins.map((p) => p.component)).toEqual(['R1', 'R2']);
+      expect(result.issues).toEqual([]); // tied to the same level: one source
+    });
+
+    it('rename a wire-only net whose id is a net name', () => {
+      const result = compile(
+        [part('H1', 'test/high', 0, 0), label('NL1', 'A', 5, 1)],
+        [wire('A', 20, 20, 25, 20)],
+      );
+      expect(result.nets.map((n) => n.id)).toEqual(['A', 'A#2']);
+      expect(result.wireNets.get('A')).toBe('A#2');
+      expect(() => new Simulator(result.netlist, registry)).not.toThrow();
+    });
+
+    it('join nothing while the name is invalid', () => {
+      const result = compile([
+        part('H1', 'test/high', 0, 0),
+        label('NL1', 'a b', 5, 1),
+        label('NL2', 'a b', 20, 1),
+      ]);
+      expect(codes(result)).toEqual(['invalid-props', 'invalid-props']);
+      expect(result.issues[0]!.message).toBe(
+        'NL1: prop "name" must be capital letters and digits, got "a b"',
+      );
+      expect(result.nets.map((n) => n.id)).toEqual(['H1.Y']);
+    });
+
+    it('warn about a label whose name nothing else uses', () => {
+      const result = compile(
+        [part('H1', 'test/high', 0, 0), label('NL1', 'CKL', 5, 1), label('NL2', 'HI', 30, 30)],
+        [wire('w1', 5, 1, 9, 1)],
+      );
+      expect(result.issues.filter((i) => i.code === 'single-net-label')).toEqual([
+        {
+          severity: 'warning',
+          code: 'single-net-label',
+          message:
+            'net label NL1 "CKL" is the only one with this name, so it joins nothing (a typo?)',
+          net: 'CKL',
+          component: 'NL1',
+          pin: 'N',
+          at: [5, 1],
+        },
+        expect.objectContaining({ component: 'NL2' }),
+      ]);
+      // A rail of the same name or a second label is a partner.
+      const partnered = compile([
+        part('R1', 'test/hi', 0, 0),
+        label('NL1', 'HI', 20, 20),
+        label('NL2', 'B', 30, 30),
+        label('NL3', 'B', 40, 40),
+      ]);
+      expect(codes(partnered)).toEqual([]);
+    });
+
+    it('warn about a net with several names, at the pin giving the second', () => {
+      const result = compile(
+        [label('NL1', 'CLOCK', 0, 0), label('NL2', 'CLK', 5, 0), label('NL3', 'CLK', 9, 9)],
+        [wire('w1', 0, 0, 5, 0), wire('w2', 9, 9, 9, 12)],
+      );
+      expect(result.issues.filter((i) => i.code === 'multiple-net-names')).toEqual([
+        {
+          severity: 'warning',
+          code: 'multiple-net-names',
+          message: 'net "CLK" has several names: CLK, CLOCK (it is called CLK)',
+          net: 'CLK',
+          component: 'NL1',
+          pin: 'N',
+          at: [0, 0],
+        },
+      ]);
+    });
+
+    it('make an input on a label part of a net, not unconnected', () => {
+      const result = compile([part('U1', 'test/and', 0, 0), label('NL1', 'A', 0, 1)]);
+      expect(result.issues.find((i) => i.pin === 'A')!.message).toBe(
+        'input U1.A is on net "A", which nothing drives (reads as X)',
+      );
     });
   });
 

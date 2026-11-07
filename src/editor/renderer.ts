@@ -104,8 +104,8 @@ export function renderScene(
   for (const part of parts) {
     const isGhost = ghost?.parts.has(part.id) === true;
     if (isGhost) ctx.globalAlpha = GHOST_ALPHA;
-    const live = isGhost ? undefined : signals?.part(part.id);
-    drawPart(g, part, options, live && { part: live, levelColor });
+    const live = isGhost || !signals ? undefined : liveDraw(part, signals, theme, levelColor);
+    drawPart(g, part, options, live);
     if (isGhost) ctx.globalAlpha = 1;
   }
   drawMarks(g, scene, parts, view, ghost);
@@ -248,6 +248,28 @@ function drawJunctions(g: CanvasGraphics, scene: Scene, view: Rect, options: Ren
     }
     g.fill(color);
   }
+}
+
+/**
+ * What a part's drawer sees of the simulation: the simulator's part, or — for schematic-only
+ * parts like net labels, which the simulator doesn't have — the colors of the nets at its pins.
+ */
+function liveDraw(
+  part: ScenePart,
+  signals: SignalView,
+  theme: CanvasTheme,
+  levelColor: (level: Level) => string,
+): LiveDraw | undefined {
+  const simulated = signals.part(part.id);
+  if (simulated) return { part: simulated, levelColor };
+  if (part.definition?.schematicOnly !== true) return undefined;
+  return {
+    levelColor,
+    pinColor: (name) => {
+      const pin = part.pins.find((p) => p.name === name);
+      return signalColor(theme, pin ? signals.point(pin.at) : SignalStyle.NONE, signals.flash);
+    },
+  };
 }
 
 function drawPart(

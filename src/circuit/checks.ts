@@ -13,7 +13,9 @@ export type DesignIssueCode =
   | 'invalid-props'
   | 'shorted-outputs'
   | 'undriven-input'
-  | 'dangling-wire';
+  | 'dangling-wire'
+  | 'multiple-net-names'
+  | 'single-net-label';
 
 export interface DesignIssue {
   readonly severity: 'error' | 'warning';
@@ -36,13 +38,23 @@ export interface PlacedPin {
   readonly sense: boolean;
   /** The output is tied to this level (rails, constants). */
   readonly constant?: 0 | 1;
+  /** The circuit-wide net the pin joins by name (net labels, VCC and GND symbols). */
+  readonly net?: string;
   readonly at: Point;
 }
 
 /** A net of the compiled circuit, with everything on it in document order. */
 export interface CircuitNet {
   readonly id: string;
+  /**
+   * The names its pins give it, the one it is called by first: names from simulated pins (VCC,
+   * GND) before names from net labels, each in code-point order. Empty for unnamed nets.
+   */
+  readonly names: readonly string[];
+  /** Pins of simulated parts (the netlist's pins). */
   readonly pins: readonly PlacedPin[];
+  /** Pins of schematic-only parts (net labels): drawn and connected, never simulated. */
+  readonly schematicPins: readonly PlacedPin[];
   readonly wires: readonly Wire[];
 }
 
@@ -91,7 +103,7 @@ export function undrivenInputs(nets: readonly CircuitNet[]): DesignIssue[] {
   const issues: DesignIssue[] = [];
   for (const net of nets) {
     if (net.pins.some((p) => isDriverPin(p.dir))) continue;
-    const alone = net.pins.length === 1 && net.wires.length === 0;
+    const alone = net.pins.length === 1 && net.wires.length === 0 && net.schematicPins.length === 0;
     for (const pin of net.pins) {
       if (pin.dir !== 'in' || pin.sense) continue;
       issues.push({
@@ -119,4 +131,54 @@ export function danglingWires(ends: readonly WireEnd[], wires: readonly Wire[]):
     wire: wires[wire]!.id,
     at,
   }));
+}
+
+/**
+ * Nets with more than one name (labels `CLK` and `CLOCK` on one wire, a label on a VCC wire):
+ * usually a mistake, as in KiCad. The net is called by its first name; the issue sits at the first
+ * pin giving it the second.
+ */
+export function multipleNetNames(nets: readonly CircuitNet[]): DesignIssue[] {
+  const issues: DesignIssue[] = [];
+  for (const net of nets) {
+    const second = net.names[1];
+    if (second === undefined) continue;
+    const pin = [...net.pins, ...net.schematicPins].find((p) => p.net === second)!;
+    issues.push({
+      severity: 'warning',
+      code: 'multiple-net-names',
+      message: `net "${net.id}" has several names: ${net.names.join(', ')} (it is called ${net.id})`,
+      net: net.id,
+      component: pin.component,
+      pin: pin.pin,
+      at: pin.at,
+    });
+  }
+  return issues;
+}
+
+/**
+ * Net labels whose name nothing else uses (no other label, no VCC/GND symbol): they join nothing
+ * by name, which is usually a typo (`CKL` for `CLK`).
+ */
+export function singleNetLabels(nets: readonly CircuitNet[]): DesignIssue[] {
+  const issues: DesignIssue[] = [];
+  for (const net of nets) {
+    for (const label of net.schematicPins) {
+      const name = label.net;
+      if (name === undefined) continue;
+      const uses = [...net.pins, ...net.schematicPins].filter((p) => p.net === name).length;
+      if (uses > 1) continue;
+      issues.push({
+        severity: 'warning',
+        code: 'single-net-label',
+        message: `net label ${label.component} "${name}" is the only one with this name, so it joins nothing (a typo?)`,
+        net: net.id,
+        component: label.component,
+        pin: label.pin,
+        at: label.at,
+      });
+    }
+  }
+  return issues;
 }

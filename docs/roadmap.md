@@ -27,7 +27,8 @@ How to read this file:
 | R08  | `feat/74hc-msi`              | 74HC combinational MSI                     | done    |
 | R09a | `feat/74hc-registers`        | 74HC flip-flops, registers + timing checks | done    |
 | R09b | `feat/74hc-counters`         | 74HC counters & shift registers            | done    |
-| R10  | `feat/nets-and-buses`        | Net labels, tunnels, buses                 | next    |
+| R10a | `feat/net-labels`            | Net labels                                 | done    |
+| R10b | `feat/buses`                 | Buses, rippers, bus values                 | next    |
 | R11  | `feat/subcircuits`           | Hierarchical design                        | planned |
 | R12  | `feat/memory`                | ROM / RAM + memory inspector               | planned |
 | R13  | `feat/logic-analyzer`        | Waveforms & probes                         | planned |
@@ -194,25 +195,37 @@ exceptions (`U̅/D`, `Q̅0̅`). Examples: Shift Register LEDs (a self-running Jo
 Ben Eater's Program Counter. Spec: [components.md](components.md#counters-and-shift-registers).
 Plan: `.ai/plans/feat-74hc-counters.md`.
 
-### R10 · Net labels, tunnels, buses — `feat/nets-and-buses` — `next`
+R10 (net labels, tunnels, buses) was split at its start into net labels (R10a) and buses
+(R10b). Junction dots, also listed for R10, are derived and drawn since R02/R04a; "tunnel" is
+Logisim's name for a net label.
 
-Named net labels/tunnels, multi-bit buses with bus rippers/splitters, bus value display (hex),
-junction dots. Essential for readable 8-bit schematics.
+### R10a · Net labels — `feat/net-labels` — `done`
 
-**Net labels** (KiCad/Altium/Proteus "net label", Logisim "tunnel"): a flag with a name and one
-connection point, placed on a wire end or a pin tip. All labels with the same name are one net,
-so a circuit can be laid out in blocks without wires running across it: switches `A`, `B` →
-labels `A`, `B` in one place; labels `A`, `B` → the 74HC00 inputs in another. The net takes the
-label's name (Properties, Messages, later the analyzer); a name used by a single label is a
-design warning (likely a typo). Scope: the whole circuit until R11 decides local vs global
-labels. VCC and GND symbols join by name the same way
-([ADR-0007](adr/0007-io-electrical-model.md)). Placed from the canvas context menu's Place
-submenu (backlog) as well as the Parts panel.
+Net labels (`net/label`; KiCad's net label, Logisim's tunnel): a flag with a name and one
+connection point; every label of one name is one net across the circuit, so blocks connect
+without wires running between them. Schematic-only parts (`schematicOnly`: drawn and connected,
+left out of the netlist, so a label that joins nothing new keeps a running simulation as it
+is); joining by name is a pin property (`PinDef.net`), which also puts every VCC and GND symbol
+on the nets `VCC` and `GND`. A named net is called by its name everywhere; design warnings for
+a net with several names and a label nothing else uses. Names with KiCad's `~{…}` overline,
+`[ ]` kept for buses. Drawn as an outlined tag, `centered` on its pin's row so labels stack on
+adjacent DIP pins, its outline in the net's color while running; placed by its point, each named
+after the last (`D0` → `D1`, `nextProps`). The Place menu and the canvas Place submenu (Power,
+Ground, Pull-up, Pull-down, Wire, Net Label `L`, Find Part); open pins found by what touches
+them. Example: Net Labels. Spec: [circuit.md](circuit.md#connectivity),
+[components.md](components.md#net-labels-net). Decision: [ADR-0015](adr/0015-net-labels.md).
+Plan: `.ai/plans/feat-net-labels.md`.
+
+### R10b · Buses, rippers, bus values — `feat/buses` — `next`
+
+Multi-bit buses with bus rippers/splitters and bus labels, the bus value shown in hex while
+simulating. Builds on R10a's names (`D0`…`D7`); the bus model (KiCad-style, joined by member
+names, or Logisim-style rippers by bit index) is decided when it starts.
 
 ### R11 · Hierarchical design — `feat/subcircuits`
 
 Multiple circuits per project, subcircuit instances with generated or custom symbols, navigation
-into instances while simulating.
+into instances while simulating. A subcircuit's interface pins (ports) join the Place menu (R10a).
 
 **M2 acceptance:** Ben Eater SAP-1 modules (clock, A/B registers, ALU, program counter, output
 register) built and verified individually.
@@ -305,17 +318,13 @@ Promote to a numbered item when needed.
 - Simulation view extras (R05 follow-ups): LED colors that stay visible on the light theme's
   cream when dim (a dim yellow LED is hard to see); a "toggling" wire style for nets that change
   faster than the frame rate, which now flicker between 0 and 1 from frame to frame.
-- Place submenu (instead of a quick-place toolbar group, to keep the toolbar clean): right click
-  on empty canvas ▸ **Place** ▸ Power (VCC), Ground (GND), Pull-up, Pull-down (the pull part with
-  its direction preset), Wire, Net Label (with R10), Port (a subcircuit's interface pin, with
-  R11), then Part… (Search Parts). The menu bar's Place menu shows the same list. A part item arms
-  the sticky place tool like a click in the Parts panel (ghost under the cursor, R/F before
-  placing, Escape leaves); Wire switches to the Wire tool. Shortcuts can follow (KiCad uses `P`
-  for power and `L` for a label; both are free). Everything but Net Label and Port can land any
-  time.
 - Passive parts (R08 follow-up): resistors, capacitors and potentiometers drawn on the schematic
   but not simulated (BOM, breadboard view), a 555 reading its R and C from them, and turning a
   potentiometer with the Interact tool (Ben's clock speed knob); a read-only hint of a 555's
   resulting frequency in Properties. CMOS 555s (TLC555, ICM7555) and the 556 with the same model.
+- Net highlighting (R10a follow-up): selecting or hovering a wire or net label highlights every
+  wire and label of its net, across labels.
+- Placing VCC/GND symbols by their pin (R10a follow-up), as net labels are placed, so a click on
+  a pin tip attaches one; other one-pin parts may follow.
 - Documents (R07 follow-ups): several documents open in one window (tabs); a title, notes and
   simulation settings (speed) stored in the file (schema v2).

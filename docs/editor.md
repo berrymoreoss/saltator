@@ -32,8 +32,8 @@ A desktop CAD-style window (`Workbench`), dense like KiCad or Altium: 12 px UI t
 - **Docks** are fixed regions around the canvas: Parts (left), Properties (right) and a tabbed
   bottom dock (Messages). Splitters resize them within limits; each can be hidden from its title
   bar or View ▸ Panels. Sizes and visibility are settings (below).
-- **Parts**: families as collapsible groups (74HC Logic, Primitives, Input / Output, and Developer
-  Fixtures in dev builds); a search box (`/` or `Mod+F`) matching every word against name, title,
+- **Parts**: families as collapsible groups (74HC Logic, Timers, Primitives, Input / Output,
+  Nets, and Developer Fixtures in dev builds); a search box (`/` or `Mod+F`) matching every word against name, title,
   type and keywords; the selected part's preview — its symbol drawn by the canvas drawers — with
   title, pins and datasheet link. Clicking a part arms the place tool with it (the row is marked);
   dragging it onto the canvas places one ([Placing parts](#placing-parts)).
@@ -52,8 +52,9 @@ A desktop CAD-style window (`Workbench`), dense like KiCad or Altium: 12 px UI t
   redraw time (dev builds), error/warning counts (click opens Messages).
 - **Context menu** (right click on the canvas): over a part or wire (selected first) — Cut, Copy,
   Paste, Duplicate, Delete, Rotate, Rotate Counter-clockwise, Flip Horizontal, Flip Vertical,
-  Properties; over empty canvas — Paste, Select All, Zoom to Fit. A right click while drawing a
-  wire, floating a paste or placing parts cancels that instead.
+  Properties; over empty canvas — a **Place** submenu ([Placing parts](#placing-parts)), Paste,
+  Select All, Zoom to Fit. A right click while drawing a wire, floating a paste or placing parts
+  cancels that instead.
 - **Dialogs**: Help ▸ Keyboard Shortcuts (generated from the command registry), About, the
   example gallery, "Save changes?" and file problems ([Files](#files)). Escape or a click
   outside closes them (for "Save changes?" that is Cancel).
@@ -118,6 +119,7 @@ the shortcuts dialog all read the same `CommandRegistry`, which rejects duplicat
 | Step                | `F10`                      | Stop                       | `Shift+F5`                |
 | Reset               | `Mod+Shift+F5`             | New Circuit                | `Mod+Alt+N`               |
 | Open…               | `Mod+O`                    | Save (As…)                 | `Mod+S` (`Mod+Shift+S`)   |
+| Net Label           | `L`                        |                            |                           |
 
 Commands marked `global` run while typing in a text field and keep their key from the browser
 even while disabled: F5 never reloads the page, `Mod+S` and `Mod+O` never show the browser's own
@@ -224,7 +226,9 @@ editor doesn't know.
   throws; a changeover switch draws its rail on the left and its `ON`/`OFF` throws as the two
   pins; switches show their power-on position, buttons a plunger), `dip-switch`, `clock`
   (square wave, or a single pulse in manual mode), `led` and `led-bar` (diodes tinted with the LED
-  color), `seven-segment`, `hex-display`, `probe`. Stopped, drawers show the idle look
+  color), `seven-segment`, `hex-display`, `probe`, `net-label` (an outlined tag pointing at its
+  connection point, the name inside in a monospaced font, overlined where it says `~{…}`).
+  Stopped, drawers show the idle look
   (power-on switch positions, unlit lights); while simulating they get `DrawContext.live`
   ([Simulation](#live-drawing)).
 - **DIP**: body with the notch at the top, pin numbers outside next to each stub, pin names
@@ -242,7 +246,8 @@ Text never reads upside down or mirrored.
 - **Designator and label** (`src/editor/text-placement.ts`): a block of horizontal text outside
   the part's bounding box (pins included) on the first side without pins, in the order top,
   bottom, right, left; designator first, then the label. Power symbols show their rail name
-  (VCC, GND) at the end away from the pin instead of a designator.
+  (VCC, GND) at the end away from the pin instead of a designator; net labels show only the
+  name inside their tag.
 - **Text inside a symbol** rotates with the part only by 0° or 90° and reads left-to-right or
   bottom-to-top (`uprightText`): a part rotated 180° draws its text at 0°, 270° at 90°, and a
   flipped part moves the anchors, not the glyphs.
@@ -288,6 +293,16 @@ another tool is chosen or Escape. The editor's `mode` store says what is going o
   follows the drag), in the default orientation, and leaves the current tool alone.
 - A placed part gets its designator from its definition's prefix — the lowest free number
   (`U1`, `U2`, `SW1`, … filling gaps) — and **every resolved prop** written into the document.
+- **Place menu** (the menu bar's Place, and right click on empty canvas ▸ Place): Power (VCC),
+  Ground (GND), Pull-up, Pull-down, Wire, Net Label (`L`), Find Part…. A part item arms the place
+  tool like a click in the Parts panel, with preset props where it needs them (`PlaceTool.props`:
+  the pull's direction).
+- **Net labels** are placed with their connection point under the pointer (other parts are
+  centered), so a click on a pin tip or a wire end attaches one. Each gets the next name — the
+  last label name placed or set in Properties with its trailing number incremented (`D0` →
+  `D1`), the same name without one, `NET1` first — so clicking down a chip's data pins names
+  them D0…D7. Generic: a part's `nextProps` applied to the props of the last part of its type
+  placed or edited in this session.
 
 ### Moving
 
@@ -365,7 +380,9 @@ focus its designator.
   and typed as `4.7k`, `4.7 kΩ`, `100n`, `1u` or `1µ` (`formatSi`/`parseSi`: exact, `100n` is
   1e-7; the NE555's R and C, the clock frequency), times with units (`10 ns`, `1.5us`, `2 µs`; a
   bare number is nanoseconds; `parseTime` in core), booleans as checkboxes, enums as selects (LED colors with
-  a swatch), strings as text. Each commit is one undo step and writes all resolved props. A prop
+  a swatch), strings as text — checked as typed against a `pattern` (a net label's **Name**:
+  "Use letters, digits, …"), without the spaces at its ends. A schematic-only part (net label)
+  has no **Label** row: its free text would never be drawn. Each commit is one undo step and writes all resolved props. A prop
   that changes the layout (gate inputs, DIP-switch count) moves pins; attached wires are not
   re-routed.
 
@@ -463,6 +480,9 @@ time to move.
   7-segment segments their brightness, with a glow; an unknown light is drawn in the `X` color;
   the clock's wave takes its output's level color; the hex display shows its digit (unknown: a
   dash in the `X` color); the probe its level letter in the level color.
+- **Net labels**, which the simulator doesn't have (schematic-only), get `DrawContext.pinColor`
+  instead: the wire color of the net at their point (the signal map includes label points), so
+  the tag's outline shows its net's level like the wires do.
 - **Brightness** while running is the on-time over the last frame
   (`(onTimeAt(t1) − onTimeAt(t0)) / (t1 − t0)`, from samples the host keeps per indicator), so a
   multiplexed display or an LED on a fast clock shows its average; while paused or stepping, what
@@ -604,6 +624,9 @@ title and a description, in gallery order):
   an LED, with the chip's power pins wired and its unused inputs tied to GND, and a 1 Hz clock
   blinking an LED.
 - **Half Adder** — switches A and B into a 74HC86 (XOR → SUM LED) and a 74HC08 (AND → CARRY LED).
+- **Net Labels** — switches A and B reach a 74HC00's first gate through net labels instead of
+  wires, its output Y reaches an LED the same way; labels named GND, stacked on the chip's
+  pins, tie its unused inputs to the GND symbol by name, and the VCC pin has a VCC symbol.
 - **SR Latch** — two cross-coupled 74HC00 NANDs; SET and RESET push buttons pull their line low
   against a pull-up; Q and /Q LEDs. It starts unknown until set or reset (the missing-reset
   lesson of 4-state logic).

@@ -208,6 +208,35 @@ describe('Simulation: following the document', () => {
     expect(simulation.signals.wires.get(wire.id)).toBe(before!.netIndex('X1.Y'));
   });
 
+  it('keeps the simulator when a net label joins nothing new; colors labels by their net', () => {
+    const { clock, editor, simulation } = setup();
+    simulation.run();
+    simulation.action('SW1', { type: 'toggle' });
+    clock.frame(16);
+    const before = simulation.simulator;
+    const label = (id: string, name: string, at: [number, number]) => ({
+      id,
+      type: 'net/label',
+      x: at[0],
+      y: at[1],
+      rotation: 0 as const,
+      flip: false,
+      props: { name },
+    });
+    // On the end of SW1's wire (U1.A at (10, 1)): it only names the net.
+    editor.edit('Place', addComponents(editor.state.get().circuit, [label('NL1', 'IN', [10, 1])]));
+    expect(simulation.simulator).toBe(before);
+    const point = editor.scene.partById.get('NL1')!.pins[0]!.at;
+    expect(simulation.signalView()!.point(point)).toBe(SignalStyle.L1);
+    // A second IN far away, renamed: still nothing new joined.
+    editor.edit('Place', addComponents(editor.state.get().circuit, [label('NL2', 'IN', [40, 40])]));
+    editor.setPartProp('NL2', 'name', 'OTHER');
+    expect(simulation.simulator).toBe(before);
+    // A label IN on the clock's LED input joins two nets: the netlist changes.
+    editor.edit('Place', addComponents(editor.state.get().circuit, [label('NL3', 'IN', [20, 13])]));
+    expect(simulation.simulator).not.toBe(before);
+  });
+
   it('continues in the recompiled netlist after a structural edit, carrying state', () => {
     const { clock, editor, simulation } = setup();
     simulation.run();

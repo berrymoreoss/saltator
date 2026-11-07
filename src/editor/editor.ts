@@ -22,6 +22,7 @@ import {
   removeItems,
   renameComponent,
   sameCircuit,
+  transformPoint,
   transformRect,
   updateComponent,
 } from '../circuit';
@@ -93,6 +94,8 @@ export type WheelMode = 'pan' | 'zoom';
 export interface PlaceTool {
   readonly kind: 'place';
   readonly type: string;
+  /** Props every placed part gets (a pull-up is `prim/pull` with `direction: 'up'`). */
+  readonly props?: Readonly<Record<string, PropValue>>;
 }
 
 /**
@@ -283,6 +286,8 @@ export class Editor {
   #floating: Floating | undefined;
   /** Orientation of the next part the place tool puts down (R and F change it). */
   #place: { rotation: Rotation; flip: boolean } = { rotation: 0, flip: false };
+  /** Props of the part of each type placed or edited last, for types with `nextProps`. */
+  readonly #lastProps = new Map<string, Readonly<Record<string, PropValue>>>();
   /** A part dragged over the canvas from the Parts panel. */
   #dragType: string | undefined;
   #preview: Preview | undefined;
@@ -460,9 +465,9 @@ export class Editor {
     this.#updateCursor();
   }
 
-  /** Arms the place tool with a part type (the Parts panel). */
-  placePart(type: string): void {
-    this.setTool({ kind: 'place', type });
+  /** Arms the place tool with a part type (the Parts panel), optionally with preset props. */
+  placePart(type: string, props?: Readonly<Record<string, PropValue>>): void {
+    this.setTool(props ? { kind: 'place', type, props } : { kind: 'place', type });
   }
 
   selectAll(): void {
@@ -676,6 +681,7 @@ export class Editor {
     }
     const label = definition.props?.find((p) => p.key === key)?.label ?? key;
     this.edit(`Change ${label}`, updateComponent(circuit, id, { props }));
+    this.#rememberProps(instance.type, props);
     return undefined;
   }
 
@@ -796,17 +802,24 @@ export class Editor {
 
   // ── Placing parts ───────────────────────────────────────────────────────────────────────
 
-  /** A new instance of `type` centered on `at` with the place tool's orientation. */
+  /**
+   * A new instance of `type` centered on `at` with the place tool's orientation — a net label
+   * with its connection point on `at`, so a click on a pin tip or wire end attaches it.
+   */
   #newPart(type: string, at: Point, orientation = this.#place): ComponentInstance | undefined {
     const definition = this.registry.get(type);
     if (!definition) return undefined;
-    const props = resolveProps(definition, {});
-    const local = layoutBounds(partLayout(definition, props));
-    const placed = transformRect(local, { origin: [0, 0], ...orientation });
-    const center: Point = [
-      Math.round(placed.x + placed.width / 2),
-      Math.round(placed.y + placed.height / 2),
-    ];
+    const props = this.#nextProps(type);
+    const layout = partLayout(definition, props);
+    const placement = { origin: [0, 0] as Point, ...orientation };
+    const only = layout.pins.length === 1 ? layout.pins[0] : undefined;
+    let center: Point;
+    if (definition.schematicOnly && only) {
+      center = transformPoint(only.at, placement);
+    } else {
+      const placed = transformRect(layoutBounds(layout), placement);
+      center = [Math.round(placed.x + placed.width / 2), Math.round(placed.y + placed.height / 2)];
+    }
     const circuit = this.state.get().circuit;
     return {
       id: nextDesignator(circuit, prefixOfType(this.registry, type)),
@@ -827,6 +840,30 @@ export class Editor {
     this.edit(`Place ${name}`, addComponents(this.state.get().circuit, [part]), {
       selection: selectionOf([part.id]),
     });
+    this.#rememberProps(type, part.props);
+  }
+
+  /**
+   * Props of a new part: the defaults, or what the part's `nextProps` makes of the last one
+   * placed or edited (the next net label continues `D0` with `D1`).
+   */
+  #nextProps(type: string): Record<string, PropValue> {
+    const definition = this.registry.get(type)!;
+    const tool = this.tool.get();
+    if (typeof tool === 'object' && tool.type === type && tool.props && !this.#dragType) {
+      return resolveProps(definition, tool.props);
+    }
+    const last = this.#lastProps.get(type);
+    if (!last || !definition.nextProps) return resolveProps(definition, {});
+    try {
+      return resolveProps(definition, definition.nextProps(last));
+    } catch {
+      return resolveProps(definition, {});
+    }
+  }
+
+  #rememberProps(type: string, props: Readonly<Record<string, PropValue>>): void {
+    if (this.registry.get(type)?.nextProps) this.#lastProps.set(type, props);
   }
 
   /** The part being dragged from the Parts panel, if any. */

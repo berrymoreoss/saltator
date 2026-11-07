@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "circuits": [
+    {
+      "id": "main",
+      "name": "Main",
+      "components": [
+        { "id": "SW1", "type": "io/switch", "label": "A", "x": 0, "y": 0, "props": { "contact": "spdt", "on": false } },
+        { "id": "SW2", "type": "io/switch", "label": "B", "x": 0, "y": 5, "props": { "contact": "spdt", "on": false } },
+        { "id": "NL1", "type": "net/label", "x": 8, "y": 1, "props": { "name": "A" } },
+        { "id": "NL2", "type": "net/label", "x": 8, "y": 6, "props": { "name": "B" } },
+        { "id": "U1", "type": "74xx/74hc00", "x": 30, "y": 0 },
+        { "id": "NL3", "type": "net/label", "x": 30, "y": 1, "rotation": 180, "props": { "name": "A" } },
+        { "id": "NL4", "type": "net/label", "x": 30, "y": 2, "rotation": 180, "props": { "name": "B" } },
+        { "id": "NL5", "type": "net/label", "x": 30, "y": 3, "rotation": 180, "props": { "name": "Y" } },
+        { "id": "NL6", "type": "net/label", "x": 30, "y": 4, "rotation": 180, "props": { "name": "GND" } },
+        { "id": "NL7", "type": "net/label", "x": 30, "y": 5, "rotation": 180, "props": { "name": "GND" } },
+        { "id": "NL8", "type": "net/label", "x": 30, "y": 7, "rotation": 180, "props": { "name": "GND" } },
+        { "id": "V1", "type": "io/vcc", "x": 37, "y": -1 },
+        { "id": "NL9", "type": "net/label", "x": 36, "y": 2, "props": { "name": "GND" } },
+        { "id": "NL10", "type": "net/label", "x": 36, "y": 3, "props": { "name": "GND" } },
+        { "id": "NL11", "type": "net/label", "x": 36, "y": 5, "props": { "name": "GND" } },
+        { "id": "NL12", "type": "net/label", "x": 36, "y": 6, "props": { "name": "GND" } },
+        { "id": "NL13", "type": "net/label", "x": 52, "y": 1, "rotation": 180, "props": { "name": "Y" } },
+        { "id": "D1", "type": "io/led", "label": "Y", "x": 54, "y": 0, "props": { "color": "green" } },
+        { "id": "G1", "type": "io/gnd", "x": 59, "y": 1 }
+      ],
+      "wires": [
+        { "id": "w1", "from": [4, 1], "to": [8, 1] },
+        { "id": "w2", "from": [4, 6], "to": [8, 6] },
+        { "id": "w3", "from": [36, 1], "to": [38, 1] },
+        { "id": "w4", "from": [52, 1], "to": [54, 1] },
+        { "id": "w5", "from": [58, 1], "to": [60, 1] }
+      ]
+    }
+  ]
+}

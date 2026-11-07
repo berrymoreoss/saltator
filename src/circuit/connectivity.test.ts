@@ -24,6 +24,7 @@ describe('connect', () => {
       wireNet: new Int32Array(0),
       junctions: [],
       danglingEnds: [],
+      openPins: [],
     });
   });
 
@@ -97,6 +98,22 @@ describe('connect', () => {
         [w(0, 0, 10, 0), w(0, 1, 10, 1)],
       ),
     ).toEqual([['p0'], ['p1'], ['w0'], ['w1']]);
+  });
+
+  it('joins pins of the same name wherever they are, without a junction dot', () => {
+    // p0, p1 named A far apart; p2 named B alone; p3 unnamed. w0 runs from p1 to (9, 0).
+    const pins: Point[] = [
+      [0, 0],
+      [5, 0],
+      [20, 20],
+      [30, 30],
+    ];
+    const c = connect(pins, [w(5, 0, 9, 0)], ['A', 'A', 'B', undefined]);
+    expect(Array.from(c.pinNet)).toEqual([0, 0, 1, 2]);
+    expect(Array.from(c.wireNet)).toEqual([0]);
+    expect(c.junctions).toEqual([]);
+    expect(c.danglingEnds).toEqual([{ wire: 0, end: 'to', at: [9, 0] }]);
+    expect(c.openPins).toEqual([0, 2, 3]); // p0 touches nothing; its partner p1 has the wire
   });
 
   it('numbers nets by first appearance, pins first', () => {

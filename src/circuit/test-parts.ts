@@ -132,6 +132,48 @@ export const testLamp = defineComponent<Record<string, never>, undefined>({
   create: () => ({}),
 });
 
+/**
+ * `test/label`: a schematic-only net label; its pin `N` joins the net named by `name` (capital
+ * letters and digits). At (x, y): N (x, y).
+ */
+export const testLabel = defineComponent<{ name: string }, undefined>({
+  type: 'test/label',
+  name: 'LABEL',
+  title: 'Test net label',
+  schematicOnly: true,
+  props: [
+    {
+      key: 'name',
+      label: 'Name',
+      type: 'string',
+      default: 'N',
+      pattern: { regex: /^[A-Z0-9]+$/, hint: 'capital letters and digits' },
+    },
+  ],
+  pins: ({ name }) => [{ name: 'N', dir: 'nc', net: name }],
+  symbol: { kind: 'label', width: 2, height: 1, pins: { N: { side: 'left', offset: 0 } } },
+  create: () => ({}),
+});
+
+/** `test/hi`: a rail joining the net `HI` by name, output `Y` tied to 1. At (x, y): Y (x+5, y+1). */
+export const testHi = defineComponent<Record<string, never>, undefined>({
+  type: 'test/hi',
+  name: 'HI',
+  title: 'Test named rail',
+  pins: [{ name: 'Y', dir: 'out', constant: 1, net: 'HI' }],
+  create: () => ({ init: (ctx) => ctx.drive(0, strong(Level.L1), 0) }),
+});
+
 export function testRegistry(): Registry {
-  return new Registry([testAnd, testHigh, testPull, testBus, testDip, testTie, testLamp]);
+  return new Registry([
+    testAnd,
+    testHigh,
+    testPull,
+    testBus,
+    testDip,
+    testTie,
+    testLamp,
+    testLabel,
+    testHi,
+  ]);
 }

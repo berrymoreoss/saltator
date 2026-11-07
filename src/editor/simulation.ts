@@ -670,6 +670,7 @@ export function signalMap(scene: Scene, sim: Simulator): SignalMap {
       points.set(pointKey(wire.to), index);
     }
     for (const pin of net.pins) points.set(pointKey(pin.at), index);
+    for (const pin of net.schematicPins) points.set(pointKey(pin.at), index);
   }
   return { wires, points };
 }

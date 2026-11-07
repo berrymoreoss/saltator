@@ -209,6 +209,49 @@ describe('placing parts', () => {
     });
   });
 
+  it('places net labels by their point, each named after the last one placed or renamed', () => {
+    const editor = new Editor(registry, connected);
+    editor.placePart('net/label');
+    editor.pointerMove(input([10, 3])); // U1.B
+    expect(editor.displayed.components.at(-1)).toMatchObject({
+      id: 'NL1',
+      x: 10,
+      y: 3,
+      props: { name: 'NET1' },
+    });
+    click(editor, [10, 3]);
+    expect(editor.setPartProp('NL1', 'name', 'D0')).toBeUndefined();
+    editor.pointerMove(input([20, 10]));
+    expect(editor.displayed.components.at(-1)).toMatchObject({ id: 'NL2', props: { name: 'D1' } });
+    click(editor, [20, 10]);
+    click(editor, [20, 11]);
+    const names = editor.state
+      .get()
+      .circuit.components.flatMap((c) =>
+        c.type === 'net/label' ? [`${c.id}=${c.props.name}`] : [],
+      );
+    expect(names).toEqual(['NL1=D0', 'NL2=D1', 'NL3=D2']);
+    expect(
+      compileCircuit(editor.state.get().circuit, registry).nets.find((n) => n.id === 'D0')!.pins,
+    ).toMatchObject([{ component: 'U1', pin: 'B' }]);
+    expect(editor.setPartProp('NL3', 'name', 'A B')).toMatch(
+      /^NL3: prop "name" must be letters, digits, _ \+ - \/ # and ~\{…\} for an overline/,
+    );
+    // A rotated label still puts its point under the pointer.
+    editor.rotate(true);
+    editor.pointerMove(input([30, 30]));
+    expect(editor.displayed.components.at(-1)).toMatchObject({ x: 30, y: 30, rotation: 90 });
+  });
+
+  it('places a part with preset props (Place ▸ Pull-down)', () => {
+    const editor = new Editor(registry, connected);
+    editor.placePart('prim/pull', { direction: 'down' });
+    click(editor, [30, 10]);
+    click(editor, [40, 10]);
+    const pulls = editor.state.get().circuit.components.filter((c) => c.type === 'prim/pull');
+    expect(pulls.map((c) => c.props.direction)).toEqual(['down', 'down']);
+  });
+
   it('drops a part dragged from the panel', () => {
     const editor = new Editor(registry, connected);
     editor.dragPart('io/probe', px([20, 20]));

@@ -133,17 +133,13 @@ export function buildScene(
   const layouts = options.layouts ?? new LayoutCache();
 
   const pinNet = new Map<string, string>();
-  const openPins = new Set<string>();
   for (const net of compiled.nets) {
     for (const pin of net.pins) pinNet.set(`${pin.component}.${pin.pin}`, net.id);
-    if (net.pins.length === 1 && net.wires.length === 0) {
-      const pin = net.pins[0]!;
-      openPins.add(`${pin.component}.${pin.pin}`);
-    }
+    for (const pin of net.schematicPins) pinNet.set(`${pin.component}.${pin.pin}`, net.id);
   }
 
   const parts = circuit.components.map((instance) =>
-    buildPart(instance, registry, layouts, pinNet, openPins),
+    buildPart(instance, registry, layouts, pinNet, compiled.openPins),
   );
   const wires = circuit.wires.map(
     (wire): SceneWire => ({
@@ -276,6 +272,7 @@ function partTexts(
   bounds: Rect,
 ): SceneText[] {
   const symbolKind = drawing.kind === 'symbol' ? drawing.symbol.kind : undefined;
+  if (symbolKind === 'net-label') return []; // the tag shows its name; no designator
   if (definition && symbolKind !== undefined && RAIL_KINDS.has(symbolKind)) {
     const lines: TextLine[] = [{ text: instance.label ?? definition.name, role: 'name' }];
     return placeTextBlock(lines, bounds, textSide([], pins[0]?.side));

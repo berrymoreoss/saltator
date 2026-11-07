@@ -52,6 +52,11 @@ export interface PinDef {
    * short. Strong `out` pins only.
    */
   readonly constant?: 0 | 1;
+  /**
+   * The pin joins the circuit-wide net of this name wherever it sits: every pin with the same
+   * name is on one net, without a wire between them (net labels, the VCC and GND symbols).
+   */
+  readonly net?: string;
 }
 
 /** True for pins whose net level the component may read. */
@@ -93,6 +98,11 @@ export interface PropDef {
   readonly unit?: string;
   /** A `number` entered and shown with SI prefixes: `4.7 kΩ`, `100 nF`, `2 kHz`. */
   readonly si?: boolean;
+  /**
+   * The values a `string` prop allows: `regex` (anchored, without the `g` flag) must match the
+   * whole value; `hint` says in words what it allows and ends the error message (`must be …`).
+   */
+  readonly pattern?: { readonly regex: RegExp; readonly hint: string };
 }
 
 /** Datasheet timing, in picoseconds, keyed by datasheet symbol (`tpd`, `tPLH`, `tsu`, …). */
@@ -188,6 +198,16 @@ export interface ComponentDefinition<
   /** The datasheet function table (one unit's, for multi-gate chips), shown in Part Info. */
   readonly functionTable?: FunctionTable;
   /**
+   * Drawn and connected but never simulated (net labels): the circuit compiler leaves it out of
+   * the netlist, so adding or moving one only changes which pins share a net.
+   */
+  readonly schematicOnly?: boolean;
+  /**
+   * The props the editor gives the next instance placed after one with `props` was placed or
+   * edited (net labels: `D0` → `D1`). Without it, new instances get the defaults.
+   */
+  readonly nextProps?: (props: Props) => Props;
+  /**
    * Geometry of a part drawn as a symbol rather than a package (LEDs, switches, gates), or a
    * function of props for parts like LED bars. Ignored when `package` is set.
    */
@@ -237,9 +257,9 @@ export function pinIndex(pins: readonly PinDef[], name: string): PinRef {
 }
 
 /**
- * Throws if pin names are empty or not unique, a label is blank, or a flag doesn't fit the pin: `weak` on a
- * non-driver, `sense` on anything but `in`, `constant` on anything but a strong `out` (or with a
- * level other than 0/1). `where` prefixes the message.
+ * Throws if pin names are empty or not unique, a label or net name is blank, or a flag doesn't fit
+ * the pin: `weak` on a non-driver, `sense` on anything but `in`, `constant` on anything but a
+ * strong `out` (or with a level other than 0/1). `where` prefixes the message.
  */
 export function validatePins(pins: readonly PinDef[], where: string): void {
   const seen = new Set<string>();
@@ -248,6 +268,9 @@ export function validatePins(pins: readonly PinDef[], where: string): void {
     if (seen.has(pin.name)) throw new Error(`${where}: duplicate pin "${pin.name}"`);
     if (pin.label !== undefined && !/\S/.test(pin.label)) {
       throw new Error(`${where}: pin "${pin.name}" has an empty label`);
+    }
+    if (pin.net !== undefined && !/\S/.test(pin.net)) {
+      throw new Error(`${where}: pin "${pin.name}" has an empty net name`);
     }
     const bad = (what: string) =>
       new Error(`${where}: pin "${pin.name}" is "${pin.dir}" and cannot be ${what}`);
@@ -317,7 +340,11 @@ function propProblem(def: PropDef, value: unknown): string | undefined {
         : `one of ${options.map((o) => JSON.stringify(o)).join(', ')}`;
     }
     case 'color':
-    case 'string':
       return typeof value === 'string' ? undefined : 'a string';
+    case 'string':
+      if (typeof value !== 'string') return 'a string';
+      return def.pattern === undefined || def.pattern.regex.test(value)
+        ? undefined
+        : def.pattern.hint;
   }
 }

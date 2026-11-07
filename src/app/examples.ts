@@ -101,6 +101,13 @@ function galleryRows(dev: boolean): GalleryItem[][] {
       { type: 'io/seven-segment', props: { common: 'anode', color: 'green' }, note: 'CA' },
       { type: 'io/hex-display', props: { color: 'yellow' } },
     ],
+    [
+      { type: 'net/label', props: { name: 'CLK' } },
+      { type: 'net/label', props: { name: '~{CLR}' } },
+      { type: 'net/label', props: { name: '~{CS}1' } },
+      ...ROTATIONS.map((rotation) => ({ type: 'net/label', props: { name: 'D0' }, rotation })),
+      { type: 'net/label', props: { name: 'D0' }, flip: true },
+    ],
     chips74xx.map((chip) => ({ type: chip.type })),
     (['astable', 'monostable', 'bistable'] as const).map((mode) => ({
       type: 'timer/ne555',
@@ -170,7 +177,8 @@ export function symbolGallery(registry: ComponentRegistry, dev = false): Circuit
         rowHeight = 0;
       }
       builder.add(nextId(definition), item.type, {
-        at: [x - placed.x, y - placed.y],
+        // Centered bodies (net labels) reach half a cell past their pins: round onto the grid.
+        at: [Math.ceil(x - placed.x), Math.ceil(y - placed.y)],
         rotation,
         flip,
         ...(item.props && { props: item.props }),

@@ -19,6 +19,7 @@ the alternatives we rejected. Format: [ADR-0001](0001-record-architecture-decisi
 | [0012](0012-files-and-sessions.md)                | Files and sessions: `.logic.json` on disk, the session restored as it was   | accepted |
 | [0013](0013-behavioral-timer.md)                  | Behavioral timer: the 555's RC network as props, its pins not simulated     | accepted |
 | [0014](0014-timing-checks.md)                     | Timing checks: guaranteed minima, a violation makes the loaded bits unknown | accepted |
+| [0015](0015-net-labels.md)                        | Net labels are schematic-only parts; VCC and GND join by name               | accepted |
 
 New ADR: copy [template.md](template.md) to `NNNN-short-title.md` (next free number), fill it in,
 add a row here. Superseding: set the old one's status to `superseded by NNNN`; never delete ADRs.

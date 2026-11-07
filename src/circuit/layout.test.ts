@@ -167,6 +167,21 @@ describe('symbol layout', () => {
     expect(pinMap(gnd)).toEqual({ Y: [1, 0] });
   });
 
+  it('raises a centered body by half a cell, around its pins at offset 0', () => {
+    const layout = partLayout(
+      sym({
+        kind: 'k',
+        width: 3,
+        height: 1,
+        centered: true,
+        pins: { N: { side: 'left', offset: 0 } },
+      }),
+      {},
+    );
+    expect(layout.body).toEqual({ x: 1, y: -0.5, width: 3, height: 1 });
+    expect(pinMap(layout)).toEqual({ N: [0, 0] });
+  });
+
   it('takes precedence over the generic box, but a package wins over it', () => {
     const symbol: SymbolDef = {
       kind: 'k',
