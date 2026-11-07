@@ -65,6 +65,14 @@ describe('74HC148', () => {
     bench.expect({ A2: 1, A1: 1, A0: 1, GS: 'X', EO: 'X' });
   });
 
+  it('reads a floating input or enable as unknown', () => {
+    const bench = new Bench(hc148);
+    bench.set({ ...idle, EI: 0, '3': 'Z' }).settle(); // 3 (A = 100) or nothing (A = 111, EO low)
+    bench.expect({ A2: 1, A1: 'X', A0: 'X', GS: 'X', EO: 'X' });
+    bench.set({ '3': 1, '7': 0, EI: 'Z' }).settle(); // 7 (A = 000), or disabled (all high)
+    bench.expect({ A2: 'X', A1: 'X', A0: 'X', GS: 'X', EO: 1 });
+  });
+
   it('delays each output by its path', () => {
     const bench = new Bench(hc148);
     bench.set({ ...idle, EI: 0 }).settle();

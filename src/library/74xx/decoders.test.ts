@@ -108,6 +108,12 @@ describe('74HC139', () => {
     bench.expect({ '1Y1': 'X', '1Y3': 'X', '1Y0': 1, '1Y2': 1, '2Y0': 0 });
   });
 
+  it('drives X on the addressed output while its enable floats', () => {
+    const bench = new Bench(hc139);
+    bench.set({ '1E': 'Z', '1A0': 0, '1A1': 1, '2E': 1, '2A0': 0, '2A1': 0 }).settle();
+    bench.expect({ '1Y2': 'X', '1Y0': 1, '1Y1': 1, '1Y3': 1, '2Y0': 1 });
+  });
+
   it('switches after tpd(nAn to nYn) and tpd(nE to nYn)', () => {
     const bench = new Bench(hc139);
     bench.set({ '1E': 0, '1A0': 0, '1A1': 0, '2E': 0, '2A0': 0, '2A1': 0 }).settle();

@@ -4,7 +4,7 @@
 | ---------- | --------------------------------------------------------------- |
 | Branch     | `feat/74hc-msi`                                                 |
 | Roadmap    | R08 — 74HC combinational MSI ([roadmap](../../docs/roadmap.md)) |
-| Status     | in-progress                                                     |
+| Status     | done                                                            |
 | Depends on | R06 (74xx specs, families, Part tab), R07 (examples)            |
 | Created    | 2026-11-07                                                      |
 
@@ -210,16 +210,16 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 
 Checkable statements; verified one by one in the finish-branch workflow.
 
-- [ ] `pnpm check`, `pnpm build` and `pnpm e2e` are green.
-- [ ] All 11 chips are in `createDefaultRegistry()` under `74xx/74hc…` with data sheet pin
+- [x] `pnpm check`, `pnpm build` and `pnpm e2e` are green.
+- [x] All 11 chips are in `createDefaultRegistry()` under `74xx/74hc…` with data sheet pin
   numbers, names and descriptions, a function table, a data sheet URL and timing for every
   path with source and conditions.
-- [ ] Every chip has a test with its function table on every unit through pin numbers, unknown
+- [x] Every chip has a test with its function table on every unit through pin numbers, unknown
   and floating inputs, and a timing assertion for each distinct path; 283, 85 and 4511 are
   checked exhaustively.
-- [ ] `timer/ne555` runs astable, monostable and bistable with the data sheet formulas, tested.
-- [ ] The carry-over invariance property passes on random networks including the new chips.
-- [ ] The Q3 examples open from File ▸ New from Example, compile with no design issues and run
+- [x] `timer/ne555` runs astable, monostable and bistable with the data sheet formulas, tested.
+- [x] The carry-over invariance property passes on random networks including the new chips.
+- [x] The Q3 examples open from File ▸ New from Example, compile with no design issues and run
   as intended (tests and by hand in the browser).
 
 ## Open questions
@@ -301,20 +301,22 @@ Checkable statements; verified one by one in the finish-branch workflow.
 - 2026-11-07 — task 11: `tests/e2e/msi.spec.ts` — an NE555 from the Parts panel blinks an LED
   (RB typed `47k` shows `47 kΩ`), the Part tab of the 74HC151 (`(YN)`) and the 555 ("not
   simulated"), the Clock Module example opens clean and runs. `pnpm e2e`: 45 passed.
+- 2026-11-07 — task 12 and finish: docs (components.md, editor.md, circuit.md, glossary,
+  architecture, ADR-0011 amendment, ADR-0013, README, recipe, lessons, roadmap). Acceptance
+  checked one by one; found missing unknown/floating tests for 139, 148, 153, 4511 and added
+  them. `pnpm check` (1170 tests), `pnpm build`, `pnpm e2e` (45) green; both examples looked at
+  running in Chromium.
+- **Summary:** 11 74HC MSI chips (Nexperia; TI for 147/148/283, Philips typical values for
+  147/283) with one delay per data sheet path, exhaustive tests where it matters, the 4511 as
+  the first stateful chip; a behavioral NE555 with its RC network as SI-prefixed props
+  (ADR-0013); pin labels; changeover switch contacts; BCD to 7-Segment and Clock Module
+  examples. Found on the way: TI ex-Harris sheets without typical 4.5 V values, overlines lost
+  by pdftotext, a TI pin table error, crowded DIP-8 names (wider body).
 
 ## Handoff
 
-- **State:** tasks 1–9 done and committed (11 chips, NE555, SI props, pin labels, carry-over
-  property, gallery); task 10 in progress: the changeover switch (Q7) is committed, the two
-  example files are next.
-- **Next step:** build `examples/bcd-7-segment.logic.json` and `examples/clock-module.logic.json`
-  with `CircuitBuilder` in a throwaway test (R07 lesson), checking nets; list them in
-  `src/app/example-files.ts`; tests in `tests/scenarios/example-circuits.test.ts`; look at them
-  in the browser (`node_modules/.bin/vite --port 5199`, Playwright script in the scratchpad).
-  Then task 11 (e2e) and task 12 (docs: components.md MSI rows, delay paths, `timer` family,
-  changeover contact; editor.md SI entry and pin labels; glossary; READMEs; lessons — Biome's
-  `usePlaywrightValidDescribeCallback` fires on any `describe(…)` call, TI's CD74HC147 pin table
-  error, ex-Harris sheets without typical 4.5 V values; backlog: passive parts, potentiometer).
-- **Watch out:** examples must compile with no design issues (pull-ups on open contacts, power
-  pins wired, no dangling wires); a wire along a row of pin tips connects to every pin it passes.
-- **Verify with:** `pnpm check`; `pnpm e2e` before finishing.
+- **State:** done; waiting for the user's approval to merge into `main` (no remote: local
+  `--no-ff` merge).
+- **Follow-ups:** R09 `feat/74hc-sequential` (next; also the 4511's LE setup/hold/pulse-width
+  checks). Backlog: passive parts (R, C, potentiometer drawn, a 555 reading them, a
+  potentiometer in the Interact tool, a frequency hint), CMOS 555s and the 556.

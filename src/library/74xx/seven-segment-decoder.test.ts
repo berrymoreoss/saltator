@@ -78,6 +78,15 @@ describe('74HC4511', () => {
     expect(shown(bench)).toBe('XX1X011'); // 4 = 0110011, 5 = 1011011
   });
 
+  it('reads floating inputs as unknown: a floating LE might let the code through', () => {
+    const bench = new Bench(hc4511);
+    bench.set({ LT: 1, BI: 1, LE: 0, ...code(8) }).settle();
+    bench.set({ LE: 'Z', ...code(0) }).settle(); // 8 or 0 latched: only g differs
+    expect(shown(bench)).toBe('111111X');
+    bench.set({ LE: 0, D: 'Z' }).settle(); // 0 or 8 again
+    expect(shown(bench)).toBe('111111X');
+  });
+
   it('delays the segments by path: D, LE, BI, LT to a-g', () => {
     const bench = new Bench(hc4511);
     bench.set({ LT: 1, BI: 1, LE: 0, ...code(1) }).settle();

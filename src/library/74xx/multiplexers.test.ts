@@ -79,6 +79,17 @@ describe('74HC153', () => {
     bench.expect({ '1Y': 1, '2Y': 1 });
   });
 
+  it('is as precise as the inputs allow with an unknown or floating select or enable', () => {
+    const bench = new Bench(hc153);
+    bench.set({ S0: 'X', S1: 0, '1I0': 1, '1I1': 1, '1E': 0, '2I0': 0, '2I1': 1, '2E': 0 });
+    bench.settle();
+    bench.expect({ '1Y': 1, '2Y': 'X' }); // I0 and I1 agree on mux 1, not on mux 2
+    bench.set({ S0: 0, '2E': 'Z' }).settle(); // floating enable: 2I0 = 0 → low either way
+    bench.expect({ '1Y': 1, '2Y': 0 });
+    bench.set({ '2I0': 1 }).settle();
+    bench.expect({ '2Y': 'X' });
+  });
+
   it('switches after tpd(nIn to nY), tpd(Sn to nY) and tpd(nE to nY)', () => {
     const bench = new Bench(hc153);
     bench.set({ S0: 0, S1: 0, '1I0': 0, '1I1': 1, '1I2': 0, '1I3': 0, '1E': 0 }).settle();
