@@ -79,8 +79,8 @@ interface Compiled {
 }
 
 /**
- * A single-shot trigger: armed on a simulator, it watches the end of every instant in which one
- * of its channels changed, and fires once — at the edge while the other terms hold, or, without
+ * A single-shot trigger (or a repeating one, `repeat`): armed on a simulator, it watches the end
+ * of every instant in which one of its channels changed, and fires once — at the edge while the other terms hold, or, without
  * an edge term, when the pattern becomes true (a pattern already true when armed waits until it
  * has been false). Its channels are read from the recorder, so a carry-over only needs `attach`
  * of the new simulator.
@@ -94,16 +94,29 @@ export class Trigger {
   readonly #edge: Compiled | undefined;
   readonly #channels: readonly number[];
   readonly #onFire: (time: Time) => void;
+  readonly #repeat: boolean;
   #off: (() => void) | undefined;
   #wasTrue = false;
+  /** The instant it last fired: a carry-over at that instant processes it again. */
+  #lastFire = Number.NEGATIVE_INFINITY;
 
-  /** Throws with the problems when the condition can't be armed (`conditionProblems`). */
-  constructor(recorder: Recorder, condition: TriggerCondition, onFire: (time: Time) => void) {
+  /**
+   * Throws with the problems when the condition can't be armed (`conditionProblems`). With
+   * `repeat` it fires at every instant the condition holds anew and stays armed (a breakpoint);
+   * `fired` then stays undefined.
+   */
+  constructor(
+    recorder: Recorder,
+    condition: TriggerCondition,
+    onFire: (time: Time) => void,
+    options: { readonly repeat?: boolean } = {},
+  ) {
     const problems = conditionProblems(condition);
     if (problems.length > 0) throw new Error(problems.join('; '));
     this.condition = condition;
     this.#recorder = recorder;
     this.#onFire = onFire;
+    this.#repeat = options.repeat ?? false;
     const terms = condition.map((term): Compiled => {
       if ('channels' in term) {
         const pattern = parseHexPattern(term.value, term.channels.length) as Int8Array;
@@ -154,7 +167,12 @@ export class Trigger {
       fire = pattern && !this.#wasTrue;
       this.#wasTrue = pattern;
     }
-    if (!fire) return;
+    if (!fire || now === this.#lastFire) return;
+    this.#lastFire = now;
+    if (this.#repeat) {
+      this.#onFire(now);
+      return;
+    }
     this.fired = now;
     this.disarm();
     this.#onFire(now);

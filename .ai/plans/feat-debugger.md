@@ -27,8 +27,7 @@ breakpoints.
 - `core`: a run option that stops **before** the instant at which a net is due to change to a
   level (`stopBefore`: Step Clock's lookahead, Q3); `io/clock` scheduling each edge ahead as a
   pending change, so its next edge is visible; `DiagnosticLog.onOccurrence` (every report,
-  repeats included); per-net change counts (`Simulator.netChanges`); a repeating `Trigger`
-  (`repeat: true`) for breakpoints.
+  repeats included); a repeating `Trigger` (`repeat: true`) for breakpoints.
 - `circuit`: memory-cell references in the resolver (`U5[0x1F]`, `U5[0x10..0x1F]`), a rename
   helper for any reference.
 - `editor`: the host's stepping goals (run at Max until a time or until right before a clock
@@ -157,9 +156,10 @@ In the Simulation tab, beside the diagnostics (it is about the run): since power
 the last run (since the last Run/step): simulated time, wall time spent running, events, delta
 cycles, evaluations, events per second and simulated time per second; the **most active nets**
 (top 10 by changes, with the frequency it makes, `changes / 2 / time`) — a forgotten fast
-clock or a ring that oscillates shows at the top. Per-net counts come from the kernel
-(`netChanges`, a `Float64Array` incremented where a net's level changes; carried over by net
-id — named nets and most others keep theirs).
+clock or a ring that oscillates shows at the top. Activity is measured on request (Measure
+activity: counts from then on, through an `onNetChange` listener, carried over by net id),
+not by the kernel: a counter in the kernel's net update cost ≈ 3 % on gate chains for every
+simulation (task 3).
 
 ### The debug setup (session)
 
@@ -206,8 +206,8 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 2. `library`: `io/clock` schedules its edges ahead (auto and manual mode); a trace test
   (same levels at every instant), the carry-over property green; `stopBefore` sees the edges
   of `io/clock`, the NE555 and a gated clock (scenario).
-- [ ] 3. `core`: `DiagnosticLog.onOccurrence`, `Simulator.netChanges` (carried by net id),
-  `Trigger` with `repeat`; tests; benchmark.
+- [x] 3. `core`: `DiagnosticLog.onOccurrence`, `Trigger` with `repeat`; tests. (A kernel
+  `netChanges` counter was tried and dropped: ≈ 3 % on gate chains.)
 - [ ] 4. `circuit`: memory references in the resolver (cells, ranges, address forms, the bus
   ambiguity) and `renameReference`; tests.
 - [ ] 5. `editor`: host — stepping goals (`runTo`: a time, before a clock edge) at Max across
@@ -250,8 +250,8 @@ Checkable statements; verified one by one in the finish-branch workflow.
 - [ ] Run statistics show the counters and rates; the most active net of Ring Oscillator is
   its ring.
 - [ ] The debug setup survives a reload, New/Open clears it, part renames rewrite it.
-- [ ] Kernel benchmark: no change without debugger features; the cost of `netChanges` and of
-  breakpoints recorded here.
+- [ ] Kernel benchmark: no change without debugger features; the cost of breakpoints and of
+  measuring activity recorded here.
 
 ## Open questions
 
@@ -290,11 +290,19 @@ Checkable statements; verified one by one in the finish-branch workflow.
   (fails on the old code). Scenario `step-clock.test.ts`: an `io/clock` gated by a 74HC08 into
   a 74HC161 stops 1 gate delay ahead of each CLK rise with the count settled (0, 1, 2, 3); an
   astable NE555 is seen ahead (its OUT has `tpd`).
+- 2026-11-07 — task 3: `DiagnosticLog.onOccurrence` (every report, before it is counted);
+  `Trigger` option `repeat` (fires at every instant the condition holds anew, stays armed,
+  `fired` stays undefined). Found while testing: a carry-over at the instant a trigger fired
+  processes that instant again (the new simulator's forced evaluation calls `onInstant`), so a
+  repeating edge trigger fired twice — a trigger now never fires twice at one instant.
+  A kernel `netChanges` counter (one increment in `updateNet`) cost ≈ 3 % on gate chains (two
+  runs each: 74HC04 chain 7.9–8.0M events/s vs 8.24–8.26M without it, 74HC595 chain 5.5–5.7M vs
+  5.9–6.0M): dropped; the debugger measures activity on request instead. Mutation-checked.
 
 ## Handoff
 
-- **State:** in progress; tasks 1–2 done.
-- **Next step:** task 3 (`onOccurrence`, `netChanges`, repeating `Trigger`).
+- **State:** in progress; tasks 1–3 done.
+- **Next step:** task 4 (memory references in the resolver, `renameReference`).
 - **Watch out:** `io/clock` drives at its wake with zero delay — the lookahead can't see it
   until task 2; a breakpoint during a trigger's post-trigger time must win over `pauseAt`.
 - **Verify with:** `pnpm check`, `pnpm bench`.

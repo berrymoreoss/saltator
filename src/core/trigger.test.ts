@@ -108,12 +108,17 @@ function setup() {
     });
   };
   /** Arms a trigger that breaks the run where it fires. */
-  const arm = (condition: TriggerCondition, on = sim) => {
+  const arm = (condition: TriggerCondition, on = sim, repeat = false) => {
     const fired: number[] = [];
-    const trigger = new Trigger(recorder, condition, (time) => {
-      fired.push(time);
-      on.requestBreak();
-    });
+    const trigger = new Trigger(
+      recorder,
+      condition,
+      (time) => {
+        fired.push(time);
+        on.requestBreak();
+      },
+      { repeat },
+    );
     trigger.attach(on);
     return { trigger, fired };
   };
@@ -297,5 +302,36 @@ describe('Trigger', () => {
     expect(disarmed.fired).toEqual([ns(110)]);
     disarmed.trigger.attach(other.sim); // fired: single shot
     expect(disarmed.trigger.armed).toBe(false);
+  });
+
+  it('with repeat, fires at every edge and stays armed, also after a carry-over', () => {
+    const { netlist, sim, recorder, clk, arm } = setup();
+    const { trigger, fired } = arm([{ kind: 'rise', channel: clk }], sim, true);
+    expect(sim.runUntil(ns(100))).toBe('break');
+    expect(sim.runUntil(ns(100))).toBe('break');
+    expect(trigger.armed).toBe(true);
+    expect(trigger.fired).toBeUndefined();
+    const next = new Simulator(netlist, registry, { carry: sim.carryOver() });
+    recorder.attach(next, new Map([[clk, next.netIndex('CLK')]]));
+    trigger.attach(next);
+    while (next.runUntil(ns(100)) === 'break');
+    expect(fired).toEqual([ns(10), ns(30), ns(50), ns(70), ns(90)]);
+  });
+
+  it('with repeat and no edge, fires each time the pattern becomes true', () => {
+    const { sim, bus, setBus, arm } = setup();
+    const { fired } = arm([{ kind: 'equal', channels: bus, value: '5' }], sim, true);
+    const at = (t: number, value: number) => {
+      sim.runUntil(t);
+      setBus(value);
+    };
+    at(ns(5), 5);
+    at(ns(15), 7); // B1 changes: still not 5 after the instant
+    at(ns(25), 5);
+    at(ns(35), 5); // no change: it was true already
+    at(ns(45), 4);
+    at(ns(55), 5);
+    while (sim.runUntil(ns(100)) === 'break');
+    expect(fired).toEqual([ns(5), ns(25), ns(55)]);
   });
 });

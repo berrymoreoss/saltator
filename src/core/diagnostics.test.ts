@@ -46,6 +46,20 @@ describe('DiagnosticLog', () => {
     log.add({ time: 2, kind: 'other', message: 'unseen' });
     expect(seen).toEqual(['first']);
   });
+
+  it('tells occurrence listeners of every report: repeats and dropped ones too', () => {
+    const log = new DiagnosticLog(1);
+    const seen: string[] = [];
+    const off = log.onOccurrence((d) => seen.push(`${d.time}:${d.message}`));
+    log.add({ time: 0, kind: 'k', message: 'first' });
+    log.add({ time: 1, kind: 'k', message: 'repeat' });
+    log.add({ time: 2, kind: 'other', message: 'dropped' });
+    off();
+    off();
+    log.add({ time: 3, kind: 'k', message: 'unseen' });
+    expect(seen).toEqual(['0:first', '1:repeat', '2:dropped']);
+    expect(log.entries[0]?.count).toBe(3); // the listener ran before the entry was counted
+  });
 });
 
 // --- Kernel diagnostics, wired into the simulator ----------------------------------------------

@@ -376,6 +376,8 @@ the net ids.
   merged (`count`, `lastTime`); at most `maxDiagnostics` distinct entries are kept, the rest are
   counted in `dropped`. `subscribe(listener)` is called for each new entry.
   `contention` is reported when a net starts to conflict and again (merged) after it cleared.
+  `onOccurrence(listener)` (R14) is called for every report — repeats of a merged entry and
+  dropped ones included — so a debugger can break on each.
 - **Contention**: `sim.contended` is a `Uint8Array` with 1 for each net on which two strong
   drivers disagree right now (a short on real hardware), so a renderer can tell contention from
   an `X` that is merely unknown.
@@ -454,7 +456,9 @@ trigger.attach(sim); // armed; attach the new simulator after a carry-over
   recorder's levels: a glitch inside one instant (collapsed by the recorder) never fires it.
 - Fires **once** (single shot) and disarms: at the edge while the other terms hold, or —
   without an edge term — when the pattern **becomes** true (one already true when armed waits
-  until it has been false).
+  until it has been false). With `{ repeat: true }` (R14's breakpoints) it fires at every such
+  instant and stays armed. Never twice at one instant: a carry-over at the instant it fired
+  processes that instant again.
 - Values: digits not written are 0, as in a number (`5` on eight bits is `0x05`, `X5` leaves the
   high nibble free); a bit that is `X` or `Z` matches no 0 or 1, so `notEqual` holds while it
   is. `conditionProblems(condition)` and `parseHexPattern(text, width)` give the reasons a
