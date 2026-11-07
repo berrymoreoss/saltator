@@ -163,3 +163,23 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
   running the file, and restoring from a scratchpad copy: in this branch it caught five tests
   that passed for the wrong reason (a clock-ordering test whose stimulus never made an edge,
   a power-on pulse test that never had a short phase, …).
+- 2026-11-07 (R09b) — Biome formats Markdown too, so a docs-only commit can break `pnpm check`
+  (the plan's start commit did). Gate every commit on the exit code —
+  `pnpm check > log 2>&1 && git commit …` — not on a `grep` of its output piped before `&&`
+  (that committed a red tree once).
+- 2026-11-07 (R09b) — Look at the pinning figure before believing a note about it: the backlog
+  said the 175's `Q̅0` was wrongly overlined whole, but its sheet overlines `Q̅0̅` whole; the real
+  gap was that Nexperia overlines letters, not digits (`1R̅D̅`, `E̅1`), on most chips.
+- 2026-11-07 (R09b) — Data sheets state some requirements in prose, not in the timing table
+  (the 191: CE̅ rises only while CP is HIGH, U̅/D changes only while CE̅ or CP is HIGH; the 193:
+  the other clock HIGH while one counts). Check them like timing requirements (ADR-0014: report,
+  `X` where the outcomes differ) and say in the plan which prose rule became which check.
+- 2026-11-07 (R09b) — `console.log` from a vitest test doesn't reach the terminal here; a probe
+  test writes to a file in the scratchpad instead. In `CircuitBuilder`, a flipped part's pins
+  move the other way from `at`: place parts by a pin (`placeBy`: probe the pin's offset in a
+  scratch builder, then add at `target − offset`).
+- 2026-11-07 (R09b) — Search keywords reach the Parts panel: `led` on the 74HC595 made a search
+  for "led" list it (a UI test caught it). Keep keywords to what the part is, not what it drives.
+- 2026-11-07 (R09b) — The carry-over property earns its keep only with a mutation that the unit
+  tests miss: a 4040 counting on the forced evaluation (power-on starts at `X`, so `X + 1 = X`
+  hides it) fails only the property.

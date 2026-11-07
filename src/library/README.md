@@ -8,7 +8,9 @@ clock, probe), `74xx/` (`74xx/*`, R06: 74HC gates and bus buffers — `ChipSpec`
 `LogicFamily` timing, pinouts written like data sheet tables; R08: MSI decoders, multiplexers,
 adder, comparator, encoders, 4511, with per-path delays in `paths.ts`; R09a: flip-flops in
 `flip-flops.ts` and registers in `registers.ts` on the helpers of `edge-triggered.ts`, with the
-core timing checks), `timer/` (`timer/*`,
+core timing checks; R09b: counters in `counters.ts` (161, 163), `up-down-counters.ts` (191, 193)
+and `ripple-counter.ts` (4040), shift registers in `shift-registers.ts` (164, 165, 595)),
+`timer/` (`timer/*`,
 R08: the behavioral NE555) and `registry.ts`
 (`createDefaultRegistry()`); planned: `memory/`, `cpu/`, `peripherals/`. One part per file (or one factory file for a
 family of near-identical parts, like `primitives/gates.ts`), with a colocated `*.test.ts` built

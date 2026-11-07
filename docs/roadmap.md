@@ -182,8 +182,17 @@ Spec: [components.md](components.md#edge-triggered-chips),
 
 ### R09b · 74HC counters & shift registers — `feat/74hc-counters` — `in-progress`
 
-74HC161, 163, 191, 193 (counters), 164, 165, 595 (shift registers), 4040 (ripple counter) on
-R09a's machinery and checks. Example: a 74HC595 driving eight LEDs.
+74HC161, 163 (synchronous counters), 191, 193 (up/down, asynchronous parallel load), 4040
+(12-stage ripple counter: each output one stage delay after the one below, so decoding gates
+see the intermediate counts), 164, 165, 595 (shift registers; the 595's storage register one
+pulse behind when both clocks are tied, as its data sheet says) from the Nexperia data sheets, on
+R09a's timing checks and `X` policy: unknown or late controls merge every mode they allow;
+the data sheets' prose usage rules (191 CE̅ and U̅/D, 193's other clock) checked like timing
+requirements. `TimingChecks.setupHold` got edge-to-edge and hold-only forms. Pin labels are
+overlined as the data sheets draw them — letters, not digits (`1R̅D̅`, `E̅1`), labels can mark
+exceptions (`U̅/D`, `Q̅0̅`). Examples: Shift Register LEDs (a self-running Johnson counter) and
+Ben Eater's Program Counter. Spec: [components.md](components.md#counters-and-shift-registers).
+Plan: `.ai/plans/feat-74hc-counters.md`.
 
 ### R10 · Net labels, tunnels, buses — `feat/nets-and-buses`
 

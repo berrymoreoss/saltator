@@ -11,12 +11,13 @@ queue, net resolution, component runtime API, test bench utilities.
 
 Modules: `time`, `logic` (levels, drives, resolution, 4-state operators), `event-queue`,
 `component` (definition types, `defineComponent`, `resolveProps`), `symbol` (symbol geometry,
-`validateSymbol`), `registry`, `netlist`
+`validateSymbol`; `pinTextRuns`, a pin's text with its overlines as drawn), `registry`, `netlist`
 (`NetlistBuilder`, `resolveNetlist`, `sameNetlistStructure`), `diagnostics`, `simulator`
 (including `carryOver` for editing while running), `function-table` (the datasheet table format,
 sequential letters included), `timing-checks` (`TimingChecks`: set-up, hold, pulse width and
-recovery against `timing.min`, R09a). Test utilities (`Bench`,
-`functionTable`, `truthTable`, `Trace`) live in `testing/` and are imported from
+recovery against `timing.min`, R09a; edge-to-edge and hold-only set-up/hold, R09b). Test
+utilities (`Bench`, `functionTable`, `checkableRows`, `truthTable`, `Trace`) live in `testing/`
+and are imported from
 `src/core/testing`, not from the main index.
 
 Spec: [docs/simulation.md](../../docs/simulation.md).

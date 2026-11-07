@@ -130,7 +130,22 @@ the next clock edge acts; an earlier edge may or may not load.
 
 **Ripple counter** — a counter whose flip-flops clock each other (Q of one is the clock of the
 next): cheap, but its outputs change one after another, passing through wrong values (a
-74HC107 chain going 15 → 0 shows 14, 12, 8 on the way, 19 ns apart).
+74HC107 chain going 15 → 0 shows 14, 12, 8 on the way, 19 ns apart; a 74HC4040 ripples 10 ns
+per stage). Gates decoding its outputs glitch.
+
+**Synchronous counter** — a counter whose flip-flops all take the same clock edge, so its
+outputs change together (74HC161, 163, 191, 193); it can load a value (**parallel load**) and
+count only when enabled. Its **terminal count** output (TC) signals the last state (15 counting
+up, 0 counting down) so the next counter in a cascade counts on.
+
+**Shift register** — flip-flops in a chain on one clock, each taking the one before it: bits go
+in one at a time and come out side by side (74HC164, 595), or go in side by side and come out one
+at a time (74HC165). The 74HC595 adds a **storage register** (output latch): the shifted bits
+appear on its outputs only when its second clock copies them, so the LEDs don't flicker while
+shifting.
+
+**Johnson counter** — a shift register whose inverted last stage feeds its input: it fills with
+ones, then with zeros, 2n states for n stages (the Shift Register LEDs example).
 
 **Rubber-banding** — wires following a part as it is moved, rotated or flipped: they stretch,
 slide a corner or bend, so connections are kept.

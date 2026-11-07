@@ -497,7 +497,8 @@ R09a adds the flip-flops and registers, from the Nexperia data sheets (typical d
   their edge, D/JK/JK̅ next state and asynchronous inputs) and `registers.ts` (`RegisterSpec`:
   a common clock with an optional MR of either polarity, data enables, complement outputs and
   3-state outputs). Helpers in `edge-triggered.ts` (strict/uncertain edges, merging outcomes,
-  `jkNext`) serve R09b's counters and shift registers too.
+  `jkNext`; R09b: `countInto`, `allAt`, `mergeInto`) serve the counters and shift registers
+  too.
 - **Power-on**: every stored bit is `X` until a set/reset or a clean load (like the 4511 and the
   555: "your register has no reset").
 - **Uncertain edges** (`0 → X`, `X → 1`, `Z` on the clock) make `X` only the bits a load would

@@ -227,7 +227,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   generator checking every net, run by scenario tests, looked at in the browser in both themes.
 - [x] 11. e2e: the examples open with no design issues and run with no diagnostics; a counter's
   Part tab.
-- [ ] 12. Docs: components.md (counters and shift registers table and rules), simulation.md (if
+- [x] 12. Docs: components.md (counters and shift registers table and rules), simulation.md (if
   `TimingChecks` grew), glossary (synchronous counter, terminal count, shift register, storage
   register…), `src/library/README.md`, lessons, roadmap text.
 
@@ -376,12 +376,20 @@ Checkable statements; verified one by one in the finish-branch workflow.
 - 2026-11-07 — task 11: `tests/e2e/counters.spec.ts` — both examples open with no design
   issues and run with no diagnostics; the 74HC191's Part tab overlines only the U of `U̅/D` and
   shows `tsu(U̅/D to CP)` min 41 ns. `pnpm e2e`: 51 passed.
+- 2026-11-07 — task 12: components.md (Counters and shift registers section, built up task by
+  task; overlines), simulation.md (`setupHold` variants), editor.md (overlines; the example list,
+  which had missed R09a's SAP-1 A Register too), glossary (synchronous counter, parallel load,
+  terminal count, shift register, storage register, Johnson counter; ripple counter extended),
+  core and library READMEs, add-component recipe (text cells, `checkableRows`, prose usage
+  rules, pin names as drawn), six lessons, roadmap text and backlog (the overline item done). No
+  new ADR: the prose usage rules apply ADR-0014; the overline rule is a drawing convention
+  (components.md, editor.md). The roadmap status flip is left to finish-branch.
 
 ## Handoff
 
-- **State:** tasks 1–11 done (timing data; `setupHold` variants; all eight chips in the
-  registry; overlines as the data sheets draw them).
-- **Next step:** task 12 (docs: glossary, READMEs, add-component recipe, lessons, roadmap
-  text), then finish-branch.
-- **Watch out:** pinouts and names in the Parts table are from memory.
-- **Verify with:** `pnpm check`.
+- **State:** all 12 tasks done; acceptance criteria not walked yet.
+- **Next step:** finish-branch workflow: walk the acceptance criteria one by one, `pnpm check`,
+  `pnpm build`, `pnpm e2e`, roadmap R09b → done and R10 → next, then ask to merge.
+- **Watch out:** the acceptance walk in R09a found test gaps; look for them here too (every
+  chip's floating inputs and uncertain edges, every path).
+- **Verify with:** `pnpm check`, `pnpm build`, `pnpm e2e`.
