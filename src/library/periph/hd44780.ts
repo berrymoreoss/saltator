@@ -134,13 +134,22 @@ const PIN_PLACES: Readonly<Record<string, SymbolPin>> = Object.fromEntries(
   PINS.map((pin) => [pin.name, { side: 'bottom', offset: pin.number! } as const]),
 );
 
-/** The module's body: wide enough for the 16 pins and the glass, tall enough for its lines. */
+/** Body height of the 1- and 2-line modules; taller ones grow upwards from it. */
+const LCD_BASE_HEIGHT = 6;
+
+/**
+ * The module's body: wide enough for the 16 pins and the glass, tall enough for its lines. A
+ * 4-line module is raised by what it grows, so the pins along the bottom stay put for every size
+ * (a size change in Properties keeps the wires on them).
+ */
 export function hd44780Symbol(size: Hd44780Size): SymbolDef {
   const { columns, lines } = hd44780Glass(size);
+  const height = Math.max(LCD_BASE_HEIGHT, Math.ceil(lines * LCD_LINE_PITCH + 2.6));
   return {
     kind: 'lcd',
     width: Math.max(18, Math.ceil(columns * LCD_CHAR_PITCH + 2.5)),
-    height: Math.ceil(lines * LCD_LINE_PITCH + 2.6),
+    height,
+    raise: height - LCD_BASE_HEIGHT,
     pins: PIN_PLACES,
   };
 }

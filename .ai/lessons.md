@@ -333,3 +333,7 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
   over a part's area, counting pixels by luminance rather than exact color (fitted to the
   window a dot is about a pixel and anti-aliasing blends it). And two UI actions in one frame
   are one simulated instant: wait between them as a hand would.
+- 2026-11-08 (LCD) — "The pins don't move when the size changes" was tested as "every pin keeps
+  its side and offset" — true, and the bottom pins still moved down with a taller body. Test a
+  geometric promise in absolute points (`partLayout(...).pins`), and walk the acceptance
+  criteria in the app: the browser test of the Properties change found it.

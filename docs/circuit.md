@@ -154,7 +154,9 @@ y=8   └─────────┘
 `symbol.width` × `symbol.height`, with a one-cell margin for the stubs on each side that has pins;
 each pin at its side and offset ([components.md](components.md#symbols-non-package-parts)). A
 2-input `prim/nand` at (0, 0) — body 4 × 4, inputs on rows 1 and 3, output on row 2: `A` (0, 1),
-`B` (0, 3), `Y` (6, 2). An `io/led`: `A` (0, 1), `K` (4, 1).
+`B` (0, 3), `Y` (6, 2). An `io/led`: `A` (0, 1), `K` (4, 1). A raised symbol (`raise`) has
+its body and pins that many cells higher, above the origin: an LCD module's pins are at y = 7
+for every size, a 20 × 4's body spans y = −3 … 6.
 
 **Generic box** (neither package nor symbol; a fallback, no built-in part uses it): `in` pins
 down the left side, `out`/`tristate`/`bidir` down the right, `power`/`nc` along the bottom; the

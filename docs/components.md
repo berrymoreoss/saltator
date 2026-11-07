@@ -351,6 +351,7 @@ interface SymbolDef {
   height: number;
   pins: Record<string, { side: PinSide; offset: number }>; // every pin, power and nc too
   centered?: boolean; // the body sits half a cell higher (net labels): left/right pins only
+  raise?: number; // the body and pins sit this many whole cells higher (a part that grows up)
 }
 type PinSide = 'left' | 'top' | 'right' | 'bottom';
 ```
@@ -362,6 +363,9 @@ type PinSide = 'left' | 'top' | 'right' | 'bottom';
   the row of its pins at offset 0, and such parts stack on adjacent pins at a one-cell pitch
   (net labels on a chip's data pins). Its bounding box then reaches half a cell above the
   origin.
+- A symbol that grows taller with a prop sets `raise` to what it grew: its body and pins move
+  up by that many cells, so the pins on its bottom side stay on the same points and the wires
+  on them stay connected when the prop changes (an LCD module's 4-line sizes rise by 3).
 - `partLayout` in `src/circuit` turns the symbol into connection points
   ([circuit.md](circuit.md#part-layouts)). A `package` wins over a `symbol` (chips are drawn as
   packages, ADR-0004); parts with neither get the generic box (none of the built-in parts).

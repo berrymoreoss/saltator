@@ -76,13 +76,14 @@ export function partLayout(
 /**
  * A symbol's body with a one-cell margin for the pin stubs on each side that has pins; the
  * origin stays at the top-left of the bounding box, as for the other layouts — except for a
- * `centered` symbol, whose body reaches half a cell above it.
+ * `centered` symbol, whose body reaches half a cell above it, and a raised one (`raise`), whose
+ * body and pins sit that many cells higher.
  */
 function symbolLayout(type: string, symbol: SymbolDef, pins: readonly PinDef[]): PartLayout {
   validateSymbol(symbol, pins, type);
   const used = new Set(pins.map((pin) => symbol.pins[pin.name]!.side));
   const left = used.has('left') ? 1 : 0;
-  const top = used.has('top') ? 1 : 0;
+  const top = (used.has('top') ? 1 : 0) - (symbol.raise ?? 0);
   const { width, height } = symbol;
   const tip = (side: Side, offset: number): Point => {
     switch (side) {
@@ -91,7 +92,7 @@ function symbolLayout(type: string, symbol: SymbolDef, pins: readonly PinDef[]):
       case 'right':
         return [left + width + 1, top + offset];
       case 'top':
-        return [left + offset, 0];
+        return [left + offset, top - 1];
       case 'bottom':
         return [left + offset, top + height + 1];
     }

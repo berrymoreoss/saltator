@@ -412,6 +412,12 @@ mode), 15 `LED+` (anode, +5 V via an on-board resistor), 16 `LED−` (cathode); 
   architecture.md, glossary (address counter, busy flag, CGROM/CGRAM, DDRAM, HD44780, nibble),
   READMEs (core, library, editor), roadmap (R18 without the LCD, "Off the roadmap" section,
   LCD follow-ups in the backlog), add-component.md (parts with a controller), lessons.
+- 2026-11-08 — finishing: walking the acceptance criteria, "changing `size` redraws the module
+  without moving its pins" had only a unit test of the pins' sides and offsets. A browser test
+  (change Size and Backlight in Properties) found the bottom pins moving down with a 4-line
+  body: the DATA wires dangled. Fix: `SymbolDef.raise` (core, layout in `circuit`) — a body that
+  grows upwards; the LCD raises by `height − 6` (1-line modules got the 2-line height 6), and
+  `part-layouts.test.ts` checks the absolute pin points of every size.
 
 ## Handoff
 

@@ -35,6 +35,12 @@ export interface SymbolDef {
    * labels on a chip's data pins). Pins on the left and right sides only.
    */
   readonly centered?: boolean;
+  /**
+   * The body sits this many whole cells above the part's origin. A symbol that grows taller
+   * with a prop raises its body by the growth, so the pins on its bottom side stay where they
+   * are and wires still meet them (an LCD module's 4-line sizes). Default 0.
+   */
+  readonly raise?: number;
 }
 
 /** Combining overline (U+0305), written after each character a label overlines: `U̅/D`. */
@@ -124,6 +130,10 @@ export function validateSymbol(symbol: SymbolDef, pins: readonly PinDef[], where
     if (!Number.isInteger(size) || size < 1) {
       throw new Error(`${where}: symbol ${name} must be a positive integer, got ${size}`);
     }
+  }
+  const raise = symbol.raise ?? 0;
+  if (!Number.isInteger(raise) || raise < 0) {
+    throw new Error(`${where}: symbol raise must be a whole number of cells ≥ 0, got ${raise}`);
   }
   const names = new Set(pins.map((p) => p.name));
   for (const name of Object.keys(symbol.pins)) {

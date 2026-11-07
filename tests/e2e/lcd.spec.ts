@@ -2,7 +2,7 @@ import { expect, type Page, test } from '@playwright/test';
 import lcdByHand from '../../examples/lcd-by-hand.logic.json' with { type: 'json' };
 import lcdHelloWorld from '../../examples/lcd-hello-world.logic.json' with { type: 'json' };
 import type { Point } from '../../src/circuit';
-import { canvas, clickAt, openExample, watchErrors } from './support';
+import { canvas, clickAt, openExample, properties, summary, watchErrors } from './support';
 
 // The HD44780 module in the browser: LCD Hello, World prints after RESET, LCD by Hand shows its
 // cursor once the display is turned on from the switches. The glass is canvas pixels: the test
@@ -86,5 +86,39 @@ test('LCD by Hand: function set, then display on: the cursor shows', async ({ pa
 
   await page.getByRole('tab', { name: /Simulation/ }).click();
   await expect(page.getByTestId('sim-diagnostics')).toContainText('No problems while running');
+  expect(errors).toEqual([]);
+});
+
+test('LCD: a new size and backlight in Properties redraw it, its wires still on the pins', async ({
+  page,
+}) => {
+  const errors = watchErrors(page);
+  const at = await openExample(page, 'lcd-by-hand', 'LCD by Hand', lcdByHand);
+  await clickAt(page, at.center('DS1'));
+  await expect(summary(page)).toHaveText('DS1 · HD44780');
+  await properties(page).getByLabel('Size').selectOption('20x4');
+  await properties(page).getByLabel('Backlight').selectOption('blue');
+  // The pins stay where they were: the DATA wires and the labels still meet them.
+  await expect(page.getByTestId('bottom-panel')).toContainText('No problems found');
+  // The glass (unlit while stopped) is blue now.
+  const vdd = at.pin('DS1', 'VDD');
+  const cell = (at.pin('DS1', 'DB7')[0] - vdd[0]) / 12;
+  const box = (await canvas(page).boundingBox())!;
+  const blue = await canvas(page).evaluate(
+    (element, r) => {
+      const c = element as HTMLCanvasElement;
+      const scale = c.width / c.getBoundingClientRect().width;
+      const data = c
+        .getContext('2d')!
+        .getImageData(r.x * scale, r.y * scale, r.width * scale, r.height * scale).data;
+      let n = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i + 2]! - data[i]! > 40 && data[i + 2]! - data[i + 1]! > 25) n++;
+      }
+      return n / (data.length / 4);
+    },
+    { x: vdd[0] + cell - box.x, y: vdd[1] - 6 * cell - box.y, width: 10 * cell, height: 3 * cell },
+  );
+  expect(blue).toBeGreaterThan(0.5);
   expect(errors).toEqual([]);
 });
