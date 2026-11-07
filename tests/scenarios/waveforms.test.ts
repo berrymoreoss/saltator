@@ -4,7 +4,10 @@
  * (Nexperia 74HC161, 4.5 V).
  */
 import { describe, expect, it } from 'vitest';
+import { exampleDocument } from '../../src/app/example-files';
 import { ns, Recorder, type Simulator, Trigger, writeVcd } from '../../src/core';
+import { buildScene, probeSpotAt } from '../../src/editor';
+import { createDefaultRegistry } from '../../src/library';
 import { set, simulate } from './support';
 
 function counter(): { sim: Simulator; recorder: Recorder; clk: number; q: number[] } {
@@ -82,5 +85,25 @@ describe('waveforms of a 74HC161', () => {
     expect(status).toBe('break');
     expect(trigger.fired).toBe(ns(600 + 22));
     expect(sim.now).toBe(ns(600 + 22));
+  });
+});
+
+describe('probing the Data Bus example from the canvas', () => {
+  it('probes a bus line by its bus, a bus entry by its member', () => {
+    const registry = createDefaultRegistry();
+    const scene = buildScene(exampleDocument('data-bus').circuits[0]!, registry);
+    const line = scene.wires.find((w) => w.bus)!;
+    const middle: [number, number] = [
+      (line.from[0] + line.to[0]) / 2,
+      (line.from[1] + line.to[1]) / 2,
+    ];
+    const spot = probeSpotAt(scene, registry, middle, 0.5);
+    expect(spot).toMatchObject({ ref: 'D[0..7]' });
+    expect(typeof spot === 'object' && spot.wires.length).toBe(
+      scene.wires.filter((w) => w.bus).length,
+    );
+    const entry = scene.parts.find((p) => p.id === 'BE4')!;
+    const bit = entry.pins.find((p) => !p.bus)!;
+    expect(probeSpotAt(scene, registry, bit.at, 0.5)).toMatchObject({ ref: 'D3' });
   });
 });

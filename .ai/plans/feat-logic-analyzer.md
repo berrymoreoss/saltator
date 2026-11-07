@@ -260,7 +260,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   canvas with mouse and keys, cursor readout, Add signal with completion, Trigger dialog,
   settings; canvas context menu entries; unit tests for the pure pieces; looked at in both
   themes.
-- [ ] 8b. `editor` + `ui`: the Probe tool (`P`): hover highlight, click to add or remove, pan,
+- [x] 8b. `editor` + `ui`: the Probe tool (`P`): hover highlight, click to add or remove, pan,
   Escape; headless gesture tests; command, toolbar button, shortcuts dialog.
 - [ ] 9. `ui`: Export VCD… (whole capture or between the cursors); test of the file model.
 - [ ] 10. e2e: Clock Module — the clock probed with the Probe tool, run, the period measured with
@@ -374,11 +374,19 @@ Checkable statements; verified one by one in the finish-branch workflow.
   browser: Clock Module (555 outputs; an `X` output as a red band) dark, Data Bus light with
   DIP toggles (bus hexagons `0x2A`→`0x2B`…, cursors, `Δ 944.75 ms · 1.058 Hz`). The context
   menu entries moved to 8b with the Probe tool (same hit rules).
+- 2026-11-07 — task 8b: `editor/probe-target.ts` (`probeSpotAt`: pins by reference, wires and
+  net labels by net name or driving pin, bus lines/labels/entries by bus or member; reasons for
+  unnamed buses and wires on no pin); the Probe tool (`P`, toolbar, View menu, status hint):
+  hover highlight of the net's wires and the pin (`RenderOptions.probe`), click toggles,
+  drag pans, bodies ignored, stays armed on Run, Escape to Interact/Select; the item context
+  menu's Add/Remove `ref` to Waveforms (`Editor.contextProbe`, `toggleProbe`); the editor's
+  `probed` request shows the Waveforms tab and its problem. Mutation-checked (8 mutations); a
+  scenario probes Data Bus's bus line and an entry.
 
 ## Handoff
 
-- **State:** tasks 1–8 done (core, circuit, the `Analyzer` model, the renderer, the Waveforms tab).
-- **Next step:** task 8b (Probe tool `P` and the canvas context menu's Add to Waveforms).
+- **State:** tasks 1–8b done (core, circuit, analyzer model, renderer, Waveforms tab, Probe tool).
+- **Next step:** task 9 (Export VCD… in the tab: whole record or between the cursors).
 - **Watch out:** nets have no identity across compiles — channels are references, re-resolved
   on every carry-over; the kernel's listener reports levels only. Docs already link
   `adr/0019-waveforms.md` (write it in task 11). Max-speed tests need `clock.cost > 0`.

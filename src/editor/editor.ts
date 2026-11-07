@@ -60,6 +60,7 @@ import {
   rotateSelection,
   selectionBounds,
 } from './operations';
+import { type ProbeSpot, probeSpotAt } from './probe-target';
 import { renderScene } from './renderer';
 import { buildScene, LayoutCache, layoutBounds, type Scene } from './scene';
 import {
@@ -104,7 +105,7 @@ export interface PlaceTool {
  * What a left-button press does: select/move, pan the view, draw a wire, place a part, or
  * operate parts of the running simulation (switches, buttons).
  */
-export type Tool = 'select' | 'pan' | 'wire' | 'bus' | 'interact' | PlaceTool;
+export type Tool = 'select' | 'pan' | 'wire' | 'bus' | 'interact' | 'probe' | PlaceTool;
 
 /** What is going on right now (for the status-bar hint). */
 export type EditorMode = 'idle' | 'moving' | 'boxing' | 'panning' | 'wiring' | 'floating';
@@ -118,7 +119,14 @@ export type EditorRequest =
       readonly hit?: Hit;
       readonly seq: number;
     }
-  | { readonly kind: 'edit-properties'; readonly seq: number };
+  | { readonly kind: 'edit-properties'; readonly seq: number }
+  /** A probe was added or removed from the canvas (show the Waveforms tab), or why not. */
+  | {
+      readonly kind: 'probed';
+      readonly ref: string;
+      readonly problem?: string;
+      readonly seq: number;
+    };
 
 export interface EditorSettings {
   readonly theme: CanvasTheme;
@@ -259,7 +267,8 @@ interface Floating {
 /** An `EditorRequest` before it gets its sequence number. */
 type RequestInput =
   | { readonly kind: 'context-menu'; readonly client: Point; readonly hit?: Hit }
-  | { readonly kind: 'edit-properties' };
+  | { readonly kind: 'edit-properties' }
+  | { readonly kind: 'probed'; readonly ref: string; readonly problem?: string };
 
 interface Preview {
   readonly circuit: Circuit;
@@ -294,6 +303,10 @@ export class Editor {
   #settings: EditorSettings;
   readonly #layouts = new LayoutCache();
   #hover: Hit | undefined;
+  /** The Probe tool's spot under the pointer. */
+  #probeHover: ProbeSpot | undefined;
+  /** What a right click pointed at, for the context menu's Add to Waveforms. */
+  #contextProbe: ProbeSpot | undefined;
   #box: { rect: Rect; mode: BoxMode } | undefined;
   #gesture: Gesture | undefined;
   #wire: WireDraft | undefined;
@@ -340,8 +353,9 @@ export class Editor {
       const active = this.simulation.state !== 'stopped';
       if (active === running) return;
       running = active;
-      if (active) this.setTool('interact');
-      else if (this.tool.get() === 'interact') this.setTool('select');
+      // The Probe tool stays: probing while running is what it is for.
+      if (active && this.tool.get() !== 'probe') this.setTool('interact');
+      else if (!active && this.tool.get() === 'interact') this.setTool('select');
     });
     this.view = new Store<ViewState>({
       camera: DEFAULT_CAMERA,
@@ -477,6 +491,10 @@ export class Editor {
     this.#wire = undefined;
     this.#floating = undefined;
     if (typeof tool === 'object') this.#place = { rotation: 0, flip: false };
+    if (this.#probeHover) {
+      this.#probeHover = undefined;
+      this.invalidate();
+    }
     this.tool.set(tool);
     this.#setMode('idle');
     this.#updatePreview();
@@ -503,6 +521,10 @@ export class Editor {
   escape(): void {
     if (this.cancel()) return;
     const tool = this.tool.get();
+    if (tool === 'probe') {
+      this.setTool(this.simulation.active ? 'interact' : 'select');
+      return;
+    }
     if (tool !== 'select' && tool !== 'pan') {
       this.setTool('select');
       return;
@@ -561,9 +583,9 @@ export class Editor {
   }
 
   /** Interact tool: operate the part under the pointer, else start a click-or-pan. */
-  #interactDown(at: Point): void {
+  #interactDown(at: Point, probing = false): void {
     const hit = this.#hitAt(at);
-    if (hit?.kind === 'part') {
+    if (hit?.kind === 'part' && !probing) {
       const poke = this.#pokeAt(hit.id, this.#world(at));
       if (poke && this.simulation.action(hit.id, poke.press)) {
         if (poke.release !== undefined) {
@@ -1290,6 +1312,7 @@ export class Editor {
         showGrid,
         selection,
         ...(this.#hover && !preview && { hover: this.#hover }),
+        ...(this.#probeHover && { probe: this.#probeHover }),
         ...(this.#box && { box: this.#box }),
         ...(signals && { signals }),
         ...(preview && {
@@ -1311,6 +1334,39 @@ export class Editor {
 
   #world(screen: Point): Point {
     return toWorld(this.view.get().camera, screen);
+  }
+
+  #spotAt(screen: Point): ProbeSpot | string | undefined {
+    const { camera } = this.view.get();
+    return probeSpotAt(
+      this.scene,
+      this.registry,
+      toWorld(camera, screen),
+      HIT_TOLERANCE / camera.scale,
+    );
+  }
+
+  /** The Probe tool's click: adds what is under the pointer to the waveforms, or removes it. */
+  #probeAt(screen: Point): void {
+    const spot = this.#spotAt(screen);
+    if (spot === undefined) return;
+    if (typeof spot === 'string') {
+      this.#request({ kind: 'probed', ref: '', problem: spot });
+      return;
+    }
+    this.toggleProbe(spot.ref);
+  }
+
+  /** What the last right click pointed at that can be probed (the context menu's entry). */
+  get contextProbe(): ProbeSpot | undefined {
+    return this.#contextProbe;
+  }
+
+  /** Adds `ref` to the waveforms, or removes it when probed; asks the UI to show the tab. */
+  toggleProbe(ref: string): void {
+    const result = this.analyzer.toggleProbe(ref);
+    const problem = result === 'added' || result === 'removed' ? undefined : result;
+    this.#request({ kind: 'probed', ref, ...(problem !== undefined && { problem }) });
   }
 
   #hitAt(screen: Point): Hit | undefined {
@@ -1368,8 +1424,8 @@ export class Editor {
       this.#dropFloating();
       return;
     }
-    if (tool === 'interact') {
-      this.#interactDown(at);
+    if (tool === 'interact' || tool === 'probe') {
+      this.#interactDown(at, tool === 'probe');
       return;
     }
     if (typeof tool === 'object') {
@@ -1488,6 +1544,16 @@ export class Editor {
       return;
     }
     if (current) return;
+    if (this.tool.get() === 'probe') {
+      const spot = this.#spotAt(at);
+      const next = typeof spot === 'object' ? spot : undefined;
+      if (next?.ref !== this.#probeHover?.ref || next?.pin !== this.#probeHover?.pin) {
+        this.#probeHover = next;
+        this.invalidate();
+      }
+      this.#updateCursor(at);
+      return;
+    }
     const hover = this.#hitAt(at);
     if (hover?.kind !== this.#hover?.kind || hover?.id !== this.#hover?.id) {
       this.#hover = hover;
@@ -1504,8 +1570,13 @@ export class Editor {
     }
     this.#gesture = undefined;
     if (gesture?.kind === 'interact-press') {
-      if (!gesture.panning)
+      if (gesture.panning) {
+        // a pan
+      } else if (this.tool.get() === 'probe') {
+        this.#probeAt(input.at);
+      } else {
         this.setSelection(gesture.hit ? selectHit(gesture.hit) : EMPTY_SELECTION);
+      }
     } else if (gesture?.kind === 'box') {
       if (!gesture.active && !gesture.additive) this.clearSelection();
       this.#box = undefined;
@@ -1547,6 +1618,7 @@ export class Editor {
   pointerLeave(): void {
     if (this.#gesture) return;
     this.view.update(({ cursor: _, ...view }) => view);
+    this.#probeHover = undefined;
     this.#hover = undefined;
     this.#updatePreview();
   }
@@ -1564,6 +1636,8 @@ export class Editor {
     const hit = this.#hitAt(input.at);
     const { selection } = this.state.get();
     if (hit && !isSelected(selection, hit)) this.setSelection(selectHit(hit));
+    const spot = this.#spotAt(input.at);
+    this.#contextProbe = typeof spot === 'object' ? spot : undefined;
     this.#request({
       kind: 'context-menu',
       client: input.client ?? input.at,
@@ -1627,7 +1701,9 @@ export class Editor {
     else if (this.#space || tool === 'pan') cursor = 'grab';
     else if (gesture?.kind === 'move' || this.#floating) cursor = 'move';
     else if (gesture?.kind === 'interact-press' && gesture.panning) cursor = 'grabbing';
-    else if (tool === 'interact') {
+    else if (tool === 'probe') {
+      cursor = at && typeof this.#spotAt(at) === 'object' ? 'crosshair' : 'default';
+    } else if (tool === 'interact') {
       const hit = at && this.simulation.active ? this.#hitAt(at) : undefined;
       cursor =
         hit?.kind === 'part' && this.#pokeAt(hit.id, this.#world(at!)) ? 'pointer' : 'default';

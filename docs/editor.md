@@ -124,7 +124,7 @@ the shortcuts dialog all read the same `CommandRegistry`, which rejects duplicat
 | Step                | `F10`                      | Stop                       | `Shift+F5`                |
 | Reset               | `Mod+Shift+F5`             | New Circuit                | `Mod+Alt+N`               |
 | Open…               | `Mod+O`                    | Save (As…)                 | `Mod+S` (`Mod+Shift+S`)   |
-| Net Label           | `L`                        |                            |                           |
+| Net Label           | `L`                        | Probe tool                 | `P`                       |
 
 Commands marked `global` run while typing in a text field and keep their key from the browser
 even while disabled: F5 never reloads the page, `Mod+S` and `Mod+O` never show the browser's own
@@ -617,6 +617,22 @@ elsewhere); the formats are `core` ([components.md](components.md#image-files)).
 R13 ([ADR-0019](adr/0019-waveforms.md)): the circuit's **probes** — nets, pins, buses and
 groups, saved in the document ([circuit.md](circuit.md#document)) — recorded over simulated time
 and shown as a timing diagram, as a logic analyzer does.
+
+### Probing from the canvas
+
+- The **Probe tool** (`P`; View menu, toolbar): hovering highlights what a click would probe —
+  the net's wires (or the bus's lines) and the pin tip pointed at; a click adds it to the
+  waveforms, or removes it when it is probed, without touching the selection, and shows the
+  Waveforms tab; a drag pans; clicks on parts' bodies do nothing (a switch isn't flipped).
+  It stays armed when the simulation starts (probing while running is what it is for);
+  Escape goes back to Interact while simulating, else to Select.
+- The item **context menu** has **Add `ref` to Waveforms** (or Remove) for what the right click
+  pointed at.
+- What a point probes (`probeSpotAt`, `src/editor/probe-target.ts`): a pin of a simulated part
+  by its reference (`U1.A`; a pin wins over a wire ending on it), a wire or a net label by its
+  net (its name, else a driving pin on it: `Resolver.netReference`), a bus line, a bus label or
+  a bus entry's bus end by the bus's name (`D[0..7]`), a bus entry's bit end by its member
+  (`D3`). An unnamed bus or a wire on no pin can't be probed, and the tab says why.
 
 ### Waveforms tab
 

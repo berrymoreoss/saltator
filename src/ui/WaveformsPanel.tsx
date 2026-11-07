@@ -59,6 +59,11 @@ export function WaveformsPanel({ editor, theme, actions }: WaveformsPanelProps) 
   const [notice, setNotice] = useState<string>();
   const [triggerOpen, setTriggerOpen] = useState(false);
   const [scroll, setScroll] = useState(0);
+  // A probe the canvas refused says why here.
+  const request = useStore(editor.requests);
+  useEffect(() => {
+    if (request?.kind === 'probed') setNotice(request.problem);
+  }, [request]);
   const rows = waveRows(channels, expanded);
   const readout = cursorReadout(view);
   const valueTime = view.cursorA ?? analyzer.end;

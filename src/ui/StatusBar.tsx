@@ -77,6 +77,8 @@ export function statusHint(
       return simulating
         ? 'Click switches and DIP switches · Hold buttons · Click a manual clock to step · Drag to pan · V to edit'
         : 'Run (F5) to operate switches and buttons · Drag to pan · V to select';
+    case 'probe':
+      return 'Click a wire, pin or bus to add it to the waveforms (again to remove) · Drag to pan · Esc to stop';
   }
 }
 

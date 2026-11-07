@@ -160,7 +160,15 @@ export function Workbench({
   const request = useStore(editor.requests);
   useEffect(() => {
     if (request?.kind === 'edit-properties') commands.get('edit.properties').run();
-  }, [request, commands]);
+    // Probing from the canvas shows the Waveforms tab (the tab shows a problem, if any).
+    if (request?.kind === 'probed') {
+      settingsStore.update((s) => ({
+        ...s,
+        bottomTab: 'waves',
+        panels: { ...s.panels, bottom: { ...s.panels.bottom, visible: true } },
+      }));
+    }
+  }, [request, commands, settingsStore]);
 
   const setPanel = (id: PanelId, change: Partial<Settings['panels'][PanelId]>) =>
     settingsStore.update((s) => ({

@@ -12,6 +12,7 @@ export * from './grid';
 export * from './hit-test';
 export * from './memory-inspector';
 export * from './preview';
+export * from './probe-target';
 export * from './recording-graphics';
 export * from './renderer';
 export * from './scene';
