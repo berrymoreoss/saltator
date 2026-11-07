@@ -638,6 +638,13 @@ describe('stopping before a change', () => {
     expect(s.now).toBe(ns(1));
   });
 
+  it('refuses to run to a time that is not a number (it would never end)', () => {
+    const s = sim((b) => b.add('C', 'test/clock'));
+    expect(() => s.runUntil(Number.NaN)).toThrow(/not a time/);
+    expect(() => s.settle({ maxTime: Number.NaN })).toThrow(/not a time/);
+    expect(s.runUntil(ns(5))).toBe('reached');
+  });
+
   it('refuses a net it does not have', () => {
     const s = sim((b) => b.add('S', 'test/source'));
     expect(() => s.runUntil(ns(1), { stopBefore: { net: 7, level: Level.L1 } })).toThrow(

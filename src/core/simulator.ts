@@ -571,6 +571,8 @@ export class Simulator {
     advanceWhenIdle: boolean,
     stopBefore: StopBefore | undefined,
   ): RunStatus {
+    // NaN compares false with everything: the loop would never reach the limit.
+    if (Number.isNaN(limit)) throw new Error('cannot run: the limit is not a time (NaN)');
     if (this.isHalted) return 'halted';
     if (stopBefore && !(stopBefore.net >= 0 && stopBefore.net < this.levels.length)) {
       throw new Error(`stopBefore: no net #${stopBefore.net}`);
