@@ -6,6 +6,7 @@ import {
   cellsReference,
   EMPTY_DEBUG_SETUP,
   formatCells,
+  parseDebugSetup,
   signalMembers,
   termText,
 } from './debugger';
@@ -355,6 +356,48 @@ describe('Debugger: statistics', () => {
     expect(top[0]!.frequency).toBeCloseTo(1e6);
     s.debug.measureActivity(false);
     expect(s.debug.activity()).toEqual([]);
+  });
+});
+
+describe('reading a stored setup', () => {
+  it('keeps what has the expected shape and leaves the rest out', () => {
+    expect(parseDebugSetup(undefined)).toBeUndefined();
+    expect(parseDebugSetup('x')).toBeUndefined();
+    expect(parseDebugSetup({})).toEqual(EMPTY_DEBUG_SETUP);
+    const setup = parseDebugSetup({
+      breakpoints: [
+        { id: 1, terms: [{ signal: 'CLK', kind: 'rise' }], enabled: false, hitCount: 3 },
+        { id: 2, terms: [{ signal: 'CLK', kind: 'jump' }] }, // unknown kind: dropped
+        { id: 'x', terms: [] },
+        { id: 3, terms: [{ signal: 'Q', kind: 'level', level: 1 }] },
+      ],
+      watches: [
+        { kind: 'signal', signal: 'D[0..7]', radix: 'dec', name: 'data' },
+        { kind: 'cells', part: 'U5', from: 16, to: 31, radix: 'octal' },
+        { kind: 'cells', part: 'U5', from: 'a' },
+        null,
+      ],
+      clock: 'CLK',
+      edge: 'fall',
+      runFor: -5,
+      breakOnErrors: true,
+      breakOnWarnings: 'yes',
+    })!;
+    expect(setup).toEqual({
+      breakpoints: [
+        { id: 1, terms: [{ signal: 'CLK', kind: 'rise' }], enabled: false, hitCount: 3 },
+        { id: 3, terms: [{ signal: 'Q', kind: 'level', level: 1 }], enabled: true },
+      ],
+      watches: [
+        { kind: 'signal', signal: 'D[0..7]', name: 'data', radix: 'dec' },
+        { kind: 'cells', part: 'U5', from: 16, to: 31 },
+      ],
+      clock: 'CLK',
+      edge: 'fall',
+      runFor: EMPTY_DEBUG_SETUP.runFor,
+      breakOnErrors: true,
+      breakOnWarnings: false,
+    });
   });
 });
 

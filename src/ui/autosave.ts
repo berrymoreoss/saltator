@@ -6,7 +6,13 @@
  * (IndexedDB in the app, in memory in tests).
  */
 import { type Circuit, DocumentError, parseDocument } from '../circuit';
-import type { Camera, Editor } from '../editor';
+import {
+  type Camera,
+  type DebugSetup,
+  type Editor,
+  EMPTY_DEBUG_SETUP,
+  parseDebugSetup,
+} from '../editor';
 import type { DocumentController } from './document-controller';
 import {
   type DocumentSession,
@@ -27,6 +33,8 @@ export interface StoredSession {
   /** The file Save writes to (a File System Access handle, kept by IndexedDB). */
   readonly file?: FileRef;
   readonly camera?: Camera;
+  /** The debugger's breakpoints, watches and steps (R14): kept with the session, not the file. */
+  readonly debug?: DebugSetup;
   /** When it was written (ms since the epoch). */
   readonly updated: number;
 }
@@ -69,6 +77,7 @@ export interface RestoredSession {
   readonly session: DocumentSession;
   readonly circuit: Circuit;
   readonly camera?: Camera;
+  readonly debug?: DebugSetup;
 }
 
 export function restoreSession(stored: StoredSession): RestoredSession | undefined {
@@ -87,7 +96,13 @@ export function restoreSession(stored: StoredSession): RestoredSession | undefin
     ...(!stored.unsaved && { saved: circuit }),
     ...(stored.file && { file: stored.file }),
   };
-  return { session, circuit, ...(stored.camera && { camera: stored.camera }) };
+  const debug = parseDebugSetup(stored.debug);
+  return {
+    session,
+    circuit,
+    ...(stored.camera && { camera: stored.camera }),
+    ...(debug && { debug }),
+  };
 }
 
 export interface AutosaveOptions {
@@ -112,6 +127,7 @@ interface Written {
   readonly circuit: Circuit;
   readonly session: DocumentSession;
   readonly camera: Camera;
+  readonly debug: DebugSetup;
 }
 
 /**
@@ -144,7 +160,8 @@ export class Autosave {
       if (
         now.circuit === seen.circuit &&
         now.session === seen.session &&
-        now.camera === seen.camera
+        now.camera === seen.camera &&
+        now.debug === seen.debug
       ) {
         return;
       }
@@ -155,6 +172,7 @@ export class Autosave {
       editor.state.subscribe(onChange),
       documents.session.subscribe(onChange),
       editor.view.subscribe(onChange),
+      editor.debug.setup.subscribe(onChange),
     ];
     return () => {
       for (const u of unsubscribe) u();
@@ -208,6 +226,7 @@ export class Autosave {
       circuit: editor.state.get().circuit,
       session: documents.session.get(),
       camera: editor.view.get().camera,
+      debug: editor.debug.setup.get(),
     };
   }
 
@@ -219,18 +238,20 @@ export class Autosave {
       last &&
       now.circuit === last.circuit &&
       now.session === last.session &&
+      now.debug === last.debug &&
       sameCamera(now.camera, last.camera)
     ) {
       return undefined;
     }
     this.#last = now;
-    const { session, circuit, camera } = now;
+    const { session, circuit, camera, debug } = now;
     return {
       id: this.#options.id,
       name: session.name,
       text: documentText(session, circuit),
       unsaved: hasUnsavedChanges(session, circuit),
       camera,
+      ...(debug !== EMPTY_DEBUG_SETUP && { debug }),
       updated: this.#options.now(),
       ...(session.file && { file: session.file }),
     };

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { type CircuitDocument, emptyDocument, parseDocument, serializeDocument } from '../circuit';
+import { ns } from '../core';
 import { Editor } from '../editor';
 import { createDefaultRegistry } from '../library';
 import {
@@ -242,6 +243,26 @@ describe('Autosave', () => {
     timers.advance(500);
     await settle();
     expect(puts).toHaveLength(1);
+  });
+
+  it('keeps the debug setup with the session; New starts without one', async () => {
+    const { editor, documents, store, autosave } = setup();
+    documents.show(openedSession('adder', nandDocument()));
+    autosave.start({ stored: true });
+    expect(editor.debug.addWatch('U1.Y')).toBeUndefined();
+    editor.debug.setRunFor(ns(250));
+    await autosave.flush();
+    const written = (await store.get('tab-1'))!;
+    expect(written.debug).toMatchObject({
+      watches: [{ kind: 'signal', signal: 'U1.Y' }],
+      runFor: ns(250),
+    });
+    const restored = restoreSession(written)!;
+    expect(restored.debug).toEqual(editor.debug.setup.get());
+    await documents.newDocument();
+    expect(editor.debug.setup.get().watches).toEqual([]);
+    await autosave.flush();
+    expect((await store.get('tab-1'))!.debug).toBeUndefined();
   });
 
   it('a failing store is reported once and retried with the next change', async () => {

@@ -129,6 +129,8 @@ if (restored) {
     restored.circuit,
     restored.camera && { camera: restored.camera },
   );
+  // After the document: showing one starts the debugger afresh.
+  if (restored.debug) editor.debug.load(restored.debug);
 } else {
   const start = examples.find((e) => e.id === exampleId) ?? examples[0]!;
   documents.show(exampleSession(start.label, start.document()));

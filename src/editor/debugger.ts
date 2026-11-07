@@ -145,6 +145,79 @@ export interface NetActivity {
 const DEBUG_BUDGET = 65_536;
 const EDGE_TEXT: Readonly<Record<string, string>> = { rise: '↑', fall: '↓', edge: '↕' };
 
+const TERM_KINDS: readonly string[] = ['rise', 'fall', 'edge', 'level', 'equal', 'notEqual'];
+const RADIXES: readonly string[] = ['hex', 'dec', 'bin', 'ascii'];
+
+/**
+ * A debug setup read back from storage (a session written by this or an older version): what
+ * doesn't have the expected shape is left out, so a bad entry never breaks a restore.
+ */
+export function parseDebugSetup(raw: unknown): DebugSetup | undefined {
+  if (typeof raw !== 'object' || raw === null) return undefined;
+  const r = raw as Record<string, unknown>;
+  const text = (v: unknown) => (typeof v === 'string' ? v : undefined);
+  const radix = (v: unknown) =>
+    typeof v === 'string' && RADIXES.includes(v) ? { radix: v as ProbeRadix } : {};
+  const name = (v: unknown) => (typeof v === 'string' && v !== '' ? { name: v } : {});
+  const term = (t: unknown): DebugTerm | undefined => {
+    const o = t as Record<string, unknown> | null;
+    if (!o || typeof o.signal !== 'string' || !TERM_KINDS.includes(String(o.kind))) {
+      return undefined;
+    }
+    return {
+      signal: o.signal,
+      kind: o.kind as DebugTerm['kind'],
+      ...(typeof o.level === 'number' && { level: o.level as Level }),
+      ...(typeof o.value === 'string' && { value: o.value }),
+    };
+  };
+  const breakpoints = (Array.isArray(r.breakpoints) ? r.breakpoints : []).flatMap(
+    (b): Breakpoint[] => {
+      const o = b as Record<string, unknown> | null;
+      if (!o || !Number.isInteger(o.id) || !Array.isArray(o.terms)) return [];
+      const terms = o.terms.map(term);
+      if (terms.some((t) => t === undefined)) return [];
+      return [
+        {
+          id: o.id as number,
+          terms: terms as DebugTerm[],
+          enabled: o.enabled !== false,
+          ...hitCountOf(typeof o.hitCount === 'number' ? o.hitCount : undefined),
+        },
+      ];
+    },
+  );
+  const watches = (Array.isArray(r.watches) ? r.watches : []).flatMap((w): Watch[] => {
+    const o = w as Record<string, unknown> | null;
+    if (o?.kind === 'signal' && typeof o.signal === 'string') {
+      return [{ kind: 'signal', signal: o.signal, ...name(o.name), ...radix(o.radix) }];
+    }
+    if (
+      o?.kind === 'cells' &&
+      typeof o.part === 'string' &&
+      Number.isInteger(o.from) &&
+      Number.isInteger(o.to)
+    ) {
+      const cells = { part: o.part, from: o.from as number, to: o.to as number };
+      return [{ kind: 'cells', ...cells, ...name(o.name), ...radix(o.radix) }];
+    }
+    return [];
+  });
+  const clock = text(r.clock);
+  return {
+    breakpoints,
+    watches,
+    ...(clock && { clock }),
+    edge: r.edge === 'fall' ? 'fall' : 'rise',
+    runFor:
+      typeof r.runFor === 'number' && r.runFor > 0
+        ? Math.round(r.runFor)
+        : EMPTY_DEBUG_SETUP.runFor,
+    breakOnErrors: r.breakOnErrors === true,
+    breakOnWarnings: r.breakOnWarnings === true,
+  };
+}
+
 /** The members of a debug signal: one reference, or several 1-bit ones bit 0 first. */
 export function signalMembers(signal: DebugSignal): string[] {
   return signal

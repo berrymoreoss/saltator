@@ -221,7 +221,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   shared with the Trigger dialog), watches; commands, menu, shortcuts, toolbar button, status
   reason; context-menu entries (canvas, Memory tab); looked at in both themes.
 - [x] 8. `ui`: run statistics in the Simulation tab; looked at on Ring Oscillator.
-- [ ] 9. `ui`: the debug setup in the session (autosave, restore after reload, cleared by
+- [x] 9. `ui`: the debug setup in the session (autosave, restore after reload, cleared by
   New/Open); tests.
 - [ ] 10. e2e: SAP-1 Program Counter — Step Clock advances the count by one per press, a
   breakpoint on the count stops a run there, Run For moves time by exactly Δt; RAM by Hand —
@@ -355,11 +355,16 @@ Checkable statements; verified one by one in the finish-branch workflow.
   `runUntil(NaN)` looped forever in the kernel — fixed with a regression test (throws), and
   the host refuses a non-finite `time` goal. A host goal `settle` (until nothing is left)
   stays for that use.
+- 2026-11-08 — task 9: `StoredSession.debug` (left out while it is the empty setup), written
+  on every setup change like the view, restored after the document (`documents.show` →
+  `setCircuit` clears it, then `debug.load`); `parseDebugSetup` keeps only well-formed
+  entries, so a stored setup from another version never breaks a restore. New and Open
+  start without one.
 
 ## Handoff
 
-- **State:** in progress; tasks 1–8 done (core, circuit, host, model, Debug tab, statistics).
-- **Next step:** task 9 (the debug setup in the session: autosave, restore, New/Open).
+- **State:** in progress; tasks 1–9 done (core, circuit, host, model, UI, session).
+- **Next step:** task 10 (browser tests on SAP-1 Program Counter and RAM by Hand).
 - **Watch out:** `io/clock` drives at its wake with zero delay — the lookahead can't see it
   until task 2; a breakpoint during a trigger's post-trigger time must win over `pauseAt`.
 - **Verify with:** `pnpm check`, `pnpm bench`.
