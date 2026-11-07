@@ -13,34 +13,35 @@ How to read this file:
 
 ## Overview
 
-| ID   | Branch                       | Title                                      | Status  |
-| ---- | ---------------------------- | ------------------------------------------ | ------- |
-| R00  | — (initial commit on `main`) | Foundation                                 | done    |
-| R01  | `feat/engine-core`           | Simulation kernel                          | done    |
-| R02  | `feat/circuit-model`         | Circuit document & netlist compiler        | done    |
-| R03  | `feat/io-basic`              | Basic IO parts (headless)                  | done    |
-| R04a | `feat/editor-canvas`         | App shell & schematic view                 | done    |
-| R04b | `feat/editor-tools`          | Schematic editing                          | done    |
-| R05  | `feat/sim-ui`                | Running simulations in the editor          | done    |
-| R06  | `feat/74hc-gates`            | 74HC gates & bus buffers                   | done    |
-| R07  | `feat/persistence`           | Save, load, examples                       | done    |
-| R08  | `feat/74hc-msi`              | 74HC combinational MSI                     | done    |
-| R09a | `feat/74hc-registers`        | 74HC flip-flops, registers + timing checks | done    |
-| R09b | `feat/74hc-counters`         | 74HC counters & shift registers            | done    |
-| R10a | `feat/net-labels`            | Net labels                                 | done    |
-| R10b | `feat/buses`                 | Buses, rippers, bus values                 | done    |
-| R12a | `feat/memory-chips`          | Memory chips (EEPROM, SRAM)                | done    |
-| R12b | `feat/memory-inspector`      | Memory inspector, image files              | done    |
-| R13  | `feat/logic-analyzer`        | Waveforms & probes                         | done    |
-| R14  | `feat/debugger`              | Breakpoints, stepping, watches             | next    |
-| R11  | `feat/subcircuits`           | Hierarchical design                        | planned |
-| R15  | `feat/test-benches`          | Circuit test benches ("test before fab")   | planned |
-| R16a | `example/sap-1-modules`      | SAP-1 modules as tested subcircuits        | planned |
-| R16b | `example/sap-1`              | Ben Eater SAP-1 reference build            | planned |
-| R17  | `feat/cpu-6502`              | W65C02S CPU                                | planned |
-| R18  | `feat/peripherals`           | VIA, LCD, serial, buzzer                   | planned |
-| R19  | `feat/toolchain`             | 6502 assembler & flashing                  | planned |
-| R20  | `example/be6502`             | Ben Eater 6502 reference build             | planned |
+| ID   | Branch                       | Title                                      | Status      |
+| ---- | ---------------------------- | ------------------------------------------ | ----------- |
+| R00  | — (initial commit on `main`) | Foundation                                 | done        |
+| R01  | `feat/engine-core`           | Simulation kernel                          | done        |
+| R02  | `feat/circuit-model`         | Circuit document & netlist compiler        | done        |
+| R03  | `feat/io-basic`              | Basic IO parts (headless)                  | done        |
+| R04a | `feat/editor-canvas`         | App shell & schematic view                 | done        |
+| R04b | `feat/editor-tools`          | Schematic editing                          | done        |
+| R05  | `feat/sim-ui`                | Running simulations in the editor          | done        |
+| R06  | `feat/74hc-gates`            | 74HC gates & bus buffers                   | done        |
+| R07  | `feat/persistence`           | Save, load, examples                       | done        |
+| R08  | `feat/74hc-msi`              | 74HC combinational MSI                     | done        |
+| R09a | `feat/74hc-registers`        | 74HC flip-flops, registers + timing checks | done        |
+| R09b | `feat/74hc-counters`         | 74HC counters & shift registers            | done        |
+| R10a | `feat/net-labels`            | Net labels                                 | done        |
+| R10b | `feat/buses`                 | Buses, rippers, bus values                 | done        |
+| R12a | `feat/memory-chips`          | Memory chips (EEPROM, SRAM)                | done        |
+| R12b | `feat/memory-inspector`      | Memory inspector, image files              | done        |
+| R13  | `feat/logic-analyzer`        | Waveforms & probes                         | done        |
+| R14a | `feat/debugger`              | Breakpoints, stepping, watches             | in-progress |
+| R14b | `feat/rewind`                | Snapshots & rewind                         | planned     |
+| R11  | `feat/subcircuits`           | Hierarchical design                        | planned     |
+| R15  | `feat/test-benches`          | Circuit test benches ("test before fab")   | planned     |
+| R16a | `example/sap-1-modules`      | SAP-1 modules as tested subcircuits        | planned     |
+| R16b | `example/sap-1`              | Ben Eater SAP-1 reference build            | planned     |
+| R17  | `feat/cpu-6502`              | W65C02S CPU                                | planned     |
+| R18  | `feat/peripherals`           | VIA, LCD, serial, buzzer                   | planned     |
+| R19  | `feat/toolchain`             | 6502 assembler & flashing                  | planned     |
+| R20  | `example/be6502`             | Ben Eater 6502 reference build             | planned     |
 
 ---
 
@@ -301,13 +302,29 @@ record or the cursor span. Probes ship with Clock Module and Data Bus. Spec:
 [editor.md](editor.md#waveforms), [simulation.md](simulation.md#recorder). Decision:
 [ADR-0019](adr/0019-waveforms.md). Plan: `.ai/plans/feat-logic-analyzer.md`.
 
-### R14 · Breakpoints, stepping, watches — `feat/debugger` — `next`
+R14 (breakpoints, stepping, watches, run statistics, snapshot & rewind) was split at its start
+into the debugger (R14a) and stepping backwards (R14b): rewind needs the whole kernel state
+saved and restored, user actions replayed, and the recorder and the memory inspector kept in
+step — a layer of its own on top of R14a's stepping and breakpoints.
 
-Step by clock edge / by time / by event, breakpoints on signal or bus conditions, watch panel,
-run statistics, snapshot & rewind.
-Builds on R13: the kernel's break at an instant (`requestBreak`, `onInstant`), the trigger's
-conditions on signals and bus values for breakpoints, the host's `pauseAt` for stepping by
-time, probes' references for watches.
+### R14a · Breakpoints, stepping, watches — `feat/debugger` — `in-progress`
+
+Breakpoints on signal and bus conditions (the trigger's terms on any signal, repeating, hit
+counts) and on errors the simulation reports; Step Clock (pauses right before the step
+clock's next active edge, the cycle settled — kernel lookahead), Run For, Run To; a watch list
+of signals, buses, groups and memory cells marking what changed since the last stop; run
+statistics with the most active nets; the debug setup kept with the session. Builds on R13:
+the kernel's break at an instant (`requestBreak`, `onInstant`), the trigger's conditions, the
+host's `pauseAt`. Plan: `.ai/plans/feat-debugger.md`.
+
+### R14b · Snapshots & rewind — `feat/rewind`
+
+Snapshot and restore of the whole simulator state (levels, drives, queue, component states,
+diagnostics); a bounded history of snapshots taken while running and a log of user actions, so
+any instant since the last structural edit is reached again by restoring the snapshot before
+it and re-running deterministically: Step Back (to the previous instant with events), Step Back
+Clock, Reverse Continue to the previous breakpoint hit, rewind to a time from the waveform's
+ruler; the recorder, the memory inspector and the debugger follow.
 
 ### R11 · Hierarchical design — `feat/subcircuits`
 
