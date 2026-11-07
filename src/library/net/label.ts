@@ -62,6 +62,7 @@ export const netLabel = defineComponent<{ name: string }, undefined>({
       pattern: { regex: NET_NAME, hint: NET_NAME_HINT },
     },
   ],
+  nextProps: ({ name }) => ({ name: nextNetName(name) }),
   pins: ({ name }) => [
     { name: 'N', dir: 'nc', net: name, description: `joins every net label named ${name}` },
   ],

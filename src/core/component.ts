@@ -203,6 +203,11 @@ export interface ComponentDefinition<
    */
   readonly schematicOnly?: boolean;
   /**
+   * The props the editor gives the next instance placed after one with `props` was placed or
+   * edited (net labels: `D0` → `D1`). Without it, new instances get the defaults.
+   */
+  readonly nextProps?: (props: Props) => Props;
+  /**
    * Geometry of a part drawn as a symbol rather than a package (LEDs, switches, gates), or a
    * function of props for parts like LED bars. Ignored when `package` is set.
    */

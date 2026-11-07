@@ -201,15 +201,18 @@ function PartProperties({
         <Row label="Type">
           <span className="mono">{instance.type}</span>
         </Row>
-        <Row label="Label">
-          <Field
-            value={instance.label ?? ''}
-            label="Label"
-            placeholder="none"
-            testId="prop-label"
-            onCommit={(text) => editor.setPartLabel(instance.id, text)}
-          />
-        </Row>
+        {/* A net label shows its name only; free label text would never be drawn. */}
+        {!definition?.schematicOnly && (
+          <Row label="Label">
+            <Field
+              value={instance.label ?? ''}
+              label="Label"
+              placeholder="none"
+              testId="prop-label"
+              onCommit={(text) => editor.setPartLabel(instance.id, text)}
+            />
+          </Row>
+        )}
         <Row label="Position">
           <span className="field-pair">
             <Field
