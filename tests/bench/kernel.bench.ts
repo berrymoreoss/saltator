@@ -67,6 +67,23 @@ function hc595Chain(chips: number): Simulator {
   return new Simulator(b.build(), registry);
 }
 
+/**
+ * A 74HC4040 sweeping the addresses of `chips` 6116s on one address bus, every RAM selected and
+ * reading, filled with random bytes: each count ripples through the counter and makes every
+ * RAM's outputs go `X` and then to the new byte (the read path's wake-ups).
+ */
+function ramSweep(chips: number): Simulator {
+  const b = new NetlistBuilder().add('CLK', 'test/driver').add('MR', 'test/driver');
+  b.add('C', '74xx/74hc4040').add('G', 'io/gnd').add('V', 'io/vcc');
+  b.connect('CLK.Y', 'C.CP').connect('MR.Y', 'C.MR');
+  for (let i = 0; i < chips; i++) {
+    b.add(`M${i}`, 'mem/6116', { powerOn: 'random' });
+    b.connect('G.Y', `M${i}.CS`, `M${i}.OE`).connect('V.Y', `M${i}.WE`);
+    for (let a = 0; a < 11; a++) b.connect(`C.Q${a}`, `M${i}.A${a}`);
+  }
+  return new Simulator(b.build(), registry);
+}
+
 function ring(stages: number): Simulator {
   const b = new NetlistBuilder().add('EN', 'test/driver').add('N0', 'prim/nand', { delay: ns(1) });
   b.connect('EN.Y', 'N0.A');
@@ -162,6 +179,26 @@ describe('kernel', () => {
     const problems = sim.diagnostics.entries.map((d) => d.kind);
     if (problems.length > 0) throw new Error(`unexpected diagnostics: ${problems.join(', ')}`);
     await measure(bench, '74HC595 chain ×100', sim, cycle);
+  });
+
+  test('6116 ×16 read by a 74HC4040: one count', async ({ bench }) => {
+    // A counter without a reset counts X forever: reset it first.
+    const sim = ramSweep(16);
+    sim.action('CLK', strong(1));
+    sim.action('MR', strong(1));
+    sim.runFor(ns(100));
+    sim.action('MR', strong(0));
+    sim.runFor(ns(100));
+    const cycle = () => {
+      sim.action('CLK', strong(0)); // the 4040 counts on the falling edge
+      sim.runFor(ns(250)); // Q10 ripples out by ≈ 127 ns, the RAMs read 25 ns later
+      sim.action('CLK', strong(1));
+      sim.runFor(ns(50));
+    };
+    for (let i = 0; i < 10; i++) cycle();
+    const problems = sim.diagnostics.entries.map((d) => d.kind);
+    if (problems.length > 0) throw new Error(`unexpected diagnostics: ${problems.join(', ')}`);
+    await measure(bench, '6116 ×16 read by a 74HC4040', sim, cycle);
   });
 
   test('ring oscillator ×1001: 100 µs of simulated time', async ({ bench }) => {

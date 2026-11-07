@@ -309,10 +309,10 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   `mem/62256`, power-on modes, `poke`; tests: writes WE̅- and CE̅-controlled, every requirement
   just inside (silent) and just outside (diagnostic and `X`), unknowns, power-on, random
   reproducible; mutation-checked.
-- [ ] 5. Scenarios: a 6116 written and read back over a bus through a 74HC245 (turnaround), an
+- [x] 5. Scenarios: a 6116 written and read back over a bus through a 74HC245 (turnaround), an
   AT28C16 driving a 7-segment display, a register latching a RAM's output before `tAA` (gets
   `X`), the carry-over property with random networks including memories and images; benchmark
-  (a counter sweeping a 62256's addresses).
+  (a 74HC4040 sweeping sixteen 6116s' addresses: ≈ 7.5M events/s).
 - [ ] 6. `ui`: Properties' read-only summary for `image` props; the Part tab for parts with only
   limits; tests.
 - [ ] 7. Examples EEPROM 7-Segment Decoder and RAM by Hand (generators, every net checked,
@@ -371,6 +371,17 @@ Checkable statements; verified one by one in the finish-branch workflow.
   RAM powering on `X`.
 - 2026-11-07 — plan approved; branch started. Roadmap: R12 split into R12a (in progress) and
   R12b; 74LS189 and EEPROM write cycles in the backlog.
+- 2026-11-07 — task 1 for four parts (AT28C16/64B/256, 6116; limits recorded above; the
+  AS6C62256 PDF waits for the user). Task 2: `image` props (sparse hex runs), `SeededRandom`,
+  `MemoryDef`/`PokeAction`. Timing may be a function of props (`timingOf`) for speed grades; the
+  Part tab shows the picked instance's. Task 3: the read path (`ReadPath`: old data for `tOH`,
+  `X`, the data at the latest deadline; a released output keeps its data until its maximum
+  release time, so a bus fight shows as contention) and the EEPROMs as ROMs (`write-ignored`).
+  6116 with the write path (`WritePath`): level-sensitive, the cell written at the end, every
+  requirement checked; with OE̅ LOW the bits that differ from the cell fight until `tWHZ` (note
+  4), which is how note 7's `tWP ≥ tWHZ + tDW` comes out without its own check. An unknown write
+  before CS̅/WE̅ were first known is ignored (power-on transient, so `zeros` survives gates
+  that start `X`). Mutation-checked. 1893 tests.
 
 ## Handoff
 
