@@ -3,12 +3,14 @@
  * See docs/components.md#74xx-chips-74xx.
  */
 import type { AnyComponentDefinition } from '../../core';
+import { hcArithmetic } from './arithmetic';
 import { hcBuffers } from './buffers';
 import { hcDecoders } from './decoders';
 import { hcGates } from './gates';
 import { hcMultiplexers } from './multiplexers';
 import { hc245 } from './transceiver';
 
+export { ADDER_SPEC, arithmeticChips, COMPARATOR_SPEC } from './arithmetic';
 export { BUFFER_SPECS, type BufferSpec, bufferChips } from './buffers';
 export type { ChipSpec, ChipTiming, LogicFamily } from './chip';
 export { DECODER_SPECS, type DecoderSpec, decoderChips } from './decoders';
@@ -24,4 +26,5 @@ export const chips74xx: readonly AnyComponentDefinition[] = [
   hc245,
   ...hcDecoders,
   ...hcMultiplexers,
+  ...hcArithmetic,
 ].sort((a, b) => Number(a.name.slice(4)) - Number(b.name.slice(4)));

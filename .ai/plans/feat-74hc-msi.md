@@ -187,7 +187,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   path delay).
 - [x] 4. Multiplexers 74HC151, 153, 157, 158 with tests (both 151 outputs, shared selects,
   unknown select with equal/different candidates, each path delay).
-- [ ] 5. 74HC283 and 74HC85 with tests: exhaustive against arithmetic; unknown bits; carry and
+- [x] 5. 74HC283 and 74HC85 with tests: exhaustive against arithmetic; unknown bits; carry and
   cascade paths; two 85s cascaded to 8 bits.
 - [ ] 6. Priority encoders 74HC147, 148 with tests (priority, GS/EO, two 148s cascaded).
 - [ ] 7. 74HC4511 with tests (every code 0–15, LT/BI priority, latch: transparent, hold, no latch

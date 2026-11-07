@@ -76,10 +76,10 @@ export interface FunctionTableInfo {
   readonly note?: string;
 }
 
-/** The definition's function table split into cells (datasheet text like `A=B` spaced out). */
+/** The definition's function table split into cells (datasheet text like `A=B`, `A3>B3` spaced out). */
 export function functionTableInfo(table: FunctionTable | undefined): FunctionTableInfo | undefined {
   if (!table) return undefined;
-  const spaced = (cell: string) => cell.replace(/=/g, ' = ');
+  const spaced = (cell: string) => cell.replace(/([=<>])/g, ' $1 ');
   return {
     inputs: table.inputs,
     outputs: table.outputs,
