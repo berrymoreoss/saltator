@@ -24,7 +24,9 @@ import {
   waveformTheme,
 } from '../editor';
 import { Dialog } from './Dialogs';
+import type { ImageFileAccess } from './files';
 import { useStore } from './hooks';
+import { formatSpan, type VcdRange, vcdFile, vcdSpan } from './vcd-export';
 import {
   cursorReadout,
   referenceSuggestions,
@@ -779,5 +781,99 @@ function TriggerDialog({
         </button>
       </div>
     </Dialog>
+  );
+}
+
+/** Export VCD…: the whole record or the span between the cursors, saved as a `.vcd` file. */
+export function VcdExportAction({
+  editor,
+  title,
+  files,
+}: {
+  editor: Editor;
+  title: () => string;
+  files: ImageFileAccess;
+}) {
+  const [open, setOpen] = useState(false);
+  const [range, setRange] = useState<VcdRange>('all');
+  const [problem, setProblem] = useState<string>();
+  useStore(editor.analyzer.view);
+  useStore(editor.analyzer.revision);
+  const close = () => {
+    setOpen(false);
+    setProblem(undefined);
+  };
+  const save = async () => {
+    const file = vcdFile(editor.analyzer, {
+      range,
+      title: title(),
+      date: new Date().toISOString(),
+      version: 'Logic',
+    });
+    if (typeof file === 'string') {
+      setProblem(file);
+      return;
+    }
+    const saved = await files.saveBytes(new TextEncoder().encode(file.text), file.name, 'vcd');
+    if (saved !== undefined) close();
+  };
+  const all = vcdSpan(editor.analyzer, 'all');
+  const cursors = vcdSpan(editor.analyzer, 'cursors');
+  return (
+    <>
+      <button
+        type="button"
+        className="tool-button memory-action"
+        title="Save the waveforms as a Value Change Dump (GTKWave, Surfer, PulseView)"
+        onClick={() => {
+          setRange(cursors ? 'cursors' : 'all');
+          setOpen(true);
+        }}
+      >
+        Export VCD…
+      </button>
+      {open && (
+        <Dialog title="Export VCD" onClose={close} testId="vcd-dialog">
+          <fieldset className="image-kinds">
+            <label className="image-option">
+              <input type="radio" checked={range === 'all'} onChange={() => setRange('all')} />
+              Whole record {all && <span className="muted mono">{formatSpan(all)}</span>}
+            </label>
+            <label className="image-option">
+              <input
+                type="radio"
+                checked={range === 'cursors'}
+                disabled={!cursors}
+                onChange={() => setRange('cursors')}
+              />
+              Between cursors A and B{' '}
+              {cursors ? (
+                <span className="muted mono">{formatSpan(cursors)}</span>
+              ) : (
+                <span className="muted">(place both)</span>
+              )}
+            </label>
+          </fieldset>
+          <p className="muted">
+            Every probe that resolves, 1-bit signals as wires and buses and groups as vectors, at a
+            1 ps timescale.
+          </p>
+          {problem && (
+            <p className="field-error" role="alert">
+              {problem}
+            </p>
+          )}
+          <div className="dialog-actions">
+            <span className="dialog-actions-gap" />
+            <button type="button" className="dialog-button" onClick={close}>
+              Cancel
+            </button>
+            <button type="button" className="dialog-button primary" onClick={() => void save()}>
+              Save…
+            </button>
+          </div>
+        </Dialog>
+      )}
+    </>
   );
 }

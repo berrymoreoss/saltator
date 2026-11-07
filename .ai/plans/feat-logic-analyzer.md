@@ -262,7 +262,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   themes.
 - [x] 8b. `editor` + `ui`: the Probe tool (`P`): hover highlight, click to add or remove, pan,
   Escape; headless gesture tests; command, toolbar button, shortcuts dialog.
-- [ ] 9. `ui`: Export VCD… (whole capture or between the cursors); test of the file model.
+- [x] 9. `ui`: Export VCD… (whole capture or between the cursors); test of the file model.
 - [ ] 10. e2e: Clock Module — the clock probed with the Probe tool, run, the period measured with
   the cursors; Data Bus — `D[0..7]` captured with a trigger on its value, the run paused at it,
   exported VCD read back; probes saved, reopened and undone; a structural edit while recording
@@ -382,11 +382,15 @@ Checkable statements; verified one by one in the finish-branch workflow.
   menu's Add/Remove `ref` to Waveforms (`Editor.contextProbe`, `toggleProbe`); the editor's
   `probed` request shows the Waveforms tab and its problem. Mutation-checked (8 mutations); a
   scenario probes Data Bus's bus line and an entry.
+- 2026-11-07 — task 9: `ui/vcd-export.ts` (`vcdSpan`, `vcdFile`, `vcdFileName`: the probes that
+  resolve, whole record or cursor span, reasons when there is nothing) and the Export VCD…
+  dialog in the tab's toolbar (range radios with their spans, Save… through `ImageFileAccess`
+  with a new file kind `vcd` and picker id `logic-waveforms`).
 
 ## Handoff
 
-- **State:** tasks 1–8b done (core, circuit, analyzer model, renderer, Waveforms tab, Probe tool).
-- **Next step:** task 9 (Export VCD… in the tab: whole record or between the cursors).
+- **State:** tasks 1–9 done (core, circuit, analyzer model, renderer, Waveforms tab, Probe tool, VCD export).
+- **Next step:** task 10 (e2e: Clock Module period with cursors; Data Bus trigger + VCD; probes saved/undone; carry-over).
 - **Watch out:** nets have no identity across compiles — channels are references, re-resolved
   on every carry-over; the kernel's listener reports levels only. Docs already link
   `adr/0019-waveforms.md` (write it in task 11). Max-speed tests need `clock.cost > 0`.

@@ -662,6 +662,12 @@ shows how many signals are probed and `T` while a trigger is armed.
   swipe pans). Keys (`waveKey`, kept from the shortcuts): `+`/`-` zoom, ←/→ pan (Shift: a
   window), `[`/`]` previous/next edge of the picked channel, Home fit, End follow, ↑/↓ pick,
   Delete remove, Escape clears the cursors.
+- **Export VCD…** (`vcd-export.ts`): the whole record or the span between cursors A and B (the
+  default when both are placed), every probe that resolves — 1-bit signals as wires, buses and
+  groups as vectors — through core's `writeVcd` (1 ps timescale, the document's name as the
+  scope and file name, `Data Bus.vcd`, the date in the header), saved through the binary file
+  access (`ImageFileAccess`, kind `vcd`: a picker folder of its own, a download elsewhere).
+  Nothing probed or nothing recorded yet is said instead.
 - **Trigger dialog**: terms — a signal and a condition (`rises`, `falls`, `changes`, `is 1`,
   `is 0`, `is X`, `is Z`; on a vector `=` or `≠` a hex value, `X` for any digit), ANDed; the
   window (a time, the view's by default) and where the trigger sits in it (10 %…90 %); Arm,

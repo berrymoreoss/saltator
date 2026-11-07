@@ -33,7 +33,7 @@ import {
 import { isMacPlatform } from './shortcuts';
 import { Toolbar } from './Toolbar';
 import type { Example, UiState } from './ui-state';
-import { WaveformsPanel, WavesBadge } from './WaveformsPanel';
+import { VcdExportAction, WaveformsPanel, WavesBadge } from './WaveformsPanel';
 import { createCommands, TOOLBAR, workbenchMenus } from './workbench-commands';
 import './styles/tokens.css';
 import './styles/workbench.css';
@@ -385,7 +385,21 @@ export function Workbench({
                   }
                 />
               )}
-              {tab === 'waves' && <WaveformsPanel editor={editor} theme={canvasTheme} />}
+              {tab === 'waves' && (
+                <WaveformsPanel
+                  editor={editor}
+                  theme={canvasTheme}
+                  actions={
+                    images && (
+                      <VcdExportAction
+                        editor={editor}
+                        title={() => documents.session.get().name}
+                        files={images}
+                      />
+                    )
+                  }
+                />
+              )}
             </Panel>
           </div>
         </>
