@@ -48,6 +48,12 @@ export const EXAMPLE_FILES: readonly ExampleFile[] = [
     description:
       'Ben Eater’s clock: a 555 oscillator, a debounced STEP button, a MANUAL switch, and HLT.',
   },
+  {
+    id: 'sap-1-register',
+    title: 'SAP-1 A Register',
+    description:
+      'Ben Eater’s A register: two 74HC173s load an 8-bit bus and a 74HC245 puts them back on it. CLR first.',
+  },
 ];
 
 // Not a JSON import: the text is kept as saved and parsed (migrated, validated) like any file.
