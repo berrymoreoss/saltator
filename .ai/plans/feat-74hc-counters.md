@@ -204,7 +204,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   at 25 °C, max delays at −40…+85 °C) into `hc-timing.ts`, sources cited; findings (193 clock
   logic, 595 tied clocks, 165 clock gating, 4040 ripple) in the progress log. Pinouts and
   function tables land with each chip's behavior.
-- [ ] 2. `core`: `TimingChecks.setupHold` edge-to-edge form (the data pin's active transition
+- [x] 2. `core`: `TimingChecks.setupHold` edge-to-edge form (the data pin's active transition
   only; same instant allowed — Q3) and hold-only form (193), with tests on a fixture.
 - [ ] 3. Counting helpers (`increment`/`decrement`, outcome merging over controls) and the
   74HC161, 163, with tests (function table, counting 0–15 and wrap, load, enables, TC and its
@@ -288,10 +288,16 @@ Checkable statements; verified one by one in the finish-branch workflow.
   ripples `tpd(Qn to Qn+1)` = 10 ns per stage after `tpd(CP to Q0)` = 17 ns (Q11 at 127 ns). No
   data sheet path for the 191's TC/RC̅ after a parallel load, nor for the 193's TC̅U after a
   count down to 15 with CPU LOW: they borrow a given path in the spec.
+- 2026-11-07 — task 2: `setupHold` takes `dataEdge` (edge-to-edge: only that transition of a
+  data pin counts, measured from when it left the level before it; messages say `SH rose …`),
+  `sameInstantAllowed` (a change at the same instant, in the same or an earlier delta, is no
+  violation) and an optional `setup` (hold only; a check needs one of the two). Tests on a
+  two-clock fixture (595- and 193-style), mutation-checked (5 mutations).
 
 ## Handoff
 
-- **State:** task 1 done (timing data in `hc-timing.ts`, no chip uses it yet).
-- **Next step:** task 2 (`TimingChecks` edge-to-edge and hold-only forms).
+- **State:** tasks 1–2 done (timing data; `setupHold` with `dataEdge`, `sameInstantAllowed`,
+  optional `setup`).
+- **Next step:** task 3 (counting helpers, 74HC161 and 163).
 - **Watch out:** pinouts and names in the Parts table are from memory.
 - **Verify with:** `pnpm check`.

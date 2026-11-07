@@ -352,6 +352,156 @@ describe('TimingChecks across a carry-over', () => {
   });
 });
 
+/**
+ * Two clocks, the 74HC595's way: SH rising must come `tsu(SH to ST)` before ST rises, except at
+ * the same instant (tied clocks); and the 193's: CPD must stay HIGH `th(CPU to CPD)` after CPU
+ * rose (hold only). LATE and EARLY show the masks of the last check that fired.
+ */
+const clocks = (() => {
+  const pins: PinDef[] = [
+    { name: 'SH', dir: 'in', clock: true },
+    { name: 'ST', dir: 'in', clock: true },
+    { name: 'CPU', dir: 'in', clock: true },
+    { name: 'CPD', dir: 'in', clock: true },
+    { name: 'LATE', dir: 'out' },
+    { name: 'EARLY', dir: 'out' },
+  ];
+  const checks = new TimingChecks(pins, { 'tsu(SH to ST)': ns(15), 'th(CPU to CPD)': ns(16) });
+  const shift = checks.setupHold({
+    data: 'SH',
+    clock: 'ST',
+    edge: 'rise',
+    setup: 'tsu(SH to ST)',
+    dataEdge: 'rise',
+    sameInstantAllowed: true,
+  });
+  const held = checks.setupHold({
+    data: 'CPD',
+    clock: 'CPU',
+    edge: 'rise',
+    hold: 'th(CPU to CPD)',
+    dataEdge: 'fall',
+  });
+  return defineComponent<Record<string, never>, { times: PinTimes }>({
+    type: 'test/clocks',
+    name: 'CLK',
+    title: 'Test clocks',
+    pins,
+    create: () => ({
+      createState: () => ({ times: checks.createTimes() }),
+      evaluate(ctx) {
+        const { times } = ctx.state;
+        const late = shift.setup(ctx, times) | held.setup(ctx, times);
+        const early = shift.hold(ctx, times) | held.hold(ctx, times);
+        if (ctx.rose(1)) ctx.drive(4, strong(late ? Level.L1 : Level.L0), TPD);
+        if (ctx.changed(3)) ctx.drive(5, strong(early ? Level.L1 : Level.L0), TPD);
+        checks.track(ctx, times);
+      },
+    }),
+  });
+})();
+
+function clockBench(): Bench {
+  const b = new Bench(clocks);
+  b.set({ SH: 0, ST: 0, CPU: 1, CPD: 1 }).settle();
+  b.run(ns(100));
+  return b;
+}
+
+const messages = (b: Bench) => b.diagnostics.map((d) => d.message);
+
+describe('TimingChecks edge to edge', () => {
+  it("measures from the data pin's edge, not from any change", () => {
+    const b = clockBench();
+    b.set({ SH: 1 });
+    b.run(ns(20));
+    b.set({ SH: 0 }); // the falling edge right before ST doesn't count
+    b.run(ns(5));
+    b.set({ ST: 1 });
+    b.run(ns(20));
+    b.expect({ LATE: 0 }).expectNoDiagnostics();
+  });
+
+  it('reports the data edge too close before the clock edge, naming the edge', () => {
+    const b = clockBench();
+    b.set({ SH: 1 });
+    b.run(ns(14));
+    b.set({ ST: 1 });
+    b.run(ns(20));
+    b.expect({ LATE: 1 });
+    expect(messages(b)).toEqual(['SH rose 14 ns before ST rose (setup time ≥ 15 ns)']);
+    expect(kinds(b)).toEqual([`${TimingViolation.SETUP} SH`]);
+  });
+
+  it('is silent at exactly the setup time and at the same instant (tied clocks)', () => {
+    const b = clockBench();
+    b.set({ SH: 1 });
+    b.run(ns(15));
+    b.set({ ST: 1 });
+    b.run(ns(20));
+    b.set({ SH: 0, ST: 0 });
+    b.run(ns(100));
+    b.set({ SH: 1, ST: 1 });
+    b.run(ns(20));
+    b.expect({ LATE: 0 }).expectNoDiagnostics();
+  });
+
+  it('counts a same-instant edge from an earlier delta as allowed too', () => {
+    const b = clockBench();
+    b.set({ SH: 1 });
+    b.settle(); // SH's change is evaluated in its own delta, ST rises in a later one at that time
+    b.set({ ST: 1 });
+    b.run(ns(20));
+    b.expectNoDiagnostics();
+  });
+});
+
+describe('TimingChecks hold only', () => {
+  it('never checks a setup time', () => {
+    const b = clockBench();
+    b.set({ CPD: 0 });
+    b.run(ns(1));
+    b.set({ CPD: 1 });
+    b.run(ns(1));
+    b.set({ CPU: 0 });
+    b.run(ns(50));
+    b.set({ CPU: 1 }); // CPD rose 52 ns ago and changed 1 ns before: no setup time to break
+    b.run(ns(50));
+    b.expectNoDiagnostics();
+  });
+
+  it('reports the other clock falling too soon after the counting edge, not rising', () => {
+    const b = clockBench();
+    b.set({ CPU: 0 });
+    b.run(ns(50));
+    b.set({ CPU: 1 });
+    b.run(ns(16));
+    b.set({ CPD: 0 }); // exactly the hold time: fine
+    b.run(ns(50));
+    b.set({ CPD: 1, CPU: 0 });
+    b.run(ns(50));
+    b.set({ CPU: 1 });
+    b.run(ns(10));
+    b.set({ CPD: 0 });
+    b.run(ns(20));
+    b.expect({ EARLY: 1 });
+    expect(messages(b)).toEqual(['CPD fell 10 ns after CPU rose (hold time ≥ 16 ns)']);
+  });
+
+  it('ignores a rise of the data pin within the hold time', () => {
+    const b = clockBench();
+    b.set({ CPD: 0 });
+    b.run(ns(50));
+    b.set({ CPU: 0 });
+    b.run(ns(50));
+    b.set({ CPU: 1 });
+    b.run(ns(5));
+    b.set({ CPD: 1 });
+    b.run(ns(20));
+    b.expect({ EARLY: 0 }).expectNoDiagnostics();
+  });
+});
+
 describe('TimingChecks definition', () => {
   const pins: PinDef[] = [
     { name: 'D', dir: 'in' },
@@ -365,6 +515,13 @@ describe('TimingChecks definition', () => {
     );
     expect(() => checks.setupHold({ data: 'D', clock: 'CP', edge: 'rise', setup: 'th' })).toThrow(
       'missing minimum "th"',
+    );
+  });
+
+  it('needs a setup or a hold time', () => {
+    const checks = new TimingChecks(pins, {});
+    expect(() => checks.setupHold({ data: 'D', clock: 'CP', edge: 'rise' })).toThrow(
+      'setup/hold check on D without a setup or hold time',
     );
   });
 
