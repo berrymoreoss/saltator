@@ -69,7 +69,7 @@ describe('74xx chips', () => {
     if (nexperia) {
       expect(timing.source).toMatch(
         new RegExp(
-          `^Nexperia ${nexperia} product data sheet, rev\\. \\d+ \\(.+ 20\\d\\d\\), table 7$`,
+          `^Nexperia ${nexperia} product data sheet, rev\\. \\d+ \\(.+ 20\\d\\d\\), table [78]$`,
         ),
       );
     } else {
@@ -80,19 +80,33 @@ describe('74xx chips', () => {
         ),
       );
     }
+    const delays = Object.keys(timing.max ?? {}).sort();
+    const requirements = Object.keys(timing.min ?? {}).sort();
     expect(timing.conditions).toBe(
-      'VCC = 4.5 V, CL = 50 pF; typ at 25 °C, max at −40 °C to +85 °C',
+      `VCC = 4.5 V, CL = 50 pF; typ at 25 °C, max at −40 °C to +85 °C${
+        requirements.length === 0
+          ? ''
+          : `, min at ${d.name === '74HC74' ? '−40 °C to +85 °C' : '25 °C'}`
+      }`,
     );
-    const symbols = Object.keys(timing.typical).sort();
-    expect(Object.keys(timing.max ?? {}).sort()).toEqual(symbols);
-    for (const symbol of symbols) {
+    expect(Object.keys(timing.typical).sort()).toEqual([...delays, ...requirements].sort());
+    for (const symbol of delays) {
       // One delay (`tpd`, `ten`, `tdis`) or one per path, worded as the data sheet does.
-      expect(symbol).toMatch(/^(tpd|ten|tdis)$|^tpd\(.+ to .+\)$/);
+      expect(symbol).toMatch(/^(tpd|ten|tdis)$|^(tpd|tPHL|tPLH|ten|tdis)\(.+ to .+\)$/);
       expect(timing.typical[symbol]).toBeGreaterThan(0);
       expect(timing.typical[symbol]).toBeLessThan(timing.max![symbol]!);
     }
+    for (const symbol of requirements) {
+      // Set-up, hold, pulse width and recovery: a typical part needs less than the minimum.
+      expect(symbol).toMatch(/^(tsu|th|trec|tW)\(.+\)$/);
+      expect(timing.min![symbol]).toBeGreaterThanOrEqual(0);
+      expect(timing.typical[symbol]).toBeLessThanOrEqual(timing.min![symbol]!);
+    }
     const threeState = pinList(d).some((p) => p.dir === 'tristate' || p.dir === 'bidir');
-    if (threeState) expect(symbols).toEqual(['tdis', 'ten', 'tpd']);
+    if (threeState) {
+      expect(delays.some((s) => /^ten\b/.test(s))).toBe(true);
+      expect(delays.some((s) => /^tdis\b/.test(s))).toBe(true);
+    }
   });
 
   it.each(cases)('%s has a function table and units covering every signal pin once', (_, d) => {

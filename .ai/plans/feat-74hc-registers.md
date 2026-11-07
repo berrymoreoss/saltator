@@ -186,9 +186,10 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   Tests on a fixture flip-flop, including carry-over and the forced evaluation.
 - [x] 2. `core`: sequential function tables (`↑`, `↓`, `h`, `l`, previous-state outputs) in
   the format, validation and `functionTable`; tests on the fixture.
-- [ ] 3. Data sheets: the user downloads the PDFs; pinouts, pin descriptions, function tables,
+- [x] 3. Data sheets: the user downloads the PDFs; pinouts, pin descriptions, function tables,
   delays per path and requirements (typ and min at 25 °C, max delays at −40…+85 °C) for the
-  ten chips, sources cited.
+  ten chips, sources cited. (Timing committed here; each chip's pinout and function table land
+  with its behavior in tasks 4–7, read off the rendered pages.)
 - [ ] 4. Shared edge-triggered machinery in `library/74xx` (uncertain edges, async controls,
   checks, the `X` policy) and the 74HC74, with tests (function table per unit, set+reset, each
   path, each check inside/outside its limit, unknown and floating inputs).
@@ -255,6 +256,22 @@ Checkable statements; verified one by one in the finish-branch workflow.
   answered; R09 split into R09a (this branch) and R09b.
 - 2026-11-07 — plan approved; branch started. The user downloaded the ten Nexperia data sheets
   to `~/Downloads/nexperia-74hc/`.
+- 2026-11-07 — task 1 (`79ee3f8`): `TimingChecks` in `core` (setup, hold, pulse width,
+  recovery), `TimingDef.min`; mutation-checked tests on a fixture flip-flop (a phase that began
+  from `Z` is not a pulse; times survive a carry-over).
+- 2026-11-07 — task 2 (`0fc5e8e`): sequential function tables — `↑`, `↓`, `h`, `l`, and
+  previous-state outputs through an explicit `state` map (`{ q: 'nQ' }`; a blanket "lowercase
+  = state" rule would clash with the 245's `input` cells). The checker runs 1 µs after each step
+  so the parts' own checks don't fire while it walks the rows. Data sheets with two tables (74:
+  asynchronous + synchronous; 173: register + 3-state buffer) are merged into one.
+- 2026-11-07 — task 3 (timing data). Findings: the 74HC74 (rev. 9) gives minima only for
+  −40 °C to +85 °C (no 25 °C column; every other sheet has one) — used as given, conditions say
+  so; the 112's table has Q = H, Q̅ = L with set and reset both active (the 74 and 109: H H) —
+  its logic diagram derives Q and Q̅ from one node, so it is not a typo: followed; the 109's K
+  input is K̅ (overline lost in the text, visible in the figure); the 109 gives tPLH/tPHL per
+  output for SD/RD (keys per output); the 107's and 112's clocks are overlined (falling edge);
+  the 107 and 109 specify tW of R/SD/RD "HIGH or LOW"; the 574's table note says "HIGH-to-LOW
+  CP transition" for h/l (a typo: the table uses ↑).
 
 ## Handoff
 

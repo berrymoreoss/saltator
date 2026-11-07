@@ -1,30 +1,61 @@
 /**
- * 74HC timing from the Nexperia product data sheets (74HC; 74HCT), table 7 "Dynamic
- * characteristics" of each; TI data sheets for the chips Nexperia doesn't document (147, 148,
- * 283). Every delay at VCC = 4.5 V, CL = 50 pF: the only condition with typical `ten`/`tdis` and
- * the one the maxima are given at (docs/components.md#timing). Chips with several delay paths
- * key each one by the data sheet's wording: `tpd(An to Yn)`.
+ * 74HC timing from the Nexperia product data sheets (74HC; 74HCT), the "Dynamic characteristics"
+ * table of each (table 7 unless noted); TI data sheets for the chips Nexperia doesn't document
+ * (147, 148, 283). Every delay at VCC = 4.5 V, CL = 50 pF: the only condition with typical
+ * `ten`/`tdis` and the one the maxima are given at (docs/components.md#timing). Chips with several
+ * delay paths key each one by the data sheet's wording: `tpd(An to Yn)`. Sequential chips add
+ * their timing requirements (set-up, hold, pulse width, recovery): the guaranteed minimum in
+ * `timing.min` for the timing checks, the typical value in `timing.typical`.
  */
 import { ns, type TimingDef } from '../../core';
 import type { ChipTiming, LogicFamily } from './chip';
 
 const CONDITIONS = 'VCC = 4.5 V, CL = 50 pF; typ at 25 °C, max at −40 °C to +85 °C';
 
-/** Datasheet symbol → [typical at 25 °C, max at −40 °C to +85 °C] in ns. */
+/** Datasheet symbol → [typical at 25 °C, max at −40 °C to +85 °C] in ns: a delay. */
 type Delays = Readonly<Record<string, readonly [typ: number, max: number]>>;
 
-function chipTiming(datasheet: string, source: string, delays: Delays): ChipTiming {
-  const pick = (i: 0 | 1) =>
-    Object.fromEntries(Object.entries(delays).map(([symbol, values]) => [symbol, ns(values[i])]));
-  const timing: TimingDef = { typical: pick(0), max: pick(1), conditions: CONDITIONS, source };
+/**
+ * Datasheet symbol → [guaranteed min, typical at 25 °C] in ns: a timing requirement (`tsu`, `th`,
+ * `tW`, `trec`), which the timing checks hold the circuit to. The typical value may be negative.
+ */
+type Requirements = Readonly<Record<string, readonly [min: number, typ: number]>>;
+
+/** Where a data sheet's minima apply: 25 °C, or its widest range when it gives no 25 °C column. */
+type MinAt = '25 °C' | '−40 °C to +85 °C';
+
+function chipTiming(
+  datasheet: string,
+  source: string,
+  delays: Delays,
+  requirements: Requirements = {},
+  minAt: MinAt = '25 °C',
+): ChipTiming {
+  const pick = (values: Delays | Requirements, i: 0 | 1) =>
+    Object.fromEntries(Object.entries(values).map(([symbol, v]) => [symbol, ns(v[i])]));
+  const checked = Object.keys(requirements).length > 0;
+  const timing: TimingDef = {
+    typical: { ...pick(delays, 0), ...pick(requirements, 1) },
+    max: pick(delays, 1),
+    ...(checked && { min: pick(requirements, 0) }),
+    conditions: checked ? `${CONDITIONS}, min at ${minAt}` : CONDITIONS,
+    source,
+  };
   return { datasheet, timing };
 }
 
-function nexperia(document: string, revision: string, delays: Delays): ChipTiming {
+function nexperia(
+  document: string,
+  revision: string,
+  delays: Delays,
+  more: { table?: number; requirements?: Requirements; minAt?: MinAt } = {},
+): ChipTiming {
   return chipTiming(
     `https://assets.nexperia.com/documents/data-sheet/${document}.pdf`,
-    `Nexperia ${document} product data sheet, ${revision}, table 7`,
+    `Nexperia ${document} product data sheet, ${revision}, table ${more.table ?? 7}`,
     delays,
+    more.requirements,
+    more.minAt,
   );
 }
 
@@ -160,11 +191,178 @@ export const HC: LogicFamily = {
       },
       `Philips 74HC/HCT283 ${PHILIPS_1990}`,
     ),
-    '4511': nexperia('74HC_HCT4511', 'rev. 4 (28 March 2024)', {
-      'tpd(A-D to a-g)': [28, 75],
-      'tpd(LE to a-g)': [27, 68],
-      'tpd(BI to a-g)': [22, 55],
-      'tpd(LT to a-g)': [15, 38],
-    }),
+    '4511': nexperia(
+      '74HC_HCT4511',
+      'rev. 4 (28 March 2024)',
+      {
+        'tpd(A-D to a-g)': [28, 75],
+        'tpd(LE to a-g)': [27, 68],
+        'tpd(BI to a-g)': [22, 55],
+        'tpd(LT to a-g)': [15, 38],
+      },
+      {
+        requirements: {
+          'tW(LE)': [16, 4],
+          'tsu(A-D to LE)': [12, 5],
+          'th(A-D to LE)': [0, -4],
+        },
+      },
+    ),
+
+    // Flip-flops and registers (R09a). Delays and requirements from the same table.
+    '74': nexperia(
+      '74HC_HCT74',
+      'rev. 9 (2 April 2024)',
+      {
+        'tpd(nCP to nQ, nQN)': [17, 44],
+        'tpd(nSD to nQ, nQN)': [18, 50],
+        'tpd(nRD to nQ, nQN)': [19, 50],
+      },
+      {
+        table: 8,
+        // This revision gives minima only for −40 °C to +85 °C (no 25 °C column).
+        minAt: '−40 °C to +85 °C',
+        requirements: {
+          'tW(nCP)': [20, 7],
+          'tW(nSD, nRD)': [20, 7],
+          'trec(nSD, nRD)': [8, 1],
+          'tsu(nD to nCP)': [15, 2],
+          'th(nD to nCP)': [3, -2],
+        },
+      },
+    ),
+    '107': nexperia(
+      '74HC_HCT107',
+      'rev. 7 (20 February 2024)',
+      { 'tpd(nCP to nQ, nQN)': [19, 40], 'tpd(nR to nQ, nQN)': [19, 39] },
+      {
+        requirements: {
+          'tW(nCP)': [16, 8],
+          'tW(nR)': [16, 8],
+          'trec(nR to nCP)': [12, 7],
+          'tsu(nJ, nK to nCP)': [20, 8],
+          'th(nJ, nK to nCP)': [3, -2],
+        },
+      },
+    ),
+    '109': nexperia(
+      '74HC_HCT109',
+      'rev. 6 (21 February 2024)',
+      {
+        'tpd(nCP to nQ, nQN)': [18, 44],
+        'tPLH(nSD to nQ)': [11, 30],
+        'tPHL(nSD to nQN)': [15, 39],
+        'tPHL(nRD to nQ)': [15, 46],
+        'tPLH(nRD to nQN)': [14, 43],
+      },
+      {
+        requirements: {
+          'tW(nCP)': [16, 7],
+          'tW(nSD, nRD)': [16, 5],
+          'trec(nSD, nRD to nCP)': [14, 7],
+          'tsu(nJ, nK to nCP)': [14, 6],
+          'th(nJ, nK to nCP)': [5, 0],
+        },
+      },
+    ),
+    '112': nexperia(
+      '74HC_HCT112',
+      'rev. 5 (15 January 2024)',
+      {
+        'tpd(nCP to nQ, nQN)': [20, 44],
+        'tpd(nRD to nQ, nQN)': [21, 45],
+        'tpd(nSD to nQ, nQN)': [18, 39],
+      },
+      {
+        requirements: {
+          'tW(nCP)': [16, 8],
+          'tW(nSD, nRD)': [16, 8],
+          'trec(nRD to nCP)': [16, 8],
+          'trec(nSD to nCP)': [16, -7],
+          'tsu(nJ, nK to nCP)': [16, 7],
+          'th(nJ, nK to nCP)': [0, -4],
+        },
+      },
+    ),
+    '173': nexperia(
+      '74HC_HCT173',
+      'rev. 5 (15 January 2024)',
+      {
+        'tpd(CP to Qn)': [20, 44],
+        'tPHL(MR to Qn)': [16, 38],
+        'ten(OEn to Qn)': [19, 38],
+        'tdis(OEn to Qn)': [19, 38],
+      },
+      {
+        table: 8,
+        requirements: {
+          'tW(CP)': [16, 5],
+          'tW(MR)': [16, 5],
+          'trec(MR to CP)': [12, -3],
+          'tsu(En to CP)': [20, 12],
+          'tsu(Dn to CP)': [12, 6],
+          'th(En to CP)': [0, -6],
+          'th(Dn to CP)': [1, -4],
+        },
+      },
+    ),
+    '175': nexperia(
+      '74HC_HCT175',
+      'rev. 7 (14 March 2024)',
+      { 'tpd(CP to Qn, QnN)': [20, 44], 'tPHL(MR to Qn, QnN)': [18, 38] },
+      {
+        requirements: {
+          'tW(CP)': [16, 8],
+          'tW(MR)': [16, 7],
+          'trec(MR to CP)': [5, -12],
+          'tsu(Dn to CP)': [16, 1],
+          'th(Dn to CP)': [5, 0],
+        },
+      },
+    ),
+    '273': nexperia(
+      '74HC_HCT273',
+      'rev. 8 (5 August 2024)',
+      { 'tpd(CP to Qn)': [15, 37], 'tPHL(MR to Qn)': [16, 37] },
+      {
+        requirements: {
+          'tW(CP)': [16, 5],
+          'tW(MR)': [12, 6],
+          'trec(MR to CP)': [10, -2],
+          'tsu(Dn to CP)': [12, 4],
+          'th(Dn to CP)': [3, -2],
+        },
+      },
+    ),
+    '374': nexperia(
+      '74HC_HCT374',
+      'rev. 6 (5 August 2024)',
+      { 'tpd(CP to Qn)': [18, 41], 'ten(OE to Qn)': [15, 38], 'tdis(OE to Qn)': [18, 38] },
+      {
+        requirements: { 'tW(CP)': [16, 7], 'tsu(Dn to CP)': [12, 5], 'th(Dn to CP)': [5, -2] },
+      },
+    ),
+    '377': nexperia(
+      '74HC_HCT377',
+      'rev. 6 (5 August 2024)',
+      { 'tpd(CP to Qn)': [16, 40] },
+      {
+        requirements: {
+          'tW(CP)': [16, 5],
+          'tsu(Dn to CP)': [12, 5],
+          'tsu(E to CP)': [12, 2],
+          'th(Dn to CP)': [3, -3],
+          'th(E to CP)': [4, -1],
+        },
+      },
+    ),
+    '574': nexperia(
+      '74HC_HCT574',
+      'rev. 10 (5 August 2024)',
+      { 'tpd(CP to Qn)': [17, 35], 'ten(OE to Qn)': [16, 35], 'tdis(OE to Qn)': [14, 31] },
+      {
+        requirements: { 'tW(CP)': [16, 5], 'tsu(Dn to CP)': [12, 2], 'th(Dn to CP)': [5, 0] },
+      },
+    ),
   },
 };
