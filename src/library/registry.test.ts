@@ -53,7 +53,7 @@ const CHIPS = [
 ];
 
 describe('createDefaultRegistry', () => {
-  it('contains every primitive, IO part and 74xx chip', () => {
+  it('contains every primitive, IO part, net label and 74xx chip', () => {
     expect(
       createDefaultRegistry()
         .list()
@@ -81,6 +81,7 @@ describe('createDefaultRegistry', () => {
       'io/seven-segment',
       'io/hex-display',
       'io/probe',
+      'net/label',
       ...CHIPS,
       'timer/ne555',
     ]);
@@ -91,7 +92,7 @@ describe('createDefaultRegistry', () => {
       expect(d.name, d.type).not.toBe('');
       expect(d.title, d.type).not.toBe('');
       expect(d.keywords?.length, d.type).toBeGreaterThan(0);
-      expect(['prim', 'io', '74xx', 'timer']).toContain(familyOf(d.type));
+      expect(['prim', 'io', 'net', '74xx', 'timer']).toContain(familyOf(d.type));
     }
   });
 
@@ -124,6 +125,7 @@ describe('createDefaultRegistry', () => {
       'io/seven-segment': 'DS',
       'io/hex-display': 'DS',
       'io/probe': 'TP',
+      'net/label': 'NL',
       ...Object.fromEntries(CHIPS.map((type) => [type, 'U'])),
       'timer/ne555': 'U',
     });

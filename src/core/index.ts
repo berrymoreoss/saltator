@@ -90,6 +90,7 @@ export {
 } from './simulator';
 export {
   COMBINING_OVERLINE,
+  netNameRuns,
   PIN_SIDES,
   type PinSide,
   pinTextRuns,

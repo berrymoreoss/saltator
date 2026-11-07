@@ -215,6 +215,7 @@ describe('compileCircuit', () => {
         ]),
       );
       expect(result.junctions).toEqual([]);
+      expect([...result.openPins]).toEqual(['U1.B', 'U1.Y']);
       expect(result.issues.map((i) => `${i.code} ${i.pin}`)).toEqual(['undriven-input B']);
       const sim = new Simulator(result.netlist, registry);
       sim.settle();
@@ -254,6 +255,7 @@ describe('compileCircuit', () => {
     it('join named simulated pins without a wire', () => {
       const result = compile([part('R1', 'test/hi', 0, 0), part('R2', 'test/hi', 0, 10)]);
       expect(result.nets.map((n) => n.id)).toEqual(['HI']);
+      expect([...result.openPins]).toEqual(['R1.Y', 'R2.Y']); // they touch nothing
       expect(result.nets[0]!.pins.map((p) => p.component)).toEqual(['R1', 'R2']);
       expect(result.issues).toEqual([]); // tied to the same level: one source
     });

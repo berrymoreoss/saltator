@@ -36,6 +36,8 @@ export interface Connectivity {
   readonly junctions: readonly Point[];
   /** Wire ends that touch nothing else, in wire order. */
   readonly danglingEnds: readonly WireEnd[];
+  /** Pins that touch nothing else at their point (joining by name doesn't count), in pin order. */
+  readonly openPins: readonly number[];
 }
 
 /**
@@ -135,7 +137,12 @@ export function connect(
     if (degree[wireTo[w]!] === 1) danglingEnds.push({ wire: w, end: 'to', at: wire.to });
   });
 
-  return { netCount, pinNet, wireNet, junctions, danglingEnds };
+  const openPins: number[] = [];
+  pinNode.forEach((n, pin) => {
+    if (degree[n] === 1) openPins.push(pin);
+  });
+
+  return { netCount, pinNet, wireNet, junctions, danglingEnds, openPins };
 }
 
 /** Node indices grouped by `points[n][by]`, each group sorted by `points[n][along]`. */

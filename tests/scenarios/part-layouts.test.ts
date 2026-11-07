@@ -38,4 +38,11 @@ describe('part layouts of every built-in part', () => {
   it('gives every part a symbol or a package (none falls back to the generic box)', () => {
     for (const d of parts) expect(d.symbol ?? d.package, d.type).toBeDefined();
   });
+
+  it("puts a net label's pin at its origin, the tag centered on that row", () => {
+    const label = parts.find((d) => d.type === 'net/label')!;
+    const layout = partLayout(label, resolveProps(label, { name: 'CLK' }));
+    expect(layout.pins).toEqual([{ name: 'N', at: [0, 0], side: 'left' }]);
+    expect(layout.body).toEqual({ x: 1, y: -0.5, width: 3, height: 1 });
+  });
 });

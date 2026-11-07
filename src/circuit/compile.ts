@@ -35,6 +35,11 @@ export interface CompileResult {
   readonly wireNets: ReadonlyMap<string, string>;
   /** Points where a junction dot is drawn, sorted by x, then y. */
   readonly junctions: readonly Point[];
+  /**
+   * Pins that touch nothing at their point (`U1.A`), net labels included. A pin can be open and
+   * still share a net by name: a lone VCC symbol, a label away from any wire.
+   */
+  readonly openPins: ReadonlySet<string>;
   /** Design issues: errors first by kind, each kind in document order. */
   readonly issues: readonly DesignIssue[];
   /** True if there are no error-severity issues. */
@@ -155,6 +160,9 @@ export function compileCircuit(circuit: Circuit, registry: ComponentRegistry): C
       circuit.wires.map((wire, i) => [wire.id, nets[connectivity.wireNet[i]!]!.id]),
     ),
     junctions: connectivity.junctions,
+    openPins: new Set(
+      connectivity.openPins.map((i) => `${allPins[i]!.component}.${allPins[i]!.pin}`),
+    ),
     issues,
     ok: !issues.some((issue) => issue.severity === 'error'),
   };

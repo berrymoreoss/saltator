@@ -22,6 +22,7 @@ import {
   GATE_STYLES,
   type LiveDraw,
   lit,
+  type PartLive,
   RecordingGraphics,
   type ScenePart,
   UNKNOWN_LIGHT,
@@ -101,7 +102,9 @@ describe('symbol drawing', () => {
       for (const props of propVariants(definition)) {
         const circuit = circuitOf(definition.type, props);
         const compiled = compileCircuit(circuit, registry);
-        const connected = compiled.nets.flatMap((net) => net.pins.map((p) => [p.pin, p.at]));
+        const connected = compiled.nets.flatMap((net) =>
+          [...net.pins, ...net.schematicPins].map((p) => [p.pin, p.at]),
+        );
         const drawn = buildScene(circuit, registry).parts[0]!.pins.map((p) => [p.name, p.at]);
         expect(drawn, definition.type).toEqual(connected);
       }
@@ -163,7 +166,11 @@ describe('symbol drawing while simulating', () => {
   const levelColor = (level: Level) => `level-${levelChar(level)}`;
 
   /** The part in a simulator of its own, run for a while, with `light` for every light. */
-  function live(part: ScenePart, light: number, levels?: (pin: string) => Level): LiveDraw {
+  function live(
+    part: ScenePart,
+    light: number,
+    levels?: (pin: string) => Level,
+  ): LiveDraw & { readonly part: PartLive } {
     const sim = new Simulator(
       compileCircuit(circuitOf(part.instance.type, part.instance.props), registry).netlist,
       registry,
@@ -179,13 +186,17 @@ describe('symbol drawing while simulating', () => {
     };
   }
 
+  /** Schematic-only parts (net labels) aren't simulated: they get their nets' colors only. */
+  const liveOrNet = (part: ScenePart, light: number): LiveDraw =>
+    part.definition?.schematicOnly ? { levelColor, pinColor: () => 'level-1' } : live(part, light);
+
   it('draws every part inside its layout with live state, lit and unknown', () => {
     for (const definition of shipped) {
       for (const props of propVariants(definition)) {
         const part = buildScene(circuitOf(definition.type, props), registry).parts[0]!;
         for (const light of [0, 0.5, 1, UNKNOWN_LIGHT]) {
           const g = new RecordingGraphics();
-          drawPartBody(g, part, 'ansi', 'red', live(part, light));
+          drawPartBody(g, part, 'ansi', 'red', liveOrNet(part, light));
           const where = `${definition.type} ${JSON.stringify(props)} light ${light}`;
           expect(g.strokes + g.fills, where).toBeGreaterThan(0);
           expect(within(g.points, part.localBounds), where).toBe(true);
@@ -256,5 +267,16 @@ describe('symbol drawing while simulating', () => {
         live(clock, 0, () => Level.L0),
       ).paints,
     ).toContain('level-0');
+  });
+
+  it('draws a net label with its name, overlined as marked, its outline in its net color', () => {
+    const label = partOf('net/label', { name: '~{CLR}' });
+    const idle = draw(label, undefined);
+    expect(idle.texts.map((t) => [t.text, t.style.overline])).toEqual([['CLR', true]]);
+    expect(idle.paints).not.toContain('level-1');
+    const running = draw(label, { levelColor, pinColor: (pin) => `net-${pin}` });
+    expect(running.paints).toContain('net-N');
+    const partial = draw(partOf('net/label', { name: '~{CS}1' }), undefined).texts[0]!;
+    expect([partial.text, partial.style.overline]).toEqual(['CS1', [[0, 2]]]);
   });
 });

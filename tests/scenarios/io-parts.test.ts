@@ -70,16 +70,23 @@ describe('IO parts in circuits', () => {
     expect(sim.diagnostics.entries).toEqual([]);
   });
 
-  it('rail symbols: VCC wired to VCC is fine, VCC to GND is a short', () => {
-    // V1, V2: Y (1, 2), (11, 2); G1: Y (21, 2). One wire along y = 2.
+  it('rail symbols: every VCC is one net by name, VCC wired to GND is a short', () => {
+    // V1, V2: Y (1, 2), (11, 2); G1, G2: Y (21, 2), (31, 2). No wires yet.
     const b = new CircuitBuilder(registry)
       .add('V1', 'io/vcc', { at: [0, 0] })
       .add('V2', 'io/vcc', { at: [10, 0] })
-      .wire('V1.Y', 'V2.Y');
-    expect(compileDocument(b.document(), registry).issues).toEqual([]);
-    b.add('G1', 'io/gnd', { at: [20, 2] }).wire('V2.Y', 'G1.Y');
+      .add('G1', 'io/gnd', { at: [20, 2] })
+      .add('G2', 'io/gnd', { at: [30, 2] });
+    const apart = compileDocument(b.document(), registry);
+    expect(apart.nets.map((n) => [n.id, n.pins.map((p) => p.component)])).toEqual([
+      ['VCC', ['V1', 'V2']],
+      ['GND', ['G1', 'G2']],
+    ]);
+    expect(apart.issues).toEqual([]);
+    b.wire('V2.Y', 'G1.Y');
     expect(compileDocument(b.document(), registry).issues.map((i) => i.message)).toEqual([
-      'outputs shorted together on net "V1.Y": V1.Y, V2.Y, G1.Y',
+      'outputs shorted together on net "GND": V1.Y, V2.Y, G1.Y, G2.Y',
+      'net "GND" has several names: GND, VCC (it is called GND)',
     ]);
   });
 

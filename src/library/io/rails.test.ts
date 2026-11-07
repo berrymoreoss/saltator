@@ -16,8 +16,8 @@ describe('io/vcc, io/gnd', () => {
     bench.expectNoDiagnostics();
   });
 
-  it('marks the pin constant, so design checks can tell rails apart', () => {
-    expect(vcc.pins).toEqual([{ name: 'Y', dir: 'out', constant: 1 }]);
-    expect(gnd.pins).toEqual([{ name: 'Y', dir: 'out', constant: 0 }]);
+  it('marks the pin constant and joins it to the net of its rail by name', () => {
+    expect(vcc.pins).toEqual([{ name: 'Y', dir: 'out', constant: 1, net: 'VCC' }]);
+    expect(gnd.pins).toEqual([{ name: 'Y', dir: 'out', constant: 0, net: 'GND' }]);
   });
 });

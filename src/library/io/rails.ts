@@ -2,8 +2,9 @@ import { defineComponent, Level, strong } from '../../core';
 
 /**
  * Power rail symbols: a connection to VCC (logic 1) or GND (logic 0), driven strong from t = 0.
- * The pin is marked `constant`, so wiring two VCC symbols together is not a short (VCC to GND
- * is). Each symbol is its own source; joining all of them by name is net labels' job (R10).
+ * Every VCC symbol is on the net `VCC` and every GND symbol on `GND`, joined by name like net
+ * labels (a label `VCC` joins it too). The pin is marked `constant`, so the symbols on one net
+ * count as one source for the design checks (VCC to GND is a short).
  */
 function rail(level: 0 | 1) {
   const high = level === 1;
@@ -15,7 +16,7 @@ function rail(level: 0 | 1) {
       ? ['vcc', 'power', 'supply', '5v', 'rail', 'high', 'logic 1']
       : ['gnd', 'ground', 'rail', '0v', 'low', 'logic 0'],
     designatorPrefix: 'PWR',
-    pins: [{ name: 'Y', dir: 'out', constant: level }],
+    pins: [{ name: 'Y', dir: 'out', constant: level, net: high ? 'VCC' : 'GND' }],
     // VCC: a bar with the pin hanging below it; GND: the ground sign with the pin above it.
     symbol: {
       kind: high ? 'vcc' : 'gnd',

@@ -10,6 +10,7 @@ import { drawDip } from './dip';
 import { drawBroken, drawLabeledBox } from './fallback';
 import { GATE_DRAWERS } from './gates';
 import { IO_DRAWERS } from './io';
+import { NET_DRAWERS } from './net';
 import { POWER_DRAWERS } from './power';
 import type { Drawer, GateStyle, PartLive } from './types';
 
@@ -25,12 +26,15 @@ export const DRAWERS: Readonly<Record<string, Drawer>> = {
   ...GATE_DRAWERS,
   ...POWER_DRAWERS,
   ...IO_DRAWERS,
+  ...NET_DRAWERS,
 };
 
 /** What a part looks like in the running simulation, for its drawer. */
 export interface LiveDraw {
-  readonly part: PartLive;
+  /** The part in the simulator; schematic-only parts have none. */
+  readonly part?: PartLive;
   readonly levelColor: (level: Level) => string;
+  readonly pinColor?: (pin: string) => string;
 }
 
 /**
@@ -56,7 +60,8 @@ export function drawPartBody(
           body: layout.body,
           props: part.props,
           gateStyle,
-          ...(live && { live: live.part, levelColor: live.levelColor }),
+          ...(live?.part && { live: live.part, levelColor: live.levelColor }),
+          ...(live?.pinColor && { pinColor: live.pinColor }),
         });
       } else {
         drawLabeledBox(g, layout.body, definition?.name ?? drawing.symbol.kind, layout.pins);

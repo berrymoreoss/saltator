@@ -29,6 +29,12 @@ export interface SymbolDef {
   readonly height: number;
   /** Placement of every pin of the part (power and nc pins too), by pin name. */
   readonly pins: Readonly<Record<string, SymbolPin>>;
+  /**
+   * The body sits half a cell higher than its cells, so a one-cell-high body is centered on the
+   * row of its pins at offset 0, and such parts stack on adjacent pins at a one-cell pitch (net
+   * labels on a chip's data pins). Pins on the left and right sides only.
+   */
+  readonly centered?: boolean;
 }
 
 /** Combining overline (U+0305), written after each character a label overlines: `U̅/D`. */
@@ -61,6 +67,31 @@ export function pinTextRuns(
     const last = runs.at(-1);
     if (last?.overline === overline) last.text += char;
     else runs.push({ text: char, overline });
+  }
+  return runs;
+}
+
+/**
+ * A net name as drawn: `~{…}` marks an overlined part, as in KiCad (`~{CLR}` → C̅L̅R̅,
+ * `~{CS}1` → C̅S̅1). A `~` without a closing brace is plain text.
+ */
+export function netNameRuns(name: string): TextRun[] {
+  const runs: TextRun[] = [];
+  const push = (text: string, overline: boolean) => {
+    const last = runs.at(-1);
+    if (last?.overline === overline) runs[runs.length - 1] = { text: last.text + text, overline };
+    else if (text !== '') runs.push({ text, overline });
+  };
+  let i = 0;
+  while (i < name.length) {
+    const close = name.startsWith('~{', i) ? name.indexOf('}', i + 2) : -1;
+    if (close > i + 2) {
+      push(name.slice(i + 2, close), true);
+      i = close + 1;
+    } else {
+      push(name[i]!, false);
+      i++;
+    }
   }
   return runs;
 }
@@ -111,6 +142,9 @@ export function validateSymbol(symbol: SymbolDef, pins: readonly PinDef[], where
       throw new Error(
         `${where}: pin "${name}" offset must be an integer 0…${length} on the ${side} side, got ${offset}`,
       );
+    }
+    if (symbol.centered && (side === 'top' || side === 'bottom')) {
+      throw new Error(`${where}: pin "${name}" is on the ${side} side of a centered symbol`);
     }
     const key = `${side}:${offset}`;
     const other = taken.get(key);

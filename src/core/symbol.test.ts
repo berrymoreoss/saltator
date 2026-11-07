@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { defineComponent, type PinDef, resolveProps } from './component';
-import { pinTextRuns, runsText, type SymbolDef, symbolOf, validateSymbol } from './symbol';
+import {
+  netNameRuns,
+  pinTextRuns,
+  runsText,
+  type SymbolDef,
+  symbolOf,
+  validateSymbol,
+} from './symbol';
 
 const pins: readonly PinDef[] = [
   { name: 'A', dir: 'in' },
@@ -72,6 +79,10 @@ describe('validateSymbol', () => {
       'x/y: pin "Y" offset must be an integer 0…4 on the right side, got 1.5',
     ],
     [withPins({ B: { side: 'left', offset: 1 } }), 'x/y: pins "A" and "B" are on the same point'],
+    [
+      { ...withPins({ Y: { side: 'bottom', offset: 2 } }), centered: true },
+      'x/y: pin "Y" is on the bottom side of a centered symbol',
+    ],
   ])('rejects %#', (bad, message) => {
     expect(() => validateSymbol(bad as SymbolDef, pins, 'x/y')).toThrow(message);
   });
@@ -100,5 +111,24 @@ describe('pinTextRuns', () => {
   it('draws another text when given one, and gives back the plain text', () => {
     expect(pinTextRuns({ name: 'NC3' }, 'NC')).toEqual([{ text: 'NC', overline: false }]);
     expect(runsText(pinTextRuns({ name: 'UD', label: 'U\u0305/D' }))).toBe('U/D');
+  });
+});
+
+describe('netNameRuns', () => {
+  const runs = (name: string) => netNameRuns(name).map((r) => `${r.overline ? '‾' : ''}${r.text}`);
+
+  it('overlines what ~{…} marks, as KiCad does', () => {
+    expect(runs('CLK')).toEqual(['CLK']);
+    expect(runs('~{CLR}')).toEqual(['‾CLR']);
+    expect(runs('~{CS}1')).toEqual(['‾CS', '1']);
+    expect(runs('R/~{W}')).toEqual(['R/', '‾W']);
+    expect(runs('~{A}~{B}')).toEqual(['‾AB']);
+    expect(runsText(netNameRuns('~{MI}'))).toBe('MI');
+  });
+
+  it('keeps a ~ without a closing brace as text', () => {
+    expect(runs('~{A')).toEqual(['~{A']);
+    expect(runs('~{}X')).toEqual(['~{}X']);
+    expect(runs('A~B')).toEqual(['A~B']);
   });
 });

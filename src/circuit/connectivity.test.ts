@@ -24,6 +24,7 @@ describe('connect', () => {
       wireNet: new Int32Array(0),
       junctions: [],
       danglingEnds: [],
+      openPins: [],
     });
   });
 
@@ -112,6 +113,7 @@ describe('connect', () => {
     expect(Array.from(c.wireNet)).toEqual([0]);
     expect(c.junctions).toEqual([]);
     expect(c.danglingEnds).toEqual([{ wire: 0, end: 'to', at: [9, 0] }]);
+    expect(c.openPins).toEqual([0, 2, 3]); // p0 touches nothing; its partner p1 has the wire
   });
 
   it('numbers nets by first appearance, pins first', () => {

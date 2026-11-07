@@ -36,6 +36,11 @@ export interface DrawContext {
   readonly live?: PartLive;
   /** The wire color of a level (probes, clocks), in the canvas theme. */
   readonly levelColor?: (level: Level) => string;
+  /**
+   * While simulating, for schematic-only parts (net labels): the wire color of the net at a
+   * pin, as its wires show it (weak, contention included).
+   */
+  readonly pinColor?: (pin: string) => string;
 }
 
 /** Draws a part's body (pin stubs are drawn by the renderer). */

@@ -15,6 +15,7 @@ const FAMILIES: readonly (readonly [string, string])[] = [
   ['timer', 'Timers'],
   ['prim', 'Primitives'],
   ['io', 'Input / Output'],
+  ['net', 'Nets'],
   ['dev', 'Developer Fixtures'],
 ];
 
