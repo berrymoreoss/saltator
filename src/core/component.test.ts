@@ -107,6 +107,13 @@ describe('pins', () => {
     expect(() => validatePins([two], 'x/y')).toThrow('x/y: pin "Y" constant must be 0 or 1');
   });
 
+  it('validatePins rejects a blank net name', () => {
+    expect(() => validatePins([{ name: 'N', dir: 'nc', net: 'CLK' }], 'x/y')).not.toThrow();
+    expect(() => validatePins([{ name: 'N', dir: 'nc', net: ' ' }], 'x/y')).toThrow(
+      'x/y: pin "N" has an empty net name',
+    );
+  });
+
   it('validatePins allows weak only on driver pins', () => {
     expect(() => validatePins([{ name: 'Y', dir: 'out', weak: true }], 'x/y')).not.toThrow();
     expect(() => validatePins([{ name: 'A', dir: 'in', weak: true }], 'x/y')).toThrow(
@@ -158,6 +165,30 @@ describe('resolveProps', () => {
     expect(() => resolveProps(def, { label: 2 })).toThrow('prop "label" must be a string, got 2');
     expect(() => resolveProps(def, { color: null })).not.toThrow(); // null → default
     expect(() => resolveProps(def, { f: Number.NaN })).toThrow('must be a finite number');
+  });
+
+  it('checks a string prop against its pattern', () => {
+    const def = defineComponent({
+      type: 'test/pattern',
+      name: 'P',
+      title: 'Pattern',
+      pins: [],
+      props: [
+        {
+          key: 'name',
+          label: 'Name',
+          type: 'string',
+          default: 'A1',
+          pattern: { regex: /^[A-Z][0-9]*$/, hint: 'a capital letter and digits' },
+        },
+      ],
+      create: () => ({}),
+    });
+    expect(resolveProps(def, { name: 'B12' })).toEqual({ name: 'B12' });
+    expect(() => resolveProps(def, { name: 'b1' }, 'U1')).toThrow(
+      'U1: prop "name" must be a capital letter and digits, got "b1"',
+    );
+    expect(() => resolveProps(def, { name: 3 })).toThrow('prop "name" must be a string, got 3');
   });
 
   it('reports "none" for parts without props', () => {
