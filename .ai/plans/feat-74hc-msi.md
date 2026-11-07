@@ -185,7 +185,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   tables and HC timing (every path) for the 11 chips, sources cited; fallback per Q2.
 - [x] 3. Decoders 74HC138, 139 with tests (every output, enables, unknown address/enable, each
   path delay).
-- [ ] 4. Multiplexers 74HC151, 153, 157, 158 with tests (both 151 outputs, shared selects,
+- [x] 4. Multiplexers 74HC151, 153, 157, 158 with tests (both 151 outputs, shared selects,
   unknown select with equal/different candidates, each path delay).
 - [ ] 5. 74HC283 and 74HC85 with tests: exhaustive against arithmetic; unknown bits; carry and
   cascade paths; two 85s cascaded to 8 bits.

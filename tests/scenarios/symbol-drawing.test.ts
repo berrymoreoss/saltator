@@ -118,6 +118,15 @@ describe('symbol drawing', () => {
     expect(texts).toContain('DEV14');
     expect(g.texts.find((t) => t.text === 'OE')?.style.overline).toBe(true);
   });
+
+  it('draws a labelled pin under its label: the 74HC151 has Y and Y overlined', () => {
+    const part = buildScene(circuitOf('74xx/74hc151', {}), registry).parts[0]!;
+    const g = new RecordingGraphics();
+    drawPartBody(g, part, 'ansi', 'red');
+    const ys = g.texts.filter((t) => t.text === 'Y').map((t) => t.style.overline === true);
+    expect(ys.sort()).toEqual([false, true]);
+    expect(g.texts.some((t) => t.text === 'YN')).toBe(false);
+  });
 });
 
 describe('symbol drawing while simulating', () => {
