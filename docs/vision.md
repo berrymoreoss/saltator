@@ -38,10 +38,10 @@ for digital builds, and first-class tools for looking inside memories and buses.
 ## Milestones that define success
 
 - **M1 "Hello, LED"**: switch → 74HC00 → LED and a blinking clock, built in the browser.
-- **M2 "Modules"**: SAP-1 building blocks (clock, registers, ALU, counter, RAM, output display)
-  work in isolation.
-- **M3 "SAP-1 runs"**: Ben Eater's 8-bit breadboard computer runs a program, verified by a test
-  bench.
+- **M2 "Tools"**: the tools to design and verify a digital device work on example circuits:
+  memory inspector and programmer, waveforms, debugger, subcircuits, test benches.
+- **M3 "SAP-1 runs"**: Ben Eater's 8-bit breadboard computer, built from modules that each pass
+  their own test bench, runs a program, verified by a test bench.
 - **M4 "6502 Hello World"**: a 6502 computer (65C02 + 28C256 + 62256 + 65C22 + HD44780) prints to
   its LCD from code assembled in the app.
 - **M5 "My computer"**: the author's own 8-bit computer with a 16-bit address bus is designed and
