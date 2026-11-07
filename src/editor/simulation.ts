@@ -9,6 +9,7 @@
  */
 import { type Point, pointKey } from '../circuit';
 import {
+  type AnyComponentDefinition,
   busValueText,
   type ComponentRegistry,
   type Diagnostic,
@@ -18,7 +19,9 @@ import {
   levelOf,
   type Netlist,
   ns,
+  type PropValue,
   type RunStatus,
+  resolveProps,
   Simulator,
   sameNetlistStructure,
   type Time,
@@ -371,6 +374,13 @@ export class Simulation {
   readonly #divergeListeners = new Set<(time: Time) => void>();
   /** Brightness samples of the indicators, by component id. */
   readonly #lights = new Map<string, LightSample>();
+  /** Parts whose look changes with time alone (an LCD's blink), and the look shown last. */
+  #animated: {
+    readonly id: string;
+    readonly definition: AnyComponentDefinition;
+    readonly props: Readonly<Record<string, PropValue>>;
+    phase: number;
+  }[] = [];
   /** Live views of the parts in the simulator, by component id (rebuilt with the simulator). */
   #parts = new Map<string, LivePart>();
 
@@ -912,6 +922,12 @@ export class Simulation {
         this.#netlist.components.map((c) => [c.id, new LivePart(sim, c.id, this.#lights)]),
       );
       this.#collectLights(sim);
+      this.#animated = this.#netlist.components.flatMap(({ id, type, props }) => {
+        const definition = this.#registry.get(type);
+        return definition?.animation
+          ? [{ id, definition, props: resolveProps(definition, props ?? {}, id), phase: -1 }]
+          : [];
+      });
       return true;
     } catch (error) {
       // The compiler leaves broken parts out, so this is a library bug: say so, don't crash.
@@ -1041,6 +1057,7 @@ export class Simulation {
       return;
     }
     let changed = this.#sampleLights(true);
+    changed = this.#animate(sim) || changed;
     changed ||= sim.stats.events !== this.#events;
     this.#events = sim.stats.events;
     const flash = Math.floor(wall / FLASH_MS) % 2 === 0;
@@ -1199,6 +1216,21 @@ export class Simulation {
         sample.onTime[i] = on;
       }
       sample.time = now;
+    }
+    return changed;
+  }
+
+  /** True when a part whose look follows time alone moved into its next look. */
+  #animate(sim: Simulator): boolean {
+    let changed = false;
+    for (const part of this.#animated) {
+      const { id, definition, props } = part;
+      const period = definition.animation!(sim.stateOf(id), props);
+      const phase = period === undefined || period <= 0 ? -1 : Math.floor(sim.now / period);
+      if (phase !== part.phase) {
+        part.phase = phase;
+        changed = true;
+      }
     }
     return changed;
   }

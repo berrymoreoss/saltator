@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { addComponents, addWires, type Circuit, CircuitBuilder, updateComponent } from '../circuit';
 import { Level, levelChar, ms, ns } from '../core';
-import { createDefaultRegistry } from '../library';
+import { createDefaultRegistry, type Hd44780Controller } from '../library';
 import { Editor } from './editor';
 import { FakeClock } from './fake-clock';
 import { selectionOf } from './selection';
@@ -803,6 +803,29 @@ describe('Simulation: buses', () => {
     expect(editor.scene.wires.find((w) => w.net === 'Q[0..3]')!.from[0]).toBe(q.from[0] + 5);
     expect(simulation.simulator).toBe(before);
     expect(simulation.signalView()!.busValue('D[3..0]')).toBe('0x0');
+  });
+});
+
+describe('Simulation: animated parts', () => {
+  it('redraws a blinking LCD at every blink phase though nothing else happens', () => {
+    const lcd = new CircuitBuilder(registry).add('DS1', 'periph/hd44780', { at: [0, 0] }).build();
+    const { clock, simulation } = setup(lcd);
+    simulation.run();
+    clock.frame(16);
+    const bumps = (frames: number) => {
+      const before = simulation.revision.get();
+      for (let i = 0; i < frames; i++) clock.frame(16);
+      return simulation.revision.get() - before;
+    };
+    const ctl = (simulation.simulator!.stateOf('DS1') as { ctl: Hd44780Controller }).ctl;
+    expect(bumps(60)).toBe(0); // display off: nothing changes
+    ctl.d = 1;
+    ctl.b = 1;
+    // 379.3 ms a phase at 270 kHz: about 960 ms of frames cross two or three.
+    expect(bumps(60)).toBeGreaterThanOrEqual(2);
+    ctl.b = 0;
+    bumps(1);
+    expect(bumps(60)).toBe(0);
   });
 });
 

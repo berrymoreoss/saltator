@@ -30,7 +30,9 @@ import {
   Hd44780Diagnostic,
   type Reporter,
   startRead,
+  Unknown,
 } from './hd44780-controller';
+import { blinkPeriod } from './hd44780-frame';
 import {
   HD44780_SIZE_LABELS,
   HD44780_SIZES,
@@ -69,7 +71,7 @@ export interface Hd44780Props {
 }
 
 /** Glass geometry in grid cells, shared with the drawer: one dot pitch, a character's pitch. */
-export const LCD_DOT_PITCH = 0.125;
+export const LCD_DOT_PITCH = 0.15;
 export const LCD_CHAR_PITCH = 6 * LCD_DOT_PITCH;
 export const LCD_LINE_PITCH = 10 * LCD_DOT_PITCH;
 
@@ -137,8 +139,8 @@ export function hd44780Symbol(size: Hd44780Size): SymbolDef {
   const { columns, lines } = hd44780Glass(size);
   return {
     kind: 'lcd',
-    width: Math.max(18, Math.ceil(columns * LCD_CHAR_PITCH) + 4),
-    height: Math.ceil(lines * LCD_LINE_PITCH) + 4,
+    width: Math.max(18, Math.ceil(columns * LCD_CHAR_PITCH + 2.5)),
+    height: Math.ceil(lines * LCD_LINE_PITCH + 2.6),
     pins: PIN_PLACES,
   };
 }
@@ -286,6 +288,9 @@ export const hd44780 = defineComponent<Hd44780Props, Hd44780State>({
   pins: PINS,
   symbol: ({ size }) => hd44780Symbol(size),
   timing: timingOf,
+  // The blinking character changes with time alone: redraw at every blink phase.
+  animation: ({ ctl }, { oscillator }) =>
+    ctl.d && (ctl.b || ctl.unknown & Unknown.B) ? blinkPeriod(oscillator) / 2 : undefined,
   create: (props) => {
     const timing = hd44780ControllerTiming(props.oscillator);
     const checks = new TimingChecks(PINS, BUS_MIN);

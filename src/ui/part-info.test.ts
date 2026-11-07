@@ -7,6 +7,7 @@ import {
   functionTableInfo,
   outputsHeading,
   pinInfo,
+  symbolParts,
   timingInfo,
 } from './part-info';
 
@@ -155,6 +156,15 @@ describe('datasheetName', () => {
 
 describe('timingInfo', () => {
   const of = (type: string) => timingInfo(registry.get(type)!)!;
+
+  it('sets symbols with their subscripts, and names as they are', () => {
+    expect(symbolParts('tpd')).toEqual({ base: 't', sub: 'pd' });
+    expect(symbolParts('PWEH')).toEqual({ base: 'PW', sub: 'EH' });
+    expect(symbolParts('Clear display')).toEqual({ base: 'Clear display', sub: '' });
+    const lcd = of('periph/hd44780');
+    expect(lcd.delays.map((r) => [r.symbol, r.max])).toContainEqual(['Clear display', '1.52 ms']);
+    expect(lcd.requirements.map((r) => [r.symbol, r.min])).toContainEqual(['PWEH', '230 ns']);
+  });
 
   it('lists delays with typical and max, pin names as drawn', () => {
     const t = of('74xx/74hc74');

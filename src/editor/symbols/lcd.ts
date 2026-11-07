@@ -184,12 +184,11 @@ const lcd: Drawer = (g, c) => {
     const def = pins.find((p) => p.name === pin.name);
     const { text, overline } = overlinedText(pinTextRuns(def ?? { name: pin.name }));
     g.text(text, pin.at[0], body.y + body.height - 0.12, {
-      size: 0.34,
+      size: 0.42,
       align: 'center',
       baseline: 'bottom',
       paint: 'pinText',
       overline,
-      minPx: 5,
     });
   }
 };

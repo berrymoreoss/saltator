@@ -253,7 +253,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   in data and instructions, unknown `AC`; mutation-checked.
 - [x] 4. (Q1) `powerOn: unknown` — interface hypotheses, the init waits; tests: Figures 23 and 24
   bring every hypothesis to the known state; short waits and missing steps stay unknown.
-- [ ] 5. `editor`: the `lcd` drawer, `PartLive.time`; symbol-drawing test, drawer tests
+- [x] 5. `editor`: the `lcd` drawer, `PartLive.time`; symbol-drawing test, drawer tests
   (recording graphics); looked at in the browser — every size, backlight, both themes, zoom.
 - [ ] 6. Scenarios: the data sheet's 8-bit (Figure 23) and 4-bit (Figure 24) initializations
   and "Hello, world!" from a test driver; a 74HC574 driving the bus too early (`tDSW`); a read
@@ -370,13 +370,24 @@ mode), 15 `LED+` (anode, +5 V via an on-board resistor), 16 `LED−` (cathode); 
   by tracing Figure 24 first: merging outcomes mixed the pending nibble of outcomes not
   awaiting a low nibble — now merged only across LOW outcomes. One equivalent mutation
   (maybeBusyUntil ≥ busyUntil always) simplified away.
+- 2026-11-08 — task 5: looked at in the browser (Playwright from the scratchpad, Vite on 5210):
+  four sizes and colors, both themes, zoom, idle, Properties, Part tab. Fixes: the glass was
+  small on its board — dot pitch 0.15 cells (16 × 2 body 18 × 6, glass ≈ 80 % of the width
+  like a real 1602); pin names 0.42 cells (hidden below `minPx` at 92 %). Found: the canvas
+  redraws only on events or light changes, so a blinking cursor in an idle circuit froze —
+  `ComponentDefinition.animation(state, props)` (core) gives the length of one look, the host
+  redraws when the phase changes (test + mutation). The Part tab took every timing key as `t`
+  - subscript (`Clear display` → "tlear display", `PWEH` → "tWEH"): `symbolParts` sets `t…` and
+    `PW…` with subscripts, descriptive keys as they are. Drawer tests: backlight by A/K, V0
+    contrast, unknown cells, idle look, pin names.
 
 ## Handoff
 
-- **State:** tasks 1–4 done: the part with both power-on modes, tested and mutation-checked;
-  a basic `lcd` drawer exists.
-- **Next step:** task 5 — polish the drawer and look at it in the browser (every size and
-  backlight, both themes, zoom); the Part tab and Properties for the new props.
+- **State:** tasks 1–5 done: the part, both power-on modes, the drawer (looked at in the
+  browser), the blink redraw, the Part tab's symbols.
+- **Next step:** task 6 — scenarios: the data sheet's initializations driven by real chips
+  (a 74HC574 on the bus), a too-early latch (tDSW), a read contention; the carry-over and
+  rewind properties with the LCD in their circuits.
 - **Watch out:** the data sheet copy is in the session scratchpad only; download it again if
   the scratchpad is gone.
 - **Verify with:** `pnpm check`.

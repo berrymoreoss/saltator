@@ -12,6 +12,7 @@ import {
   outputsHeading,
   type PartPick,
   pinInfo,
+  symbolParts,
   type TimingInfo,
   type TimingRow,
   timingInfo,
@@ -204,13 +205,23 @@ function Path({ path }: { readonly path: TimingRow['path'] }) {
   );
 }
 
+function TimingSymbol({ symbol }: { readonly symbol: string }) {
+  const { base, sub } = symbolParts(symbol);
+  return (
+    <>
+      {base}
+      {sub && <sub>{sub}</sub>}
+    </>
+  );
+}
+
 function TimingView({ timing }: { readonly timing: TimingInfo }) {
   const rows = (list: readonly TimingRow[], kind: 'delay' | 'requirement') =>
     list.map((row, i) => (
       // biome-ignore lint/suspicious/noArrayIndexKey: rows are static datasheet data
       <tr key={`${kind}${i}`}>
         <td className="mono">
-          t<sub>{row.symbol.slice(1)}</sub>
+          <TimingSymbol symbol={row.symbol} />
         </td>
         <td className="mono">
           <Path path={row.path} />
