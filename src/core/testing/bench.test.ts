@@ -198,6 +198,19 @@ describe('functionTable', () => {
     expect(run(['L L | 1'])).toThrow('bad output letter "1"');
     expect(run(['L Z | H'])).toThrow('bad input letter "Z"');
   });
+
+  it('skips output columns mapped to null (display only)', () => {
+    const bench = new Bench(nand);
+    const shown = {
+      inputs: ['A', 'B'],
+      outputs: ['Y', 'Display'],
+      rows: ['L X | H one', 'H H | L zero'],
+    };
+    expect(functionTable(bench, shown, ['A', 'B', 'Y', null])).toBe(3);
+    expect(() => functionTable(bench, shown, [null, 'B', 'Y', null])).toThrow(
+      'every input column needs a pin',
+    );
+  });
 });
 
 describe('truthTable', () => {

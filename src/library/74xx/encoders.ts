@@ -13,28 +13,12 @@ import {
   pinIndices,
 } from './chip';
 import { HC } from './hc-timing';
+import { merge, NO_OUTCOME, type Outcomes, outcomeLevel } from './outcomes';
 import { type DelayPath, pathDelays } from './paths';
 import { type PinRow, pins } from './pinout';
 
 const GND_16 = pins('GND', '8', 'power', 'ground');
 const VCC_16 = pins('VCC', '16', 'power', 'positive supply');
-
-/** Possible outcomes of an encoder, merged: which output bits all of them agree on, and how. */
-type Outcomes = number;
-const NONE: Outcomes = -1;
-
-/** Adds outcome `bits` (one bit per output, 1 = high) to `seen`: `(agree << 8) | value`. */
-function merge(seen: Outcomes, bits: number, all: number): Outcomes {
-  if (seen === NONE) return (all << 8) | bits;
-  const value = seen & 0xff;
-  return (((seen >> 8) & ~(value ^ bits) & all) << 8) | value;
-}
-
-/** Output `bit` of merged outcomes: its level if every possible outcome agrees, else `X`. */
-function outcomeLevel(seen: Outcomes, bit: number): Level {
-  if (!((seen >> 8) & (1 << bit))) return Level.X;
-  return seen & (1 << bit) ? Level.L1 : Level.L0;
-}
 
 /** TI's per-pin rows: `Active low input 4` → `input 4 (active LOW)`. */
 const numbered = (prefix: string, kind: 'in' | 'out', what: string, list: string) =>
@@ -91,7 +75,7 @@ const encoder147Behavior: ChipBehavior = (pinList, delays) => {
   const y = pinIndices(pinList, 'Y0, Y1, Y2, Y3');
 
   const evaluate = (ctx: EvalContext<undefined>) => {
-    let seen: Outcomes = NONE;
+    let seen: Outcomes = NO_OUTCOME;
     let decided = false;
     for (let n = 9; n >= 1 && !decided; n--) {
       const level = toInput(ctx.read(inputs[n - 1]!));
@@ -173,7 +157,7 @@ const encoder148Behavior: ChipBehavior = (pinList, delays) => {
 
   const evaluate = (ctx: EvalContext<undefined>) => {
     const ei = toInput(ctx.read(EI));
-    let seen: Outcomes = ei === Level.L0 ? NONE : merge(NONE, DISABLED_148, ALL_148);
+    let seen: Outcomes = ei === Level.L0 ? NO_OUTCOME : merge(NO_OUTCOME, DISABLED_148, ALL_148);
     if (ei !== Level.L1) {
       let decided = false;
       for (let n = 7; n >= 0 && !decided; n--) {

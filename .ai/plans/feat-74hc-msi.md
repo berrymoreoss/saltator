@@ -190,7 +190,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 5. 74HC283 and 74HC85 with tests: exhaustive against arithmetic; unknown bits; carry and
   cascade paths; two 85s cascaded to 8 bits.
 - [x] 6. Priority encoders 74HC147, 148 with tests (priority, GS/EO, two 148s cascaded).
-- [ ] 7. 74HC4511 with tests (every code 0–15, LT/BI priority, latch: transparent, hold, no latch
+- [x] 7. 74HC4511 with tests (every code 0–15, LT/BI priority, latch: transparent, hold, no latch
   on the forced evaluation, unknown latched), driving an `io/seven-segment` in a scenario.
 - [ ] 8. `timer/ne555` (family `timer` in the default registry), SI-prefix prop entry, ADR-0013;
   tests: astable first cycle, tH, tL against the formulas, RESET stop/restart; monostable tw,

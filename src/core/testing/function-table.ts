@@ -23,11 +23,14 @@ const OUTPUT_LETTERS: Readonly<Record<string, BenchValue>> = { H: 1, L: 0, Z: 'Z
  * ```ts
  * for (const unit of hc00.units!) functionTable(bench, hc00.functionTable!, unit.pins);
  * ```
+ *
+ * An output column mapped to `null` is display-only (the 4511's `Display` column: `8`,
+ * `blank`): its cells are not checked.
  */
 export function functionTable(
   bench: Bench,
   table: FunctionTable,
-  pins: readonly string[] = [...table.inputs, ...table.outputs],
+  pins: readonly (string | null)[] = [...table.inputs, ...table.outputs],
 ): number {
   const columns = table.inputs.length + table.outputs.length;
   if (pins.length !== columns) {
@@ -37,11 +40,13 @@ export function functionTable(
   }
   const inPins = pins.slice(0, table.inputs.length);
   const outPins = pins.slice(table.inputs.length);
+  if (inPins.includes(null)) throw new Error('function table: every input column needs a pin');
   const cases: { label: string; inputs: BenchValues; outputs: BenchValues }[] = [];
   for (const row of table.rows) {
     const { inputs: ins, outputs: outs } = parseFunctionTableRow(table, row);
     const outputs: Record<string, BenchValue> = {};
     outs.forEach((letter, i) => {
+      if (outPins[i] === null) return; // display only
       const value = OUTPUT_LETTERS[letter];
       if (value === undefined) {
         const hint =
@@ -57,7 +62,7 @@ export function functionTable(
       return values;
     });
     for (const combo of product(choices)) {
-      const inputs = Object.fromEntries(inPins.map((name, i) => [name, combo[i]!]));
+      const inputs = Object.fromEntries(inPins.map((name, i) => [name!, combo[i]!]));
       cases.push({ label: row, inputs, outputs });
     }
   }

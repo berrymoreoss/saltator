@@ -31,6 +31,7 @@ const CHIPS = [
   '74xx/74hc244',
   '74xx/74hc245',
   '74xx/74hc283',
+  '74xx/74hc4511',
 ];
 
 describe('createDefaultRegistry', () => {
