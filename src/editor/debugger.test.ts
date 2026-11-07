@@ -550,6 +550,39 @@ describe('Debugger: going back (R14b)', () => {
     expect(s.simulation.simulator!.nextEventTime).toBe(ns(2500));
   });
 
+  it('Step Back Clock undoes Step Clock on a gated clock (CLK behind an AND gate)', () => {
+    const b = new CircuitBuilder(registry)
+      .add('X1', 'io/clock', { at: [0, 0], props: { frequency: 1e6 } })
+      .add('U1', 'prim/and', { at: [10, 0] })
+      .add('V1', 'io/vcc', { at: [0, -10] });
+    for (const [i, [pin, name]] of (
+      [
+        ['X1.Y', 'OSC'],
+        ['U1.A', 'OSC'],
+        ['U1.B', 'VCC'],
+        ['U1.Y', 'CLK'],
+      ] as const
+    ).entries()) {
+      const [x, y] = b.pin(pin);
+      b.add(`NL${i + 1}`, 'net/label', { at: [x, y], props: { name } });
+    }
+    const s = setup(b.build());
+    expect(s.debug.clock().signal).toBe('CLK');
+    const levels = () => Array.from(s.simulation.simulator!.levels).join('');
+    const stops: { time: number; levels: string }[] = [];
+    for (let i = 0; i < 3; i++) {
+      s.debug.stepClock();
+      stops.push({ time: s.simulation.simulator!.now, levels: levels() });
+    }
+    expect(new Set(stops.map((t) => t.time)).size).toBe(3);
+    s.debug.stepBackClock();
+    expect({ time: s.simulation.simulator!.now, levels: levels() }).toEqual(stops[1]);
+    s.debug.stepBackClock();
+    expect({ time: s.simulation.simulator!.now, levels: levels() }).toEqual(stops[0]);
+    s.debug.stepClock();
+    expect({ time: s.simulation.simulator!.now, levels: levels() }).toEqual(stops[1]);
+  });
+
   it('Step Back Clock undoes a manual clock press; Step Clock then replays it', () => {
     const s = setup(counter());
     cleared(s);

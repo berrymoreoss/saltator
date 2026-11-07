@@ -4,7 +4,7 @@
 | ---------- | ------------------------------------------------------------------------------------------- |
 | Branch     | `feat/rewind`                                                                               |
 | Roadmap    | R14b — Snapshots & rewind ([roadmap](../../docs/roadmap.md))                                |
-| Status     | in-progress                                                                                 |
+| Status     | done                                                                                        |
 | Depends on | R05 (host, carry-over), R13 (recorder, triggers), R14a (steps, breakpoints, `requestPause`) |
 | Created    | 2026-11-08                                                                                  |
 
@@ -89,8 +89,8 @@ Read before starting:
 - **Event queue**: its arrays and counters as they are (seqs stay valid, the FIFO order of
   same-time events with them).
 - **Component states**: a frozen copy of each state (plain data — the rule `createState`
-  already states: "structured-clone-able, for state preservation and snapshots"); a typed array
-  of 4 KiB or more is kept in pages, and a page equal to the same page of `base` (the previous
+  already states: "structured-clone-able, for state preservation and snapshots"); typed arrays
+  are kept in 4 KiB pages, and a page equal to the same page of `base` (the previous
   snapshot) is shared, so a 62256 whose cells didn't change costs nothing. Restore copies into
   the existing state objects where the shape is the same (views onto them — the memory
   inspector's, the indicators' samples — stay valid), and replaces them otherwise. Anything
@@ -240,23 +240,33 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 
 Checkable statements; verified one by one in the finish-branch workflow.
 
-- [ ] `pnpm check`, `pnpm build` and `pnpm e2e` are green.
-- [ ] Reaching any position since the last power-on or structural edit gives exactly the state
+- [x] `pnpm check` (2235 tests), `pnpm build` and `pnpm e2e` (73) are green.
+- [x] Reaching any position since the last power-on or structural edit gives exactly the state
   a straight run had there — levels, drives, component states, diagnostics — on every example,
-  with seeded actions (property test), and a replay forward repeats the trace.
-- [ ] Step Back goes to the previous instant with events and Step comes back to the same state;
+  with seeded actions (property test), and a replay forward repeats the trace
+  (`tests/scenarios/rewind.test.ts`: 13 examples × 3 seeds and every registered part, ≈ 14
+  targets each, through a replica; `timeline.test.ts` with actions in and between frames).
+- [x] Step Back goes to the previous instant with events and Step comes back to the same state;
   Step Back Clock undoes Step Clock with `io/clock`, a manual clock and a gated clock; Reverse
   Continue stops at the previous breakpoint hit or error (Continue returns to the same hit),
-  else at the history's start.
-- [ ] After a rewind, forward runs replay the recording: logged actions happen again, the
+  else at the history's start (host test "Step Back … Step comes back"; debugger tests: a
+  free-running clock, a 74HC161 on a manual clock, `CLK` behind an AND gate, Reverse Continue
+  1.5 µs → 0.5 µs → Continue 1.5 µs, 2.5 µs, an added breakpoint, an error, "no earlier hit";
+  e2e on SAP-1 Program Counter).
+- [x] After a rewind, forward runs replay the recording: logged actions happen again, the
   waveforms' future stays and is confirmed, breakpoint hits count the same; an action at a
-  rewound position drops the future; an edit continues from the rewound instant.
-- [ ] The waveform's ruler goes to the time clicked; the canvas, Memory tab, watches and hits
-  show that time.
-- [ ] The history stays within its budget (thinning, then the start moves; tested with a tiny
-  budget); a rewind replays at most the maximum gap.
-- [ ] Kernel benchmark unchanged; the host's checkpointing at Max and the snapshot sizes (a
-  62256 sharing its pages) recorded here.
+  rewound position drops the future; an edit continues from the rewound instant (host tests at
+  real time and Max, Step delivering an action, a new future, an edit behind the present;
+  analyzer: the record's size unchanged after the replay, `cut`; debugger: hits 3 → 2 → 3;
+  e2e: CLR clicked behind the present).
+- [x] The waveform's ruler goes to the time clicked; the canvas, Memory tab, watches and hits
+  show that time (`Analyzer.goTo` test; Memory tab after a rewind; watches marked against where
+  the run came from; e2e on Data Bus; looked at in the browser, dark and light).
+- [x] The history stays within its budget (thinning, then the start moves; tested with a tiny
+  budget); a rewind replays at most the maximum gap (thinning skips drops that would widen a gap
+  past `maxGap` — the mutation removing that check fails the timeline tests).
+- [x] Kernel benchmark unchanged; the host's checkpointing at Max and the snapshot sizes (a
+  62256 sharing its pages) recorded here (progress log, tasks 2, 3 and 5).
 
 ## Open questions
 
@@ -392,12 +402,21 @@ Checkable statements; verified one by one in the finish-branch workflow.
   (Rewind, Step Back / Step Back Clock / Reverse Continue), the core and editor READMEs,
   ADR-0021 and its index row; roadmap (R14b done, R11 next; backlog "Rewind follow-ups");
   lessons.
+- 2026-11-08 — finished. Acceptance criteria checked (above; a test of Step Back Clock on a
+  gated clock added for it). R14b delivered rewinding: whole-simulator snapshots with shared
+  pages and replicas (core), a timeline of checkpoints and user actions (editor), Step Back,
+  Step Back Clock, Reverse Continue, Run To the past, Go to Present, the waveforms' ruler, forward
+  runs that replay the recording, the tools following by time; ADR-0021. Found on the way: a
+  replica needs the queue's seq counter; Step Clock behind the present with an action before
+  the edge; a time goal ending at a recorded action. Follow-ups: backlog "Rewind follow-ups
+  (R14b)"; R11 `feat/subcircuits` is next.
 
 ## Handoff
 
-- **State:** plan approved, branch started; no code yet.
-- **Next step:** task 1 (frozen state copies in `core`).
-- **Watch out:** the kernel's per-delta stamps must not be restored (the delta id keeps
-  counting); actions must replay at the same point relative to the kernel's runs; the
-  recorder's same-instant merging while confirming; R14a lessons on carry-over instants.
-- **Verify with:** `pnpm check`; `pnpm test tests/scenarios/rewind.test.ts`.
+- **State:** done; waiting for the user's approval to merge into `main`.
+- **Next step:** merge (`git merge --no-ff`), then R11 `feat/subcircuits`.
+- **Watch out:** R11's instances live in the same simulator, so snapshots and rewinds cover
+  them unchanged; new tools that watch the kernel must follow `onRewind`/`onDiverge` (seek by
+  time, not by replay); a part's state must stay plain data (`freezeState` throws otherwise).
+- **Verify with:** `pnpm check`, `pnpm test tests/scenarios/rewind.test.ts`,
+  `pnpm e2e tests/e2e/rewind.spec.ts`.
