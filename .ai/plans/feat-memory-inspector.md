@@ -203,7 +203,7 @@ editor host.
 
 Small, ordered, each committable on its own with its tests (`pnpm check` green).
 
-- [ ] 1. `core` + `library`: `readAt`/`writtenAt` on `MemoryView`, `addressPins` on `MemoryDef`
+- [x] 1. `core` + `library`: `readAt`/`writtenAt` on `MemoryView`, `addressPins` on `MemoryDef`
   (registry validation); the read path, write path and `poke` stamp; tests (each access kind,
   merged addresses stamp nothing, carry-over keeps stamps); mutation-checked; benchmark.
 - [ ] 2. `core`: image file codecs — binary and Intel HEX parse/format, file summary (range,
@@ -272,10 +272,15 @@ Checkable statements; verified one by one in the finish-branch workflow.
 - 2026-11-07 — plan approved; branch started. Roadmap reordered: phase 3 "Design tools" (R12b in
   progress, R13, R14, R11, R15 with the memory setup) → M2 "Tools"; phase 4 "SAP-1" (R16a
   modules, R16b the computer) → M3; CPU systems phase 5; vision.md's milestones to match.
+- 2026-11-07 — task 1: `MemoryView.readAt`/`writtenAt` (`createAccessStamps`), stamped by the
+  read path (one known address), every write-path change of a cell (store, maybe-write merge,
+  violation `X`, data hold) and `poke`; `MemoryDef.addressPins` (validated: `2 ** n` words,
+  input pins). Mutation-checked (8 mutations). Benchmark 7.82M events/s vs 7.92M on `main`
+  (−1.2 %). 1930 tests.
 
 ## Handoff
 
-- **State:** plan approved, roadmap reordered; no code yet.
-- **Next step:** task 1 (access stamps, `addressPins`).
+- **State:** task 1 done (access stamps, `addressPins`).
+- **Next step:** task 2 (image file codecs in `core`).
 - **Watch out:** —
 - **Verify with:** `pnpm check`.
