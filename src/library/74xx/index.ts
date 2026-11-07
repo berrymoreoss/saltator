@@ -14,6 +14,7 @@ import { hcMultiplexers } from './multiplexers';
 import { hcRegisters } from './registers';
 import { hcRippleCounters } from './ripple-counter';
 import { hc4511 } from './seven-segment-decoder';
+import { hcShiftRegisters } from './shift-registers';
 import { hc245 } from './transceiver';
 import { hcUpDownCounters } from './up-down-counters';
 
@@ -66,6 +67,13 @@ export {
   type BcdDecoderState,
   bcdDecoderChip,
 } from './seven-segment-decoder';
+export {
+  type ShiftRegisterSpec,
+  type ShiftRegisterState,
+  SR164_SPEC,
+  SR165_SPEC,
+  shiftRegisterChips,
+} from './shift-registers';
 export { TRANSCEIVER_SPEC, transceiverChip } from './transceiver';
 export {
   CNT191_SPEC,
@@ -90,4 +98,5 @@ export const chips74xx: readonly AnyComponentDefinition[] = [
   ...hcCounters,
   ...hcUpDownCounters,
   ...hcRippleCounters,
+  ...hcShiftRegisters,
 ].sort((a, b) => Number(a.name.slice(4)) - Number(b.name.slice(4)));

@@ -164,11 +164,18 @@ export function functionTable(
 
 /**
  * `table` with only the rows `functionTable` can check: those without datasheet text in their
- * output cells (`count`, a footnote such as `[1]`). The part's tests cover the others by hand.
+ * output cells (`count`, a footnote such as `[1]`), ignoring the `displayOnly` output columns
+ * (an internal register; map them to `null` when checking). The part's tests cover the other
+ * rows by hand.
  */
-export function checkableRows(table: FunctionTable): FunctionTable {
-  const checkable = (cell: string) =>
-    cell in OUTPUT_LETTERS || stateReference(table, cell) !== undefined;
+export function checkableRows(
+  table: FunctionTable,
+  displayOnly: readonly string[] = [],
+): FunctionTable {
+  const checkable = (cell: string, i: number) =>
+    displayOnly.includes(table.outputs[i]!) ||
+    cell in OUTPUT_LETTERS ||
+    stateReference(table, cell) !== undefined;
   return {
     ...table,
     rows: table.rows.filter((row) => parseFunctionTableRow(table, row).outputs.every(checkable)),

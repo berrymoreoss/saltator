@@ -127,4 +127,13 @@ describe('checkableRows', () => {
       rows: ['↑ l | L L', 'X X | q L', 'L X | Z Z'],
     });
   });
+
+  it('ignores the text of display-only columns', () => {
+    const table: FunctionTable = {
+      inputs: ['CP', 'D'],
+      outputs: ['Q0', 'Q1–Q7'],
+      rows: ['↑ h | H q0–q6', 'X X | count count'],
+    };
+    expect(checkableRows(table, ['Q1–Q7']).rows).toEqual(['↑ h | H q0–q6']);
+  });
 });

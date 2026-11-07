@@ -55,7 +55,9 @@ describe('validateFunctionTable', () => {
     );
     expect(check({ state: { q: 'nQ' } })).toThrow('x/y: bad function table state "q" → "nQ"');
     expect(check({ state: { Q: 'nY' } })).toThrow('x/y: bad function table state "Q" → "nY"');
+    expect(check({ state: { '7q': 'nY' } })).toThrow('x/y: bad function table state "7q" → "nY"');
     expect(() => validateFunctionTable({ ...nand, state: { q: 'nY' } }, 'x/y')).not.toThrow();
+    expect(() => validateFunctionTable({ ...nand, state: { q7: 'nY' } }, 'x/y')).not.toThrow();
   });
 });
 

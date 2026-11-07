@@ -550,6 +550,8 @@ checks and `X` policy:
 | `74xx/74hc191`  | 4-bit up/down counter, CE̅, U̅/D, asynchronous load PL̅        | DIP-16  | CP→Q 26, CP→TC 30, CP→RC̅ 17, PL̅/D→Q 22       | tsu U̅/D 41, CE̅ 28, D→PL̅ 20; th 0; tW 25, PL̅ 20; trec 7 |
 | `74xx/74hc193`  | 4-bit up/down counter, two clocks, MR, asynchronous load PL̅ | DIP-16  | CPU/CPD→Q 23, →TC̅U/TC̅D 14, PL̅ 25, MR 21      | tsu D→PL̅ 16; th other clock 16; tW 20; trec 10         |
 | `74xx/74hc4040` | 12-stage binary ripple counter, falling edge, MR (HIGH)     | DIP-16  | CP̅→Q0 17, then 10 per stage (Q11 127), MR 22 | tW 16, MR 16; trec 10                                  |
+| `74xx/74hc164`  | 8-bit serial-in, parallel-out shift register, DSA · DSB, MR̅ | DIP-14  | CP→Q 15, MR̅ 14                               | tsu 12, th 4; tW 16, MR̅ 12; trec 12                    |
+| `74xx/74hc165`  | 8-bit parallel-in (asynchronous PL̅), serial-out, CP + CE̅    | DIP-16  | CP/CE̅→Q7 19, PL̅ 18, D7 13                    | tsu DS 16, CE̅↔CP 16, D→PL̅ 16; th 5; tW 16; trec 20     |
 
 - **Synchronous counters** (`counters.ts`, `SyncCounterSpec`): on the rising clock edge the
   163's MR̅ clears, else PE̅ LOW loads D0–D3, else CEP · CET counts; TC = CET · (count = 15),
@@ -572,6 +574,13 @@ checks and `X` policy:
   the falling edge, but output Qn changes `tpd(CP to Q0) + n · tpd(Qn to Qn+1)` after it, so
   `0111 → 1000` passes through `0110`, `0100`, `0000` as on the chip — gates decoding the
   outputs glitch. A divider with MR tied LOW stays `X` until a reset, like every counter here.
+- **Shift registers** (`shift-registers.ts`): the 164 shifts DSA · DSB into Q0 (either input
+  gates the other; a late one shifts in `X` only where it could change the AND). The 165's
+  internal clock is CP + CE̅ (the data sheet's ≥1: the pins are interchangeable), so CE̅ rising
+  while CP is LOW shifts; each must be LOW around the other's edge (`tsu`/`th(CE to CP, CP to
+  CE)`). PL̅ loads all eight stages asynchronously; only Q7 and Q̅7 come out. Function tables
+  name internal stages as display-only columns (`Q1–Q6`); `checkableRows(table, displayOnly)`
+  skips their text, and state letters may have digits (`q7`).
 - **Delays the data sheets lack** borrow a given path: the 191's TC and RC̅ after a parallel
   load use `tpd(PL to Qn)` / `tpd(Dn to Qn)`; the 193's terminal count changed by the other
   clock uses `tpd(CPU, CPD to Qn)`.

@@ -213,7 +213,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   signals, the 193's clock rule, every check).
 - [x] 5. 74HC4040 with tests (counting, MR, the ripple delay of every stage, transient states,
   uncertain edges, checks).
-- [ ] 6. 74HC164, 165 with tests (shifting, AND of DSA·DSB, asynchronous load, CP/CE̅
+- [x] 6. 74HC164, 165 with tests (shifting, AND of DSA·DSB, asynchronous load, CP/CE̅
   interchangeable, Q̅7, checks).
 - [ ] 7. 74HC595 with tests (shift and storage registers, MR̅ clears only the shift register,
   tied clocks one pulse behind, `ten`/`tdis`, loading while disabled, Q7S, checks).
@@ -321,11 +321,18 @@ Checkable statements; verified one by one in the finish-branch workflow.
   decoding gates; 4096 counts at the 32 ns minimum period without a diagnostic. The function
   table's ↑ row needs states that end with CP LOW (setting the level before ↑ is a falling edge,
   a count). 12 tests, mutation-checked (10 mutations).
+- 2026-11-07 — task 6: `shift-registers.ts` with the 164 and 165 (own behaviors, shared shift
+  and asynchronous clear/load helpers). The 165's internal clock is CP + CE̅; DS and each gate
+  pin are checked against both pins, armed only when that pin's rise clocks (the other LOW).
+  Core: `checkableRows(table, displayOnly)` ignores internal-stage columns; state letters may
+  have digits (`q7`). The 164 has the first nonzero hold time of this branch (4 ns), tested. 26
+  tests, mutation-checked (16 mutations; two survivors — the effect of a DS hold violation, CP
+  checks while CE̅ is HIGH — got tests).
 
 ## Handoff
 
-- **State:** tasks 1–5 done (timing data; `setupHold` variants; 161, 163, 191, 193, 4040 in
-  the registry).
-- **Next step:** task 6 (74HC164, 165 in `shift-registers.ts`).
+- **State:** tasks 1–5 done (timing data; `setupHold` variants; 161, 163, 191, 193, 4040, 164,
+  165 in the registry).
+- **Next step:** task 7 (74HC595 in `shift-registers.ts`: two registers, tied clocks).
 - **Watch out:** pinouts and names in the Parts table are from memory.
 - **Verify with:** `pnpm check`.
