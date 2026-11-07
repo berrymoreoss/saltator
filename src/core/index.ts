@@ -135,8 +135,10 @@ export {
   Simulator,
   type SimulatorCarry,
   type SimulatorOptions,
+  type SimulatorSnapshot,
   type SimulatorStats,
   type StopBefore,
+  snapshotBytes,
 } from './simulator';
 export {
   type FrozenState,

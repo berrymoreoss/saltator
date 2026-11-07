@@ -204,7 +204,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 1. `core`: frozen state copies (plain data; typed arrays ≥ 4 KiB in pages shared with a
   base; thaw into existing objects, replace on another shape; unsupported values throw);
   tests.
-- [ ] 2. `core`: `Simulator.snapshot`/`restore` (with `EventQueue` and `DiagnosticLog`), into
+- [x] 2. `core`: `Simulator.snapshot`/`restore` (with `EventQueue` and `DiagnosticLog`), into
   the same or a same-netlist simulator; tests: a restored run repeats the trace (pending
   inertial changes, timers, before power-on, halted, floating inputs reported once, diagnostic
   counts); property test `tests/scenarios/rewind.test.ts` over every example with seeded
@@ -290,6 +290,24 @@ Checkable statements; verified one by one in the finish-branch workflow.
   mutation). Thaw writes into the live objects of the same shape, replaces the rest, drops
   keys the copy didn't have; anything not plain data (a `Map`, a class, an object reached
   twice) throws with its path. Mutation-checked (10 mutations).
+- 2026-11-08 — task 2: `Simulator.snapshot(base?)` (between runs only: a `busy` flag around
+  `run`), `restore`, `replica()` (same netlist, own listeners; a layout token shared with its
+  replicas is what `restore` checks), `snapshotBytes(s, relativeTo?)`; `EventQueue`
+  `snapshot`/`restore` (live events in heap order, the seq counter — a replica's lower counter
+  would break same-time FIFO and the delta boundary), `DiagnosticLog` `snapshot`/`restore`
+  (entries shared, counts copied; an entry for the same report keeps its identity). Not
+  restored: the per-delta stamps (the delta id keeps counting). Tests: traces repeat, pending
+  changes confirmed and seen ahead, cancelled ones stay cancelled, states in place, before
+  power-on, out of an oscillation halt, diagnostics and contention, replicas, refusals, page
+  sharing. Property `tests/scenarios/rewind.test.ts`: every example (3 seeds, switches,
+  buttons, DIP switches, manual clocks, RAM pokes, two acts at one instant) and every registered
+  part on clocks and drivers — rewound through a replica to ≈ 14 targets each, the fingerprint
+  (levels, drives, contention, queue head, stats, diagnostics, states) equals the straight run's,
+  and a replay from a rewound instant ends where the straight run did. Mutation-checked (17 +
+  7 mutations; the property alone misses `halted`, `floatingReported`, `slotPendingTime` and
+  in-place thawing — the unit tests catch those). Measured (M3 Pro, after 1 ms): examples 0.7–
+  4.4 KiB a snapshot, 3–31 µs, restore 1–8 µs; a 62256 + 28C256: 1154 KiB alone, 1.7 KiB against
+  its base, 0.26 ms, restore 35 µs.
 
 ## Handoff
 

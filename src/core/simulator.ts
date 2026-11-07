@@ -10,8 +10,13 @@ import {
   type PinRef,
   type PropValue,
 } from './component';
-import { type ComponentDiagnostic, DiagnosticLog, KernelDiagnosticKind } from './diagnostics';
-import { EventQueue } from './event-queue';
+import {
+  type ComponentDiagnostic,
+  DiagnosticLog,
+  type DiagnosticLogSnapshot,
+  KernelDiagnosticKind,
+} from './diagnostics';
+import { EventQueue, type QueueSnapshot } from './event-queue';
 import {
   Drive,
   driveBits,
@@ -23,6 +28,7 @@ import {
 } from './logic';
 import { type Netlist, type ResolvedNetlist, resolveNetlist } from './netlist';
 import type { ComponentRegistry } from './registry';
+import { type FrozenState, freezeState, stateBytes, thawState } from './state-copy';
 import { formatTime, ms, type Time } from './time';
 
 export interface SimulatorOptions {
@@ -75,6 +81,65 @@ export type CarriedEvent =
       readonly component: string;
       readonly token: number;
     };
+
+/**
+ * The whole state of a simulation at one moment (`Simulator.snapshot`), to `restore` it later
+ * into the same simulator or one of its replicas. Opaque besides these fields.
+ */
+export interface SimulatorSnapshot {
+  /** Simulation time it was taken at. */
+  readonly time: Time;
+  /** `stats.events` then. */
+  readonly events: number;
+  /** Approximate memory it holds of its own (pages shared with its base not counted). */
+  readonly bytes: number;
+}
+
+/** What a snapshot holds (behind the opaque `SimulatorSnapshot`). */
+interface SnapshotData extends SimulatorSnapshot {
+  readonly layout: object;
+  readonly stats: Readonly<SimulatorStats>;
+  readonly started: boolean;
+  readonly halted: boolean;
+  readonly levels: Uint8Array;
+  readonly drives: Uint8Array;
+  readonly contended: Uint8Array;
+  readonly floatingReported: Uint8Array;
+  readonly slotDrive: Uint8Array;
+  readonly slotPendingSeq: Float64Array;
+  readonly slotPendingDrive: Uint8Array;
+  readonly slotPendingTime: Float64Array;
+  readonly queue: QueueSnapshot;
+  readonly states: readonly FrozenState[];
+  readonly diagnostics: DiagnosticLogSnapshot;
+}
+
+/** Bytes a snapshot's fixed arrays take, besides its states. */
+function arrayBytes(s: SnapshotData): number {
+  return (
+    256 +
+    4 * s.levels.length +
+    18 * s.slotDrive.length +
+    25 * s.queue.times.length +
+    24 * s.diagnostics.entries.length
+  );
+}
+
+/**
+ * Memory `snapshot` holds that `relativeTo` (a snapshot of the same simulation) doesn't share
+ * with it — for a history that drops snapshots and keeps the ones after them. Without
+ * `relativeTo`, all of it.
+ */
+export function snapshotBytes(snapshot: SimulatorSnapshot, relativeTo?: SimulatorSnapshot): number {
+  const s = snapshot as SnapshotData;
+  const other = relativeTo as SnapshotData | undefined;
+  const base = other?.layout === s.layout ? other : undefined;
+  let bytes = arrayBytes(s);
+  s.states.forEach((state, i) => {
+    bytes += stateBytes(state, base?.states[i]);
+  });
+  return bytes;
+}
 
 /**
  * - `idle`: no events left (nothing will happen without external input);
@@ -156,6 +221,12 @@ export class Simulator {
   readonly maxDeltaCycles: number;
 
   private readonly netlist: ResolvedNetlist;
+  private readonly source: Netlist;
+  private readonly registry: ComponentRegistry;
+  /** Shared by a simulator and its replicas: snapshots restore between them only. */
+  private layout: object = {};
+  /** Inside a run: snapshots wait for it to end. */
+  private busy = false;
   private readonly queue = new EventQueue();
   private readonly behaviors: Behavior[];
   private readonly states: unknown[];
@@ -223,6 +294,8 @@ export class Simulator {
     }
     const resolved = resolveNetlist(netlist, registry);
     this.netlist = resolved;
+    this.source = netlist;
+    this.registry = registry;
     const { components, nets } = resolved;
     const componentCount = components.length;
     const netCount = nets.length;
@@ -513,6 +586,97 @@ export class Simulator {
     };
   }
 
+  // --- Snapshots ----------------------------------------------------------------------------
+
+  /**
+   * The whole state of the simulation now — time, statistics, levels and drives, pending
+   * changes, the event queue and timers, every component's state, the diagnostics — to put it
+   * back with `restore`. Between runs only. With `base` (an earlier snapshot of this simulation)
+   * the pages of component states that didn't change are shared with it. Listeners are not
+   * part of it.
+   */
+  snapshot(base?: SimulatorSnapshot): SimulatorSnapshot {
+    if (this.busy) throw new Error('snapshot: the simulator is running (take it between runs)');
+    const old = base as SnapshotData | undefined;
+    const shared = old?.layout === this.layout ? old : undefined;
+    const states = this.states.map((state, c) =>
+      freezeState(state, shared?.states[c], `${this.componentId(c)}'s state`),
+    );
+    const data: Omit<SnapshotData, 'bytes'> = {
+      layout: this.layout,
+      time: this.currentTime,
+      events: this.stats.events,
+      stats: { ...this.stats },
+      started: this.started,
+      halted: this.isHalted,
+      levels: this.levels.slice(),
+      drives: this.drives.slice(),
+      contended: this.contended.slice(),
+      floatingReported: this.floatingReported.slice(),
+      slotDrive: this.slotDrive.slice(),
+      slotPendingSeq: this.slotPendingSeq.slice(),
+      slotPendingDrive: this.slotPendingDrive.slice(),
+      slotPendingTime: this.slotPendingTime.slice(),
+      queue: this.queue.snapshot(),
+      states,
+      diagnostics: this.diagnostics.snapshot(),
+    };
+    let bytes = arrayBytes(data as SnapshotData);
+    states.forEach((state, c) => {
+      bytes += stateBytes(state, shared?.states[c]);
+    });
+    return { ...data, bytes } satisfies SnapshotData;
+  }
+
+  /**
+   * Puts the simulation back where `snapshot` was taken — of this simulator or of a replica
+   * (`replica`) — so it runs on exactly as it did from there. Component states are written
+   * into the objects they live in where their shape is the same (views onto them stay valid).
+   * Listeners stay attached and are not called: whoever watches the levels catches up itself.
+   * A pending `requestBreak` is dropped.
+   */
+  restore(snapshot: SimulatorSnapshot): void {
+    if (this.busy) throw new Error('restore: the simulator is running');
+    const s = snapshot as SnapshotData;
+    if (s.layout !== this.layout) {
+      throw new Error(
+        'restore: the snapshot is of another netlist (only of this one or its replicas)',
+      );
+    }
+    this.currentTime = s.time;
+    Object.assign(this.stats, s.stats);
+    this.started = s.started;
+    this.isHalted = s.halted;
+    this.breakRequested = false;
+    this.levels.set(s.levels);
+    this.drives.set(s.drives);
+    this.contended.set(s.contended);
+    this.floatingReported.set(s.floatingReported);
+    this.slotDrive.set(s.slotDrive);
+    this.slotPendingSeq.set(s.slotPendingSeq);
+    this.slotPendingDrive.set(s.slotPendingDrive);
+    this.slotPendingTime.set(s.slotPendingTime);
+    // The delta id keeps counting: no per-delta stamp of the run before can match a later one.
+    this.queue.restore(s.queue);
+    s.states.forEach((state, c) => {
+      this.states[c] = thawState(state, this.states[c]);
+    });
+    this.diagnostics.restore(s.diagnostics);
+  }
+
+  /**
+   * A new simulator of the same netlist, without listeners, at power-on: snapshots of either
+   * restore into the other. Replays run there, unseen by the tools watching this one.
+   */
+  replica(): Simulator {
+    const copy = new Simulator(this.source, this.registry, {
+      maxDeltaCycles: this.maxDeltaCycles,
+      maxDiagnostics: this.diagnostics.max,
+    });
+    copy.layout = this.layout;
+    return copy;
+  }
+
   // --- Control ------------------------------------------------------------------------------
 
   /**
@@ -577,6 +741,20 @@ export class Simulator {
     if (stopBefore && !(stopBefore.net >= 0 && stopBefore.net < this.levels.length)) {
       throw new Error(`stopBefore: no net #${stopBefore.net}`);
     }
+    this.busy = true;
+    try {
+      return this.runLoop(limit, maxEvents, advanceWhenIdle, stopBefore);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private runLoop(
+    limit: Time,
+    maxEvents: number,
+    advanceWhenIdle: boolean,
+    stopBefore: StopBefore | undefined,
+  ): RunStatus {
     const startEvents = this.stats.events;
     if (!this.started) {
       this.started = true;
