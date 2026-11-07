@@ -211,7 +211,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   and syntax errors with lines, > 64 KB addresses, round trip as a property test).
 - [x] 3. `circuit`: the resolver — parts, pins, nets, buses, memories, error messages, `/`
   reserved; tests on circuit test parts and a scenario with real memories.
-- [ ] 4. `editor`: `MemoryInspector` — memories, cells (live, stopped ROM, stopped RAM),
+- [x] 4. `editor`: `MemoryInspector` — memories, cells (live, stopped ROM, stopped RAM),
   address, highlighting frames, edits (ROM image with coalescing, RAM poke), renames; headless
   tests with the fake clock.
 - [ ] 5. `ui`: the Memory tab — picker, virtualized hex view, ASCII, `X`, highlighting, follow,
@@ -288,10 +288,18 @@ Checkable statements; verified one by one in the finish-branch workflow.
   net has the name), `memories()` in designator order (`compareDesignators`: `U2` before
   `U10`); reasons for what doesn't resolve; `/` reserved for R11. Test part `test/rom`; a
   scenario on RAM by Hand checks the net ids against the simulator. Mutation-checked.
+- 2026-11-07 — task 4: `editor/memory-inspector.ts` (`editor.memory`) — `memories()` from the
+  resolver per scene (`U1 · AT28C16 · 2K × 8`), `cells()` (live view, a stopped ROM's image,
+  or the stopped-RAM reason), `address()` from `addressPins`, `intensity(stamp)` from an
+  `AccessClock` (simulated time vs wall time sampled on the host's `revision`/`status`; fades
+  over 500 ms while running, frozen while paused; cleared when time goes back), `write`
+  (ROM: image prop, coalesced `Edit U1 contents`; RAM: poke), `load`, `erase`, `contents`.
+  `setPartProp` takes a label and a coalesce key. Mutation-checked (two survivors: one line
+  removed as equivalent, a test added for sampling while paused).
 
 ## Handoff
 
-- **State:** tasks 1–3 done (access stamps, `addressPins`; image file codecs; resolver).
-- **Next step:** task 4 (`MemoryInspector` in the editor).
+- **State:** tasks 1–4 done (stamps, image codecs, resolver, `MemoryInspector`).
+- **Next step:** task 5 (the Memory tab in `ui`).
 - **Watch out:** —
 - **Verify with:** `pnpm check`.

@@ -15,7 +15,9 @@ DIP, fallbacks), `editor` (the facade: tools, gestures on `PointerInput`, stores
 (delete, rotate, flip, nudge), `wire-route` (L routes, connection marks, one layer's
 `ConnectionIndex`), `clipboard` (fragments as document text), `store`,
 `preview` (Parts panel), `simulation` (the simulator host: run control, pacing, following edits,
-signal and part views for the renderer), `symbols/interact` (part actions for the Interact tool),
+signal and part views for the renderer), `memory-inspector` (the Memory tab's model: memories
+through the resolver, live cells, addresses, access highlighting, ROM image edits and RAM
+pokes, R12b), `symbols/interact` (part actions for the Interact tool),
 `recording-graphics` and `fake-clock` (tests), `dev-parts` (renderer fixtures, never in the
 default registry). Pure modules and the gestures (`gestures.test.ts`) have Node unit tests;
 the facade's DOM adapters are covered by `tests/e2e`.

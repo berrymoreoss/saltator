@@ -50,6 +50,7 @@ import {
   undoEntry,
 } from './history';
 import { type BoxMode, boxHits, type Hit, hitTest, rectFromPoints } from './hit-test';
+import { MemoryInspector } from './memory-inspector';
 import { type ItemTransform, mirror, rotation, transformItems } from './move';
 import {
   deleteSelection,
@@ -73,7 +74,7 @@ import {
   toggleHit,
   unionSelection,
 } from './selection';
-import { Simulation, type SimulationOptions } from './simulation';
+import { BROWSER_CLOCK, Simulation, type SimulationOptions } from './simulation';
 import { Store } from './store';
 import { type GateStyle, INTERACTIONS, type Poke } from './symbols';
 import { type CanvasTheme, DARK_CANVAS } from './theme';
@@ -285,6 +286,8 @@ export class Editor {
   readonly requests = new Store<EditorRequest | undefined>(undefined);
   /** Runs the circuit (R05); follows every document change. */
   readonly simulation: Simulation;
+  /** The memories of the circuit: cells, addresses, accesses, edits (R12b). */
+  readonly memory: MemoryInspector;
   #settings: EditorSettings;
   readonly #layouts = new LayoutCache();
   #hover: Hit | undefined;
@@ -320,6 +323,7 @@ export class Editor {
     const scene = buildScene(circuit, registry, { layouts: this.#layouts });
     this.state = new Store<EditorState>({ circuit, scene, selection: EMPTY_SELECTION });
     this.simulation = new Simulation(registry, scene, options.simulation);
+    this.memory = new MemoryInspector(this, options.simulation?.clock ?? BROWSER_CLOCK);
     this.state.subscribe(() => {
       const { scene, renames } = this.state.get();
       this.simulation.sync(scene, renames);
@@ -673,9 +677,15 @@ export class Editor {
 
   /**
    * Sets one prop of a part; returns why not (the value fails the part's prop checks) instead.
-   * Pins may move if the prop changes the layout; attached wires are not re-routed.
+   * Pins may move if the prop changes the layout; attached wires are not re-routed. `options`
+   * name the undo step (default `Change <prop>`) and coalesce edits in a row (a memory's bytes).
    */
-  setPartProp(id: string, key: string, value: PropValue): string | undefined {
+  setPartProp(
+    id: string,
+    key: string,
+    value: PropValue,
+    options: { readonly label?: string; readonly coalesce?: string } = {},
+  ): string | undefined {
     const { circuit } = this.state.get();
     const instance = circuit.components.find((c) => c.id === id);
     const definition = instance && this.registry.get(instance.type);
@@ -687,8 +697,11 @@ export class Editor {
     } catch (error) {
       return (error as Error).message;
     }
-    const label = definition.props?.find((p) => p.key === key)?.label ?? key;
-    this.edit(`Change ${label}`, updateComponent(circuit, id, { props }));
+    const label =
+      options.label ?? `Change ${definition.props?.find((p) => p.key === key)?.label ?? key}`;
+    this.edit(label, updateComponent(circuit, id, { props }), {
+      ...(options.coalesce !== undefined && { coalesce: options.coalesce }),
+    });
     this.#rememberProps(instance.type, props);
     return undefined;
   }
