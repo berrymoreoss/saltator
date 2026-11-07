@@ -319,37 +319,6 @@ export class Recorder {
     return best;
   }
 
-  /**
-   * A channel at drawing resolution: for each of `buckets` buckets `[t0 + b·step, t0 +
-   * (b+1)·step)`, the level at the bucket's start (`NO_DATA` where there is none) and how many
-   * changes lie after it inside the bucket (capped at 255), so a fast clock zoomed out costs two
-   * searches per bucket, not one line per edge. `step` may be fractional (zoomed in past 1 ps a
-   * pixel).
-   */
-  summarize(
-    channel: number,
-    t0: Time,
-    step: Time,
-    buckets: number,
-    levels: Uint8Array,
-    changes: Uint8Array,
-  ): void {
-    const track = this.#tracks[channel];
-    const end = this.end;
-    for (let b = 0; b < buckets; b++) {
-      const from = t0 + b * step;
-      if (!track || from > end) {
-        levels[b] = NO_DATA;
-        changes[b] = 0;
-        continue;
-      }
-      const i = track.indexAt(from);
-      const last = track.indexBefore(from + step);
-      levels[b] = i < 0 || from < this.#start ? NO_DATA : track.level(i);
-      changes[b] = Math.min(255, Math.max(0, last - i));
-    }
-  }
-
   // ── Internals ────────────────────────────────────────────────────────────────────────────
 
   #track(channel: number): Track {

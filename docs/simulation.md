@@ -410,9 +410,10 @@ recorder.nextChange(clk, us(500)); // time of the next edge
   each channel keeping the last change before the cut, and `start` moves forward: the earliest
   instant every channel still knows.
 - **Queries**: `level(channel, t)`, `indexAt`, `nextChange`/`prevChange` (and `…Of(channels)`
-  for a bus or a group), raw access (`changeCount`, `changeTime`, `changeLevel`) and
-  `summarize(channel, t0, step, buckets, levels, changes)` — per drawing bucket the level at
-  its start and the number of changes inside, two binary searches each.
+  for a bus or a group), `lastChange` (O(1)), raw access (`changeCount`, `changeTime`,
+  `changeLevel`). The waveform view draws from them one pixel column at a time
+  (`rowSegments`), a few binary searches a column, so a fast clock zoomed out costs no more
+  than a slow one.
 - **Cost**: no listener without channels; with them, one call per changed net that looks the net
   up in an `Int32Array`. Ring oscillator benchmark: 13.7M events/s, 13.2M recording 16 of its
   1001 nets, 8.7M recording all of them (R13).

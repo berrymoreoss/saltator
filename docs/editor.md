@@ -658,6 +658,25 @@ and shown as a timing diagram, as a logic analyzer does.
   for.
 - Redraws follow the host's `revision` (the `revision` store grows with it while simulating).
 
+### Drawing
+
+`src/editor/waveforms.ts` paints the diagram on a Canvas2D context (`WaveCanvas`, the part of
+`CanvasRenderingContext2D` it uses), in the canvas theme's colors (`waveformTheme`):
+
+- A **ruler** (`rulerTicks`): a labelled tick at a round step (1, 2, 5 × 10ⁿ ps) at least 80 px
+  apart, four between, and faint grid lines down the rows.
+- **Rows** (`WaveRow`: a channel, or one bit of an expanded vector) from `rowSegments`, one
+  pixel column at a time: the levels at the column's start, and the changes in it — one starts
+  the next stretch after the column, two or more make the column **dense** (a filled block: a
+  1 MHz clock over 10 ms costs what a slow one does). Stretches merge into runs.
+- A **1-bit** row draws `1` high in the bright level color, `0` low in the dark one, `Z` a blue
+  mid line, `X` a red band — as the wires are colored; a **vector** draws hexagons with the
+  value in its radix where it fits, in the bus color, red where a bit is unknown, a blue mid
+  line where every bit floats. Where the record has no data (before its start, after its end,
+  a probe that lost its net) the row is hatched.
+- **Marks**: `now` (dotted, while simulating), the trigger `T`, cursors `A` and `B`, each with a
+  tag in the ruler.
+
 ## Editor API
 
 `new Editor(registry, circuit?, settings?, options?)` (`src/editor/editor.ts`) owns the circuit,

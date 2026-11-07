@@ -302,29 +302,5 @@ describe('Recorder', () => {
     expect(recorder.prevChange(clk, start)).toBeUndefined();
     expect(recorder.nextChange(clk, 0)).toBe(Math.ceil((start + 1) / ns(10)) * ns(10));
     expect(changes(recorder, clk).split(' ').at(-1)).toBe('1000:0');
-    const levels = new Uint8Array(2);
-    recorder.summarize(clk, start - 1, 1, 2, levels, new Uint8Array(2));
-    expect([...levels]).toEqual([NO_DATA, recorder.level(clk, start)]);
-  });
-
-  it('summarizes a channel per bucket: the level at its start and the changes inside', () => {
-    const sim = new Simulator(circuit(), registry);
-    const recorder = new Recorder();
-    const clk = recorder.addChannel();
-    recorder.attach(sim, new Map([[clk, sim.netIndex('CLK')]]));
-    sim.runUntil(ns(100));
-    const levels = new Uint8Array(4);
-    const counts = new Uint8Array(4);
-    recorder.summarize(clk, 0, ns(40), 4, levels, counts);
-    // [0, 40): 0 with edges at 10, 20, 30; [40, 80): 0 (the edge at 40 is its start) + 3; then
-    // [80, 120) up to the end at 100; [120, …) past the end.
-    expect([...levels]).toEqual([0, 0, 0, NO_DATA]);
-    expect([...counts]).toEqual([3, 3, 2, 0]);
-    // Zoomed in past 1 ps a pixel: half a picosecond per bucket, the edge inside the second.
-    recorder.summarize(clk, ns(10) - 0.75, 0.5, 4, levels, counts);
-    expect([...levels]).toEqual([0, 0, 1, 1]);
-    expect([...counts]).toEqual([0, 1, 0, 0]);
-    recorder.summarize(99, 0, 1, 2, levels, counts);
-    expect([...levels.subarray(0, 2)]).toEqual([NO_DATA, NO_DATA]);
   });
 });

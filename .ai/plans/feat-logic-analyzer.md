@@ -254,7 +254,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   added/removed while running), view (follow, zoom, pan, fit), cursors with snapping, edge
   navigation, the trigger (arm, fire, post-trigger run, pause); headless tests with the fake
   clock.
-- [ ] 7. `editor`: waveform renderer — 1-bit rows, buses/groups with values, dense blocks, ruler,
+- [x] 7. `editor`: waveform renderer — 1-bit rows, buses/groups with values, dense blocks, ruler,
   cursors, trigger and capture start; recording-graphics tests; both themes.
 - [ ] 8. `ui`: the Waveforms tab — toolbar, channel list (radix, remove, reorder, group, expand),
   canvas with mouse and keys, cursor readout, Add signal with completion, Trigger dialog,
@@ -359,11 +359,17 @@ Checkable statements; verified one by one in the finish-branch workflow.
   a new run turns a free view into `follow` at the user's scale. Found and fixed a kernel bug:
   `settle` with a negative `maxTime` ran time backwards (regression test; lesson).
   Mutation-checked (16 mutations).
+- 2026-11-07 — task 7: `editor/waveforms.ts` — `rulerTicks` (1-2-5 steps ≥ 80 px, labels by
+  `formatTime`), `rowSegments` (per pixel column: steady / dense / no data, changes counted in
+  `[from, to)`, runs merged; vectors change with any bit), `drawWaveforms` (rows, hatch, bits
+  and hexagon vectors with values in their radix, ruler, grid, `now`, `T`, `A`, `B`) on a
+  `WaveCanvas` subset; `waveformTheme` from the canvas theme. `Recorder.summarize` removed:
+  `rowSegments` does its job from the queries, so it was dead API.
 
 ## Handoff
 
-- **State:** tasks 1–6 done (core, circuit, the `Analyzer` model with the host's `pauseAt`).
-- **Next step:** task 7 (waveform renderer, Canvas2D, in `src/editor`).
+- **State:** tasks 1–7 done (core, circuit, the `Analyzer` model, the waveform renderer).
+- **Next step:** task 8 (the Waveforms tab in `src/ui`).
 - **Watch out:** nets have no identity across compiles — channels are references, re-resolved
   on every carry-over; the kernel's listener reports levels only. Docs already link
   `adr/0019-waveforms.md` (write it in task 11). Max-speed tests need `clock.cost > 0`.
