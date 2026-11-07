@@ -6,6 +6,7 @@ import {
   Autosave,
   askUnsavedVia,
   browserFileAccess,
+  browserImageAccess,
   browserLocks,
   claimSessionId,
   createSettingsStore,
@@ -67,6 +68,7 @@ const editor = new Editor(registry);
 const settings = createSettingsStore();
 const ui = createUiState();
 const files = browserFileAccess();
+const images = browserImageAccess();
 const documents = new DocumentController({
   editor,
   files,
@@ -176,6 +178,7 @@ export function App() {
       settings={settings}
       ui={ui}
       examples={examples}
+      images={images}
     />
   );
 }

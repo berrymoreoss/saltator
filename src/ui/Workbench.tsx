@@ -8,8 +8,9 @@ import { AboutDialog, FileProblemDialog, ShortcutsDialog, UnsavedChangesDialog }
 import type { DocumentController } from './document-controller';
 import { documentTitle, hasUnsavedChanges } from './document-session';
 import { ExampleGalleryDialog } from './ExampleGallery';
-import { droppedFile } from './files';
+import { droppedFile, type ImageFileAccess } from './files';
 import { useMediaQuery, useStore, useStoreValue } from './hooks';
+import { MemoryImageActions } from './ImageDialogs';
 import { MemoryPanel } from './MemoryPanel';
 import { MenuBar } from './MenuBar';
 import { MessagesBadges, MessagesPanel } from './MessagesPanel';
@@ -45,6 +46,8 @@ export interface WorkbenchProps {
   readonly settings: Store<Settings>;
   readonly ui: Store<UiState>;
   readonly examples: readonly Example[];
+  /** Memory image files (`.bin`, Intel HEX) for the Memory tab. */
+  readonly images?: ImageFileAccess;
 }
 
 const MAC = typeof navigator !== 'undefined' && isMacPlatform(navigator.platform);
@@ -61,6 +64,7 @@ export function Workbench({
   settings: settingsStore,
   ui,
   examples,
+  images,
 }: WorkbenchProps) {
   const settings = useStore(settingsStore);
   // Toolbar and menus read the tool, history and settings through their commands: re-render on
@@ -354,6 +358,12 @@ export function Workbench({
                   onPick={(id) => ui.update((s) => ({ ...s, memoryPick: id }))}
                   follow={settings.memoryFollow}
                   onFollow={(memoryFollow) => settingsStore.update((s) => ({ ...s, memoryFollow }))}
+                  actions={
+                    images &&
+                    ((entry) => (
+                      <MemoryImageActions editor={editor} entry={entry} images={images} />
+                    ))
+                  }
                 />
               )}
             </Panel>

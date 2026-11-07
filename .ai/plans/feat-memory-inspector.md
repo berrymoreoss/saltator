@@ -217,7 +217,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 5. `ui`: the Memory tab — picker, virtualized hex view, ASCII, `X`, highlighting, follow,
   editing and Go to, selection-following, settings; commands (Edit ▸ Inspect Memory, context
   menu, View); unit tests for the pure pieces (rows per width, cell text, key handling).
-- [ ] 6. `ui`: binary `FileAccess`; Load Image (programmer) and Save Image dialogs, Erase; tests
+- [x] 6. `ui`: binary `FileAccess`; Load Image (programmer) and Save Image dialogs, Erase; tests
   of the dialog models.
 - [ ] 7. e2e: EEPROM 7-Segment Decoder — the image in the Memory tab, a byte edited changes the
   digit while running, undo; a `.hex` and a `.bin` loaded; RAM by Hand — a write by the
@@ -305,10 +305,18 @@ Checkable statements; verified one by one in the finish-branch workflow.
   the toolbar (not the status hint). `memoryPick` follows the canvas selection and renames;
   Edit ▸ Inspect Memory and the part context menu. Looked at in both themes (EEPROM decoder
   running with the read lit; RAM by Hand stopped and running).
+- 2026-11-07 — task 6: `ImageFileAccess` (`files.ts`: `openBytes`, `saveBytes`, native pickers
+  with their own id, fallback input/download; a separate interface, so `FileAccess` fakes stay
+  as they are); `image-dialogs.ts` (reading a picked file, `describeImage`, the bytes and name
+  to save); `ImageDialogs.tsx`: Load… (file, format, range · bytes · sum, memory, Load at with
+  the suggested address and where the file ends, Fill the rest with FF, Program), Save…
+  (binary or Intel HEX with the address of byte 0 and Leave out lines of FF; unknown bytes
+  counted), Erase (ROMs). Looked at with a stubbed picker: a hex file at 0x8000 loads at 0.
 
 ## Handoff
 
-- **State:** tasks 1–5 done (stamps, image codecs, resolver, `MemoryInspector`, Memory tab).
-- **Next step:** task 6 (binary `FileAccess`, Load Image / Save Image dialogs, Erase).
+- **State:** tasks 1–6 done (stamps, image codecs, resolver, `MemoryInspector`, Memory tab,
+  image files and dialogs).
+- **Next step:** task 7 (e2e on EEPROM 7-Segment Decoder and RAM by Hand).
 - **Watch out:** —
 - **Verify with:** `pnpm check`.

@@ -40,7 +40,7 @@ interface PermissionDescriptor {
   readonly mode: 'read' | 'readwrite';
 }
 interface WritableFile {
-  write(data: string): Promise<void>;
+  write(data: string | Uint8Array<ArrayBuffer>): Promise<void>;
   close(): Promise<void>;
 }
 /** A `FileSystemFileHandle`. */
@@ -175,6 +175,102 @@ export function droppedFile(data: DataTransfer): Promise<OpenedFile> | undefined
   })();
 }
 
+/** A memory image file opened as bytes (`.bin`, `.hex`). */
+export interface OpenedBytes {
+  readonly name: string;
+  readonly bytes: Uint8Array;
+}
+
+export type ImageFileKind = 'binary' | 'intel-hex';
+
+/**
+ * Memory image files (R12b): opened as bytes and saved from bytes, with pickers of their own
+ * (the browser remembers the images folder apart from the circuits folder). No handles are
+ * kept: an image is loaded into a memory, not edited in place.
+ */
+export interface ImageFileAccess {
+  /** Asks for an image file; `undefined` when the user cancels. */
+  openBytes(): Promise<OpenedBytes | undefined>;
+  /** Asks where to save (native) or downloads (fallback); the name saved, or `undefined`. */
+  saveBytes(
+    bytes: Uint8Array<ArrayBuffer>,
+    suggestedName: string,
+    kind: ImageFileKind,
+  ): Promise<string | undefined>;
+}
+
+const IMAGE_ACCEPT = ['.bin', '.rom', '.hex', '.ihx'];
+const IMAGE_TYPES: Readonly<Record<ImageFileKind, PickerType>> = {
+  binary: { description: 'Binary image', accept: { 'application/octet-stream': ['.bin', '.rom'] } },
+  'intel-hex': { description: 'Intel HEX', accept: { 'text/plain': ['.hex', '.ihx'] } },
+};
+
+export function nativeImageAccess(pickers: NativePickers): ImageFileAccess {
+  return {
+    async openBytes() {
+      try {
+        const [handle] = await pickers.showOpenFilePicker({
+          id: 'logic-images',
+          types: [
+            { description: 'Memory image', accept: { 'application/octet-stream': IMAGE_ACCEPT } },
+          ],
+        });
+        if (!handle) return undefined;
+        const file = await handle.getFile();
+        return { name: file.name, bytes: new Uint8Array(await file.arrayBuffer()) };
+      } catch (error) {
+        if (isAbort(error)) return undefined;
+        throw error;
+      }
+    },
+    async saveBytes(bytes, suggestedName, kind) {
+      let handle: NativeFileHandle;
+      try {
+        handle = await pickers.showSaveFilePicker({
+          id: 'logic-images',
+          types: [IMAGE_TYPES[kind]],
+          suggestedName,
+        });
+      } catch (error) {
+        if (isAbort(error)) return undefined;
+        throw error;
+      }
+      const writable = await handle.createWritable();
+      await writable.write(bytes);
+      await writable.close();
+      return handle.name;
+    },
+  };
+}
+
+export function fallbackImageAccess(primitives: {
+  pickFile(accept: string): Promise<(Blob & { readonly name: string }) | undefined>;
+  downloadBytes(fileName: string, bytes: Uint8Array<ArrayBuffer>): void;
+}): ImageFileAccess {
+  return {
+    async openBytes() {
+      const file = await primitives.pickFile(IMAGE_ACCEPT.join(','));
+      return file && { name: file.name, bytes: new Uint8Array(await file.arrayBuffer()) };
+    },
+    async saveBytes(bytes, suggestedName) {
+      primitives.downloadBytes(suggestedName, bytes);
+      return suggestedName;
+    },
+  };
+}
+
+/** Image files through the File System Access API where the page may use it, else the fallback. */
+export function browserImageAccess(): ImageFileAccess {
+  const pickers = window as unknown as Partial<NativePickers>;
+  if (pickers.showOpenFilePicker && pickers.showSaveFilePicker && window.self === window.top) {
+    return nativeImageAccess({
+      showOpenFilePicker: (options) => pickers.showOpenFilePicker!.call(window, options),
+      showSaveFilePicker: (options) => pickers.showSaveFilePicker!.call(window, options),
+    });
+  }
+  return fallbackImageAccess({ pickFile, downloadBytes });
+}
+
 /** The File System Access API where the page may use it, the fallback elsewhere. */
 export function browserFileAccess(): FileAccess {
   const pickers = window as unknown as Partial<NativePickers>;
@@ -200,7 +296,15 @@ function pickFile(accept: string): Promise<File | undefined> {
 }
 
 function download(fileName: string, text: string): void {
-  const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+  downloadBlob(fileName, new Blob([text], { type: 'application/json' }));
+}
+
+function downloadBytes(fileName: string, bytes: Uint8Array<ArrayBuffer>): void {
+  downloadBlob(fileName, new Blob([bytes], { type: 'application/octet-stream' }));
+}
+
+function downloadBlob(fileName: string, blob: Blob): void {
+  const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
   link.download = fileName;
