@@ -4,7 +4,7 @@
 | ---------- | -------------------------------------------------------------------------------------------- |
 | Branch     | `feat/debugger`                                                                              |
 | Roadmap    | R14a — Breakpoints, stepping, watches ([roadmap](../../docs/roadmap.md))                     |
-| Status     | in-progress                                                                                  |
+| Status     | done                                                                                         |
 | Depends on | R05 (simulator host), R12b (resolver, memory views), R13 (break request, triggers, recorder) |
 | Created    | 2026-11-07                                                                                   |
 
@@ -235,23 +235,31 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 
 Checkable statements; verified one by one in the finish-branch workflow.
 
-- [ ] `pnpm check`, `pnpm build` and `pnpm e2e` are green.
-- [ ] A breakpoint on an edge, a level pattern or a bus value pauses the run at the first
+- [x] `pnpm check` (2143 tests), `pnpm build` and `pnpm e2e` (70) are green.
+- [x] A breakpoint on an edge, a level pattern or a bus value pauses the run at the first
   instant it holds, at every speed, with the reason shown; Run goes on to the next hit; a hit
-  count delays it; a disabled breakpoint doesn't stop.
-- [ ] Break on errors pauses at each contention and timing violation, repeats included.
-- [ ] Step Clock pauses right before the step clock's next active edge, from stopped, paused
-  at an edge or mid-cycle, with `io/clock`, a 555 and a gated clock; on SAP-1 Program Counter
-  the count goes up by exactly one per press (e2e).
-- [ ] Run For Δt pauses at exactly `now + Δt`, Run To at its time; a breakpoint stops either
-  early.
-- [ ] Watches show nets, pins, buses, groups and memory cells, live while running, and mark
-  what changed since the last stop.
-- [ ] Run statistics show the counters and rates; the most active net of Ring Oscillator is
-  its ring.
-- [ ] The debug setup survives a reload, New/Open clears it, part renames rewrite it.
-- [ ] Kernel benchmark: no change without debugger features; the cost of breakpoints and of
-  measuring activity recorded here.
+  count delays it; a disabled breakpoint doesn't stop (`debugger.test.ts` breakpoints: edges,
+  a group value at 1 µs/s and Max, ANDed terms, hit counts, enable/disable, Reset; e2e: `= 5`
+  on the program counter, "Breakpoint 1: … = 5" in the status bar).
+- [x] Break on errors pauses at each contention and timing violation, repeats included (unit:
+  contention twice, a merged repeat; e2e: the 74HC161's recovery violation).
+- [x] Step Clock pauses right before the step clock's next active edge, from stopped, paused
+  at an edge or mid-cycle, with `io/clock`, a 555 and a gated clock (host tests on `io/clock`:
+  the edge is the next instant from stopped, at an edge and mid-cycle; `step-clock.test.ts`:
+  a 74HC08-gated clock with the count settled at every stop, an NE555); on SAP-1 Program
+  Counter — a manual clock — the count goes up by exactly one per press (e2e: 1, 2, 3).
+- [x] Run For Δt pauses at exactly `now + Δt`, Run To at its time; a breakpoint stops either
+  early (host and debugger tests; e2e: `4.25 s · Run For 250 ms`).
+- [x] Watches show nets, pins, buses, groups and memory cells, live while running, and mark
+  what changed since the last stop (unit: signals, a group, ROM and RAM cells, radixes, marks
+  across stops and a poke; e2e: the count group marked after each press, a RAM cell `0x05`).
+- [x] Run statistics show the counters and rates; the most active net of Ring Oscillator is
+  its ring (looked at: U1.5Y, U1.6Y, U2.1Y, 37 changes in 1 µs, 18.5 MHz; e2e: the table).
+- [x] The debug setup survives a reload, New/Open clears it, part renames rewrite it (e2e
+  reload; `autosave.test.ts`; the rename test in `debugger.test.ts`).
+- [x] Kernel benchmark: no change without debugger features; the cost of breakpoints and of
+  measuring activity recorded here (ring oscillator 12.75M events/s, 10.90M with a breakpoint,
+  11.90M measuring activity; `stopBefore` and the `io/clock` change within noise).
 
 ## Open questions
 
@@ -378,11 +386,21 @@ Checkable statements; verified one by one in the finish-branch workflow.
   first level, R14b), ADR-0020 and its index row, architecture.md, glossary (breakpoint, debug
   setup, Step Clock, watch, run statistics), the layers' READMEs, the roadmap's R14a entry and a
   backlog item "Debugger follow-ups (R14a)", lessons.
+- 2026-11-08 — finished. Acceptance criteria checked (above). R14a delivered the Debug tab:
+  breakpoints on any signal (repeating triggers, hit counts) and breaks on errors/warnings that
+  pause with a reason; Step Clock (right before the next edge but one by a kernel lookahead,
+  `stopBefore`; a manual clock's pulse and period), Run For, Run To; watches of signals, groups
+  and memory cells marked when changed; run statistics and the most active nets; the setup
+  kept with the session; ADR-0020. Fixes on the way: `runUntil(NaN)` hung; triggers fired twice
+  at a carry-over's instant; an edge made while paused was invisible to a new channel; the
+  Trigger dialog's disabled Arm looked enabled. Follow-ups: backlog "Debugger follow-ups
+  (R14a)"; R14b `feat/rewind` is next.
 
 ## Handoff
 
-- **State:** all tasks done; finishing (acceptance criteria, build).
-- **Next step:** finish-branch: verify the acceptance criteria, `pnpm build`, close the plan.
-- **Watch out:** `io/clock` drives at its wake with zero delay — the lookahead can't see it
-  until task 2; a breakpoint during a trigger's post-trigger time must win over `pauseAt`.
-- **Verify with:** `pnpm check`, `pnpm bench`.
+- **State:** done; waiting for the user's approval to merge into `main`.
+- **Next step:** merge (`git merge --no-ff`), then R14b `feat/rewind`.
+- **Watch out:** R14b should build on `Simulation.runTo`/`requestPause`/`status.reason` and the
+  debugger's breakpoints (Reverse Continue = the last hit before now); the recorder and the
+  watches' stops must follow a rewind; actions while paused happen at the paused instant.
+- **Verify with:** `pnpm check`, `pnpm e2e tests/e2e/debugger.spec.ts`.
