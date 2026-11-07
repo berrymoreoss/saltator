@@ -96,6 +96,14 @@ describe('simulationSummary', () => {
       'Running · 1.25 s · max 2 ms/s',
     );
   });
+
+  it('says why it paused, and what a step runs to', () => {
+    const paused = status({ state: 'paused', time: ns(500), reason: 'Breakpoint 1: CLK ↑' });
+    expect(simulationSummary(paused)).toBe('Paused · 500 ns · Breakpoint 1: CLK ↑');
+    expect(simulationSummary(status({ goal: 'Step Clock (CLK ↑)', speed: MAX_SPEED }))).toBe(
+      'Running · 1.25 s · Step Clock (CLK ↑)…',
+    );
+  });
 });
 
 describe('statusHint', () => {

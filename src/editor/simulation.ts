@@ -91,11 +91,13 @@ export interface SimStatus {
  * A step the host runs at Max, whatever the speed, until it is reached, then pauses (R14):
  * - `time`: until simulated time `until` (Run For, Run To);
  * - `edge`: through the next instant, then until right before net `net` (a netlist id) is due
- *   to change to `level` — one clock cycle, the cycle settled (Step Clock).
+ *   to change to `level` — one clock cycle, the cycle settled (Step Clock);
+ * - `settle`: until nothing is left to happen (Step Clock on a manual clock, after its pulse).
  */
 export type StepGoal =
   | { readonly kind: 'time'; readonly until: Time; readonly label: string }
-  | { readonly kind: 'edge'; readonly net: string; readonly level: Level; readonly label: string };
+  | { readonly kind: 'edge'; readonly net: string; readonly level: Level; readonly label: string }
+  | { readonly kind: 'settle'; readonly label: string };
 
 /** A step under way: its goal, whether the first instant is behind it, why it ended. */
 interface Step {
@@ -509,6 +511,7 @@ export class Simulation {
   runTo(goal: StepGoal): boolean {
     const state = this.state;
     if (state === 'halted') return false;
+    if (goal.kind === 'time' && !Number.isFinite(goal.until)) return false;
     let passed = goal.kind === 'time';
     if (state === 'stopped') {
       if (!this.#powerOn()) return false;
@@ -792,6 +795,14 @@ export class Simulation {
       if ((result === 'reached' || result === 'idle') && sim.now >= goal.until) {
         step.done = goal.label;
       }
+      return result;
+    }
+    if (goal.kind === 'settle') {
+      const result = sim.settle({
+        maxTime: Math.max(0, Math.min(MAX_SETTLE, pauseAt - sim.now)),
+        maxEvents: CHUNK_EVENTS,
+      });
+      if (result === 'idle') step.done = goal.label;
       return result;
     }
     const net = this.netOf(goal.net);

@@ -556,6 +556,12 @@ select.prop-input {
   background: color-mix(in srgb, var(--accent) 88%, black);
 }
 
+.dialog-button:disabled,
+.dialog-button.primary:disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
 .file-problems {
   max-height: 240px;
   margin: 8px 0 0;
@@ -1119,4 +1125,205 @@ kbd {
   width: 110px;
   border-color: var(--border);
   background: var(--input-bg);
+}
+
+/* ── Debug tab (bottom dock, R14) ─────────────────────────────────────────── */
+
+.panel-body:has(> .debug) {
+  overflow: hidden;
+}
+
+.debug {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.debug-toolbar {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.time-input {
+  width: 72px;
+  border-color: var(--border);
+  background: var(--input-bg);
+}
+
+.clock-input {
+  width: 110px;
+  border-color: var(--border);
+  background: var(--input-bg);
+}
+
+.check-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 4px;
+  color: var(--fg-muted);
+  font-size: var(--text-small);
+}
+
+.debug-reason {
+  margin-left: auto;
+  padding-left: 8px;
+  overflow: hidden;
+  color: var(--accent);
+  font-size: var(--text-small);
+  text-overflow: ellipsis;
+}
+
+.debug-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.debug-section {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.debug-section + .debug-section {
+  border-left: 1px solid var(--border);
+}
+
+.debug-header {
+  min-height: 28px;
+}
+
+.debug-header-actions {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.debug-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.debug-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--row);
+  padding: 0 6px 0 8px;
+}
+
+.debug-row:nth-child(odd) {
+  background: color-mix(in srgb, var(--fg) 2.5%, transparent);
+}
+
+.debug-id {
+  flex: none;
+  width: 18px;
+  color: var(--fg-subtle);
+  text-align: right;
+}
+
+.debug-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.debug-text.unresolved {
+  color: var(--fg-subtle);
+  text-decoration: line-through dotted;
+}
+
+.debug-hits {
+  flex: none;
+  color: var(--fg-muted);
+  font-size: var(--text-small);
+}
+
+.debug-value {
+  flex: none;
+  min-width: 48px;
+  max-width: 50%;
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.debug-value.changed {
+  color: var(--warning);
+  font-weight: 600;
+}
+
+.trigger-term .prop-input.signal-input {
+  width: 180px;
+}
+
+.trigger-window .prop-input.count-input {
+  width: 48px;
+}
+
+.debug-row .radix-select {
+  flex: none;
+  width: 56px;
+}
+
+/* ── Run statistics (Simulation tab, R14) ─────────────────────────────────── */
+
+.sim-tab {
+  display: flex;
+  align-items: flex-start;
+  min-height: 100%;
+}
+
+.sim-tab > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.sim-stats {
+  flex: none;
+  width: 300px;
+  padding: 4px 10px;
+  border-left: 1px solid var(--border);
+  font-size: var(--text-small);
+}
+
+.sim-stats-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.sim-stats .sim-stats-table th,
+.sim-stats .sim-stats-table td {
+  padding: 1px 4px;
+  font-weight: normal;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.sim-stats-table th[scope="row"] {
+  overflow: hidden;
+  color: var(--fg-muted);
+  text-align: left;
+  text-overflow: ellipsis;
+}
+
+.sim-stats .sim-stats-table thead th {
+  color: var(--fg-subtle);
+}
+
+.sim-activity {
+  margin-top: 6px;
+}
+
+.sim-activity .check-label {
+  margin: 0 0 2px;
 }

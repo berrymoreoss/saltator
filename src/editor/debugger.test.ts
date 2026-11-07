@@ -210,6 +210,29 @@ describe('Debugger: steps', () => {
     expect(s.debug.clock()).toMatchObject({ signal: 'X1.Y' });
   });
 
+  it('Step Clock on a manual clock gives it one pulse and lets the circuit settle', () => {
+    const s = setup(
+      new CircuitBuilder(registry)
+        .add('X1', 'io/clock', { at: [0, 0], props: { frequency: 1e6, mode: 'manual' } })
+        .add('U1', 'prim/not', { at: [10, 0] })
+        .connect('X1.Y', 'U1.A')
+        .build(),
+    );
+    s.debug.addBreakpoint([{ signal: 'U1.Y', kind: 'fall' }], 99);
+    expect(s.debug.stepClock()).toBeUndefined(); // from stopped: power-on and the low time
+    expect(s.simulation.status.get().reason).toBe('Step Clock (X1 pulse)');
+    expect(s.simulation.simulator!.now).toBe(ns(500));
+    expect(s.debug.breakpoints.get()[0]!.hits).toBe(0);
+    s.debug.stepClock(); // a pulse, high 500 ns then low 500 ns
+    expect(s.simulation.simulator!.now).toBe(ns(1500));
+    expect(s.debug.breakpoints.get()[0]!.hits).toBe(1);
+    s.debug.stepClock();
+    expect(s.debug.breakpoints.get()[0]!.hits).toBe(2);
+    expect(s.simulation.diagnostics.get().map((d) => d.kind)).not.toContain(
+      'pulse-width-violation',
+    );
+  });
+
   it('says why there is no clock to step by', () => {
     const s = setup(new CircuitBuilder(registry).add('SW1', 'io/switch', { at: [0, 0] }).build());
     expect(s.debug.defaultClock()).toBeUndefined();
@@ -243,6 +266,7 @@ describe('Debugger: watches', () => {
     expect(s.debug.addWatch('U1')).toBe('U1 is a part: probe one of its pins');
     expect(s.debug.addWatch(' ')).toBe('Type a signal or memory cells (U5[1F]).');
     const values = () => s.debug.watches.get().map((w) => [w.label, w.value]);
+    expect(s.debug.watches.get().map((w) => w.vector)).toEqual([false, true, true, true, true]);
     // Stopped: a ROM shows its image, the rest nothing yet.
     expect(values()).toEqual([
       ['X1.Y', ''],

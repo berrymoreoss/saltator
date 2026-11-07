@@ -9,7 +9,7 @@ import {
   useState,
 } from 'react';
 import { parseAddress } from '../circuit';
-import type { Editor, MemoryEntry } from '../editor';
+import { cellsReference, type Editor, type MemoryEntry } from '../editor';
 import { useStore } from './hooks';
 import {
   addressDigits,
@@ -298,6 +298,18 @@ function MemoryView({
             onChange={(event) => setGoTo(event.target.value)}
           />
         </form>
+        <button
+          type="button"
+          className="tool-button memory-action"
+          title="Watch the cell at the cursor in the Debug tab"
+          onClick={() =>
+            setNotice(
+              editor.debug.addWatch(cellsReference(entry.id, cursor.address, cursor.address)) ?? '',
+            )
+          }
+        >
+          Watch {cellsReference(entry.id, cursor.address, cursor.address)}
+        </button>
         <span className="memory-actions">{actions?.(entry)}</span>
       </div>
       {notice !== '' && (

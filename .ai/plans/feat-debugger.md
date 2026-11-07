@@ -217,10 +217,10 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   hit count, enable, problems, renames, carry-over, power-on), break on errors/warnings, Step
   Clock (default clock, edge), Run For / Run To, watches (values, changed since the last
   stop), statistics; headless tests; mutation-checked.
-- [ ] 7. `ui`: the Debug tab — toolbar, breakpoints list and condition dialog (the term editor
+- [x] 7. `ui`: the Debug tab — toolbar, breakpoints list and condition dialog (the term editor
   shared with the Trigger dialog), watches; commands, menu, shortcuts, toolbar button, status
   reason; context-menu entries (canvas, Memory tab); looked at in both themes.
-- [ ] 8. `ui`: run statistics in the Simulation tab; looked at on Ring Oscillator.
+- [x] 8. `ui`: run statistics in the Simulation tab; looked at on Ring Oscillator.
 - [ ] 9. `ui`: the debug setup in the session (autosave, restore after reload, cleared by
   New/Open); tests.
 - [ ] 10. e2e: SAP-1 Program Counter — Step Clock advances the count by one per press, a
@@ -332,11 +332,34 @@ Checkable statements; verified one by one in the finish-branch workflow.
   Benchmark: ring oscillator 12.75M events/s, 10.90M with a breakpoint (every event of the
   ring is an instant of its own: the trigger's end-of-instant look is the cost), 11.90M
   measuring activity.
+- 2026-11-08 — tasks 7–8: the Debug tab (`DebugPanel.tsx`: Step Clock with the clock box and
+  edge, Run For with its duration, Run To, Break on errors/warnings, the reason; Breakpoints —
+  enable, text, hits, edit, remove, Add…, Disable all; Watches — add with completion, value
+  with the changed mark, radix, rename by double-click, remove) and the breakpoint dialog
+  (typed signals, conditions shared with the Trigger dialog in `condition-terms.ts`, hit
+  count); `debug-view.ts` (drafts, counts, frequencies, the statistics rows); commands
+  `debug.stepClock` (F8, toolbar), `debug.runFor` (Shift+F8), `debug.runTo`,
+  `debug.addBreakpoint`, `debug.disableAll`, `debug.breakOnErrors` in the Simulate menu; the
+  item context menu's Break When `ref` Rises, Add Breakpoint on `ref`…, Watch `ref`; a Watch
+  `U1[0x05]` button in the Memory tab (a button for the cell at the cursor, not a context menu
+  over cells: the hex view has none); the status bar says why it paused or what a step runs
+  to; run statistics and Most active nets beside the diagnostics; disabled dialog buttons look
+  disabled (the Trigger dialog's Arm didn't either). Looked at in the browser on SAP-1 Program
+  Counter, dark and light.
+  Design addition found there: the example's clock is a manual `io/clock` (Ben Eater's step
+  button), which has no edge coming. Step Clock on a manual clock now gives it one pulse (its
+  `step` action) and runs one period of its props (from stopped: power-on and the low time);
+  first written as "pulse, then settle", which made the next press start at the instant the
+  last pulse ended — the 74HC161 rightly reported "CP was LOW for only 0 ps" and went `X`.
+  A `NaN` duty (a document leaving the default out: resolve props) then hung the tests:
+  `runUntil(NaN)` looped forever in the kernel — fixed with a regression test (throws), and
+  the host refuses a non-finite `time` goal. A host goal `settle` (until nothing is left)
+  stays for that use.
 
 ## Handoff
 
-- **State:** in progress; tasks 1–6 done (core, circuit, host, `Debugger` model).
-- **Next step:** task 7 (the Debug tab, commands, context menus, status reason).
+- **State:** in progress; tasks 1–8 done (core, circuit, host, model, Debug tab, statistics).
+- **Next step:** task 9 (the debug setup in the session: autosave, restore, New/Open).
 - **Watch out:** `io/clock` drives at its wake with zero delay — the lookahead can't see it
   until task 2; a breakpoint during a trigger's post-trigger time must win over `pauseAt`.
 - **Verify with:** `pnpm check`, `pnpm bench`.

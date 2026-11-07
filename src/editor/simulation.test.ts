@@ -327,6 +327,20 @@ describe('Simulation: steps', () => {
     expect(simulation.simulator!.now).toBe(0);
   });
 
+  it('settles: runs until nothing is left to happen', () => {
+    const { editor, simulation } = setup(
+      new CircuitBuilder(registry)
+        .add('X1', 'io/clock', { at: [0, 0], props: { frequency: 1e6, mode: 'manual' } })
+        .build(),
+    );
+    simulation.step();
+    simulation.action('X1', { type: 'step' }); // a 500 ns pulse
+    simulation.runTo({ kind: 'settle', label: 'Settle' });
+    expect(simulation.status.get()).toMatchObject({ state: 'paused', reason: 'Settle' });
+    expect(simulation.simulator!.now).toBe(ns(500));
+    expect(pin(editor, 'X1', 'Y')).toBe('0');
+  });
+
   it('says so when no edge is coming or the net is gone', () => {
     const { simulation } = setup(
       new CircuitBuilder(registry).add('SW1', 'io/switch', { at: [0, 0] }).build(),
@@ -457,6 +471,7 @@ describe('Simulation: steps', () => {
     expect(simulation.state).toBe('halted');
     expect(simulation.runTo({ kind: 'time', until: ns(1), label: 'Run For' })).toBe(false);
     simulation.reset();
+    expect(simulation.runTo({ kind: 'time', until: Number.NaN, label: 'Run For' })).toBe(false);
     expect(simulation.state).toBe('running');
     simulation.pause();
     simulation.runTo({ kind: 'time', until: ms(1), label: 'Run For' });

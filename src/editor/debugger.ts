@@ -14,12 +14,14 @@ import {
   isBusName,
   Level,
   Recorder,
+  resolveProps,
   type Simulator,
   type Time,
   Trigger,
   type TriggerTerm,
   us,
 } from '../core';
+import { clockPhases } from '../library';
 import { formatValue } from './analyzer';
 import type { Editor } from './editor';
 import type { Scene } from './scene';
@@ -108,6 +110,8 @@ export interface WatchView {
   readonly reference: string;
   /** The value now (`0x3F`, `3F 06 5B`, `1`); empty when there is nothing to show. */
   readonly value: string;
+  /** Shown as a value in a radix (a bus, a group, memory cells), not as one level. */
+  readonly vector: boolean;
   /** Differs from its value at the last stop (while paused: at the stop before). */
   readonly changed: boolean;
   readonly problem?: string;
@@ -409,10 +413,28 @@ export class Debugger {
     return part && `${part.id}.${outputs[part.type]}`;
   }
 
-  /** Step Clock: right before the step clock's next active edge but one; why not instead. */
+  /**
+   * Step Clock: right before the step clock's next active edge but one. A manual `io/clock`
+   * has no edge coming: it gets one pulse (its `step` action, the button of a clock module)
+   * and the run goes on for one period of its props — high, then low, as a hand pressing the
+   * button again later (a press at the instant the last pulse ended would be a 0 ps LOW, a
+   * pulse-width violation). From stopped: power-on and the low time. Why not instead.
+   */
   stepClock(): string | undefined {
     const { signal, net, problem } = this.clock();
     if (problem !== undefined || net === undefined) return problem;
+    const host = this.#editor.simulation;
+    const manual = this.#manualClock(net);
+    if (manual !== undefined) {
+      if (host.state === 'halted') return 'The simulation is halted: Reset or Stop first.';
+      const { high, low } = manual.phases;
+      const now = host.simulator?.now ?? 0;
+      const stopped = host.state === 'stopped';
+      if (!stopped) host.action(manual.id, { type: 'step' });
+      const until = now + (stopped ? low : high + low);
+      host.runTo({ kind: 'time', until, label: `Step Clock (${manual.id} pulse)` });
+      return undefined;
+    }
     const { edge } = this.setup.get();
     const ok = this.#editor.simulation.runTo({
       kind: 'edge',
@@ -421,6 +443,22 @@ export class Debugger {
       label: `Step Clock (${signal} ${EDGE_TEXT[edge]})`,
     });
     return ok ? undefined : 'The simulation is halted: Reset or Stop first.';
+  }
+
+  /** The manual `io/clock` driving a net of the scene, with its phases, if one does. */
+  #manualClock(net: string): { id: string; phases: { high: Time; low: Time } } | undefined {
+    const compiled = this.#compiled();
+    const pins = compiled.nets.find((n) => n.id === net)?.pins ?? [];
+    for (const pin of pins) {
+      const part = compiled.netlist.components.find((c) => c.id === pin.component);
+      const definition = part && this.#editor.registry.get(part.type);
+      if (part?.type !== 'io/clock' || !definition) continue;
+      // Documents may leave props at their defaults out.
+      const { frequency, duty, mode } = resolveProps(definition, part.props);
+      if (mode !== 'manual') continue;
+      return { id: part.id, phases: clockPhases(Number(frequency), Number(duty)) };
+    }
+    return undefined;
   }
 
   /** Run For the setup's duration (or `duration`). */
@@ -818,7 +856,7 @@ export class Debugger {
     return this.setup.get().watches.map((watch, index) => {
       const reference = watchReference(watch);
       const shown = this.#watchValue(watch, resolver);
-      const value = typeof shown === 'string' ? shown : '';
+      const value = 'value' in shown ? shown.value : '';
       const before = base.get(reference);
       return {
         index,
@@ -826,42 +864,47 @@ export class Debugger {
         label: watch.name ?? reference,
         reference,
         value,
+        vector: 'value' in shown ? shown.vector : watch.kind === 'cells',
         changed: before !== undefined && value !== '' && before !== value,
-        ...(typeof shown !== 'string' && { problem: shown.problem }),
+        ...('problem' in shown && { problem: shown.problem }),
       };
     });
   }
 
   /** A watch's value as text, or why it has none. */
-  #watchValue(watch: Watch, resolver: Resolver): string | { readonly problem: string } {
+  #watchValue(
+    watch: Watch,
+    resolver: Resolver,
+  ): { readonly value: string; readonly vector: boolean } | { readonly problem: string } {
     const radix = watch.radix ?? 'hex';
     if (watch.kind === 'cells') {
       const target = resolver.resolve(cellsReference(watch.part, watch.from, watch.to));
       if (typeof target === 'string') return { problem: target };
       if (target.kind !== 'cells') return { problem: `${watch.part} holds no memory` };
       const cells = this.#editor.memory.cells(watch.part);
-      if (cells.kind === 'none') return ''; // a stopped RAM
+      if (cells.kind === 'none') return { value: '', vector: true }; // a stopped RAM
       const end = watch.to + 1;
       const data = (cells.kind === 'live' ? cells.view.data : cells.data).subarray(watch.from, end);
       const unknown =
         cells.kind === 'live'
           ? cells.view.unknown.subarray(watch.from, end)
           : new Uint8Array(data.length);
-      return formatCells(data, unknown, target.memory.width, radix);
+      return { value: formatCells(data, unknown, target.memory.width, radix), vector: true };
     }
     const members = signalMembers(watch.signal);
     const one = members.length === 1 ? members[0]! : undefined;
     const target =
       one === undefined ? resolver.probe({ name: watch.signal, members }) : resolver.signal(one);
     if (typeof target === 'string') return { problem: target };
+    const { vector } = target;
     const sim = this.#sim;
-    if (!sim) return '';
+    if (!sim) return { value: '', vector };
     const levels = target.nets.map((net) => {
       const index = net === undefined ? undefined : this.#editor.simulation.netOf(net);
       return index === undefined ? Level.Z : (sim.levels[index] as Level);
     });
-    if (!target.vector) return levelText(levels[0] ?? Level.Z);
-    return formatValue(levels, radix);
+    if (!vector) return { value: levelText(levels[0] ?? Level.Z), vector };
+    return { value: formatValue(levels, radix), vector };
   }
 
   #parseWatch(text: string): Watch | string {

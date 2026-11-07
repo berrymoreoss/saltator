@@ -1,5 +1,6 @@
 import type { CircuitDocument } from '../circuit';
 import { Store } from '../editor';
+import type { BreakpointDialogRequest } from './DebugPanel';
 import type { FileProblem, UnsavedChoice } from './document-controller';
 import type { PartPick } from './part-info';
 import {
@@ -38,12 +39,16 @@ export interface UiState {
   /** The memory the Memory tab shows: the last one picked on the canvas or in its picker. */
   readonly memoryPick?: string;
   readonly unsavedQuestion?: UnsavedQuestion;
+  /** The breakpoint dialog, open on a breakpoint or a new one (R14). */
+  readonly breakpointDialog?: BreakpointDialogRequest;
+  /** Incremented to ask the Debug tab to focus its Run To box. */
+  readonly runToRequest: number;
   /** A file that didn't open or save, shown until dismissed. */
   readonly fileProblem?: FileProblem;
 }
 
 export function createUiState(): Store<UiState> {
-  return new Store<UiState>({ searchRequest: 0, propertiesRequest: 0 });
+  return new Store<UiState>({ searchRequest: 0, propertiesRequest: 0, runToRequest: 0 });
 }
 
 /** Asks "Save changes?" through the UI state (the workbench shows the dialog). */
