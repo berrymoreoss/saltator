@@ -123,7 +123,8 @@ export interface TimingDef {
   /**
    * Minimum values the part requires (`tsu`, `th`, `tW`, `trec`): the data sheet's guaranteed
    * minimum, which the timing checks use (`TimingChecks`). Their typical values, which may be
-   * negative, go into `typical` for reference.
+   * negative, go into `typical` for reference. Parts whose data sheets give only limits
+   * (memories) also keep the minima of their outputs here (`tOH`, `tCLZ`).
    */
   readonly min?: Readonly<Record<string, Time>>;
   readonly conditions?: string;
@@ -203,7 +204,8 @@ export interface ComponentDefinition<
   readonly package?: PackageDef;
   readonly units?: readonly UnitDef[];
   readonly props?: readonly PropDef[];
-  readonly timing?: TimingDef;
+  /** Datasheet timing, or a function of props for parts sold in speed grades (a `speed` prop). */
+  readonly timing?: TimingDef | ((props: Props) => TimingDef);
   /** The datasheet function table (one unit's, for multi-gate chips), shown in Part Info. */
   readonly functionTable?: FunctionTable;
   /**
@@ -261,6 +263,15 @@ export function pinsOf(
   props: Record<string, PropValue>,
 ): readonly PinDef[] {
   return typeof definition.pins === 'function' ? definition.pins(props) : definition.pins;
+}
+
+/** The timing of an instance with the given (resolved) props; undefined without timing. */
+export function timingOf(
+  definition: AnyComponentDefinition,
+  props: Record<string, PropValue>,
+): TimingDef | undefined {
+  const { timing } = definition;
+  return typeof timing === 'function' ? timing(props) : timing;
 }
 
 /** Index of the pin called `name`; throws if there is none. */

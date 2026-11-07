@@ -24,6 +24,7 @@ export {
   pinsOf,
   resolveProps,
   type TimingDef,
+  timingOf,
   type UnitDef,
 } from './component';
 export {

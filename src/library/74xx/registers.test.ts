@@ -6,10 +6,13 @@ import {
   ns,
   pinsOf,
   TimingViolation,
+  timingOf,
   us,
 } from '../../core';
 import { Bench, type BenchValues, functionTable } from '../../core/testing';
 import { hcRegisters } from './registers';
+
+const typical = (d: AnyComponentDefinition) => timingOf(d, {})!.typical;
 
 const chip = (number: string) => hcRegisters.find((d) => d.name === `74HC${number}`)!;
 const names = (d: AnyComponentDefinition, numbers: readonly number[]) =>
@@ -236,8 +239,7 @@ describe.each(CASES)('74HC$number', (c) => {
     if (c.reset) {
       b.set({ CP: 0, D0: 1 }).run(us(1));
       clock(b);
-      const tPHL =
-        d.timing!.typical[Object.keys(d.timing!.typical).find((k) => k.startsWith('tPHL'))!];
+      const tPHL = typical(d)[Object.keys(typical(d)).find((k) => k.startsWith('tPHL'))!];
       expect(b.measure(resetOn, 'Q0')).toBe(tPHL);
     }
   });

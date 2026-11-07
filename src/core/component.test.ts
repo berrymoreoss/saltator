@@ -8,6 +8,8 @@ import {
   pinIndex,
   pinsOf,
   resolveProps,
+  type TimingDef,
+  timingOf,
   validatePins,
 } from './component';
 import { Drive } from './logic';
@@ -127,6 +129,39 @@ describe('pins', () => {
     expect(() => validatePins([{ name: 'A', dir: 'in', weak: true }], 'x/y')).toThrow(
       'x/y: pin "A" is "in" and cannot be weak',
     );
+  });
+});
+
+describe('timingOf', () => {
+  const part = (timing?: TimingDef | ((props: { speed: string }) => TimingDef)) =>
+    defineComponent<{ speed: string }, unknown>({
+      type: 'mem/x',
+      name: 'X',
+      title: 'x',
+      pins: [],
+      props: [
+        {
+          key: 'speed',
+          label: 'Speed',
+          type: 'enum',
+          default: '25',
+          options: [
+            { value: '15', label: '15 ns' },
+            { value: '25', label: '25 ns' },
+          ],
+        },
+      ],
+      ...(timing && { timing }),
+      create: () => ({}),
+    });
+
+  it('returns static timing, the timing of a speed grade, or nothing', () => {
+    const fixed = { typical: { tpd: ns(9) } };
+    expect(timingOf(part(fixed), { speed: '15' })).toBe(fixed);
+    const graded = part(({ speed }) => ({ typical: {}, max: { tAA: ns(Number(speed)) } }));
+    expect(timingOf(graded, { speed: '15' })?.max).toEqual({ tAA: ns(15) });
+    expect(timingOf(graded, resolveProps(graded))?.max).toEqual({ tAA: ns(25) });
+    expect(timingOf(part(undefined), { speed: '15' })).toBeUndefined();
   });
 });
 

@@ -7,6 +7,7 @@ import {
   ns,
   pinsOf,
   TimingViolation,
+  timingOf,
   us,
 } from '../../core';
 import { Bench, type BenchValues, functionTable } from '../../core/testing';
@@ -392,7 +393,7 @@ describe.each(JK_CASES)('74HC$number', (c) => {
   });
 
   it('switches after the delay of each path', () => {
-    const t = d.timing!.typical;
+    const t = timingOf(d, {})!.typical;
     const b = bench();
     b.set({ '1J': 1, '1K': kOff }).run(us(1));
     expect(b.measure({ '1CP': active }, '1Q')).toBe(t['tpd(nCP to nQ, nQN)']);

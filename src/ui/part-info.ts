@@ -16,6 +16,7 @@ import {
   resolveProps,
   runsText,
   type TextRun,
+  timingOf,
 } from '../core';
 
 /** The part the Part tab shows: the last one picked on the canvas (`id`) or in the Parts panel. */
@@ -46,6 +47,18 @@ export interface PinInfo {
   readonly description?: string;
 }
 
+/** An instance's resolved props; the defaults when it has none or they are invalid. */
+function resolvedOrDefault(
+  definition: AnyComponentDefinition,
+  props: Readonly<Record<string, unknown>> = {},
+): Record<string, PropValue> {
+  try {
+    return resolveProps(definition, props);
+  } catch {
+    return resolveProps(definition);
+  }
+}
+
 /**
  * One row per pin, in pin-number order for packages (as a datasheet lists them), in definition
  * order otherwise. `props` are an instance's (raw) props; invalid ones fall back to the defaults.
@@ -54,12 +67,7 @@ export function pinInfo(
   definition: AnyComponentDefinition,
   props: Readonly<Record<string, PropValue>> = {},
 ): PinInfo[] {
-  let resolved: Record<string, PropValue>;
-  try {
-    resolved = resolveProps(definition, props);
-  } catch {
-    resolved = resolveProps(definition);
-  }
+  const resolved = resolvedOrDefault(definition, props);
   const rows = pinsOf(definition, resolved).map((pin): PinInfo => {
     // n.c. pins (`NC3`) show as NC; other `nc` pins are drawn but not simulated (a 555's timing
     // pins in astable mode).
@@ -179,15 +187,19 @@ export interface TimingInfo {
 }
 
 /**
- * The definition's `timing` split into delays (`max` given) and requirements (`min` given);
- * undefined without timing. Pin names in a key (`tpd(nCP to nQ, nQN)`) are shown as drawn, the
+ * The timing of an instance with `props` (the defaults without), split into delays (`max`
+ * given) and requirements (`min` given); undefined without timing. Pin names in a key (`tpd(nCP to nQ, nQN)`) are shown as drawn, the
  * datasheet's generic names (`nQN`) included.
  */
-export function timingInfo(definition: AnyComponentDefinition): TimingInfo | undefined {
-  const timing = definition.timing;
+export function timingInfo(
+  definition: AnyComponentDefinition,
+  props?: Readonly<Record<string, unknown>>,
+): TimingInfo | undefined {
+  const resolved = resolvedOrDefault(definition, props);
+  const timing = timingOf(definition, resolved);
   if (!timing) return undefined;
   const view = new Map<string, NameView>();
-  for (const pin of pinsOf(definition, resolveProps(definition))) {
+  for (const pin of pinsOf(definition, resolved)) {
     const runs = pinTextRuns(pin);
     view.set(pin.name, { runs });
     view.set(pin.name.replace(/\d+/g, 'n'), { runs: generic(runs, false) });
