@@ -201,7 +201,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   DIP-8; Symbol Gallery row; looked at in both themes (DIP-16 names such as `IA>B` fit).
 - [x] 10. Examples per Q3, run by tests, looked at in the browser; File ▸ New from Example lists
   them.
-- [ ] 11. e2e: an example with a 555 runs (an LED toggles); Part tab of a DIP-16 chip.
+- [x] 11. e2e: an example with a 555 runs (an LED toggles); Part tab of a DIP-16 chip.
 - [ ] 12. Docs: components.md (MSI rows, delays with several paths, `timer` family), ADR-0013,
   ADR index, glossary, `src/library/README.md`, editor.md (SI entry), lessons, backlog
   (passive parts, potentiometer), roadmap status.
@@ -298,6 +298,9 @@ Checkable statements; verified one by one in the finish-branch workflow.
   throwaway `CircuitBuilder` test that checked every net, then deleted; scenario tests for both
   (auto ≈ 1.5 Hz, manual: X until the first STEP, then one 110 ms pulse; HLT stops it). Looked
   at running in Chromium, both themes: no design issues, the unknown step output shows red.
+- 2026-11-07 — task 11: `tests/e2e/msi.spec.ts` — an NE555 from the Parts panel blinks an LED
+  (RB typed `47k` shows `47 kΩ`), the Part tab of the 74HC151 (`(YN)`) and the 555 ("not
+  simulated"), the Clock Module example opens clean and runs. `pnpm e2e`: 45 passed.
 
 ## Handoff
 
