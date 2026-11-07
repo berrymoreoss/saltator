@@ -292,6 +292,48 @@ describe('recompiling flip-flops and registers mid-run', () => {
   });
 });
 
+describe('recompiling counters and shift registers mid-run', () => {
+  it('is invisible in random networks of them, timing violations included (seeded)', () => {
+    const chips = ['161', '163', '164', '165', '191', '193', '595', '4040'];
+    let changes = 0;
+    let violations = 0;
+    for (let seed = 1; seed <= 30; seed++) {
+      const random = rng(3000 + seed);
+      const pick = <T>(items: readonly T[]): T => items[Math.floor(random() * items.length)]!;
+      const b = new NetlistBuilder();
+      const outputs: string[] = [];
+      const inputs: string[] = [];
+      for (let i = 0; i < 2; i++) {
+        b.add(`X${i}`, 'io/clock', { frequency: 5e6 + Math.floor(random() * 40e6), duty: 50 });
+        b.add(`T${i}`, 'test/driver');
+        outputs.push(`X${i}.Y`, `T${i}.Y`);
+      }
+      for (let i = 0; i < 5; i++) {
+        const type = `74xx/74hc${pick(chips)}`;
+        b.add(`U${i}`, type);
+        for (const pin of pinsOf(registry.get(type)!, {})) {
+          if (pin.dir === 'in') inputs.push(`U${i}.${pin.name}`);
+          if (pin.dir === 'out' || pin.dir === 'tristate') outputs.push(`U${i}.${pin.name}`);
+        }
+      }
+      // Clocks, enables, loads and resets from anywhere: plenty of counting and violations.
+      for (const input of inputs) if (random() < 0.9) b.connect(pick(outputs), input);
+      const netlist = b.build();
+      const pokes: Poke[] = Array.from({ length: 8 }, () => ({
+        time: Math.floor(random() * us(2)),
+        component: pick(['T0', 'T1']),
+        action: pick([Drive.STRONG_0, Drive.STRONG_1, Drive.Z]),
+      }));
+      const at = Array.from({ length: 10 }, () => Math.floor(random() * us(2)));
+      const { changes: list, sim } = expectInvisible(netlist, us(2), pokes, at);
+      changes += list.length;
+      for (const d of sim.diagnostics.entries) if (isTimingViolation(d.kind)) violations += d.count;
+    }
+    expect(changes).toBeGreaterThan(5000);
+    expect(violations).toBeGreaterThan(200);
+  });
+});
+
 describe('editing while running', () => {
   const latch = (extra?: (b: NetlistBuilder) => NetlistBuilder) => {
     const b = new NetlistBuilder()

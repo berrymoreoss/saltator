@@ -595,6 +595,11 @@ checks and `X` policy:
   rises in a later delta of the same instant. STCP rising later but within
   `tsu(SHCP to STCP)` = 15 ns is a set-up violation (`SHCP rose 14 ns before STCP rose …`) and
   stores `X` where the old and new contents differ.
+- **Scenarios** (`tests/scenarios/counters-74hc.test.ts`): two 161s cascaded TC → CET count
+  0 to 255 (a 50 ns clock beats the 25 ns carry: CET set-up reported, the high count `X`); a
+  NOR decoding a 4040's Q0–Q2 sees count 0 for 10 ns on the way from 3 to 4; two 595s cascaded
+  through Q7S; a 165 sending a byte into a 595 on one clock. The carry-over property runs random
+  networks of all eight chips. Benchmark: a chain of 100 595s runs at ≈ 6.4M events/s.
 - **Delays the data sheets lack** borrow a given path: the 191's TC and RC̅ after a parallel
   load use `tpd(PL to Qn)` / `tpd(Dn to Qn)`; the 193's terminal count changed by the other
   clock uses `tpd(CPU, CPD to Qn)`.

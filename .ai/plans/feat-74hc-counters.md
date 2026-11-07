@@ -220,7 +220,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 8. Overlines (Q4, Q5): letters overlined by default, digits not; explicit U+0305 marks
   for the exceptions (175 `Q̅0̅`, 165 `Q̅7̅`, 191 `U̅/D`); DIP drawing, Part tab; looked at in
   both themes.
-- [ ] 9. Across parts: registry, carry-over property with the new chips (mutation-checked),
+- [x] 9. Across parts: registry, carry-over property with the new chips (mutation-checked),
   symbol-drawing scenario, scenarios (8-bit 161 cascade, 4040 decoding glitch, two 595s via
   Q7S, 165 → 595), counter benchmark.
 - [ ] 10. Examples: Shift Register LEDs and SAP-1 Program Counter (Q1, Q2) from a throwaway
@@ -351,11 +351,22 @@ Checkable statements; verified one by one in the finish-branch workflow.
   now also match unit-only generic names. Looked at in Chromium (Symbol Gallery: 74, 138, 175,
   191, 165 in both themes; the 191's Part tab). Mutation-checked (3 mutations). Backlog item
   removed.
+- 2026-11-07 — task 9: carry-over property over 30 random networks of the eight chips
+  (`carry-over.test.ts`), mutation-checked with two mutations only it catches (a 4040 counting on
+  the forced evaluation; a 191 marking its direction unknown on evaluations with nothing
+  changed). Scenarios (`counters-74hc.test.ts`): 8-bit counter from two 161s (0–255 and wrap;
+  hold; a 50 ns clock beating the 25 ns carry gives one CET set-up violation and an `X` high
+  count), the 4040 decoding glitch (a NOR of Q0–Q2 goes HIGH 28–38 ns on 3 → 4), two 595s via
+  Q7S, a 165 → 595 serial link on one clock (no hold violation: Q7 moves 19 ns after the edge).
+  The symbol-drawing scenario covers the new DIPs as is. Benchmark: 74HC595 chain ×100 at 6.39M
+  events/s (903 events per cycle); inverter chain 13.9M, 74HC04 chain 8.65M, 574 pipeline
+  5.68M, ring 13.8M (unchanged).
 
 ## Handoff
 
-- **State:** tasks 1–8 done (timing data; `setupHold` variants; all eight chips in the
+- **State:** tasks 1–9 done (timing data; `setupHold` variants; all eight chips in the
   registry; overlines as the data sheets draw them).
-- **Next step:** task 9 (across parts: carry-over property, scenarios, counter benchmark).
+- **Next step:** task 10 (examples: Shift Register LEDs, SAP-1 Program Counter, from a
+  throwaway generator).
 - **Watch out:** pinouts and names in the Parts table are from memory.
 - **Verify with:** `pnpm check`.
