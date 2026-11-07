@@ -265,6 +265,10 @@ class LivePart implements PartLive {
     return this.#sim.stateOf(this.#id);
   }
 
+  get time(): number {
+    return this.#sim.now;
+  }
+
   level(pin: string): Level {
     try {
       return this.#sim.pinLevel(this.#id, pin);

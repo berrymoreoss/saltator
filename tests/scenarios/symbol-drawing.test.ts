@@ -182,6 +182,7 @@ describe('symbol drawing while simulating', () => {
         state: sim.stateOf('U1'),
         level: levels ?? ((pin) => sim.pinLevel('U1', pin)),
         light: () => light,
+        time: sim.now,
       },
       levelColor,
     };

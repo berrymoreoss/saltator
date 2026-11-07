@@ -16,6 +16,8 @@ export interface PartLive {
   readonly state: unknown;
   /** Level of the net on a pin (`Z` for a pin the part doesn't have). */
   level(pin: string): Level;
+  /** Simulated time now, in ps (an LCD's blink follows it). */
+  readonly time: number;
   /**
    * Light `i`'s brightness (indicators, lights in `LightsState` order): 0 off … 1 on all the
    * time, averaged over the last frame while running; `UNKNOWN_LIGHT` when unknown.

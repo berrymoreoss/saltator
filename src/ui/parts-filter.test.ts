@@ -20,6 +20,7 @@ describe('parts filter', () => {
       '74HC Logic',
       'Timers',
       'Memory',
+      'Peripherals',
       'Primitives',
       'Input / Output',
       'Nets',

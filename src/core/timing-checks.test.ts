@@ -256,6 +256,80 @@ describe('TimingChecks pulse width', () => {
   });
 });
 
+/** A part that only checks the cycle time of its pin `E` (rising edges); `ARM` low disarms. */
+const cycler = (() => {
+  const pins: PinDef[] = [
+    { name: 'E', dir: 'in' },
+    { name: 'ARM', dir: 'in' },
+  ];
+  const checks = new TimingChecks(pins, { tcycE: ns(500) });
+  const cycle = checks.cycle({ pin: 'E', edge: 'rise', cycle: 'tcycE' });
+  return defineComponent<Record<string, never>, PinTimes>({
+    type: 'test/cycle',
+    name: 'CYC',
+    title: 'Test cycle check',
+    pins,
+    create: () => ({
+      createState: () => checks.createTimes(),
+      evaluate(ctx) {
+        cycle.check(ctx, ctx.state, toInput(ctx.read(1)) !== Level.L0);
+        checks.track(ctx, ctx.state);
+      },
+    }),
+  });
+})();
+
+/** Pulses E: HIGH for `high`, then LOW for `low`. */
+function pulse(b: Bench, high: Time, low: Time) {
+  b.set({ E: 1 });
+  b.run(high);
+  b.set({ E: 0 });
+  b.run(low);
+}
+
+describe('TimingChecks cycle', () => {
+  it('is silent at exactly the cycle time and reports a shorter one', () => {
+    const b = new Bench(cycler);
+    b.set({ E: 0, ARM: 1 }).settle();
+    pulse(b, ns(250), ns(250)); // the first edge has nothing before it
+    pulse(b, ns(250), ns(249));
+    b.expectNoDiagnostics();
+    pulse(b, ns(250), ns(250));
+    expect(b.diagnostics).toMatchObject([
+      {
+        kind: TimingViolation.CYCLE,
+        pin: 'E',
+        message: 'E rose again 499 ns after it last rose (cycle time ≥ 500 ns)',
+      },
+    ]);
+  });
+
+  it('only counts the active edge and skips while disarmed', () => {
+    const b = new Bench(cycler);
+    b.set({ E: 1, ARM: 1 }).settle();
+    b.run(ns(1000));
+    b.set({ E: 0 }); // a fall is not a cycle
+    b.run(ns(10));
+    pulse(b, ns(100), ns(100)); // 1st rise
+    b.set({ ARM: 0 });
+    pulse(b, ns(100), ns(100)); // 200 ns after it, disarmed
+    b.expectNoDiagnostics();
+  });
+
+  it('does not count an edge from Z or X', () => {
+    const b = new Bench(cycler);
+    b.set({ ARM: 1 });
+    b.run(ns(10));
+    b.set({ E: 1 }); // from Z
+    b.run(ns(10));
+    b.set({ E: 'X' });
+    b.run(ns(10));
+    b.set({ E: 1 }); // from X
+    b.run(ns(10));
+    b.expectNoDiagnostics();
+  });
+});
+
 describe('TimingChecks recovery', () => {
   it('reports a clock edge too soon after the reset is released', () => {
     const b = bench();

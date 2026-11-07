@@ -241,7 +241,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 1. Data sheets: a module data sheet for the header pinout and backlight (16×2, e.g.
   Hitachi LM016L / a current maker); record the numbers below. `scripts/extract-hd44780-font.ts`
   and the generated `hd44780-font.ts` (A00, A02); font tests.
-- [ ] 2. `core`: `*-violation` kinds are errors; test. `library`: `periph` family,
+- [x] 2. `core`: `*-violation` kinds are errors; test. `library`: `periph` family,
   `periph/hd44780` — pins, props, symbol geometry, timing (function of props), the display
   mapping per size, state, the instruction set, 8/4-bit writes and reads, pull-ups, busy and
   `tADD`, power-on reset, `hd44780Frame`, `hd44780Text`; tests: every instruction (Table 6),
@@ -340,11 +340,29 @@ mode), 15 `LED+` (anode, +5 V via an on-board resistor), 16 `LED−` (cathode); 
   `scripts/extract-hd44780-font.ts` reads A00 and A02 off Table 4 (per-column lattice origin:
   A00's columns A/B are shifted; a 6 px margin had clipped the edge rows), `hd44780-font.ts`,
   `hd44780-rom.ts` with spot-check tests.
+- 2026-11-08 — task 2: `core` — `*-violation` kinds are errors, `TimingChecks.cycle` (kind
+  `cycle-violation`, for `tcycE` and later the CPUs' `tCYC`); `PartLive.time`. `library` —
+  `periph/hd44780` split in four: `hd44780-modules.ts` (sizes, glass wiring, `shownCell`),
+  `hd44780-controller.ts` (pure: registers, RAMs, interface modes, busy; uncertainty = run every
+  outcome exactly and merge), `hd44780-frame.ts` (frame, text, blink), `hd44780.ts` (pins,
+  props, timing, the bus glue with its checks: a transfer completes `tAH` = `tH` = 10 ns after
+  `E` falls, so hold-window changes still make it uncertain). A basic `lcd` drawer came along
+  (the symbol test needs one for every shipped kind); polished in task 5. 51 tests,
+  mutation-checked (18 mutations, all killed). Design changes on the way: no `init-violation`
+  kind — while the controller may be busy (an unknown outcome), a write is a `busy-violation`
+  ("may be busy") and is merged as maybe-accepted; the waits that follow from it are the
+  execution times at the oscillator (the data sheet's 4.1 ms / 100 µs cover slower clocks).
+  DDRAM cells: 1-line address `a` is cell `a`, 2-line `0x40 + k` is cell `40 + k` (so 1-line
+  0x28–0x4F is 2-line 0x40–0x67). RS/R/W̅ changing while `E` is HIGH: `hold-violation`.
+  Blink: 409.6 ms is one phase (a period of 819.2 ms at 250 kHz).
 
 ## Handoff
 
-- **State:** task 1 done (font extracted, ROM module tested); no part definition yet.
-- **Next step:** task 2 (`core` severity rule and `TimingChecks.cycle`, `periph/hd44780`).
+- **State:** tasks 1–2 done: the part works (instructions, 8/4-bit, reads, busy, sizes); the
+  bus checks and unknowns are coded in `hd44780.ts`/`hd44780-controller.ts` but only lightly
+  tested.
+- **Next step:** task 3 — tests for every bus requirement (inside/outside), busy, power-on
+  15 ms, uncertain `E`, unknown bits; mutation-check.
 - **Watch out:** the data sheet copy is in the session scratchpad only; download it again if
   the scratchpad is gone.
 - **Verify with:** `pnpm check`.
