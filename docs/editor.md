@@ -2,7 +2,7 @@
 
 Specification of `src/editor` (the canvas engine, no React) and `src/ui` (the React shell around
 it): the workbench and schematic view (R04a), editing (R04b), running the simulation (R05),
-files (R07) and the memory inspector (R12b).
+files (R07), the memory inspector (R12b) and waveforms (R13).
 Rationale: [ADR-0008](adr/0008-desktop-workbench.md) (workbench),
 [ADR-0009](adr/0009-editing-model.md) (editing), [ADR-0010](adr/0010-running-simulations.md)
 (simulation), [ADR-0012](adr/0012-files-and-sessions.md) (files and sessions),
@@ -24,7 +24,7 @@ A desktop CAD-style window (`Workbench`), dense like KiCad or Altium: 12 px UI t
 │ ▾ IO       │                                      │ Delay 1 ns   │
 │ ── preview │                                      │              │
 ├────────────┴──────────────────────────────────────┴──────────────┤
-│ MESSAGES  2  78 · SIMULATION  1 · PART · MEMORY  (Analyzer later) │
+│ MESSAGES  2  78 · SIMULATION  1 · PART · MEMORY · WAVEFORMS  3    │
 ├──────────────────────────────────────────────────────────────────┤
 │ X 12  Y 4 │ 100 % │ U1 · NAND │ hint …        14 parts · 20 wires │ ✖ 0 ⚠ 1 │
 └──────────────────────────────────────────────────────────────────┘
@@ -48,6 +48,7 @@ A desktop CAD-style window (`Workbench`), dense like KiCad or Altium: 12 px UI t
   counts. **Simulation** — what happened while running ([Simulation](#simulation)). **Part** —
   the pins and function table of the last part picked ([Part info](#part-info)). **Memory** —
   the cells of a memory part, live while simulating ([Memory inspector](#memory-inspector)).
+  **Waveforms** — the probed signals over simulated time ([Waveforms](#waveforms)).
 - **Status bar**: grid position under the pointer, zoom, a one-line selection summary, the
   simulation (state, simulated time, the speed reached when lagging, runtime problems; click opens
   the Simulation tab), a hint for the current tool and gesture (`statusHint`), part/wire counts,

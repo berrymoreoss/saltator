@@ -286,8 +286,20 @@ instance paths there. RAMs stay volatile (Q2): a test bench's setup loads them b
 
 ### R13 · Waveforms & probes — `feat/logic-analyzer` — `in-progress`
 
-Probe nets/buses, timing diagram with zoom/pan, cursors and Δt measurement, bus decoding, trigger
-conditions, export (VCD).
+The Waveforms tab: probes — nets, pins, buses and groups of single signals, by the resolver's
+references — saved in the circuit (`Circuit.probes`, schema v3, Q1), added from the canvas with
+a Probe tool (`P`, Q4) or the context menu, or typed; only they are recorded (core `Recorder`,
+one level per instant, bounded, re-attached by reference after every carry-over, Q2). A Canvas2D
+timing diagram: 1-bit rows in the wires' level colors, buses and groups as values in hex,
+decimal, binary or ASCII (`X` nibbles), dense blocks where edges are closer than a pixel; fit,
+follow and free views with zoom and pan; cursors A and B snapping to edges (`[`/`]`, `{`/`}`)
+with Δt and frequency. A single-shot trigger (levels and bus values ANDed with one strict
+edge, evaluated once an instant settles) breaks the kernel at its instant
+(`Simulator.requestBreak`, `onInstant`); the run goes on for the post-trigger part of the
+window (`Simulation.pauseAt`) and pauses (Q3). Export VCD… (core `writeVcd`) of the whole
+record or the cursor span. Probes ship with Clock Module and Data Bus. Spec:
+[editor.md](editor.md#waveforms), [simulation.md](simulation.md#recorder). Decision:
+[ADR-0019](adr/0019-waveforms.md). Plan: `.ai/plans/feat-logic-analyzer.md`.
 
 ### R14 · Breakpoints, stepping, watches — `feat/debugger`
 
@@ -407,5 +419,10 @@ Promote to a numbered item when needed.
   a pin tip attaches one; other one-pin parts may follow.
 - Image generators (R12b follow-up): a memory's contents computed by a short script in the app
   (Ben Eater's Arduino sketch for the decoder EEPROM, microcode tables), kept with the document.
+- Waveform follow-ups (R13): serial protocol decoders (UART, SPI, I²C) on probed signals;
+  automatic measurements (period, duty cycle, pulse count over a range); VCD import (a dump from
+  another simulator beside the circuit's); weak levels drawn paler (the recorder keeps levels
+  only); probed wires marked on the canvas; the diagram as SVG/PDF; recording every net in a
+  bounded buffer as an option, if probing before running proves a chore (R13, Q2).
 - Documents (R07 follow-ups): several documents open in one window (tabs); a title, notes and
   simulation settings (speed) stored in the file (schema v2).

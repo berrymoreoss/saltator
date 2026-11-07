@@ -4,7 +4,8 @@
  * (Nexperia 74HC161, 4.5 V).
  */
 import { describe, expect, it } from 'vitest';
-import { exampleDocument } from '../../src/app/example-files';
+import { EXAMPLE_FILES, exampleDocument } from '../../src/app/example-files';
+import { compileCircuit, Resolver } from '../../src/circuit';
 import { ns, Recorder, type Simulator, Trigger, writeVcd } from '../../src/core';
 import { buildScene, probeSpotAt } from '../../src/editor';
 import { createDefaultRegistry } from '../../src/library';
@@ -105,5 +106,23 @@ describe('probing the Data Bus example from the canvas', () => {
     const entry = scene.parts.find((p) => p.id === 'BE4')!;
     const bit = entry.pins.find((p) => !p.bus)!;
     expect(probeSpotAt(scene, registry, bit.at, 0.5)).toMatchObject({ ref: 'D3' });
+  });
+});
+
+describe('the examples’ probes', () => {
+  it('all resolve, and the examples that show waveforms have some', () => {
+    const registry = createDefaultRegistry();
+    const probed: string[] = [];
+    for (const { id } of EXAMPLE_FILES) {
+      const circuit = exampleDocument(id).circuits[0]!;
+      const resolver = new Resolver(compileCircuit(circuit, registry), registry);
+      for (const probe of circuit.probes) {
+        expect(resolver.probe(probe), `${id}: ${JSON.stringify(probe)}`).toMatchObject({
+          nets: expect.any(Array),
+        });
+      }
+      if (circuit.probes.length > 0) probed.push(id);
+    }
+    expect(probed.sort()).toEqual(['clock-module', 'data-bus']);
   });
 });

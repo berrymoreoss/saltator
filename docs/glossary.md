@@ -51,6 +51,9 @@ its enable becomes active (`ten`, tPZH/tPZL) and to release the net after it bec
 (`tdis`, tPHZ/tPLZ). When `tdis > ten`, two outputs handing a bus over at one instant fight
 briefly.
 
+**Cursor (waveforms)** — a vertical marker in the timing diagram (`A`, `B`) placed on an instant,
+snapping to edges; the time between them (Δt) and its frequency are read in the toolbar.
+
 **Delta cycle** — a sub-step at the same simulation time, used to propagate zero-delay changes in
 a deterministic order.
 
@@ -163,6 +166,14 @@ goes into the board (a TL866, Ben Eater's Arduino programmer): it erases the chi
 file's bytes, and shows the file's range and checksum. The Memory tab's Load dialog plays its
 part.
 
+**Probe** — a signal shown in the Waveforms tab: a net, pin or bus named by a resolver
+reference (`CLK`, `U1.Y`, `D[0..7]`), or a group of single signals read as one value; saved in
+the circuit (R13). The Probe tool (`P`) adds one with a click. Not to be confused with the logic
+probe part (`io/probe`, `TP`), which shows a level on the canvas.
+
+**Recorder** — what keeps the probed nets' levels over simulated time for the waveforms (core
+`Recorder`, R13): one level per instant, the oldest changes dropped past a budget.
+
 **Recovery time (trec)** — how long an asynchronous set or reset must have been released before
 the next clock edge acts; an earlier edge may or may not load.
 
@@ -233,8 +244,18 @@ time.
 
 **Test vector** — one row of a test bench table: inputs to apply and outputs expected.
 
+**Trigger** — a condition that catches a moment in a run, as on a logic analyzer: levels and
+bus values ANDed with at most one edge; when it fires, the run goes on for the rest of the
+capture window and pauses (R13). Also the instant it fired (`T` in the diagram).
+
 **Tri-state output** — an output that can drive 0, 1, or be disabled (high impedance `Z`), allowing
 several outputs to share a bus.
+
+**VCD (Value Change Dump)** — the text format of IEEE 1364 for signal changes over time, read by
+GTKWave, Surfer, PulseView and HDL tools; the Waveforms tab exports one (R13).
+
+**Waveform / timing diagram** — signals drawn against time, one row each, as the Waveforms tab
+and data sheets' timing figures show them; cursors (`A`, `B`) measure the time between edges.
 
 **Workbench** — the application window: menu bar, toolbar, docked panels (Parts, Properties,
 Messages), canvas and status bar.

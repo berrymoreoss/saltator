@@ -254,3 +254,17 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
   `FakeClock` whose `cost` is 0 a free-running circuit never ends the frame (a silent hang of
   the whole test file). Set `clock.cost` in Max tests, and bound helper loops that wait for
   simulated time (throw after N frames or when the host isn't running).
+- 2026-11-07 (R13) — Browser tests run a production build: there is no `window.logicEditor`, so
+  anything a test needs exactly (cursors on edges) must be reachable from the UI. Keyboard paths
+  (`]`, `}`) made the period measurable — and help users the same way.
+- 2026-11-07 (R13) — A mutation script that `sed`-patches a file must restore it in `finally`
+  _and_ bound each run: a mutation that loops forever (a cursor at −1 made a merge read `NaN`
+  times) hangs vitest past any test timeout, and killing the script skipped its restore. The
+  scratchpad `mutate.py` now times out runs and the file was put back by hand once.
+- 2026-11-07 (R13) — `Omit<Union, 'key'>` is not distributive (it keeps only common keys), and
+  narrowing a union by `kind === 'a' || kind === 'b'` inside a `map` callback failed under the
+  native TypeScript; `'channels' in term` narrows reliably. Vitest passes either way — only
+  `pnpm check` catches it.
+- 2026-11-07 (R13) — `sameCircuit` decides both "no edit" (`Editor.edit`) and "unsaved"; a new
+  document field it doesn't compare is silently dropped from undo and never marks the file
+  dirty. Add every new field to it (and to `serializeDocument`, the schema and a migration).

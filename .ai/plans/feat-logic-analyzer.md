@@ -267,7 +267,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   the cursors; Data Bus — `D[0..7]` captured with a trigger on its value, the run paused at it,
   exported VCD read back; probes saved, reopened and undone; a structural edit while recording
   keeps the capture.
-- [ ] 11. Docs: editor.md, simulation.md, circuit.md, architecture.md, glossary, READMEs,
+- [x] 11. Docs: editor.md, simulation.md, circuit.md, architecture.md, glossary, READMEs,
   ADR-0019; examples with probes where they help (Q1); roadmap (R13 done, R14 next; backlog:
   protocol decoders, measurements, VCD import, drive strength, probed-wire marks); lessons.
 
@@ -396,11 +396,17 @@ Checkable statements; verified one by one in the finish-branch workflow.
   menu, Undo/Redo, probing while running, saved as schema v3 with the probes. `openExample`
   moved to `support.ts` (pin and wire positions added). `pnpm e2e`: 67 passed. A structural
   edit while recording is covered by the analyzer's unit tests, not in the browser.
+- 2026-11-07 — task 11: ADR-0019 and its index row; architecture.md (UI, data flow, host break,
+  resolver, probes, the dock), editor.md (shell, Waveforms sections), circuit.md, simulation.md
+  (break, `onInstant`, recorder, triggers, VCD), glossary (probe, recorder, trigger, cursor,
+  VCD, waveform), the layers' READMEs, the roadmap entry and a backlog item for waveform
+  follow-ups, lessons; probes in Clock Module (the 555s and CLK) and Data Bus (the bus, CP and
+  the register's outputs as a group), checked to resolve by a scenario.
 
 ## Handoff
 
-- **State:** tasks 1–10 done (everything but the docs task).
-- **Next step:** task 11 (docs: ADR-0019, architecture, glossary, READMEs, roadmap, examples with probes, lessons), then finish-branch.
+- **State:** all tasks done; finishing (acceptance criteria, build, close the plan).
+- **Next step:** finish-branch: verify the acceptance criteria, `pnpm build`, ask to merge.
 - **Watch out:** nets have no identity across compiles — channels are references, re-resolved
   on every carry-over; the kernel's listener reports levels only. Docs already link
   `adr/0019-waveforms.md` (write it in task 11). Max-speed tests need `clock.cost > 0`.

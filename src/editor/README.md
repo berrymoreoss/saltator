@@ -17,7 +17,10 @@ DIP, fallbacks), `editor` (the facade: tools, gestures on `PointerInput`, stores
 `preview` (Parts panel), `simulation` (the simulator host: run control, pacing, following edits,
 signal and part views for the renderer), `memory-inspector` (the Memory tab's model: memories
 through the resolver, live cells, addresses, access highlighting, ROM image edits and RAM
-pokes, R12b), `symbols/interact` (part actions for the Interact tool),
+pokes, R12b), `analyzer` (the Waveforms tab's model: probes as channels, their record across
+power-on and carry-over, the view, cursors, the trigger, R13), `waveforms` (drawing the timing
+diagram, R13), `probe-target` (what the Probe tool and the context menu probe at a point, R13),
+`symbols/interact` (part actions for the Interact tool),
 `recording-graphics` and `fake-clock` (tests), `dev-parts` (renderer fixtures, never in the
 default registry). Pure modules and the gestures (`gestures.test.ts`) have Node unit tests;
 the facade's DOM adapters are covered by `tests/e2e`.
