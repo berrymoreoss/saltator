@@ -2,7 +2,15 @@
  * 74xx4511 BCD to 7-segment latch/decoder/driver: pinout and function table transcribed from the
  * Nexperia data sheet (tables 2 and 3). Spec: docs/components.md#74xx-chips-74xx.
  */
-import { type AnyComponentDefinition, type EvalContext, Level, strong, toInput } from '../../core';
+import {
+  type AnyComponentDefinition,
+  type EvalContext,
+  Level,
+  type PinTimes,
+  strong,
+  TimingChecks,
+  toInput,
+} from '../../core';
 import {
   type ChipBehavior,
   type ChipSpec,
@@ -74,6 +82,9 @@ const ALL = 0b1111111;
 /** State of a 4511: the latched code, bit 0 (A) first; `X` where unknown when latched. */
 export interface BcdDecoderState {
   latched: Level[];
+  /** The latched code before LE last went LOW (a too-short LOW pulse may not have replaced it). */
+  before: Level[];
+  times: PinTimes;
 }
 
 /**
@@ -81,23 +92,43 @@ export interface BcdDecoderState {
  * instant is not taken: hold time 0). LT low lights every segment; else BI low blanks them;
  * else the latched code is decoded, codes 10–15 blank. Unknowns make `X` only the segments the
  * possible displays disagree on; an unknown LE latches `X` where the input and the held bit
- * differ.
+ * differ. Timing checks on LE: a code bit that changed less than `tsu` before LE rose latches
+ * `X`; an LE LOW pulse shorter than `tW` makes `X` the bits it changed (`th` is 0: never fires).
  */
-const bcdDecoderBehavior: ChipBehavior<BcdDecoderState> = (pinList, delays) => {
+const bcdDecoderBehavior: ChipBehavior<BcdDecoderState> = (pinList, delays, min) => {
   const paths = pathDelays(pinList, delays, BCD_DECODER_SPEC.paths);
+  const checks = new TimingChecks(pinList, min);
+  const codeCheck = checks.setupHold({
+    data: 'A, B, C, D',
+    clock: 'LE',
+    edge: 'rise',
+    setup: 'tsu(A-D to LE)',
+    hold: 'th(A-D to LE)',
+  });
+  const latchWidth = checks.pulseWidth({ pin: 'LE', level: 'low', width: 'tW(LE)' });
   const code = pinIndices(pinList, 'A, B, C, D');
   const segments = pinIndices(pinList, SEGMENTS);
   const [LT, BI, LE] = pinIndices(pinList, 'LT, BI, LE') as unknown as [number, number, number];
 
   const evaluate = (ctx: EvalContext<BcdDecoderState>) => {
-    const latched = ctx.state.latched;
+    const { latched, before, times } = ctx.state;
+    const late = codeCheck.setup(ctx, times);
+    const short = latchWidth.check(ctx, times);
     const le = toInput(ctx.read(LE));
+    if (ctx.changed(LE) && toInput(ctx.prev(LE)) === Level.L1) {
+      for (let n = 0; n < 4; n++) before[n] = latched[n]!;
+    }
     if (le !== Level.L1) {
       for (let n = 0; n < 4; n++) {
         const d = toInput(ctx.read(code[n]!));
         latched[n] = le === Level.L0 || latched[n] === d ? d : Level.X;
       }
     }
+    for (let n = 0; n < 4; n++) {
+      if ((late >> n) & 1) latched[n] = Level.X;
+      else if (short && latched[n] !== before[n]) latched[n] = Level.X;
+    }
+    checks.track(ctx, times);
     // Every display the inputs allow, merged: segments they disagree on are X.
     let seen = NO_OUTCOME;
     const lt = toInput(ctx.read(LT));
@@ -125,7 +156,11 @@ const bcdDecoderBehavior: ChipBehavior<BcdDecoderState> = (pinList, delays) => {
     }
   };
   return () => ({
-    createState: () => ({ latched: [Level.X, Level.X, Level.X, Level.X] }),
+    createState: () => ({
+      latched: [Level.X, Level.X, Level.X, Level.X],
+      before: [Level.X, Level.X, Level.X, Level.X],
+      times: checks.createTimes(),
+    }),
     evaluate,
   });
 };

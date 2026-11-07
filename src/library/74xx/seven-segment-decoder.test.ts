@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Level, ns, pinsOf } from '../../core';
+import { isTimingViolation, Level, ns, pinsOf, TimingViolation, us } from '../../core';
 import { Bench, functionTable } from '../../core/testing';
 import { hc4511 } from './seven-segment-decoder';
 
@@ -12,6 +12,7 @@ const code = (value: number) => ({
   D: bit(value, 3),
 });
 const SEGMENTS = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
+const timing = (b: Bench) => b.diagnostics.filter((d) => isTimingViolation(d.kind));
 /** Segment levels as a string a … g: `'1111110'` is a 0. */
 const shown = (bench: Bench) => SEGMENTS.map((s) => bench.levels([s])[s]).join('');
 
@@ -23,6 +24,8 @@ describe('74HC4511', () => {
     const bench = new Bench(hc4511);
     const columns = [...TABLE_PINS.map(nameAt), null];
     // 2⁶ lamp test + 2⁵ blanked + 16 codes.
+    // The table's don't-care LE changes with the code (set-up violations the lamp-test rows
+    // hide); the code rows have LE low, transparent.
     expect(functionTable(bench, hc4511.functionTable!, columns)).toBe(112);
   });
 
@@ -37,11 +40,54 @@ describe('74HC4511', () => {
     expect(shown(bench)).toBe('1101101'); // 2
   });
 
-  it('does not take a code that arrives as LE rises (hold time 0)', () => {
+  it('lets the code change right after LE rose (hold time 0)', () => {
     const bench = new Bench(hc4511);
-    bench.set({ LT: 1, BI: 1, LE: 0, ...code(7) }).settle();
-    bench.set({ LE: 1, ...code(1) }).settle();
+    bench.set({ LT: 1, BI: 1, LE: 0, ...code(7) }).run(us(1));
+    bench.set({ LE: 1 }).run(0);
+    bench.set(code(1)).run(us(1)); // same instant, after the latch closed
     expect(shown(bench)).toBe('1110000'); // 7
+    expect(timing(bench)).toEqual([]);
+  });
+
+  it('checks the code set-up time to LE (12 ns): a late bit latches X', () => {
+    const latch = (before: number) => {
+      const bench = new Bench(hc4511);
+      bench.set({ LT: 1, BI: 1, LE: 0, ...code(7) }).run(us(1));
+      bench.set(code(5)).run(ns(before)); // B changes 1 → 0
+      bench.set({ LE: 1 }).run(us(1));
+      return bench;
+    };
+    expect(timing(latch(12))).toEqual([]);
+    expect(shown(latch(12))).toBe('1011011'); // 5
+    const late = latch(11);
+    expect(timing(late)).toMatchObject([
+      {
+        kind: TimingViolation.SETUP,
+        pin: 'B',
+        message: 'B changed 11 ns before LE rose (setup time ≥ 12 ns)',
+      },
+    ]);
+    // 5 or 7: the segments they agree on (a, c lit; e dark) stay known.
+    expect(shown(late)).toBe('1X1X0XX');
+  });
+
+  it('checks the LE LOW pulse width (16 ns): a short one leaves the changed bits unknown', () => {
+    const pulse = (width: number) => {
+      const bench = new Bench(hc4511);
+      bench.set({ LT: 1, BI: 1, LE: 0, ...code(7) }).run(us(1));
+      bench.set({ LE: 1 }).run(us(1));
+      bench.set(code(5)).run(us(1));
+      bench.set({ LE: 0 }).run(ns(width));
+      bench.set({ LE: 1 }).run(us(1));
+      return bench;
+    };
+    expect(timing(pulse(16))).toEqual([]);
+    expect(shown(pulse(16))).toBe('1011011');
+    const short = pulse(15);
+    expect(timing(short).map((d) => d.message)).toEqual([
+      'LE was LOW for only 15 ns (pulse width ≥ 16 ns)',
+    ]);
+    expect(shown(short)).toBe('1X1X0XX'); // 5 or still 7
   });
 
   it('lamp test overrides blanking', () => {

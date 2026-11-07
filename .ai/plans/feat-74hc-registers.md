@@ -198,7 +198,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 6. Registers 74HC175, 273, 377 with tests (377's enable setup/hold, Q̅ of the 175).
 - [x] 7. 3-state registers 74HC173, 374, 574 with tests (`ten`/`tdis`, loading while
   disabled, the 173's data enables and active-HIGH MR).
-- [ ] 8. 74HC4511 LE checks (setup, hold, LE pulse width) with tests.
+- [x] 8. 74HC4511 LE checks (setup, hold, LE pulse width) with tests.
 - [ ] 9. Across parts: carry-over property over random networks with the new chips
   (mutation-checked); symbol-drawing scenario; scenarios (74 shift chain without hold
   violations, ripple counter with visible ripple delays, a race caught by a setup check, two
@@ -297,6 +297,10 @@ Checkable statements; verified one by one in the finish-branch workflow.
   table (their Internal column is display only). The register suite is one parametrized
   `describe` over all six (controls as "idle" levels), plus 3-state (ten/tdis, loading while
   disabled, unknown/floating OE) and 173 enable tests; mutation-checked.
+- 2026-11-07 — task 8: the 4511 checks LE (set-up 12 ns, LE LOW width 16 ns; hold 0 never
+  fires). The R08 test "a code arriving as LE rises is not taken (hold time 0)" was wrong about
+  what hold 0 means: a code arriving _with_ LE now violates set-up (latched `X` where 5 and 7
+  differ); hold 0 lets the code change right after LE rose — two tests now.
 
 ## Handoff
 
