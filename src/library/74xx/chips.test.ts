@@ -6,7 +6,7 @@ const pinList = (d: AnyComponentDefinition) => pinsOf(d, {});
 const cases = chips74xx.map((d) => [d.name, d] as const);
 
 describe('74xx chips', () => {
-  it('are the 18 chips of R06, in number order, and register cleanly', () => {
+  it('are the chips of R06 and R08, in number order, and register cleanly', () => {
     expect(chips74xx.map((d) => d.name.slice(4))).toEqual([
       '00',
       '02',
@@ -23,11 +23,13 @@ describe('74xx chips', () => {
       '86',
       '125',
       '126',
+      '138',
+      '139',
       '240',
       '244',
       '245',
     ]);
-    expect(new Registry(chips74xx).list()).toHaveLength(18);
+    expect(new Registry(chips74xx).list()).toHaveLength(chips74xx.length);
   });
 
   it.each(cases)('%s is a DIP with every pin numbered and described', (name, d) => {
@@ -41,43 +43,56 @@ describe('74xx chips', () => {
     for (const pin of pins) {
       expect(pin.description, pin.name).toMatch(/\S/);
       if (pin.dir === 'nc') expect(pin.name).toBe(`NC${pin.number}`);
-      if (pin.activeLow) expect(pin.description).toContain('active LOW');
+      // Inputs say so; outputs drawn with an overline (138's Yn, 151's YN) may not.
+      if (pin.activeLow && pin.dir === 'in') expect(pin.description).toContain('active LOW');
     }
   });
 
-  it.each(cases)('%s cites its Nexperia data sheet and timing', (_, d) => {
-    const doc =
+  it.each(cases)('%s cites its data sheet and timing', (_, d) => {
+    const nexperia =
       /^https:\/\/assets\.nexperia\.com\/documents\/data-sheet\/(74HC(?:_HCT)?\d+)\.pdf$/.exec(
         d.datasheet ?? '',
       )?.[1];
-    expect(doc).toBeDefined();
+    const ti = /^https:\/\/www\.ti\.com\/lit\/ds\/symlink\/((?:sn|cd)74hc\d+)\.pdf$/.exec(
+      d.datasheet ?? '',
+    )?.[1];
     const timing = d.timing!;
-    expect(timing.source).toMatch(
-      new RegExp(`^Nexperia ${doc} product data sheet, rev\\. \\d+ \\(.+ 20\\d\\d\\), table 7$`),
-    );
+    if (nexperia) {
+      expect(timing.source).toMatch(
+        new RegExp(
+          `^Nexperia ${nexperia} product data sheet, rev\\. \\d+ \\(.+ 20\\d\\d\\), table 7$`,
+        ),
+      );
+    } else {
+      expect(ti, d.datasheet).toBeDefined();
+      expect(timing.source).toMatch(
+        new RegExp(
+          `^TI ${ti!.toUpperCase()} data sheet, [A-Z]+\\d+[A-Z] \\(\\w+ 20\\d\\d\\), section `,
+        ),
+      );
+    }
     expect(timing.conditions).toBe(
       'VCC = 4.5 V, CL = 50 pF; typ at 25 °C, max at −40 °C to +85 °C',
     );
-    const threeState = pinList(d).some((p) => p.dir === 'tristate' || p.dir === 'bidir');
-    const symbols = threeState ? ['tdis', 'ten', 'tpd'] : ['tpd'];
-    expect(Object.keys(timing.typical).sort()).toEqual(symbols);
+    const symbols = Object.keys(timing.typical).sort();
     expect(Object.keys(timing.max ?? {}).sort()).toEqual(symbols);
     for (const symbol of symbols) {
+      // One delay (`tpd`, `ten`, `tdis`) or one per path, worded as the data sheet does.
+      expect(symbol).toMatch(/^(tpd|ten|tdis)$|^tpd\(.+ to .+\)$/);
       expect(timing.typical[symbol]).toBeGreaterThan(0);
       expect(timing.typical[symbol]).toBeLessThan(timing.max![symbol]!);
     }
+    const threeState = pinList(d).some((p) => p.dir === 'tristate' || p.dir === 'bidir');
+    if (threeState) expect(symbols).toEqual(['tdis', 'ten', 'tpd']);
   });
 
-  it.each(cases)('%s lists units covering every signal pin once', (name, d) => {
+  it.each(cases)('%s has a function table and units covering every signal pin once', (_, d) => {
     expect(d.functionTable).toBeDefined();
-    if (name === '74HC245') {
-      expect(d.units).toBeUndefined(); // one section
-      return;
-    }
+    const units = d.units;
+    if (!units) return; // one section: 245, decoders and multiplexers with shared controls, …
     const signals = pinList(d)
       .filter((p) => p.dir !== 'power' && p.dir !== 'nc')
       .map((p) => p.name);
-    const units = d.units!;
     expect(units.flatMap((u) => u.pins).sort()).toEqual(signals.sort());
     expect(new Set(units.map((u) => u.name)).size).toBe(units.length);
     // Inputs first: every unit ends with its outputs.
