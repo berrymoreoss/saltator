@@ -92,19 +92,20 @@ export function functionTableInfo(table: FunctionTable | undefined): FunctionTab
 }
 
 /**
- * Function table columns naming pins that match `test`: a column is the datasheet's generic name
- * of a pin, its numbers replaced by `n` (`1OE` → `nOE`, `1A0` → `nAn`).
+ * Function table columns naming pins that match `test`: a column is a pin's name (`Y7`, `EI`) or
+ * the datasheet's generic name of a pin, its numbers replaced by `n` (`1OE` → `nOE`, `1A0` →
+ * `nAn`).
  */
 function columnsWhere(
   definition: AnyComponentDefinition,
   test: (pin: PinDef) => boolean,
 ): Set<string> {
-  const generic = pinsOf(definition, resolveProps(definition))
+  const named = pinsOf(definition, resolveProps(definition))
     .filter(test)
-    .map((pin) => pin.name.replace(/\d+/g, 'n'));
+    .flatMap((pin) => [pin.name, pin.name.replace(/\d+/g, 'n')]);
   const table = definition.functionTable;
   const columns = table ? [...table.inputs, ...table.outputs] : [];
-  return new Set(columns.filter((column) => generic.includes(column)));
+  return new Set(columns.filter((column) => named.includes(column)));
 }
 
 /** Function table columns of pins drawn with a label, and that label (151: `YN` → `Y`). */

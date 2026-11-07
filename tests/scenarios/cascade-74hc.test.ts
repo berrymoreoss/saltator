@@ -1,6 +1,8 @@
 /**
  * MSI chips cascaded as their data sheets show: two 74HC85s compare 8-bit words (the low chip's
- * outputs feed the high chip's expansion inputs; the low chip's IA=B is tied high).
+ * outputs feed the high chip's expansion inputs; the low chip's IA=B is tied high), and two
+ * 74HC148s make a 16-to-4 priority encoder (the high chip's EO enables the low one; AND gates
+ * merge their active-low codes, the high chip's GS is bit 3).
  */
 import { describe, expect, it } from 'vitest';
 import { ns, type Simulator } from '../../src/core';
@@ -69,5 +71,45 @@ describe('two 74HC85s cascaded to 8 bits', () => {
     // QA<B). LO's QA<B, 2 ns after its QA=B, reaches HI's IA<B, which QA<B doesn't depend on.
     expect(changed! - start).toBe(ns(21 + 18));
     expect(levels(sim, 'GT', 'LT', 'EQ')).toBe('010');
+  });
+});
+
+function encoder16(): Simulator {
+  return simulate((b) => {
+    b.add('HI', '74xx/74hc148').add('LO', '74xx/74hc148').add('U3', '74xx/74hc08');
+    for (let n = 0; n < 16; n++) {
+      b.add(`I${n}`, 'test/driver').net(`i${n}`, `I${n}.Y`, `${n < 8 ? 'LO' : 'HI'}.${n % 8}`);
+    }
+    b.add('G', 'io/gnd').net('gnd', 'G.Y', 'HI.EI', 'U3.4A', 'U3.4B');
+    b.net('cascade', 'HI.EO', 'LO.EI');
+    for (const [n, gate] of [
+      [0, 1],
+      [1, 2],
+      [2, 3],
+    ] as const) {
+      b.net(`hi${n}`, `HI.A${n}`, `U3.${gate}A`).net(`lo${n}`, `LO.A${n}`, `U3.${gate}B`);
+      b.net(`Q${n}`, `U3.${gate}Y`);
+    }
+    b.net('Q3', 'HI.GS').net('GS', 'LO.GS').net('EO', 'LO.EO');
+    return b;
+  });
+}
+
+describe('two 74HC148s cascaded to 16 inputs', () => {
+  it('encode the highest active input, active low, the high chip first', () => {
+    const sim = encoder16();
+    const encode = (active: readonly number[]) => {
+      for (let n = 0; n < 16; n++) set(sim, `I${n}`, active.includes(n) ? 0 : 1);
+      sim.settle();
+      return levels(sim, 'Q3', 'Q2', 'Q1', 'Q0');
+    };
+    const inverted = (n: number) =>
+      [3, 2, 1, 0].map((bit) => ((n >> bit) & 1 ? '0' : '1')).join('');
+    for (let n = 0; n < 16; n++) expect(encode([n]), `input ${n}`).toBe(inverted(n));
+    expect(encode([3, 12, 7])).toBe(inverted(12));
+    expect(encode([0, 5])).toBe(inverted(5));
+    // Nothing active: the low chip's EO goes low (it would enable a third chip).
+    expect(encode([])).toBe('1111');
+    expect(levels(sim, 'EO')).toBe('0');
   });
 });
