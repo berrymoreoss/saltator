@@ -7,7 +7,8 @@ How parts are described in `src/library`. Rationale for modeling chips as packag
 
 > Status: the definition shape is implemented (R01); `symbol`, the `sense`/`constant` pin flags
 > and the `io/*` parts landed in R03; the 74HC gates and bus buffers (R06) are the first to use
-> `package`, `units`, pin `description`s and `functionTable`.
+> `package`, `units`, pin `description`s and `functionTable`; R08 added MSI chips with delays per
+> path, pin `label`s, `si` props and the `timer` family (NE555).
 
 ## Families and type ids
 
@@ -20,6 +21,7 @@ the part before the slash (`familyOf(type)`).
 | `prim`   | `prim/nand`, `prim/tristate-buffer`, `prim/pull`                   | Abstract building blocks (Logisim-style), configurable inputs and delay. For prototyping and learning. |
 | `io`     | `io/switch`, `io/button`, `io/led`, `io/clock`, `io/seven-segment` | Interaction and indication: rails, switches, LEDs, displays, clock, probe ([below](#io-parts-io)).     |
 | `74xx`   | `74xx/74hc00`, `74xx/74hc245`, `74xx/74ls189`                      | Real logic chips ([below](#74xx-chips-74xx)). Behavior shared per function; timing per logic family.   |
+| `timer`  | `timer/ne555`                                                      | Analog timers, behavioral: the RC network as props ([below](#timers-timer)).                           |
 | `mem`    | `mem/at28c256`, `mem/62256`                                        | ROM/EEPROM/SRAM with inspectors _(planned, R12)_.                                                      |
 | `cpu`    | `cpu/w65c02s`                                                      | Processors (pin-level) _(planned, R17)_. Later: Z80, AVR, PIC.                                         |
 | `periph` | `periph/w65c22`, `periph/hd44780`                                  | Peripherals _(planned, R18)_.                                                                          |
@@ -49,6 +51,7 @@ interface ComponentDefinition<Props, State> {
 
 interface PinDef {
   name: string; // datasheet name: '1A', '1Y', 'OE', 'VCC' (unique within the part)
+  label?: string; // drawn instead of the name where the datasheet symbol isn't unique: 151's 'YN' → 'Y'
   description?: string; // datasheet pin description: 'output enable input (active LOW)'
   number?: number; // physical pin number (required when `package` is set)
   dir: 'in' | 'out' | 'tristate' | 'bidir' | 'power' | 'nc';
@@ -141,11 +144,14 @@ interface PropDef {
   step?: number;
   options?: { value: string; label: string }[]; // for 'enum'
   unit?: string; // display unit: 'Hz'
+  si?: boolean; // 'number' entered and shown with SI prefixes: '4.7 kΩ', '100 nF'
 }
 ```
 
 - `time` props are integer **picoseconds**, like every time in the kernel; the inspector
   converts for display.
+- `number` props with `si` hold base units (ohms, farads, hertz) and are typed and shown with SI
+  prefixes (`4.7k`, `100n`, `1u`; shown `4.7 kΩ`), as resistor and capacitor values are.
 - Props are part of the saved document; changing one recompiles the netlist.
 - `resolveProps(definition, raw)` (used by the netlist resolver) fills in defaults and rejects
   unknown keys, wrong types, non-integers for `integer`/`time`, out-of-range values and unknown
@@ -170,6 +176,14 @@ future worst-case mode. It is the one condition at which Nexperia gives every de
 to 50 pF than to 15 pF (R06, Q5). Other families state their own conditions. Abstract `prim/*`
 parts have no `timing`; they take a `delay` prop instead.
 
+**Delays with several paths.** MSI data sheets give one delay per path (74HC138: `An to Yn`,
+`E3 to Yn`, `En to Yn`). Each is a timing key in the data sheet's wording, `tpd(An to Yn)`; a
+chip lists its paths (`DelayPath`: inputs → outputs → key) and drives each output with
+`pathDelays(…).delay(ctx, output)`: the **longest** typical delay among the paths whose input
+changed in this delta (the output settles after its slowest cause), or the output's longest path
+when nothing changed (the forced evaluation; re-driving a pending value keeps it where it is).
+Delays inside a chip (path skew, glitches) are not modeled; skew between chips is.
+
 ## Function tables
 
 A real chip carries its datasheet function table as data: Part Info shows it, and the part's test
@@ -190,6 +204,9 @@ functionTable: {
 - Letters as in the datasheet: `H`, `L`, `X` (**don't care**, inputs), `Z` (outputs). Any other
   cell is datasheet text kept for display (`A=B`, `input`); such rows can't be checked by the
   helper, so the test covers them by hand.
+- Text cells have no spaces (`A3>B3`, `blank`); Part Info spaces `=`, `<`, `>` out. A display-only
+  output column (the 4511's `Display`) is mapped to `null` in the test:
+  `functionTable(bench, table, [...pins, null])`.
 - The registry rejects tables without input or output columns, with duplicate column names, no
   rows, or rows with the wrong number of cells.
 
@@ -281,7 +298,7 @@ rails change with zero delay, the clock's edges are exact.
 | Type               | Pins                         | Props (default)                                                                    | Behavior                                                              |
 | ------------------ | ---------------------------- | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
 | `io/vcc`, `io/gnd` | `Y` (out, constant 1 / 0)    | —                                                                                  | strong 1 / 0 from t = 0                                               |
-| `io/switch`        | `Y`                          | `contact` (`spdt`), `on` (false): position at power-on                             | toggle switch; actions `toggle`, `set`                                |
+| `io/switch`        | `Y` (`ON`, `OFF` changeover) | `contact` (`spdt`), `on` (false): position at power-on                             | toggle switch; actions `toggle`, `set`                                |
 | `io/button`        | `Y`                          | `contact` (`spst-vcc`)                                                             | momentary; released at power-on; actions `press`, `release`           |
 | `io/dip-switch`    | `S1`…`Sn`                    | `count` 1–12 (8), `contact` (`spst-vcc`), `on` (0): power-on bitmask, bit 0 = `S1` | actions `toggle`, `set` with `index` (0 = `S1`)                       |
 | `io/clock`         | `Y` (out)                    | `frequency` 0.001 Hz–1 GHz (1), `duty` 1–99 % (50), `mode` (`auto`)                | starts low; `auto` runs freely; `manual`: action `step` → one pulse   |
@@ -293,8 +310,10 @@ rails change with zero delay, the clock's edges are exact.
 
 - **Contacts** (`contact`): `spdt` — drives strong 1 when on, strong 0 when off (pin `out`);
   `spst-vcc` — strong 1 when closed, released (`Z`) when open (pin `tristate`), needs a pull-down;
-  `spst-gnd` — strong 0 when closed, released when open, needs a pull-up. Contact bounce is not
-  modelled.
+  `spst-gnd` — strong 0 when closed, released when open, needs a pull-up. `io/switch` also has
+  changeovers with the common on a rail, `spdt-gnd` and `spdt-vcc` (R08): two `tristate` throws,
+  `ON` (closed in the on position) and `OFF`, the closed one at the rail, the open one released
+  (pull both up or down) — Ben Eater's bistable 555 debounce. Contact bounce is not modelled.
 - **LEDs**: on with forward bias (A = 1, K = 0); off if A is 0 or `Z`, or K is 1 or `Z` (a
   floating side carries no current); unknown otherwise. 7-segment, common cathode: segment = A,
   `COM` = K; common anode: `COM` = A, segment = K. Colors are an `enum` of real LED colors (red,
@@ -343,8 +362,51 @@ Real logic chips as DIP packages ([ADR-0004](adr/0004-chips-as-packages.md)) in
 | `74xx/74hc244` | octal buffer/line driver, 3-state (two groups of 4) | DIP-20  | tpd 11, ten 13, tdis 14 ns |
 | `74xx/74hc245` | octal bus transceiver, 3-state (`DIR`, `OE`)        | DIP-20  | tpd 9, ten 11, tdis 15 ns  |
 
+R08 adds the combinational MSI chips, all DIP-16 (typical delays per path, longest listed):
+
+| Type            | Function                                     | Typical delays (ns)                                     |
+| --------------- | -------------------------------------------- | ------------------------------------------------------- |
+| `74xx/74hc85`   | 4-bit magnitude comparator, cascadable       | An, Bn → QA>B, QA<B 23; → QA=B 21; expansion 18, 14     |
+| `74xx/74hc138`  | 3-to-8 line decoder/demultiplexer; inverting | An → Yn 15; E3 → Yn 17; E1, E2 → Yn 17                  |
+| `74xx/74hc139`  | dual 2-to-4 line decoder/demultiplexer       | nAn → nYn 14; nE → nYn 12                               |
+| `74xx/74hc147`  | 10-to-4 line priority encoder (TI)           | 18                                                      |
+| `74xx/74hc148`  | 8-to-3 line priority encoder, EI/EO/GS (TI)  | 1–7 → A0–A2 23; 0–7 → GS 25, EO 20; EI → 26, 19, 22     |
+| `74xx/74hc151`  | 8-input multiplexer, Y and Y̅ (`YN`)          | In → Y 19, → Y̅ 21; Sn → 22; E → Y 15, → Y̅ 17            |
+| `74xx/74hc153`  | dual 4-input multiplexer, shared selects     | nIn → nY 17; Sn → nY 18; nE → nY 12                     |
+| `74xx/74hc157`  | quad 2-input multiplexer                     | nI → nY 13; S → nY 15; E → nY 14                        |
+| `74xx/74hc158`  | quad 2-input multiplexer; inverting          | nI → nY 15; S → nY 17; E → nY 17                        |
+| `74xx/74hc283`  | 4-bit binary full adder with fast carry (TI) | CIN → S0 … S3 19, 21, 23, 27; An, Bn → Sn 25; → COUT 23 |
+| `74xx/74hc4511` | BCD to 7-segment latch/decoder/driver        | A–D → a–g 28; LE 27; BI 22; LT 15                       |
+
 Delays at VCC = 4.5 V, CL = 50 pF, 25 °C ([Timing](#timing)); each chip's `timing.max` holds the
 −40 °C to +85 °C maxima and `timing.source` the document, revision and table.
+
+- **Sources.** Nexperia documents every chip but the 147, 148 and 283: those follow the current
+  TI data sheets (SN74HC148, CD74HC147, CD74HC283) — TI's pin names (`I1`–`I9`, `0`–`7`,
+  `A0`–`A3`/`S0`–`S3`, `CIN`, `COUT`), pinouts, function tables and maxima. TI's ex-Harris CD74HC
+  sheets have no typical delay at 4.5 V / 50 pF, so the 147's and 283's typical values come from
+  the Philips 74HC/HCT147 and 283 sheets (December 1990; same maxima), cited in `timing.source`
+  (R08, Q6); the 283's function table is the Philips example row in TI's names (TI has none).
+  TI's CD74HC147 pin table calls pin 9 an input; its pinning figure, like every 74147, has
+  output `Y0` there.
+- **Pin labels.** The 74HC151's two outputs are both `Y` in the data sheet, one overlined: pin 6
+  is named `YN` and drawn `Y̅` (`label: 'Y'`, `activeLow`).
+- **Sections.** Only chips with independent sections list `units` (the 139's two decoders, as
+  KiCad does); chips whose sections share controls (153, 157, 158) are one section, and their
+  tests map the function table to each multiplexer's pins themselves.
+- **4-state, as precise as cheap.** Decoders drive `X` only on the outputs an unknown address
+  bit could select; multiplexers give the value the possible inputs agree on (`X` if they
+  differ); the adder ripples 4-state full adders (sum bits below an unknown input stay known,
+  1 + 1 + X carries 1); the comparator decides bit by bit from bit 3; encoders and the 4511 merge
+  every outcome their inputs allow and drive `X` only on the bits those disagree on
+  (`outcomes.ts`, no allocation).
+- **Cascading.** The 85's expansion inputs follow its function table (`QA>B` ignores `IA>B`); two
+  85s compare 8-bit words and two 148s make a 16-to-4 encoder (`tests/scenarios/cascade-74hc.test.ts`).
+- **74HC4511** — the first 74xx chip with state (`ChipBehavior<State>`): LE low is transparent,
+  LE high holds the code it had when LE rose (a code arriving at that instant is not taken); LT
+  low lights every segment, else BI low blanks, else codes 0–9 decode (6 and 9 without tails)
+  and 10–15 blank. Nothing latched at power-on: `X` until LE goes low. Drives a common-cathode
+  `io/seven-segment` directly (resistors are not modeled).
 
 - **One function, many families.** A chip's function — pinout with the data sheet's pin
   descriptions, units, function table, behavior — is a `ChipSpec` (`GATE_SPECS`,
@@ -380,3 +442,32 @@ Delays at VCC = 4.5 V, CL = 50 pF, 25 °C ([Timing](#timing)); each chip's `timi
   numbers, unknown and floating inputs, enable timing, the 245 turning round; `chips.test.ts`
   checks every chip's package, pin descriptions, timing source and units. The carry-over
   property runs random networks of them.
+
+## Timers (`timer/*`)
+
+Analog timer chips, behavioral ([ADR-0013](adr/0013-behavioral-timer.md)): the external RC
+network is props, the pins it occupies are drawn but not simulated.
+
+| Type          | Pins (DIP-8, TI)                                            | Props (default)                                                                                          |
+| ------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `timer/ne555` | GND, TRIG, OUT, RESET (active LOW), CONT, THRES, DISCH, VCC | `mode` (`astable`), `ra` (1 kΩ), `rb` (100 kΩ, astable), `c` (1 µF): SI-prefixed, 1 Ω–10 MΩ, 1 pF–100 µF |
+
+From the TI NE555 data sheet (SLFS022K): its function table read as levels (TRIG L = below ⅓
+VCC, THRES H = above ⅔ VCC) — RESET low resets, TRIG low sets, THRES high resets, else hold;
+RESET overrides TRIG, which overrides THRES.
+
+- **Astable** — RESET high runs it: high for the first charge from 0 V, 1.1 (RA + RB) C, then
+  tH = 0.693 (RA + RB) C and tL = 0.693 RB C (equations 1–2); RESET low stops it low, and it
+  restarts with a first charge. TRIG, THRES, DISCH are the RC network: not simulated.
+- **Monostable** — TRIG low (RESET high) starts a pulse of tw = 1.1 RA C; triggers during it are
+  ignored; at its end OUT stays high while TRIG is still low; RESET low ends it. THRES, DISCH not
+  simulated.
+- **Bistable** — the function table on TRIG, THRES and RESET; DISCH an open-collector output
+  (strong 0 while reset, released while set, `X` while unknown).
+- **Power-on**: astable starts high (the capacitor is empty); monostable and bistable drive `X`
+  until the first trigger or reset ("as previously established", R08 Q4). An unknown RESET or
+  TRIG gives `X` where it could matter.
+- **Timing**: every output edge `tPD` = 225 ns after its cause (TI Figure 5-8, 25 °C, trigger to
+  0 V); timers use `wakeAfter` with a generation token in the state (RESET and new pulses make a
+  pending wake stale). CONT is never simulated. Changing `rb` while running acts like turning a
+  potentiometer: the next phase uses it (carry-over).

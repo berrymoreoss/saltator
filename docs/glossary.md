@@ -3,6 +3,14 @@
 **Active low** — a pin that is asserted at logic 0 (`OE`, `CE`, `WE`); drawn with an overline or
 bubble.
 
+**Astable / monostable / bistable** — the three ways to wire a 555 timer: a free-running
+oscillator (the clock of a breadboard computer), one pulse of a fixed width per trigger (a
+debounced step button), or a set/reset latch (a debounced switch). The RC network sets the times:
+tH = 0.693 (RA + RB) C, tL = 0.693 RB C, tw = 1.1 RA C.
+
+**BCD (binary-coded decimal)** — a decimal digit 0–9 in 4 bits (`0101` = 5); the 74HC4511 decodes
+it for a 7-segment display and blanks the six codes above 9.
+
 **Bidirectional pin (bidir)** — a pin that can read or drive the net depending on the part's state
 (RAM data pins, 74HC245 A/B ports, CPU data bus).
 
@@ -101,7 +109,11 @@ label", Logisim "tunnel"). Not to be confused with a part's `label`, which is di
 the brightness drawn, so a multiplexed display or an LED on a fast clock shows its average.
 
 **Propagation delay (tpd, tPLH, tPHL)** — time from an input change to the resulting output
-change; tPLH for low→high, tPHL for high→low output transitions.
+change; tPLH for low→high, tPHL for high→low output transitions. MSI chips give one per **delay
+path** (74HC138: `An to Yn`, `E3 to Yn`); several inputs changing at once take the longest.
+
+**Priority encoder** — the reverse of a decoder: the number of the highest-numbered active input
+(74HC148: 8 inputs → 3 bits; 74HC147: 9 inputs → BCD, all inactive meaning 0).
 
 **Pull-up / pull-down** — a resistor that weakly drives a net to 1 / 0 when nothing else drives it.
 
@@ -117,7 +129,8 @@ to capture it reliably.
 **SPST / SPDT** — single-pole single-throw (a contact that closes onto one terminal, open
 otherwise: push buttons, DIP switches) / single-pole double-throw (a changeover between two
 terminals: slide and toggle switches). An SPST contact to a rail leaves the net floating when
-open, so it needs a pull resistor.
+open, so it needs a pull resistor. A changeover can also have its common on a rail and its two
+throws as the outputs (`io/switch` `spdt-gnd`: `ON`, `OFF`), as Ben Eater's bistable 555 uses.
 
 **Symbol** — how a part that isn't drawn as a chip package looks on the schematic (LED, switch,
 gate shape). Parts describe it as data (body size, pin sides and offsets); the editor draws it.

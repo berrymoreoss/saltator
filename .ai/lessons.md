@@ -121,3 +121,21 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
   `CircuitBuilder` in a throwaway script that also checks the compiled nets against the
   intended ones, then look at it in the browser (labels of rotated LEDs sit to their right and
   run into nearby wires). Save the result as a file; from then on the file is the source.
+- 2026-11-07 (R08) — TI's ex-Harris CD74HC data sheets (CD74HC147, CD74HC283, …) give typical
+  delays only at 5 V / 15 pF, maxima at 4.5 V / 50 pF; SN74HC sheets give both. Check before
+  choosing a TI sheet for the 4.5 V / 50 pF convention; the Philips 74HC sheets (1990) have the
+  typical values and the same JEDEC maxima.
+- 2026-11-07 (R08) — `pdftotext -layout` drops overlines: `Y` and `Y̅` (74HC151) read the same and
+  active-low headings look plain. Render the pinning and table pages (`pdftoppm -f N -l N -r 90
+  -png`) and look; trust the pinning figure over a pin table (TI's CD74HC147 table calls output
+  pin 9 an input).
+- 2026-11-07 (R08) — Biome's `usePlaywrightValidDescribeCallback` fires on any call
+  `describe('…', notAFunction)`, even a local helper in library code: don't name helpers
+  `describe`. `noApproximativeNumericConstant` flags a data sheet's 0.693 (it wants `Math.LN2`):
+  keep the data sheet constant once, with a `biome-ignore` giving the reason.
+- 2026-11-07 (R08) — A free-running part (an astable 555, `io/clock`) never lets `Bench.settle`
+  finish: run it for a time (`bench.run(dt)`) and record edges with `sim.onNetChange`.
+- 2026-11-07 (R08) — Throwaway generators for example files run as a vitest file in
+  `tests/scenarios/` (Node can't import the extensionless `src` paths directly) and write the
+  file with `node:fs`; check every net there (`compileCircuit(…).nets`), then delete the
+  generator. The Clock Module's 85 wires came out right the first time this way.

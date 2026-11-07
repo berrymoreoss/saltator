@@ -202,7 +202,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 10. Examples per Q3, run by tests, looked at in the browser; File ▸ New from Example lists
   them.
 - [x] 11. e2e: an example with a 555 runs (an LED toggles); Part tab of a DIP-16 chip.
-- [ ] 12. Docs: components.md (MSI rows, delays with several paths, `timer` family), ADR-0013,
+- [x] 12. Docs: components.md (MSI rows, delays with several paths, `timer` family), ADR-0013,
   ADR index, glossary, `src/library/README.md`, editor.md (SI entry), lessons, backlog
   (passive parts, potentiometer), roadmap status.
 
