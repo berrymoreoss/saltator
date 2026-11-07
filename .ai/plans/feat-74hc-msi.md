@@ -192,7 +192,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 6. Priority encoders 74HC147, 148 with tests (priority, GS/EO, two 148s cascaded).
 - [x] 7. 74HC4511 with tests (every code 0–15, LT/BI priority, latch: transparent, hold, no latch
   on the forced evaluation, unknown latched), driving an `io/seven-segment` in a scenario.
-- [ ] 8. `timer/ne555` (family `timer` in the default registry), SI-prefix prop entry, ADR-0013;
+- [x] 8. `timer/ne555` (family `timer` in the default registry), SI-prefix prop entry, ADR-0013;
   tests: astable first cycle, tH, tL against the formulas, RESET stop/restart; monostable tw,
   ignored retrigger, held trigger; bistable function table and DISCH; power-on per Q4; prop
   entry parsing/formatting.
@@ -269,6 +269,18 @@ Checkable statements; verified one by one in the finish-branch workflow.
   CD74HC147 pin table names pin 9 an input `I0`, its pinning figure (and the classic pinout)
   say output `Y0` — the figure wins; TI has no 283 function table (the Philips example row is
   used); 4511 shows 6 and 9 without tails; 85's `QA>B` ignores `IA>B` (cascade rule).
+- 2026-11-07 — tasks 3–7: decoders (138, 139), multiplexers (151, 153, 157, 158), 283 and
+  85 (exhaustive), encoders (147, 148), 4511 (first stateful chip). Changes on the way: `units`
+  only for independent sections (139), as KiCad does — chips with shared controls are one
+  section; `PinDef.label` (Q5; the DIP drawer, the Part tab's pins and table headings use it);
+  `functionTable()` skips output columns mapped to `null` (4511's Display); possible outcomes
+  merged without allocating (`outcomes.ts`); the Part tab spaces `<`/`>` in cells and overlines
+  columns named exactly like active-low pins. Scenarios: two 85s → 8 bits, two 148s → 16
+  inputs, a 4511 driving a common-cathode display.
+- 2026-11-07 — task 8: `timer/ne555` (family `timer`, Parts panel group "Timers"), tPD 225 ns
+  read off TI Figure 5-8 (the table gives only rise/fall times); `PropDef.si` with
+  `formatSi`/`parseSi` (exact: `100n` is 1e-7), also on `io/clock` frequency; `nc` pins draw
+  their names unless named `NC<n>` (the Part tab calls them "not simulated"); ADR-0013.
 
 ## Handoff
 

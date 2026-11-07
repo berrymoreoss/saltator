@@ -53,6 +53,20 @@ describe('pinInfo', () => {
   });
 });
 
+describe('pins that are not simulated', () => {
+  it('keeps their names: a 555 in astable mode draws its timing pins', () => {
+    const rows = pinInfo(part('timer/ne555'), { mode: 'astable' });
+    expect(rows.find((r) => r.number === 2)).toEqual(
+      expect.objectContaining({ name: 'TRIG', type: 'not simulated' }),
+    );
+    const bistable = pinInfo(part('timer/ne555'), { mode: 'bistable' });
+    expect(bistable.find((r) => r.number === 2)?.type).toBe('input');
+    expect(pinInfo(part('74xx/74hc20')).find((r) => r.number === 3)).toEqual(
+      expect.objectContaining({ name: 'NC', type: 'not connected' }),
+    );
+  });
+});
+
 describe('pin labels', () => {
   it('shows a labelled pin under its label, with its name as the id', () => {
     const rows = pinInfo(part('74xx/74hc151'));

@@ -57,7 +57,8 @@ export function drawDip(
       inset = 0.55;
     }
     g.text(
-      def?.dir === 'nc' ? 'NC' : (def?.label ?? pin.name),
+      // n.c. pins (`NC3`) as NC; other `nc` pins keep their names (a 555's timing pins).
+      /^NC\d+$/.test(pin.name) ? 'NC' : (def?.label ?? pin.name),
       onLeft ? left + inset : right - inset,
       y,
       {

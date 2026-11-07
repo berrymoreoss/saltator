@@ -57,10 +57,13 @@ export function pinInfo(
   const rows = pinsOf(definition, resolved).map(
     (pin): PinInfo => ({
       ...(pin.number !== undefined && { number: pin.number }),
-      name: pin.dir === 'nc' ? 'NC' : (pin.label ?? pin.name),
+      // n.c. pins (`NC3`) show as NC; other `nc` pins are drawn but not simulated (a 555's
+      // timing pins in astable mode).
+      name: /^NC\d+$/.test(pin.name) ? 'NC' : (pin.label ?? pin.name),
       ...(pin.label !== undefined && { id: pin.name }),
       activeLow: pin.activeLow === true,
-      type: PIN_TYPE_LABEL[pin.dir],
+      type:
+        pin.dir === 'nc' && !/^NC\d+$/.test(pin.name) ? 'not simulated' : PIN_TYPE_LABEL[pin.dir],
       ...(pin.description !== undefined && { description: pin.description }),
     }),
   );

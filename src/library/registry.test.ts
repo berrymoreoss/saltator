@@ -64,6 +64,7 @@ describe('createDefaultRegistry', () => {
       'io/hex-display',
       'io/probe',
       ...CHIPS,
+      'timer/ne555',
     ]);
   });
 
@@ -72,7 +73,7 @@ describe('createDefaultRegistry', () => {
       expect(d.name, d.type).not.toBe('');
       expect(d.title, d.type).not.toBe('');
       expect(d.keywords?.length, d.type).toBeGreaterThan(0);
-      expect(['prim', 'io', '74xx']).toContain(familyOf(d.type));
+      expect(['prim', 'io', '74xx', 'timer']).toContain(familyOf(d.type));
     }
   });
 
@@ -106,6 +107,7 @@ describe('createDefaultRegistry', () => {
       'io/hex-display': 'DS',
       'io/probe': 'TP',
       ...Object.fromEntries(CHIPS.map((type) => [type, 'U'])),
+      'timer/ne555': 'U',
     });
   });
 

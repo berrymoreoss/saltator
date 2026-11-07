@@ -91,6 +91,8 @@ export interface PropDef {
   readonly options?: readonly { readonly value: string; readonly label: string }[];
   /** Display unit: `Hz`, `ns`. */
   readonly unit?: string;
+  /** A `number` entered and shown with SI prefixes: `4.7 kΩ`, `100 nF`, `2 kHz`. */
+  readonly si?: boolean;
 }
 
 /** Datasheet timing, in picoseconds, keyed by datasheet symbol (`tpd`, `tPLH`, `tsu`, …). */

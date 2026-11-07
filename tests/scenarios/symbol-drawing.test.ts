@@ -119,6 +119,19 @@ describe('symbol drawing', () => {
     expect(g.texts.find((t) => t.text === 'OE')?.style.overline).toBe(true);
   });
 
+  it('draws a 555’s unsimulated timing pins under their names, n.c. pins as NC', () => {
+    const texts = (type: string, props = {}) => {
+      const g = new RecordingGraphics();
+      drawPartBody(g, buildScene(circuitOf(type, props), registry).parts[0]!, 'ansi', 'red');
+      return g.texts.map((t) => t.text);
+    };
+    expect(texts('timer/ne555', { mode: 'astable' })).toEqual(
+      expect.arrayContaining(['TRIG', 'THRES', 'DISCH', 'CONT', 'NE555']),
+    );
+    expect(texts('timer/ne555')).not.toContain('NC');
+    expect(texts('74xx/74hc20')).toContain('NC');
+  });
+
   it('draws a labelled pin under its label: the 74HC151 has Y and Y overlined', () => {
     const part = buildScene(circuitOf('74xx/74hc151', {}), registry).parts[0]!;
     const g = new RecordingGraphics();

@@ -44,6 +44,7 @@ export const clock = defineComponent<Props, ClockState>({
       min: 0.001,
       max: 1e9,
       unit: 'Hz',
+      si: true,
     },
     { key: 'duty', label: 'Duty cycle', type: 'number', default: 50, min: 1, max: 99, unit: '%' },
     {
