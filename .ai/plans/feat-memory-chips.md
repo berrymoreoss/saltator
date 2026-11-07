@@ -4,7 +4,7 @@
 | ---------- | ------------------------------------------------------------------------------------ |
 | Branch     | `feat/memory-chips`                                                                  |
 | Roadmap    | R12a — Memory chips ([roadmap](../../docs/roadmap.md))                               |
-| Status     | in-progress                                                                          |
+| Status     | done                                                                                 |
 | Depends on | R09a (timing checks, `X` policy), R06 (3-state outputs, chip specs), R07 (documents) |
 | Created    | 2026-11-07                                                                           |
 
@@ -337,18 +337,26 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 
 Checkable statements; verified one by one in the finish-branch workflow.
 
-- [ ] `pnpm check`, `pnpm build` and `pnpm e2e` are green.
-- [ ] Every memory part's pinout, mode table and read limits are checked against its data sheet
-  (each read path measured); a read sampled before `tACC` sees `X`, not the old data.
-- [ ] A RAM write breaking each requirement (`tAS`, `tAW`, `tWR`, `tWP`/`tCW`, `tDW`, `tDH`)
+- [x] `pnpm check` (1918 tests), `pnpm build` and `pnpm e2e` (59) are green.
+- [x] Every memory part's pinout, mode table and read limits are checked against its data sheet
+  (each read path measured: `eeproms.test.ts`, `srams.test.ts`); a read sampled before `tACC`
+  sees `X`, not the old data (`every data pin is X in the window`; the scenario's 74HC574
+  clocked before `tAA` latches `X`).
+- [x] A RAM write breaking each requirement (`tAS`, `tAW`, `tWR`, `tWP`/`tCW`, `tDW`, `tDH`)
   reports it on the pin at fault and leaves the cells it may have hit `X`; one just inside every
-  limit is silent and stores the data.
-- [ ] An EEPROM's contents survive save and load as sparse hex runs; an erased part saves `''`;
-  a write attempt is reported and changes nothing; WE̅ tied HIGH reports nothing.
-- [ ] RAM powers on `X`, zeros or random; random is the same in every run and differs between two
-  RAMs.
-- [ ] The carry-over property holds with memories in the networks.
-- [ ] Both examples run in the browser; looked at in both themes, stopped and running.
+  limit is silent and stores the data (6116 and 62256 tests; `tAS`, `tWR`, `tDH`, which both
+  parts have as 0, on a test part with 5 ns; an address change during a write too).
+- [x] An EEPROM's contents survive save and load as sparse hex runs (the EEPROM 7-Segment
+  Decoder file round-trips canonically, `examples.test.ts`); an erased part saves `''`
+  (`formatImage`); a write attempt is reported and changes nothing; WE̅ tied HIGH reports nothing
+  (the example runs without diagnostics, scenario and e2e).
+- [x] RAM powers on `X`, zeros or random; random is the same in every run and differs between two
+  RAMs (`6116 power-on and debug writes`).
+- [x] The carry-over property holds with memories in the networks (AT28C16, 6116, 62256 with
+  writes and pokes; mutation-checked).
+- [x] Both examples run in the browser; looked at in both themes, stopped and running (EEPROM
+  shows `A` for 0xA; RAM by Hand reads back 0x05 written at address 1), e2e
+  `tests/e2e/memory.spec.ts`.
 
 ## Open questions
 
@@ -409,11 +417,16 @@ Checkable statements; verified one by one in the finish-branch workflow.
   chip select and data pins (`sramModes`); tests like the 6116's (all 15 address bits; note 3
   holds exactly: tWHZ + tDW = tWP); in the carry-over property. 1918 tests.
 
+- 2026-11-07 — finished. Acceptance criteria checked one by one (above); the 62256 looked at in
+  the Part tab (DQ0…DQ7, VSS, tACE). R12a delivered the AT28C16, AT28C64B, AT28C256 (as ROMs),
+  6116 (three grades) and 62256 with ADR-0017's model, images in documents, power-on contents,
+  `poke`, two examples. Follow-ups: R12b (inspector, `.bin`/Intel HEX, programmer, resolver,
+  SAP-1 modules for M2); backlog: 74LS189 with the 74LS family, EEPROM write cycles.
+
 ## Handoff
 
-- **State:** every task done; acceptance criteria to be verified (finish-branch).
-- **Next step:** finish-branch: check the criteria one by one, `pnpm check`, `pnpm build`,
-  `pnpm e2e`, plan done, roadmap (R12a done, R12b next), ask to merge.
-- **Watch out:** the bench leaves pins floating (set the address); gate commits on `pnpm
-  check`'s exit code.
-- **Verify with:** `pnpm check`, `pnpm e2e tests/e2e/memory.spec.ts`.
+- **State:** done; waiting for the user's approval to merge into `main`.
+- **Next step:** merge (`git merge --no-ff`), then R12b `feat/memory-inspector`.
+- **Watch out:** the bench leaves pins floating (set the address); memory data sheets give limits
+  only (ADR-0017).
+- **Verify with:** `pnpm check`.

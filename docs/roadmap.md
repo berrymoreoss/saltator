@@ -13,33 +13,33 @@ How to read this file:
 
 ## Overview
 
-| ID   | Branch                       | Title                                      | Status      |
-| ---- | ---------------------------- | ------------------------------------------ | ----------- |
-| R00  | — (initial commit on `main`) | Foundation                                 | done        |
-| R01  | `feat/engine-core`           | Simulation kernel                          | done        |
-| R02  | `feat/circuit-model`         | Circuit document & netlist compiler        | done        |
-| R03  | `feat/io-basic`              | Basic IO parts (headless)                  | done        |
-| R04a | `feat/editor-canvas`         | App shell & schematic view                 | done        |
-| R04b | `feat/editor-tools`          | Schematic editing                          | done        |
-| R05  | `feat/sim-ui`                | Running simulations in the editor          | done        |
-| R06  | `feat/74hc-gates`            | 74HC gates & bus buffers                   | done        |
-| R07  | `feat/persistence`           | Save, load, examples                       | done        |
-| R08  | `feat/74hc-msi`              | 74HC combinational MSI                     | done        |
-| R09a | `feat/74hc-registers`        | 74HC flip-flops, registers + timing checks | done        |
-| R09b | `feat/74hc-counters`         | 74HC counters & shift registers            | done        |
-| R10a | `feat/net-labels`            | Net labels                                 | done        |
-| R10b | `feat/buses`                 | Buses, rippers, bus values                 | done        |
-| R12a | `feat/memory-chips`          | Memory chips (EEPROM, SRAM)                | in-progress |
-| R12b | `feat/memory-inspector`      | Memory inspector, image files              | planned     |
-| R13  | `feat/logic-analyzer`        | Waveforms & probes                         | planned     |
-| R14  | `feat/debugger`              | Breakpoints, stepping, watches             | planned     |
-| R11  | `feat/subcircuits`           | Hierarchical design                        | planned     |
-| R15  | `feat/test-benches`          | Circuit test benches ("test before fab")   | planned     |
-| R16  | `example/sap-1`              | Ben Eater SAP-1 reference build            | planned     |
-| R17  | `feat/cpu-6502`              | W65C02S CPU                                | planned     |
-| R18  | `feat/peripherals`           | VIA, LCD, serial, buzzer                   | planned     |
-| R19  | `feat/toolchain`             | 6502 assembler & flashing                  | planned     |
-| R20  | `example/be6502`             | Ben Eater 6502 reference build             | planned     |
+| ID   | Branch                       | Title                                      | Status  |
+| ---- | ---------------------------- | ------------------------------------------ | ------- |
+| R00  | — (initial commit on `main`) | Foundation                                 | done    |
+| R01  | `feat/engine-core`           | Simulation kernel                          | done    |
+| R02  | `feat/circuit-model`         | Circuit document & netlist compiler        | done    |
+| R03  | `feat/io-basic`              | Basic IO parts (headless)                  | done    |
+| R04a | `feat/editor-canvas`         | App shell & schematic view                 | done    |
+| R04b | `feat/editor-tools`          | Schematic editing                          | done    |
+| R05  | `feat/sim-ui`                | Running simulations in the editor          | done    |
+| R06  | `feat/74hc-gates`            | 74HC gates & bus buffers                   | done    |
+| R07  | `feat/persistence`           | Save, load, examples                       | done    |
+| R08  | `feat/74hc-msi`              | 74HC combinational MSI                     | done    |
+| R09a | `feat/74hc-registers`        | 74HC flip-flops, registers + timing checks | done    |
+| R09b | `feat/74hc-counters`         | 74HC counters & shift registers            | done    |
+| R10a | `feat/net-labels`            | Net labels                                 | done    |
+| R10b | `feat/buses`                 | Buses, rippers, bus values                 | done    |
+| R12a | `feat/memory-chips`          | Memory chips (EEPROM, SRAM)                | done    |
+| R12b | `feat/memory-inspector`      | Memory inspector, image files              | next    |
+| R13  | `feat/logic-analyzer`        | Waveforms & probes                         | planned |
+| R14  | `feat/debugger`              | Breakpoints, stepping, watches             | planned |
+| R11  | `feat/subcircuits`           | Hierarchical design                        | planned |
+| R15  | `feat/test-benches`          | Circuit test benches ("test before fab")   | planned |
+| R16  | `example/sap-1`              | Ben Eater SAP-1 reference build            | planned |
+| R17  | `feat/cpu-6502`              | W65C02S CPU                                | planned |
+| R18  | `feat/peripherals`           | VIA, LCD, serial, buzzer                   | planned |
+| R19  | `feat/toolchain`             | 6502 assembler & flashing                  | planned |
+| R20  | `example/be6502`             | Ben Eater 6502 reference build             | planned |
 
 ---
 
@@ -243,16 +243,22 @@ R12 (ROM / RAM + memory inspector) was split at its start into the chips with th
 (R12a) and the inspector with image files (R12b). The 74LS189 went to the backlog with the 74LS
 family (TTL inputs, no current data sheet); the SAP-1's RAM is built on a 6116 or 62256.
 
-### R12a · Memory chips — `feat/memory-chips` — `in-progress`
+### R12a · Memory chips — `feat/memory-chips` — `done`
 
-AT28C16, AT28C64B, AT28C256 (EEPROMs, read as ROMs for now) and 6116, 62256 (SRAMs) from their
-data sheets: the guaranteed limits (no typical values exist), reads that show `X` from the hold
-time to the access time and while releasing, level-sensitive RAM writes checked against their
-requirements; ROM contents in the document (an `image` prop in sparse hex runs), RAM powering on
-`X`, zeros or random (seeded); a memory view and a debug write for the inspector and test
-benches. Examples: EEPROM 7-Segment Decoder, RAM by Hand. Plan: `.ai/plans/feat-memory-chips.md`.
+AT28C16, AT28C64B, AT28C256 (EEPROMs, read as ROMs for now: a write the circuit attempts is
+reported) from the Atmel/Microchip data sheets, the 6116 (Renesas, speed grades 15/20/25 ns as a
+prop) and the 62256 (Alliance AS6C62256-55) SRAMs: the data sheets' guaranteed limits (no typical
+values exist), reads that keep the old data for `tOH`, show `X` until the access time and keep
+driving until their release time (a driver turning on sooner fights them), level-sensitive RAM
+writes checked against `tAS`, `tAW`, `tWP`, `tCW`, `tDW`, `tDH`, `tWR` (`X` where a violation may
+have written). ROM contents in the document (an `image` prop in sparse hex runs), RAM powering on
+`X`, zeros or random (seeded by the designator); a memory view (`ComponentDefinition.memory`) and
+a debug write (`poke`) for the inspector and test benches; timing as a function of props. The
+Part tab shows limits-only timing. Examples: EEPROM 7-Segment Decoder, RAM by Hand. Spec:
+[components.md](components.md#memories-mem). Decision: [ADR-0017](adr/0017-memories.md). Plan:
+`.ai/plans/feat-memory-chips.md`.
 
-### R12b · Memory inspector, image files — `feat/memory-inspector`
+### R12b · Memory inspector, image files — `feat/memory-inspector` — `next`
 
 Memory inspector (hex view, edit, live read/write highlighting, follow address), import/export
 `.bin` and Intel HEX, "programmer" dialog. The inspector, and later R13's probes and R14's
