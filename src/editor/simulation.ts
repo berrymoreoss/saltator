@@ -620,7 +620,7 @@ export class Simulation {
       result =
         speed.perSecond === undefined
           ? sim.settle({
-              maxTime: Math.min(MAX_SETTLE, pauseAt - sim.now),
+              maxTime: Math.max(0, Math.min(MAX_SETTLE, pauseAt - sim.now)),
               maxEvents: CHUNK_EVENTS,
             })
           : sim.runUntil(Math.min(target, pauseAt), { maxEvents: CHUNK_EVENTS });

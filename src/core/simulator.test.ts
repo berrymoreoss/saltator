@@ -429,6 +429,13 @@ describe('running', () => {
     expect(s.now).toBe(ns(55));
   });
 
+  it('settle never moves time backwards, whatever maxTime says', () => {
+    const s = clocked();
+    s.runUntil(ns(15));
+    expect(s.settle({ maxTime: -ns(5) })).toBe('reached');
+    expect(s.now).toBe(ns(15));
+  });
+
   it('honours the event budget between timestamps', () => {
     const s = clocked();
     expect(s.runUntil(ns(1000), { maxEvents: 3 })).toBe('budget');

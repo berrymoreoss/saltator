@@ -535,7 +535,8 @@ export class Simulator {
    * `maxTime` from now (`reached`, default 1 ms) or `maxEvents` (`budget`, default 1M).
    */
   settle(options: SettleOptions = {}): RunStatus {
-    const limit = this.currentTime + (options.maxTime ?? ms(1));
+    // A negative span would set `now` back to the limit when events are pending.
+    const limit = this.currentTime + Math.max(0, options.maxTime ?? ms(1));
     return this.run(limit, options.maxEvents ?? DEFAULT_SETTLE_MAX_EVENTS, false);
   }
 

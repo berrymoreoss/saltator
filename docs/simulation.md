@@ -233,7 +233,7 @@ const sim = new Simulator(netlist, registry, { maxDeltaCycles: 1000, maxDiagnost
 - `runFor(dt, options?)` — `runUntil(now + dt)`.
 - `settle({ maxTime?, maxEvents? })` — run until the queue is empty (combinational settling);
   `now` is then the time of the last event. Limits default to 1 ms of simulated time and 1M
-  events.
+  events; a negative `maxTime` counts as 0 (time never runs backwards).
 - `action(componentId, payload)` — deliver an external action at `now`; throws if the part has
   no `action` handler.
 - `nextEventTime` — time of the earliest queued event (`Infinity` if none), for stepping to the

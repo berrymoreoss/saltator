@@ -612,6 +612,52 @@ elsewhere); the formats are `core` ([components.md](components.md#image-files)).
 - `write`, `load` (an image file's writes from `placeImage`), `erase`, `contents` (the bytes to
   save, unknown bits as 0).
 
+## Waveforms
+
+R13 ([ADR-0019](adr/0019-waveforms.md)): the circuit's **probes** — nets, pins, buses and
+groups, saved in the document ([circuit.md](circuit.md#document)) — recorded over simulated time
+and shown as a timing diagram, as a logic analyzer does.
+
+### Model
+
+`Analyzer` (`src/editor/analyzer.ts`, `editor.analyzer`) has no DOM:
+
+- **Channels** (`channels` store): one per probe, resolved through the resolver on every scene
+  (`label`, `reference`, `vector`, `radix`, `bits` — recorder channels bit 0 first — and the
+  resolver's `problem` when it shows nothing). A bit is keyed by its reference (a bus's members
+  by their net names `D0`…, a group's by theirs), so a signal and a group member on the same
+  pin share one record, and a reordering or regrouping keeps every record.
+- **Probes** are document edits (one undo step each; the simulator isn't touched):
+  `addProbe` (duplicates and references that resolve to nothing refused), `toggleProbe(ref)`
+  (the Probe tool), `removeProbe`, `moveProbe`, `updateProbe` (name, radix), `groupProbes`
+  (single signals only, bit 0 first in the order given), `ungroup`.
+- **Recording** (`recorder`, a core `Recorder`): only the probed bits. A power-on (Run from
+  stopped, Reset) starts a new record at t = 0; a carry-over re-attaches the new simulator by
+  reference and the record goes on; a part rename moves its bits' keys; a probe added while
+  simulating starts at that instant; Stop ends the record where it stopped and keeps it to look
+  at until the next power-on; opening another document forgets it (`clear`).
+- **Values**: `valueAt(channel, t)` — a level letter, or a vector in its radix (`formatValue`:
+  `hex` with `X`/`Z` nibbles, `dec` (`X` while a bit is unknown), `bin`, `ascii` one character
+  a byte).
+- **View** (`view` store): `start` (ps at the left edge), `scale` (ps a pixel, 0.02 … 10¹⁰),
+  `width`, `mode` — `fit` (the whole record, growing; the default), `follow` (`now` at the
+  right edge at a fixed scale; zooming while simulating, `followNow`, and every new run from a
+  free view) or `free` (panned, zoomed while stopped, `scrollTo`, the trigger). `zoom(factor,
+  anchor)`, `pan(dx)`, `zoomToFit`, `zoomToCursors`, `timeAt(x)`, `xOf(t)`.
+- **Cursors** A and B (`setCursor`), snapped within 6 px to the nearest change of the channel
+  under the pointer (`snap`); `select(index)` picks a channel, `edge(±1)` moves A to its next or
+  previous change and brings it into view.
+- **Trigger** (`trigger` store: `off`, `armed`, `triggered` with its time): `arm({ terms,
+  position, window })` — terms on probes (`rise`, `fall`, `edge`, `level` on single signals;
+  `equal`, `notEqual` with hex values on any; ANDed, one edge at most; `conditionProblems`
+  says why not), `position` where the trigger lands in the window (0.1), `window` the capture
+  around it (default: the view's window when armed). At the first instant the condition fires
+  the kernel breaks, the host runs on for `window × (1 − position)` (`pauseAt`) and pauses; the
+  view shows that window with the trigger at its position. Armed while stopped, it waits for
+  the next power-on; Reset re-arms it from t = 0; `disarm` cancels it and the pause it asked
+  for.
+- Redraws follow the host's `revision` (the `revision` store grows with it while simulating).
+
 ## Editor API
 
 `new Editor(registry, circuit?, settings?, options?)` (`src/editor/editor.ts`) owns the circuit,

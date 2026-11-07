@@ -27,6 +27,7 @@ import {
   updateComponent,
 } from '../circuit';
 import { type ComponentRegistry, type PropValue, resolveProps } from '../core';
+import { Analyzer } from './analyzer';
 import {
   BASE_SCALE,
   type Camera,
@@ -288,6 +289,8 @@ export class Editor {
   readonly simulation: Simulation;
   /** The memories of the circuit: cells, addresses, accesses, edits (R12b). */
   readonly memory: MemoryInspector;
+  /** The waveform analyzer: probes, their record, the view and the trigger (R13). */
+  readonly analyzer: Analyzer;
   #settings: EditorSettings;
   readonly #layouts = new LayoutCache();
   #hover: Hit | undefined;
@@ -328,6 +331,8 @@ export class Editor {
       const { scene, renames } = this.state.get();
       this.simulation.sync(scene, renames);
     });
+    // After the host's own subscription: the analyzer follows the simulator the host keeps.
+    this.analyzer = new Analyzer(this);
     this.simulation.revision.subscribe(() => this.#redrawNow());
     // Run (from stopped) arms the Interact tool; Stop leaves it.
     let running = false;
@@ -365,6 +370,7 @@ export class Editor {
    */
   setCircuit(circuit: Circuit, options: { fit?: boolean; camera?: Camera } = {}): void {
     this.cancel();
+    this.analyzer.clear();
     this.#show(circuit, this.state.get().selection, undefined, options.fit && !options.camera);
     this.history.set(EMPTY_HISTORY);
     if (options.camera) {

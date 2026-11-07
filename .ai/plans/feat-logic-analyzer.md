@@ -250,7 +250,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 5. `circuit`: `Circuit.probes` — schema v3 with the identity migration, parse (strict) and
   serialize (canonical, one probe a line), rename rewriting, edits that keep the netlist
   structure; the resolver resolving a probe (net, pin, bus, group with reasons); tests.
-- [ ] 6. `editor`: `Analyzer` — channels, lifecycle (power-on, carry-over, Reset, Stop, probes
+- [x] 6. `editor`: `Analyzer` — channels, lifecycle (power-on, carry-over, Reset, Stop, probes
   added/removed while running), view (follow, zoom, pan, fit), cursors with snapping, edge
   navigation, the trigger (arm, fire, post-trigger run, pause); headless tests with the fake
   clock.
@@ -347,11 +347,24 @@ Checkable statements; verified one by one in the finish-branch workflow.
   (`renameInProbes`), `copyFragment` leaves probes out; `sameCircuit` compares probes (it
   didn't: a probe edit would have been no edit and no unsaved change) via `sameProbes`;
   `Resolver.signal`, `probe` (groups, reasons), `netReference` (name, else a driving pin).
+- 2026-11-07 — task 6: host `pauseAt` (runs on past a break to it within the frame, pauses
+  exactly, at Max also when idle; forgotten by Pause, Stop, power-on). `editor/analyzer.ts`
+  (`editor.analyzer`): channels per probe with bits keyed by reference (shared records,
+  renames move keys), probe edits as undo steps, the record across power-on / carry-over /
+  rename / Stop / another file, `valueAt` + `formatValue`, the view (`fit`, `follow`, `free`;
+  zoom, pan, fit, cursors), snapping, edge search, the trigger (arm/fire/pause/disarm, re-armed
+  on Reset). Design change while testing: the trigger's capture window is fixed when armed
+  (`condition.window`, default the view's window then) — taken at the firing instant it grew
+  with a fitted view, so the post-trigger time depended on how long the run had been going;
+  a new run turns a free view into `follow` at the user's scale. Found and fixed a kernel bug:
+  `settle` with a negative `maxTime` ran time backwards (regression test; lesson).
+  Mutation-checked (16 mutations).
 
 ## Handoff
 
-- **State:** tasks 1–5 done (core: break, `onInstant`, recorder, triggers, VCD; circuit: probes, schema v3, resolver).
-- **Next step:** task 6 (`Analyzer` model in the editor, with the host's `pauseAt`).
+- **State:** tasks 1–6 done (core, circuit, the `Analyzer` model with the host's `pauseAt`).
+- **Next step:** task 7 (waveform renderer, Canvas2D, in `src/editor`).
 - **Watch out:** nets have no identity across compiles — channels are references, re-resolved
-  on every carry-over; the kernel's listener reports levels only.
+  on every carry-over; the kernel's listener reports levels only. Docs already link
+  `adr/0019-waveforms.md` (write it in task 11). Max-speed tests need `clock.cost > 0`.
 - **Verify with:** `pnpm check`.
