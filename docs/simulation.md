@@ -295,6 +295,12 @@ const recovery = checks.recovery({
   (power-on) is not a pulse.
 - `armed` (`false` skips the check) lets a part ignore requirements of a clock it ignores: held
   in reset, loading disabled.
+- Variants of `setupHold` (R09b): `dataEdge` counts only that transition of a data pin, for a
+  requirement between two edges (74HC595 `tsu(SHCP to STCP)`: SHCP rising to STCP rising;
+  message `SHCP rose 8 ns before STCP rose …`); `sameInstantAllowed` exempts a change at the
+  same instant as the edge, for a documented mode (the 595's clocks tied together); `setup` may
+  be omitted when the data sheet gives only a hold time (the 74HC193's other clock must stay
+  HIGH after the counting edge).
 - The forced evaluation (power-on, recompile) changes nothing, so it neither fires a check nor
   records a time: the carry-over property holds with the checks (the property test compares the
   timing violations of the plain and recompiled runs too).

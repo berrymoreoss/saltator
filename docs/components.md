@@ -111,9 +111,14 @@ short.
 - The editor draws DIP parts generically from `package` + `pins`, so a 74xx definition needs no
   drawing code. Pin positions come from `partLayout` in `src/circuit`
   ([circuit.md](circuit.md#part-layouts)): vertical, notch up, pin pitch one cell, body 4 cells
-  wide up to 20 pins and 6 above. The drawing — notch, pin numbers outside, pin names inside
-  (overlined when `activeLow`, a clock triangle for `clock`), part name down the middle — is in
+  wide up to 20 pins and 6 above. The drawing — notch, pin numbers outside, pin names inside,
+  a clock triangle for `clock`, part name down the middle — is in
   [editor.md](editor.md#symbol-drawing).
+- **Overlines** (`pinTextRuns` in core): an active-low pin's letters are overlined, not its
+  digits — `1R̅D̅`, `1Q̅`, `E̅1`, `Y̅0`, as the Nexperia data sheets draw them. A `label` that
+  marks its overlined characters itself (U+0305 after each) is drawn as marked: the 191's
+  `U̅/D` (bar over U only), the 175's `Q̅0̅` and the 165's `Q̅7̅` (their sheets overline the
+  digit too).
 - `VCC` and `GND` are present in the definition and drawn, but the MVP treats every chip as
   powered. A later design check will flag unconnected power pins.
 
@@ -492,7 +497,8 @@ R09a adds the flip-flops and registers, from the Nexperia data sheets (typical d
   their edge, D/JK/JK̅ next state and asynchronous inputs) and `registers.ts` (`RegisterSpec`:
   a common clock with an optional MR of either polarity, data enables, complement outputs and
   3-state outputs). Helpers in `edge-triggered.ts` (strict/uncertain edges, merging outcomes,
-  `jkNext`) serve R09b's counters and shift registers too.
+  `jkNext`; R09b: `countInto`, `allAt`, `mergeInto`) serve the counters and shift registers
+  too.
 - **Power-on**: every stored bit is `X` until a set/reset or a clean load (like the 4511 and the
   555: "your register has no reset").
 - **Uncertain edges** (`0 → X`, `X → 1`, `Z` on the clock) make `X` only the bits a load would
@@ -537,6 +543,80 @@ load — a chip that may go metastable, and the same rule as an uncertain edge
 The clock's checks are **armed** only while the clock matters: not while a set/reset holds the
 chip, and the data's not while loading is disabled — a clock running under a held reset is no
 fault. The 74HC4511 checks its LE the same way (code set-up 12 ns, LE LOW width 16 ns).
+
+### Counters and shift registers
+
+R09b adds the counters and shift registers, from the Nexperia data sheets, on R09a's timing
+checks and `X` policy:
+
+| Type            | Function                                                      | Package | Delays (ns)                                        | Minima (ns)                                            |
+| --------------- | ------------------------------------------------------------- | ------- | -------------------------------------------------- | ------------------------------------------------------ |
+| `74xx/74hc161`  | 4-bit binary counter, synchronous load, asynchronous MR̅       | DIP-16  | CP→Q 22, CP→TC 25, CET→TC 12, MR 23                | tsu D 16, PE̅ 20, CEP/CET 34; th 0; tW 16; trec 20      |
+| `74xx/74hc163`  | 4-bit binary counter, synchronous load and MR̅                 | DIP-16  | CP→Q 20, CP→TC 25, CET→TC 13                       | tsu D/MR̅ 16, PE̅ 16, CEP/CET 35; th 0; tW 16            |
+| `74xx/74hc191`  | 4-bit up/down counter, CE̅, U̅/D, asynchronous load PL̅          | DIP-16  | CP→Q 26, CP→TC 30, CP→RC̅ 17, PL̅/D→Q 22             | tsu U̅/D 41, CE̅ 28, D→PL̅ 20; th 0; tW 25, PL̅ 20; trec 7 |
+| `74xx/74hc193`  | 4-bit up/down counter, two clocks, MR, asynchronous load PL̅   | DIP-16  | CPU/CPD→Q 23, →TC̅U/TC̅D 14, PL̅ 25, MR 21            | tsu D→PL̅ 16; th other clock 16; tW 20; trec 10         |
+| `74xx/74hc4040` | 12-stage binary ripple counter, falling edge, MR (HIGH)       | DIP-16  | CP̅→Q0 17, then 10 per stage (Q11 127), MR 22       | tW 16, MR 16; trec 10                                  |
+| `74xx/74hc164`  | 8-bit serial-in, parallel-out shift register, DSA · DSB, MR̅   | DIP-14  | CP→Q 15, MR̅ 14                                     | tsu 12, th 4; tW 16, MR̅ 12; trec 12                    |
+| `74xx/74hc165`  | 8-bit parallel-in (asynchronous PL̅), serial-out, CP + CE̅      | DIP-16  | CP/CE̅→Q7 19, PL̅ 18, D7 13                          | tsu DS 16, CE̅↔CP 16, D→PL̅ 16; th 5; tW 16; trec 20     |
+| `74xx/74hc595`  | 8-bit shift register + storage register, 3-state outputs, Q7S | DIP-16  | SHCP→Q7S 19, STCP→Q 20, MR̅→Q7S 17, ten 17, tdis 15 | tsu DS 10, SHCP→STCP 15; th 3; tW 15; trec 10          |
+
+- **Synchronous counters** (`counters.ts`, `SyncCounterSpec`): on the rising clock edge the
+  163's MR̅ clears, else PE̅ LOW loads D0–D3, else CEP · CET counts; TC = CET · (count = 15),
+  for cascading (TC → the next counter's CET). The 161's MR̅ clears at once and holds the
+  clock's checks disarmed.
+- **Up/down counters** (`up-down-counters.ts`): PL̅ LOW loads D asynchronously (Q follows D;
+  a bit changed within `tsu(Dn to PL)` before PL̅ rises is `X`). The 191 counts on CP while CE̅
+  is LOW, up with U̅/D LOW (only U is overlined: LOW counts up); TC is HIGH at 15 up / 0 down,
+  RC̅ LOW while TC is HIGH and CE̅ and CP are LOW (to clock the next stage). The 193 counts up
+  on a rising CPU while CPD is HIGH, down on a rising CPD while CPU is HIGH; MR (HIGH) clears
+  over PL̅; TC̅U is LOW while CPU is LOW at 15, TC̅D while CPD is LOW at 0.
+- **Usage rules as timing checks**: the 191's data sheet says CE̅ may rise only while CP is
+  HIGH and U̅/D may change only while CE̅ or CP is HIGH (a set-up violation; the gated clock may
+  count, or the next count's direction is unknown: `X` where the outcomes differ). The 193's
+  other clock must be HIGH at the counting edge and stay HIGH 16 ns after it
+  (`th(CPU to CPD, CPD to CPU)`): a clock rising while the other is LOW is a hold violation
+  (its logic diagram then counts partially: `X` where counting or not differ), both rising
+  together where up and down differ. A clock held by MR or PL̅ checks nothing.
+- **Ripple counter** (`ripple-counter.ts`, `RippleCounterSpec`): the 4040 stores the count at
+  the falling edge, but output Qn changes `tpd(CP to Q0) + n · tpd(Qn to Qn+1)` after it, so
+  `0111 → 1000` passes through `0110`, `0100`, `0000` as on the chip — gates decoding the
+  outputs glitch. A divider with MR tied LOW stays `X` until a reset, like every counter here.
+- **Shift registers** (`shift-registers.ts`): the 164 shifts DSA · DSB into Q0 (either input
+  gates the other; a late one shifts in `X` only where it could change the AND). The 165's
+  internal clock is CP + CE̅ (the data sheet's ≥1: the pins are interchangeable), so CE̅ rising
+  while CP is LOW shifts; each must be LOW around the other's edge (`tsu`/`th(CE to CP, CP to
+  CE)`). PL̅ loads all eight stages asynchronously; only Q7 and Q̅7 come out. Function tables
+  name internal stages as display-only columns (`Q1–Q6`); `checkableRows(table, displayOnly)`
+  skips their text, and state letters may have digits (`q7`).
+- **74HC595**: SHCP shifts DS into the shift register (MR̅ clears it, not the storage
+  register), STCP copies it into the storage register, which drives Q0–Q7 while OE̅ is LOW
+  (storing goes on while they float); Q7S is the shift register's last stage, always driven,
+  for cascading. With SHCP and STCP tied together the storage register takes the contents from
+  before the shift — the data sheet's "one clock pulse behind" (Q3 of R09b), also when STCP
+  rises in a later delta of the same instant. STCP rising later but within
+  `tsu(SHCP to STCP)` = 15 ns is a set-up violation (`SHCP rose 14 ns before STCP rose …`) and
+  stores `X` where the old and new contents differ.
+- **Scenarios** (`tests/scenarios/counters-74hc.test.ts`): two 161s cascaded TC → CET count
+  0 to 255 (a 50 ns clock beats the 25 ns carry: CET set-up reported, the high count `X`); a
+  NOR decoding a 4040's Q0–Q2 sees count 0 for 10 ns on the way from 3 to 4; two 595s cascaded
+  through Q7S; a 165 sending a byte into a 595 on one clock. The carry-over property runs random
+  networks of all eight chips. Benchmark: a chain of 100 595s runs at ≈ 6.4M events/s.
+- **Examples**: Shift Register LEDs (a 74HC595 with SHCP and STCP tied to a 2 Hz clock and
+  Q7S inverted by a 74HC04 into DS — a Johnson counter; the LED bar is the storage register,
+  one step behind the Q7S LED; CLEAR first) and SAP-1 Program Counter (Ben Eater's 74HC161 and
+  74HC245 on a 4-bit bus with a DATA switch stand-in: CLR, CE, J, CO). Both were laid out by a
+  throwaway `CircuitBuilder` generator that checked every net.
+- **Delays the data sheets lack** borrow a given path: the 191's TC and RC̅ after a parallel
+  load use `tpd(PL to Qn)` / `tpd(Dn to Qn)`; the 193's terminal count changed by the other
+  clock uses `tpd(CPU, CPD to Qn)`.
+- **Unknown or late controls** merge every mode they allow (reset, load, count, hold): only the
+  bits where those outcomes differ become `X` (PE̅ unknown at 5 with D = 6: load and count agree,
+  nothing is lost). Counting from an `X` count gives `X` where the carry reaches
+  (`countInto`).
+- **Function tables** keep the data sheets' text (`count`, the footnote `[1]` of TC);
+  `checkableRows` gives the checker the rows it can run, the tests do the rest by hand. The
+  163's data sheet has TC L in rows where its own note says TC = CET at 15: written as the
+  161's.
 
 ## Timers (`timer/*`)
 

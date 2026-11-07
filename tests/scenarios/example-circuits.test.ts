@@ -209,3 +209,96 @@ describe('SAP-1 A Register', () => {
     expect(sim.diagnostics.entries).toEqual([]);
   });
 });
+
+/** The lights of an LED bar, the last LED (most significant bit) first: `1`, `0` or `?`. */
+const lightsOf = (sim: Simulator, id: string) =>
+  [...(sim.stateOf(id) as LightsState).light]
+    .reverse()
+    .map((l) => (l === Light.ON ? '1' : l === Light.OFF ? '0' : '?'))
+    .join('');
+
+describe('Shift Register LEDs', () => {
+  /** The Johnson counter after `k` steps from 0: k ones filling from Q0, then emptying. */
+  const johnson = (k: number) =>
+    (k <= 8 ? (1 << k) - 1 : (0xff << (k - 8)) & 0xff).toString(2).padStart(8, '0');
+
+  it('after CLEAR, fills the LEDs from Q0 and empties them again, one step per clock', () => {
+    const sim = run('shift-register-leds');
+    expect(lightsOf(sim, 'D1')).toBe('????????'); // nothing stored since power-on
+    sim.action('SW2', { type: 'press' });
+    sim.runFor(ms(1));
+    sim.action('SW2', { type: 'release' });
+    const seen = [lightsOf(sim, 'D1')];
+    for (let i = 0; i < 900; i++) {
+      sim.runFor(ms(10)); // 9 s at 2 Hz: 18 clock edges
+      const now = lightsOf(sim, 'D1');
+      if (now !== seen.at(-1)) seen.push(now);
+    }
+    // The storage register is one clock behind the shift register: the first store is the
+    // cleared register.
+    expect(seen.slice(0, 18)).toEqual([
+      '????????',
+      ...Array.from({ length: 17 }, (_, k) => johnson(k % 16)),
+    ]);
+    expect(sim.diagnostics.entries).toEqual([]);
+  });
+
+  it('turns the LEDs off while OUTPUTS is high, and keeps shifting meanwhile', () => {
+    const sim = run('shift-register-leds');
+    sim.action('SW2', { type: 'press' });
+    sim.runFor(ms(1));
+    sim.action('SW2', { type: 'release' });
+    sim.runFor(ms(2000)); // four edges
+    const before = lightsOf(sim, 'D1');
+    const k = [...before].filter((c) => c === '1').length;
+    expect(before).toBe(johnson(k));
+    sim.action('SW1', { type: 'toggle' });
+    sim.runFor(ms(10));
+    expect(lightsOf(sim, 'D1')).toBe('00000000');
+    sim.runFor(ms(1000)); // two more edges
+    sim.action('SW1', { type: 'toggle' });
+    sim.runFor(ms(10));
+    expect(lightsOf(sim, 'D1')).toBe(johnson(k + 2));
+    expect(sim.diagnostics.entries).toEqual([]);
+  });
+});
+
+describe('SAP-1 Program Counter', () => {
+  const toggle = (sim: Simulator, id: string) => {
+    sim.action(id, { type: 'toggle' });
+    sim.runFor(ns(200));
+  };
+  const step = (sim: Simulator) => {
+    sim.action('X1', { type: 'step' }); // one 0.5 s pulse at the default 1 Hz
+    sim.runFor(ms(600));
+  };
+
+  it('clears, counts, puts the count on the bus and jumps to the bus value', () => {
+    const sim = run('sap-1-program-counter');
+    expect(lightsOf(sim, 'D2')).toBe('????'); // nothing cleared or loaded yet
+    expect(lightsOf(sim, 'D1')).toBe('0000'); // nobody drives the bus: pulled down
+
+    toggle(sim, 'SW2'); // CLR low, high
+    toggle(sim, 'SW2');
+    expect(lightsOf(sim, 'D2')).toBe('0000');
+    step(sim); // CE low: no count
+    expect(lightsOf(sim, 'D2')).toBe('0000');
+    toggle(sim, 'SW3'); // CE high
+    for (let i = 0; i < 3; i++) step(sim);
+    expect(lightsOf(sim, 'D2')).toBe('0011');
+
+    toggle(sim, 'SW5'); // CO low: the counter on the bus
+    expect(lightsOf(sim, 'D1')).toBe('0011');
+    toggle(sim, 'SW5');
+    toggle(sim, 'SW6'); // DATA OUT low: the switches on the bus
+    expect(lightsOf(sim, 'D1')).toBe('1010');
+    toggle(sim, 'SW4'); // J low: jump
+    step(sim);
+    expect(lightsOf(sim, 'D2')).toBe('1010');
+    toggle(sim, 'SW4');
+    toggle(sim, 'SW6');
+    step(sim);
+    expect(lightsOf(sim, 'D2')).toBe('1011');
+    expect(sim.diagnostics.entries).toEqual([]);
+  });
+});

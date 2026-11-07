@@ -31,6 +31,45 @@ export interface SymbolDef {
   readonly pins: Readonly<Record<string, SymbolPin>>;
 }
 
+/** Combining overline (U+0305), written after each character a label overlines: `U̅/D`. */
+export const COMBINING_OVERLINE = '\u0305';
+
+/** A piece of a pin's drawn text, overlined or not. */
+export interface TextRun {
+  readonly text: string;
+  readonly overline: boolean;
+}
+
+/**
+ * A pin's text as drawn, in runs: `text` (default: its label, else its name). A text that marks
+ * its overlined characters (U+0305 after each: `U̅/D`, `Q̅0̅`) is drawn as marked. Otherwise an
+ * active-LOW pin's letters are overlined and its digits are not, as the data sheets draw them
+ * (`1R̅D̅`, `E̅1`, `Y̅0`, `1Q̅`); other pins have no overline.
+ */
+export function pinTextRuns(
+  pin: Pick<PinDef, 'name' | 'label' | 'activeLow'>,
+  text: string = pin.label ?? pin.name,
+): TextRun[] {
+  const marked = text.includes(COMBINING_OVERLINE);
+  const runs: { text: string; overline: boolean }[] = [];
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i]!;
+    if (char === COMBINING_OVERLINE) continue;
+    const overline = marked
+      ? text[i + 1] === COMBINING_OVERLINE
+      : pin.activeLow === true && !/[0-9]/.test(char);
+    const last = runs.at(-1);
+    if (last?.overline === overline) last.text += char;
+    else runs.push({ text: char, overline });
+  }
+  return runs;
+}
+
+/** The plain text of runs, without marks. */
+export function runsText(runs: readonly TextRun[]): string {
+  return runs.map((run) => run.text).join('');
+}
+
 /** The symbol of an instance with the given (resolved) props, or `undefined` if it has none. */
 export function symbolOf(
   definition: AnyComponentDefinition,

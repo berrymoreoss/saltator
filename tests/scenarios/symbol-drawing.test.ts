@@ -140,6 +140,23 @@ describe('symbol drawing', () => {
     expect(ys.sort()).toEqual([false, true]);
     expect(g.texts.some((t) => t.text === 'YN')).toBe(false);
   });
+
+  it("overlines an active-LOW pin's letters, not its digits, unless its label marks them", () => {
+    const overlines = (type: string) => {
+      const g = new RecordingGraphics();
+      drawPartBody(g, buildScene(circuitOf(type, {}), registry).parts[0]!, 'ansi', 'red');
+      return Object.fromEntries(g.texts.map((t) => [t.text, t.style.overline ?? false]));
+    };
+    expect(overlines('74xx/74hc74')).toMatchObject({
+      '1RD': [[1, 3]],
+      '1Q': [[1, 2]],
+      '1D': false,
+    });
+    expect(overlines('74xx/74hc138')).toMatchObject({ E1: [[0, 1]], Y0: [[0, 1]], E3: false });
+    expect(overlines('74xx/74hc245')).toMatchObject({ OE: true });
+    expect(overlines('74xx/74hc175')).toMatchObject({ Q0: true }); // marked: Q̅0̅
+    expect(overlines('74xx/74hc191')).toMatchObject({ 'U/D': [[0, 1]] }); // marked: U̅/D
+  });
 });
 
 describe('symbol drawing while simulating', () => {

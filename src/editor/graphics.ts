@@ -5,6 +5,7 @@
  * recording implementation backs the tests. Spec: docs/editor.md#symbol-drawing.
  */
 import type { Placement, Point } from '../circuit';
+import type { TextRun } from '../core';
 import type { Camera } from './camera';
 import type { TextAlign, TextBaseline } from './text-placement';
 import type { CanvasTheme } from './theme';
@@ -26,10 +27,31 @@ export interface TextStyle {
   readonly paint?: Paint;
   readonly font?: 'sans' | 'mono';
   readonly bold?: boolean;
-  /** Draw a bar over the text (active-low pin names). */
-  readonly overline?: boolean;
+  /**
+   * Draw a bar over the text (active-low pin names): all of it, or the character ranges given
+   * (`[from, to)`, `1R̅D̅`: `[[1, 3]]`).
+   */
+  readonly overline?: boolean | readonly OverlineRange[];
   /** Skip the text when smaller than this on screen, in px (default 4). */
   readonly minPx?: number;
+}
+
+/** Characters `[from, to)` of a text with a bar over them. */
+export type OverlineRange = readonly [from: number, to: number];
+
+/** A text with marked overlines (`pinTextRuns`) as plain text and the style's `overline`. */
+export function overlinedText(runs: readonly TextRun[]): {
+  readonly text: string;
+  readonly overline: boolean | readonly OverlineRange[];
+} {
+  const ranges: OverlineRange[] = [];
+  let text = '';
+  for (const run of runs) {
+    if (run.overline) ranges.push([text.length, text.length + run.text.length]);
+    text += run.text;
+  }
+  const whole = ranges.length === 1 && ranges[0]![0] === 0 && ranges[0]![1] === text.length;
+  return { text, overline: whole || (ranges.length > 0 && ranges) };
 }
 
 export interface SymbolGraphics {
@@ -233,7 +255,13 @@ export class CanvasGraphics implements SymbolGraphics {
       const width = ctx.measureText(text).width;
       const x0 = align === 'left' ? 0 : align === 'right' ? -width : -width / 2;
       const top = baseline === 'top' ? 0 : baseline === 'bottom' ? -px : -px / 2;
-      ctx.fillRect(x0, top - px * 0.08, width, Math.max(1, px * 0.08));
+      const bar = (from: number, to: number) =>
+        ctx.fillRect(from, top - px * 0.08, to - from, Math.max(1, px * 0.08));
+      if (style.overline === true) bar(x0, x0 + width);
+      else {
+        const at = (i: number) => x0 + ctx.measureText(text.slice(0, i)).width;
+        for (const [from, to] of style.overline) bar(at(from), at(to));
+      }
     }
     ctx.restore();
   }

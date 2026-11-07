@@ -85,6 +85,15 @@ File: `<part>.test.ts` next to the definition, using `Bench` and the helpers fro
 5. **Sequential parts** — the data sheet's sequential table (`↑`, `↓`, `h`, `l`, `q` through a
    `state` map; "no change" written `qn`) with `functionTable(…, { states })`; uncertain clock
    edges; every timing check just inside its minimum (silent) and just outside (diagnostic +
-   `X`). Mark clock pins `clock: true` so the checker sets them after the data.
+   `X`). Mark clock pins `clock: true` so the checker sets them after the data. Rows with data
+   sheet text in their outputs (`count`, a footnote `[1]`) go through
+   `checkableRows(table, displayOnly)` (internal-stage columns as `displayOnly`, mapped to
+   `null`) and get hand-written tests; state letters may have digits (`q7`). A `↑` row on a
+   falling-edge part: the states must leave the clock LOW (setting the level before `↑` would
+   otherwise be an active edge). Usage rules a data sheet states in prose ("CE̅ may rise only
+   while CP is HIGH") are checked like timing requirements: reported, `X` where it matters.
+6. **Pin names as drawn** — render the pinning figure: Nexperia overlines an active-LOW pin's
+   letters, not its digits (`1R̅D̅`, `E̅1`), which is the default; where a sheet differs (the
+   175's `Q̅0̅`, the 191's `U̅/D`) the `label` marks the overlined characters with U+0305.
 
 Then `pnpm check`. New family → add it to the families table in docs/components.md.

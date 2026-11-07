@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { defineComponent, type PinDef, resolveProps } from './component';
-import { type SymbolDef, symbolOf, validateSymbol } from './symbol';
+import { pinTextRuns, runsText, type SymbolDef, symbolOf, validateSymbol } from './symbol';
 
 const pins: readonly PinDef[] = [
   { name: 'A', dir: 'in' },
@@ -74,5 +74,31 @@ describe('validateSymbol', () => {
     [withPins({ B: { side: 'left', offset: 1 } }), 'x/y: pins "A" and "B" are on the same point'],
   ])('rejects %#', (bad, message) => {
     expect(() => validateSymbol(bad as SymbolDef, pins, 'x/y')).toThrow(message);
+  });
+});
+
+describe('pinTextRuns', () => {
+  const runs = (name: string, activeLow: boolean, label?: string) =>
+    pinTextRuns({ name, activeLow, ...(label !== undefined && { label }) }).map(
+      (r) => `${r.overline ? '‾' : ''}${r.text}`,
+    );
+
+  it("overlines an active-LOW pin's letters, not its digits, as the data sheets do", () => {
+    expect(runs('OE', true)).toEqual(['‾OE']);
+    expect(runs('1RD', true)).toEqual(['1', '‾RD']);
+    expect(runs('E1', true)).toEqual(['‾E', '1']);
+    expect(runs('1Y0', true)).toEqual(['1', '‾Y', '0']);
+    expect(runs('1QN', true, '1Q')).toEqual(['1', '‾Q']);
+    expect(runs('D0', false)).toEqual(['D0']);
+  });
+
+  it('draws a label that marks its overlined characters as marked', () => {
+    expect(runs('UD', false, 'U\u0305/D')).toEqual(['‾U', '/D']);
+    expect(runs('Q0N', true, 'Q\u03050\u0305')).toEqual(['‾Q0']);
+  });
+
+  it('draws another text when given one, and gives back the plain text', () => {
+    expect(pinTextRuns({ name: 'NC3' }, 'NC')).toEqual([{ text: 'NC', overline: false }]);
+    expect(runsText(pinTextRuns({ name: 'UD', label: 'U\u0305/D' }))).toBe('U/D');
   });
 });

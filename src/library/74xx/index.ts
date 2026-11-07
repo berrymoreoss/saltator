@@ -5,18 +5,30 @@
 import type { AnyComponentDefinition } from '../../core';
 import { hcArithmetic } from './arithmetic';
 import { hcBuffers } from './buffers';
+import { hcCounters } from './counters';
 import { hcDecoders } from './decoders';
 import { hcEncoders } from './encoders';
 import { hcFlipFlops } from './flip-flops';
 import { hcGates } from './gates';
 import { hcMultiplexers } from './multiplexers';
 import { hcRegisters } from './registers';
+import { hcRippleCounters } from './ripple-counter';
 import { hc4511 } from './seven-segment-decoder';
+import { hcShiftRegisters } from './shift-registers';
 import { hc245 } from './transceiver';
+import { hcUpDownCounters } from './up-down-counters';
 
 export { ADDER_SPEC, arithmeticChips, COMPARATOR_SPEC } from './arithmetic';
 export { BUFFER_SPECS, type BufferSpec, bufferChips } from './buffers';
 export type { ChipSpec, ChipTiming, LogicFamily } from './chip';
+export {
+  CNT161_SPEC,
+  CNT163_SPEC,
+  COUNTER_SPECS,
+  type CounterState,
+  counterChips,
+  type SyncCounterSpec,
+} from './counters';
 export { DECODER_SPECS, type DecoderSpec, decoderChips } from './decoders';
 export { ENCODER147_SPEC, ENCODER148_SPEC, encoderChips } from './encoders';
 export {
@@ -45,11 +57,33 @@ export {
   registerChips,
 } from './registers';
 export {
+  CNT4040_SPEC,
+  type RippleCounterSpec,
+  type RippleCounterState,
+  rippleCounterChips,
+} from './ripple-counter';
+export {
   BCD_DECODER_SPEC,
   type BcdDecoderState,
   bcdDecoderChip,
 } from './seven-segment-decoder';
+export {
+  type ShiftRegisterSpec,
+  type ShiftRegisterState,
+  SR164_SPEC,
+  SR165_SPEC,
+  SR595_SPEC,
+  type StorageShiftRegisterState,
+  shiftRegisterChips,
+} from './shift-registers';
 export { TRANSCEIVER_SPEC, transceiverChip } from './transceiver';
+export {
+  CNT191_SPEC,
+  CNT193_SPEC,
+  type UpDownCounterSpec,
+  type UpDownCounterState,
+  upDownCounterChips,
+} from './up-down-counters';
 
 /** Every 74xx chip in the default registry, by number. */
 export const chips74xx: readonly AnyComponentDefinition[] = [
@@ -63,4 +97,8 @@ export const chips74xx: readonly AnyComponentDefinition[] = [
   hc4511,
   ...hcFlipFlops,
   ...hcRegisters,
+  ...hcCounters,
+  ...hcUpDownCounters,
+  ...hcRippleCounters,
+  ...hcShiftRegisters,
 ].sort((a, b) => Number(a.name.slice(4)) - Number(b.name.slice(4)));

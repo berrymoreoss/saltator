@@ -25,7 +25,8 @@ export interface FunctionTable {
   readonly note?: string;
   /**
    * Previous-state letters of a sequential table and the output column each one reads:
-   * `{ q: 'nQ' }` makes `q` the previous level of `nQ` and `q̅` its complement.
+   * `{ q: 'nQ' }` makes `q` the previous level of `nQ` and `q̅` its complement. Lowercase, digits
+   * allowed after the first letter (`q7`).
    */
   readonly state?: Readonly<Record<string, string>>;
 }
@@ -85,7 +86,7 @@ export function validateFunctionTable(table: FunctionTable, where: string): void
   }
   if (table.rows.length === 0) throw new Error(`${where}: function table has no rows`);
   for (const [letter, column] of Object.entries(table.state ?? {})) {
-    if (!/^[a-z]+$/.test(letter) || !table.outputs.includes(column)) {
+    if (!/^[a-z][a-z0-9]*$/.test(letter) || !table.outputs.includes(column)) {
       throw new Error(`${where}: bad function table state "${letter}" → "${column}"`);
     }
   }

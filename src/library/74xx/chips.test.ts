@@ -6,7 +6,7 @@ const pinList = (d: AnyComponentDefinition) => pinsOf(d, {});
 const cases = chips74xx.map((d) => [d.name, d] as const);
 
 describe('74xx chips', () => {
-  it('are the chips of R06, R08 and R09a, in number order, and register cleanly', () => {
+  it('are the chips of R06, R08, R09a and R09b, in number order, and register cleanly', () => {
     expect(chips74xx.map((d) => d.name.slice(4))).toEqual([
       '00',
       '02',
@@ -36,8 +36,14 @@ describe('74xx chips', () => {
       '153',
       '157',
       '158',
+      '161',
+      '163',
+      '164',
+      '165',
       '173',
       '175',
+      '191',
+      '193',
       '240',
       '244',
       '245',
@@ -46,6 +52,8 @@ describe('74xx chips', () => {
       '374',
       '377',
       '574',
+      '595',
+      '4040',
       '4511',
     ]);
     expect(new Registry(chips74xx).list()).toHaveLength(chips74xx.length);

@@ -1,10 +1,10 @@
 import { ExternalLink } from 'lucide-react';
+import type { TextRun } from '../core';
 import type { CanvasTheme, Editor, GateStyle } from '../editor';
 import { useStoreValue } from './hooks';
 import { PartPreview } from './PartPreview';
 import {
-  activeLowColumns,
-  columnLabels,
+  columnRuns,
   datasheetName,
   type FunctionTableInfo,
   functionTableInfo,
@@ -91,7 +91,7 @@ export function PartInfoPanel({ editor, pick, theme, gateStyle }: PartInfoPanelP
                   <tr key={pin.number ?? i}>
                     {numbered && <td className="num">{pin.number}</td>}
                     <td className="mono">
-                      <span className={pin.activeLow ? 'overline' : undefined}>{pin.name}</span>
+                      <Runs runs={pin.runs} />
                       {pin.id && <span className="muted"> ({pin.id})</span>}
                     </td>
                     <td className="muted">{pin.type}</td>
@@ -105,8 +105,7 @@ export function PartInfoPanel({ editor, pick, theme, gateStyle }: PartInfoPanelP
             {table ? (
               <FunctionTableView
                 table={table}
-                overlined={activeLowColumns(definition)}
-                labels={columnLabels(definition)}
+                columns={columnRuns(definition)}
                 outputs={outputsHeading(definition)}
               />
             ) : (
@@ -120,29 +119,35 @@ export function PartInfoPanel({ editor, pick, theme, gateStyle }: PartInfoPanelP
   );
 }
 
+/** A text with overlines, as runs (`pinTextRuns`). */
+function Runs({ runs }: { readonly runs: readonly TextRun[] }) {
+  return runs.map((run, i) => (
+    // biome-ignore lint/suspicious/noArrayIndexKey: runs are positional
+    <span key={i} className={run.overline ? 'overline' : undefined}>
+      {run.text}
+    </span>
+  ));
+}
+
 function FunctionTableView({
   table,
-  overlined,
-  labels,
+  columns,
   outputs,
 }: {
   readonly table: FunctionTableInfo;
-  readonly overlined: ReadonlySet<string>;
-  /** Columns shown under another text (a pin's label). */
-  readonly labels: ReadonlyMap<string, string>;
+  /** Columns that name a pin, drawn as the pin is (its label, its overlines). */
+  readonly columns: ReadonlyMap<string, readonly TextRun[]>;
   /** Heading of the output columns. */
   readonly outputs: string;
 }) {
-  const column = (name: string, first: boolean) => (
-    <th
-      key={name}
-      className={[first && 'outputs-start', overlined.has(name) && 'overline']
-        .filter(Boolean)
-        .join(' ')}
-    >
-      {labels.get(name) ?? name}
-    </th>
-  );
+  const column = (name: string, first: boolean) => {
+    const runs = columns.get(name);
+    return (
+      <th key={name} className={first ? 'outputs-start' : undefined}>
+        {runs ? <Runs runs={runs} /> : name}
+      </th>
+    );
+  };
   return (
     <table className="sheet-table function-table" aria-label="Function table">
       <caption>Function table{table.note && ` — ${table.note}`}</caption>
@@ -186,7 +191,7 @@ function FunctionTableView({
   );
 }
 
-/** A timing key's path: pin names as drawn (overlined when active LOW), words as text. */
+/** A timing key's path: pin names as drawn (with their overlines), words as text. */
 function Path({ path }: { readonly path: TimingRow['path'] }) {
   return path.map((part, i) =>
     typeof part === 'string' ? (
@@ -194,9 +199,7 @@ function Path({ path }: { readonly path: TimingRow['path'] }) {
       <span key={i}>{part}</span>
     ) : (
       // biome-ignore lint/suspicious/noArrayIndexKey: parts are positional
-      <span key={i} className={(part as NameView).overline ? 'overline' : undefined}>
-        {part.text}
-      </span>
+      <Runs key={i} runs={(part as NameView).runs} />
     ),
   );
 }

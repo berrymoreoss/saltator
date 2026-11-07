@@ -364,5 +364,163 @@ export const HC: LogicFamily = {
         requirements: { 'tW(CP)': [16, 5], 'tsu(Dn to CP)': [12, 2], 'th(Dn to CP)': [5, 0] },
       },
     ),
+
+    // Counters and shift registers (R09b). A path a data sheet doesn't give (the 191's TC after
+    // a parallel load) borrows a given one in the chip's spec; no value here is made up.
+    '161': nexperia(
+      '74HC161',
+      'rev. 6 (11 March 2024)',
+      {
+        'tpd(CP to Qn)': [22, 48],
+        'tpd(CP to TC)': [25, 54],
+        'tpd(CET to TC)': [12, 38],
+        'tPHL(MR to Qn)': [23, 53],
+        'tPHL(MR to TC)': [23, 55],
+      },
+      {
+        requirements: {
+          'tW(CP)': [16, 8],
+          'tW(MR)': [16, 7],
+          'trec(MR to CP)': [20, 7],
+          'tsu(Dn to CP)': [16, 9],
+          'tsu(PE to CP)': [20, 11],
+          'tsu(CEP, CET to CP)': [34, 17],
+          'th(Dn, PE, CEP, CET to CP)': [0, -5],
+        },
+      },
+    ),
+    '163': nexperia(
+      '74HC_HCT163',
+      'rev. 5 (12 October 2018)',
+      { 'tpd(CP to Qn)': [20, 46], 'tpd(CP to TC)': [25, 54], 'tpd(CET to TC)': [13, 30] },
+      {
+        requirements: {
+          'tW(CP)': [16, 6],
+          'tsu(MR, Dn to CP)': [16, 6],
+          'tsu(PE to CP)': [16, 8],
+          'tsu(CEP, CET to CP)': [35, 21],
+          'th(Dn, PE, CEP, CET, MR to CP)': [0, -5],
+        },
+      },
+    ),
+    '164': nexperia(
+      '74HC_HCT164',
+      'rev. 11 (28 May 2024)',
+      { 'tpd(CP to Qn)': [15, 43], 'tPHL(MR to Qn)': [14, 35] },
+      {
+        requirements: {
+          'tW(CP)': [16, 5],
+          'tW(MR)': [12, 6],
+          'trec(MR to CP)': [12, 6],
+          'tsu(DSA, DSB to CP)': [12, 3],
+          'th(DSA, DSB to CP)': [4, -2],
+        },
+      },
+    ),
+    '165': nexperia(
+      '74HC_HCT165',
+      'rev. 8 (9 May 2025)',
+      {
+        'tpd(CP, CE to Q7, Q7N)': [19, 41],
+        'tpd(PL to Q7, Q7N)': [18, 41],
+        'tpd(D7 to Q7, Q7N)': [13, 30],
+      },
+      {
+        requirements: {
+          'tW(CP)': [16, 6],
+          'tW(PL)': [16, 5],
+          'trec(PL to CP, CE)': [20, 8],
+          'tsu(DS to CP, CE)': [16, 4],
+          'tsu(CE to CP, CP to CE)': [16, 6],
+          'tsu(Dn to PL)': [16, 8],
+          'th(DS to CP, CE and Dn to PL)': [5, 2],
+          'th(CE to CP, CP to CE)': [5, -6],
+        },
+      },
+    ),
+    '191': nexperia(
+      '74HC191',
+      'rev. 7 (14 March 2024)',
+      {
+        'tpd(CP to Qn)': [26, 55],
+        'tpd(CP to TC)': [30, 64],
+        'tpd(CP to RC)': [17, 38],
+        'tpd(CE to RC)': [12, 33],
+        'tpd(Dn to Qn)': [22, 55],
+        'tpd(PL to Qn)': [22, 55],
+        'tpd(UD to TC)': [16, 48],
+        'tpd(UD to RC)': [18, 53],
+      },
+      {
+        table: 8,
+        requirements: {
+          'tW(CP)': [25, 10],
+          'tW(PL)': [20, 8],
+          'trec(PL to CP)': [7, 3],
+          'tsu(UD to CP)': [41, 18],
+          'tsu(CE to CP)': [28, 16],
+          'tsu(Dn to PL)': [20, 7],
+          'th(UD to CP)': [0, -14],
+          'th(CE to CP)': [0, -10],
+          'th(Dn to PL)': [0, -4],
+        },
+      },
+    ),
+    '193': nexperia(
+      '74HC_HCT193',
+      'rev. 8 (14 March 2024)',
+      {
+        'tpd(CPU, CPD to Qn)': [23, 54],
+        'tpd(CPU to TCU)': [14, 31],
+        'tpd(CPD to TCD)': [14, 31],
+        'tpd(PL to Qn)': [25, 55],
+        'tpd(MR to Qn)': [21, 50],
+        'tpd(Dn to Qn)': [25, 53],
+        'tpd(PL to TCU, TCD)': [29, 73],
+        'tpd(MR to TCU, TCD)': [27, 71],
+        'tpd(Dn to TCU, TCD)': [29, 73],
+      },
+      {
+        table: 8,
+        requirements: {
+          'tW(CPU, CPD)': [20, 8],
+          'tW(MR)': [20, 9],
+          'tW(PL)': [20, 7],
+          'trec(PL to CPU, CPD)': [10, 3],
+          'trec(MR to CPU, CPD)': [10, 0],
+          'tsu(Dn to PL)': [16, 8],
+          'th(Dn to PL)': [0, -5],
+          'th(CPU to CPD, CPD to CPU)': [16, 8],
+        },
+      },
+    ),
+    '595': nexperia(
+      '74HC_HCT595',
+      'rev. 12 (20 March 2024)',
+      {
+        'tpd(SHCP to Q7S)': [19, 40],
+        'tpd(STCP to Qn)': [20, 44],
+        'tPHL(MR to Q7S)': [17, 44],
+        'ten(OE to Qn)': [17, 38],
+        'tdis(OE to Qn)': [15, 38],
+      },
+      {
+        requirements: {
+          'tW(SHCP)': [15, 6],
+          'tW(STCP)': [15, 4],
+          'tW(MR)': [15, 6],
+          'trec(MR to SHCP)': [10, -7],
+          'tsu(DS to SHCP)': [10, 4],
+          'tsu(SHCP to STCP)': [15, 8],
+          'th(DS to SHCP)': [3, -2],
+        },
+      },
+    ),
+    '4040': nexperia(
+      '74HC_HCT4040',
+      'rev. 8 (16 February 2024)',
+      { 'tpd(CP to Q0)': [17, 38], 'tpd(Qn to Qn+1)': [10, 25], 'tPHL(MR to Qn)': [22, 46] },
+      { requirements: { 'tW(CP)': [16, 5], 'tW(MR)': [16, 8], 'trec(MR to CP)': [10, 3] } },
+    ),
   },
 };

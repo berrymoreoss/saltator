@@ -26,8 +26,8 @@ How to read this file:
 | R07  | `feat/persistence`           | Save, load, examples                       | done    |
 | R08  | `feat/74hc-msi`              | 74HC combinational MSI                     | done    |
 | R09a | `feat/74hc-registers`        | 74HC flip-flops, registers + timing checks | done    |
-| R09b | `feat/74hc-counters`         | 74HC counters & shift registers            | next    |
-| R10  | `feat/nets-and-buses`        | Net labels, tunnels, buses                 | planned |
+| R09b | `feat/74hc-counters`         | 74HC counters & shift registers            | done    |
+| R10  | `feat/nets-and-buses`        | Net labels, tunnels, buses                 | next    |
 | R11  | `feat/subcircuits`           | Hierarchical design                        | planned |
 | R12  | `feat/memory`                | ROM / RAM + memory inspector               | planned |
 | R13  | `feat/logic-analyzer`        | Waveforms & probes                         | planned |
@@ -180,12 +180,21 @@ Spec: [components.md](components.md#edge-triggered-chips),
 [simulation.md](simulation.md#timing-checks). Decision:
 [ADR-0014](adr/0014-timing-checks.md). Plan: `.ai/plans/feat-74hc-registers.md`.
 
-### R09b · 74HC counters & shift registers — `feat/74hc-counters` — `next`
+### R09b · 74HC counters & shift registers — `feat/74hc-counters` — `done`
 
-74HC161, 163, 191, 193 (counters), 164, 165, 595 (shift registers), 4040 (ripple counter) on
-R09a's machinery and checks. Example: a 74HC595 driving eight LEDs.
+74HC161, 163 (synchronous counters), 191, 193 (up/down, asynchronous parallel load), 4040
+(12-stage ripple counter: each output one stage delay after the one below, so decoding gates
+see the intermediate counts), 164, 165, 595 (shift registers; the 595's storage register one
+pulse behind when both clocks are tied, as its data sheet says) from the Nexperia data sheets, on
+R09a's timing checks and `X` policy: unknown or late controls merge every mode they allow;
+the data sheets' prose usage rules (191 CE̅ and U̅/D, 193's other clock) checked like timing
+requirements. `TimingChecks.setupHold` got edge-to-edge and hold-only forms. Pin labels are
+overlined as the data sheets draw them — letters, not digits (`1R̅D̅`, `E̅1`), labels can mark
+exceptions (`U̅/D`, `Q̅0̅`). Examples: Shift Register LEDs (a self-running Johnson counter) and
+Ben Eater's Program Counter. Spec: [components.md](components.md#counters-and-shift-registers).
+Plan: `.ai/plans/feat-74hc-counters.md`.
 
-### R10 · Net labels, tunnels, buses — `feat/nets-and-buses`
+### R10 · Net labels, tunnels, buses — `feat/nets-and-buses` — `next`
 
 Named net labels/tunnels, multi-bit buses with bus rippers/splitters, bus value display (hex),
 junction dots. Essential for readable 8-bit schematics.
@@ -288,8 +297,6 @@ Promote to a numbered item when needed.
 - Worst-case timing mode (R09a follow-up): the recorded `max` delays with the −40 °C to +85 °C
   minima (not recorded yet: add them as a third requirement column); a "report only" setting
   that keeps bits known after a timing violation, if `X` gets in the way.
-- Overline only the letter of indexed complement pins (the 175's `Q̅0`, drawn `Q̅0̅` now): a
-  label syntax for a partial overline (R09a nit).
 - More logic families (R06 follow-up): 74HCT and 74AC as timing tables for the existing chip
   specs; 74LS/74F also need TTL inputs (a floating input reads high).
 - Kernel: mark the forced evaluation (power-on, after a recompile) so multi-section chips can

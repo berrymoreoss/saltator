@@ -45,10 +45,24 @@ export interface SetupHoldSpec {
   readonly data: string;
   readonly clock: string;
   readonly edge: Edge;
-  /** Key of the setup time in the minima: `tsu(nD to nCP)`. */
-  readonly setup: string;
+  /**
+   * Key of the setup time in the minima: `tsu(nD to nCP)`; omitted when the data sheet gives
+   * only a hold time (the 74HC193's other clock must stay HIGH after the counting edge).
+   */
+  readonly setup?: string;
   /** Key of the hold time; omitted when the data sheet gives none. */
   readonly hold?: string;
+  /**
+   * Only this transition of a data pin counts as its change: an edge-to-edge requirement, such
+   * as the 74HC595's `tsu(SHCP to STCP)` from SHCP rising to STCP rising. Default: any change.
+   */
+  readonly dataEdge?: Edge;
+  /**
+   * A data change at the same instant as the clock edge is no violation: a documented mode,
+   * such as the 595's two clocks tied together (the storage register then takes the shift
+   * register's contents from before the shift).
+   */
+  readonly sameInstantAllowed?: boolean;
 }
 
 /** The shortest HIGH and/or LOW phase of a pin: a clock, or an asynchronous set/reset pulse. */
@@ -73,15 +87,16 @@ export interface RecoverySpec {
 /** A declared setup/hold check. */
 export interface SetupHoldCheck {
   /**
-   * At the active edge of the clock (in this delta): the data inputs that changed less than the
-   * setup time before it, at the same instant included; bit `n` is the `n`th data pin. Reports
-   * each one. 0 when the clock had no active edge, or when not `armed` (the part ignores the
-   * edge: held in reset, loading disabled).
+   * At the active edge of the clock (in this delta): the data inputs that changed (or made their
+   * `dataEdge`) less than the setup time before it, at the same instant included unless
+   * `sameInstantAllowed`; bit `n` is the `n`th data pin. Reports each one. 0 when the clock had
+   * no active edge, when not `armed` (the part ignores the edge: held in reset, loading
+   * disabled), or without a setup time.
    */
   setup(ctx: EvalContext<unknown>, times: PinTimes, armed?: boolean): number;
   /**
-   * The data inputs that changed in this delta less than the hold time after the last active
-   * edge; bit `n` is the `n`th data pin. An edge in this delta isn't recorded yet (`track` runs
+   * The data inputs that changed (or made their `dataEdge`) in this delta less than the hold
+   * time after the last active edge; bit `n` is the `n`th data pin. An edge in this delta isn't recorded yet (`track` runs
    * last): data changing with it is the setup check's business. 0 when not `armed`.
    */
   hold(ctx: EvalContext<unknown>, times: PinTimes, armed?: boolean): number;
@@ -153,30 +168,41 @@ export class TimingChecks {
   setupHold(spec: SetupHoldSpec): SetupHoldCheck {
     const data = Int32Array.from(names(spec.data), (name) => this.#pin(name));
     if (data.length > 31) throw new Error(`setup check on ${data.length} pins (at most 31)`);
+    if (spec.setup === undefined && spec.hold === undefined) {
+      throw new Error(`setup/hold check on ${spec.data} without a setup or hold time`);
+    }
     const clock = this.#pin(spec.clock);
-    const tsu = this.#limit(spec.setup);
+    const tsu = spec.setup === undefined ? 0 : this.#limit(spec.setup);
     const th = spec.hold === undefined ? 0 : this.#limit(spec.hold);
     // The last active edge: when the clock last left the level before it.
     const edgeSlot = spec.edge === 'rise' ? LEFT_LOW : LEFT_HIGH;
     const verb = edgeVerb(spec.edge);
+    // A data pin's change: any change, or (edge to edge) leaving the level before its edge.
+    const dataEdge = spec.dataEdge;
+    const dataSlot = dataEdge === undefined ? CHANGED : dataEdge === 'rise' ? LEFT_LOW : LEFT_HIGH;
+    const dataFrom = dataEdge === 'fall' ? Level.L1 : Level.L0;
+    const changes = dataEdge === undefined ? 'changed' : edgeVerb(dataEdge);
+    const sameInstantAllowed = spec.sameInstantAllowed === true;
     const pins = this.#pins;
     const clockName = pins[clock]!.name;
     const active = (ctx: EvalContext<unknown>) =>
       spec.edge === 'rise' ? ctx.rose(clock) : ctx.fell(clock);
+    const changedNow = (ctx: EvalContext<unknown>, pin: PinRef) =>
+      ctx.changed(pin) && (dataEdge === undefined || ctx.prev(pin) === dataFrom);
 
     return {
       setup(ctx, times, armed = true) {
-        if (!armed || !active(ctx)) return 0;
+        if (tsu === 0 || !armed || !active(ctx)) return 0;
         let late = 0;
         for (let n = 0; n < data.length; n++) {
           const pin = data[n]!;
-          const elapsed = ctx.changed(pin) ? 0 : ctx.now - times[pin * 3 + CHANGED]!;
-          if (elapsed >= tsu) continue;
+          const elapsed = changedNow(ctx, pin) ? 0 : ctx.now - times[pin * 3 + dataSlot]!;
+          if (elapsed >= tsu || (elapsed === 0 && sameInstantAllowed)) continue;
           late |= 1 << n;
           const when = elapsed === 0 ? 'at the same time as' : `${formatTime(elapsed)} before`;
           ctx.report({
             kind: TimingViolation.SETUP,
-            message: `${pins[pin]!.name} changed ${when} ${clockName} ${verb} (setup time ≥ ${formatTime(tsu)})`,
+            message: `${pins[pin]!.name} ${changes} ${when} ${clockName} ${verb} (setup time ≥ ${formatTime(tsu)})`,
             pin,
           });
         }
@@ -185,16 +211,16 @@ export class TimingChecks {
       hold(ctx, times, armed = true) {
         if (!armed || th === 0) return 0;
         const elapsed = ctx.now - times[clock * 3 + edgeSlot]!;
-        if (elapsed >= th) return 0;
+        if (elapsed >= th || (elapsed === 0 && sameInstantAllowed)) return 0;
         let early = 0;
         for (let n = 0; n < data.length; n++) {
           const pin = data[n]!;
-          if (!ctx.changed(pin)) continue;
+          if (!changedNow(ctx, pin)) continue;
           early |= 1 << n;
           const when = elapsed === 0 ? 'at the same time as' : `${formatTime(elapsed)} after`;
           ctx.report({
             kind: TimingViolation.HOLD,
-            message: `${pins[pin]!.name} changed ${when} ${clockName} ${verb} (hold time ≥ ${formatTime(th)})`,
+            message: `${pins[pin]!.name} ${changes} ${when} ${clockName} ${verb} (hold time ≥ ${formatTime(th)})`,
             pin,
           });
         }
