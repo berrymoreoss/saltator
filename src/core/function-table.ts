@@ -12,6 +12,10 @@
  * - Letters: `H` (high), `L` (low), `X` (**don't care**, inputs only), `Z` (high impedance,
  *   outputs only). Any other cell is datasheet text kept for display (`A=B`, `input`); rows with
  *   text cells can't be checked automatically, so the part's test covers them by hand.
+ * - Sequential parts: `↑` / `↓` (inputs) is a LOW-to-HIGH / HIGH-to-LOW transition, every other
+ *   input applied before it; `h` / `l` (inputs) is the level one set-up time before the
+ *   transition. An output cell named in `state` (`q`, `qn`) is the state before the row: that
+ *   output column's previous level, complemented with an overline (`q̅`).
  */
 export interface FunctionTable {
   readonly inputs: readonly string[];
@@ -19,6 +23,27 @@ export interface FunctionTable {
   readonly rows: readonly string[];
   /** What one row describes, e.g. `each gate (n = 1 to 4)`. */
   readonly note?: string;
+  /**
+   * Previous-state letters of a sequential table and the output column each one reads:
+   * `{ q: 'nQ' }` makes `q` the previous level of `nQ` and `q̅` its complement.
+   */
+  readonly state?: Readonly<Record<string, string>>;
+}
+
+/** Combining overline, as in `q̅`. */
+const OVERLINE = '\u0305';
+
+/**
+ * The previous-state reference an output cell makes, or `undefined` for any other cell: `q` →
+ * `{ column: 'nQ', inverted: false }`, `q̅` → inverted, with `state: { q: 'nQ' }`.
+ */
+export function stateReference(
+  table: FunctionTable,
+  cell: string,
+): { readonly column: string; readonly inverted: boolean } | undefined {
+  const base = cell.replaceAll(OVERLINE, '');
+  const column = table.state?.[base];
+  return column === undefined ? undefined : { column, inverted: base !== cell };
 }
 
 /** One parsed row of a function table. */
@@ -59,6 +84,11 @@ export function validateFunctionTable(table: FunctionTable, where: string): void
     seen.add(column);
   }
   if (table.rows.length === 0) throw new Error(`${where}: function table has no rows`);
+  for (const [letter, column] of Object.entries(table.state ?? {})) {
+    if (!/^[a-z]+$/.test(letter) || !table.outputs.includes(column)) {
+      throw new Error(`${where}: bad function table state "${letter}" → "${column}"`);
+    }
+  }
   for (const row of table.rows) {
     try {
       parseFunctionTableRow(table, row);

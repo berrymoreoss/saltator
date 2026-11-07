@@ -37,6 +37,7 @@ export {
   type FunctionTable,
   type FunctionTableRow,
   parseFunctionTableRow,
+  stateReference,
   validateFunctionTable,
 } from './function-table';
 export {

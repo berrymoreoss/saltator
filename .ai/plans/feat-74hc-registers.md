@@ -184,7 +184,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 1. `core`: `TimingDef.min`; timing checks (setup, hold, pulse width, recovery) with
   diagnostic kinds and messages, returning the bits made uncertain; no allocation per call.
   Tests on a fixture flip-flop, including carry-over and the forced evaluation.
-- [ ] 2. `core`: sequential function tables (`↑`, `↓`, `h`, `l`, previous-state outputs) in
+- [x] 2. `core`: sequential function tables (`↑`, `↓`, `h`, `l`, previous-state outputs) in
   the format, validation and `functionTable`; tests on the fixture.
 - [ ] 3. Data sheets: the user downloads the PDFs; pinouts, pin descriptions, function tables,
   delays per path and requirements (typ and min at 25 °C, max delays at −40…+85 °C) for the
