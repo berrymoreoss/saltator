@@ -615,6 +615,16 @@ title and a description, in gallery order):
   monostable NE555 debouncing the STEP button (110 ms), a bistable NE555 on the MANUAL changeover
   switch, and 74HC04/08/32 for CLK = (clock · /select + step · select) · /HLT on a blue LED. In
   manual mode the clock is unknown until the first STEP (the monostable starts at `X`).
+- **SAP-1 A Register** — Ben Eater's A register: two 74HC173s load an 8-bit bus (a DATA DIP
+  switch through a 74HC245, pull-downs, a BUS bar) and a second 74HC245 drives them back onto
+  it; CLR, LOAD, DATA OUT, A OUT switches and a manual clock. Unknown until CLR.
+- **Shift Register LEDs** — a 74HC595 with SHCP and STCP tied to a 2 Hz clock and Q7S inverted
+  by a 74HC04 into DS: a Johnson counter, the eight LEDs fill and empty by themselves, one step
+  behind the Q7S LED (the storage register takes the contents from before each shift). CLEAR
+  (a button with a pull-up) first; OUTPUTS floats the outputs while it keeps counting.
+- **SAP-1 Program Counter** — Ben Eater's program counter: a 74HC161 (CLR, CE, J) loading from a
+  4-bit bus, a 74HC245 putting it on the bus (CO); the bus has pull-downs, a BUS bar and a
+  DATA switch stand-in through another 74HC245. Unknown until CLR.
 
 Two examples stay built in code (`src/app/examples.ts`): **Symbol Gallery** (every registered
 part with prop variants and placements, the 74HC chips, the NE555 in each mode and a 74HC245 in

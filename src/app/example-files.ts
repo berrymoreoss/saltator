@@ -54,6 +54,18 @@ export const EXAMPLE_FILES: readonly ExampleFile[] = [
     description:
       'Ben Eater’s A register: two 74HC173s load an 8-bit bus and a 74HC245 puts them back on it. CLR first.',
   },
+  {
+    id: 'shift-register-leds',
+    title: 'Shift Register LEDs',
+    description:
+      'A 74HC595 with both clocks tied and Q7S inverted into DS: the LEDs fill and empty by themselves. CLEAR first.',
+  },
+  {
+    id: 'sap-1-program-counter',
+    title: 'SAP-1 Program Counter',
+    description:
+      'Ben Eater’s program counter: a 74HC161 counts, jumps to the bus value and a 74HC245 puts it on a 4-bit bus. CLR first.',
+  },
 ];
 
 // Not a JSON import: the text is kept as saved and parsed (migrated, validated) like any file.

@@ -600,6 +600,11 @@ checks and `X` policy:
   NOR decoding a 4040's Q0–Q2 sees count 0 for 10 ns on the way from 3 to 4; two 595s cascaded
   through Q7S; a 165 sending a byte into a 595 on one clock. The carry-over property runs random
   networks of all eight chips. Benchmark: a chain of 100 595s runs at ≈ 6.4M events/s.
+- **Examples**: Shift Register LEDs (a 74HC595 with SHCP and STCP tied to a 2 Hz clock and
+  Q7S inverted by a 74HC04 into DS — a Johnson counter; the LED bar is the storage register,
+  one step behind the Q7S LED; CLEAR first) and SAP-1 Program Counter (Ben Eater's 74HC161 and
+  74HC245 on a 4-bit bus with a DATA switch stand-in: CLR, CE, J, CO). Both were laid out by a
+  throwaway `CircuitBuilder` generator that checked every net.
 - **Delays the data sheets lack** borrow a given path: the 191's TC and RC̅ after a parallel
   load use `tpd(PL to Qn)` / `tpd(Dn to Qn)`; the 193's terminal count changed by the other
   clock uses `tpd(CPU, CPD to Qn)`.

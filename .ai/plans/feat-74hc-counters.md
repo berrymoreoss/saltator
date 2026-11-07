@@ -223,7 +223,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 9. Across parts: registry, carry-over property with the new chips (mutation-checked),
   symbol-drawing scenario, scenarios (8-bit 161 cascade, 4040 decoding glitch, two 595s via
   Q7S, 165 → 595), counter benchmark.
-- [ ] 10. Examples: Shift Register LEDs and SAP-1 Program Counter (Q1, Q2) from a throwaway
+- [x] 10. Examples: Shift Register LEDs and SAP-1 Program Counter (Q1, Q2) from a throwaway
   generator checking every net, run by scenario tests, looked at in the browser in both themes.
 - [ ] 11. e2e: the examples open with no design issues and run with no diagnostics; a counter's
   Part tab.
@@ -361,12 +361,23 @@ Checkable statements; verified one by one in the finish-branch workflow.
   The symbol-drawing scenario covers the new DIPs as is. Benchmark: 74HC595 chain ×100 at 6.39M
   events/s (903 events per cycle); inverter chain 13.9M, 74HC04 chain 8.65M, 574 pipeline
   5.68M, ring 13.8M (unchanged).
+- 2026-11-07 — task 10: `examples/shift-register-leds.logic.json` (595 flipped, controls on
+  the left: OUTPUTS switch on OE̅ — an addition to the plan, cheaper to lay out than a GND symbol
+  and a thing to try —, a 2 Hz clock on both clocks, CLEAR button with a pull-up; a 74HC04 above
+  with its unused inputs grounded, Q7S → 6A, 6Y → DS; an 8-LED bar for Q0–Q7, Q0 around the top;
+  a Q7S LED) and `examples/sap-1-program-counter.logic.json` (the A register example's style:
+  controls top left, DATA DIP → 74HC245 → a 4-bit bus of columns with pull-downs and a BUS bar,
+  the 161 loading from it, a 245 with A4–A7 grounded driving it back, a PC bar; CET tied to
+  CEP). Laid out by a throwaway generator (`placeBy`: a part placed by one of its pins — flipped
+  parts move the other way), every net checked, then deleted; looked at in Chromium in both
+  themes and run (no diagnostics). Scenario tests: the Johnson sequence for 18 edges with the
+  storage register one behind, OUTPUTS off and on; the PC clears, counts, goes on the bus,
+  jumps to the switches.
 
 ## Handoff
 
-- **State:** tasks 1–9 done (timing data; `setupHold` variants; all eight chips in the
+- **State:** tasks 1–10 done (timing data; `setupHold` variants; all eight chips in the
   registry; overlines as the data sheets draw them).
-- **Next step:** task 10 (examples: Shift Register LEDs, SAP-1 Program Counter, from a
-  throwaway generator).
+- **Next step:** task 11 (e2e: both examples open clean and run; a counter's Part tab).
 - **Watch out:** pinouts and names in the Parts table are from memory.
 - **Verify with:** `pnpm check`.
