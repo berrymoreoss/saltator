@@ -317,3 +317,275 @@ describe('Recorder', () => {
     expect(changes(recorder, clk).split(' ').at(-1)).toBe('1000:0');
   });
 });
+
+describe('Recorder across a rewind', () => {
+  /** A clock and a glitching gate (Y = SRC and not SRC), recorded from power-on. */
+  const setup = (budget?: number) => {
+    const netlist = circuit((b) =>
+      b
+        .add('I', 'test/inv')
+        .add('G', 'test/and')
+        .connect('S.Y', 'I.A')
+        .connect('S.Y', 'G.A')
+        .connect('I.Y', 'G.B')
+        .net('Y', 'G.Y'),
+    );
+    const sim = new Simulator(netlist, registry);
+    const recorder = new Recorder(budget === undefined ? {} : { budget });
+    const clk = recorder.addChannel();
+    const y = recorder.addChannel();
+    const src = recorder.addChannel();
+    recorder.attach(
+      sim,
+      new Map([
+        [clk, sim.netIndex('CLK')],
+        [y, sim.netIndex('Y')],
+        [src, sim.netIndex('SRC')],
+      ]),
+    );
+    return { sim, recorder, clk, y, src };
+  };
+
+  it('keeps the record after the rewound instant as the future, and confirms it on replay', () => {
+    const { sim, recorder, clk, y, src } = setup();
+    sim.action('S', Drive.STRONG_0);
+    sim.runUntil(ns(40));
+    const snap = sim.snapshot();
+    sim.runUntil(ns(55));
+    sim.action('S', Drive.STRONG_1); // Y glitches within the instant
+    sim.runUntil(ns(100));
+    const before = [changes(recorder, clk), changes(recorder, y), changes(recorder, src)];
+    const size = recorder.size;
+
+    sim.restore(snap);
+    recorder.seek(sim.now, ns(100));
+    expect(recorder.replaying).toBe(true);
+    expect(recorder.end).toBe(ns(100));
+    expect(recorder.level(clk, ns(90))).toBe(Level.L1); // the future is still there
+    expect(recorder.lastChange(clk)).toBe(ns(40));
+    expect(recorder.lastChange(src)).toBe(0);
+
+    // The same run again: nothing new recorded, `lastChange` follows the run.
+    for (const t of [ns(45), ns(50), ns(55)]) {
+      sim.runUntil(t);
+      expect(recorder.lastChange(clk)).toBe(t === ns(45) ? ns(40) : ns(50));
+    }
+    sim.action('S', Drive.STRONG_1);
+    sim.runUntil(ns(55));
+    expect(recorder.lastChange(src)).toBe(ns(55));
+    expect(recorder.lastChange(y)).toBe(0); // the glitch left nothing, then or now
+    sim.runUntil(ns(100));
+    expect([changes(recorder, clk), changes(recorder, y), changes(recorder, src)]).toEqual(before);
+    expect(recorder.size).toBe(size);
+    expect(recorder.lastChange(clk)).toBe(ns(100));
+
+    // Past the present it records again.
+    sim.runUntil(ns(115));
+    expect(recorder.replaying).toBe(false);
+    expect(changes(recorder, clk)).toBe(`${before[0]} 110:1`);
+    expect(recorder.end).toBe(ns(115));
+  });
+
+  it('cuts the future where the run leaves it, and records the new one', () => {
+    const { sim, recorder, clk, src } = setup();
+    sim.action('S', Drive.STRONG_0);
+    sim.runUntil(ns(20));
+    const snap = sim.snapshot();
+    sim.runUntil(ns(30));
+    sim.action('S', Drive.STRONG_1);
+    sim.runUntil(ns(60));
+    sim.restore(snap);
+    recorder.seek(sim.now, ns(60));
+    sim.runUntil(ns(25));
+    recorder.cut(sim.now); // another action here instead
+    expect(recorder.replaying).toBe(false);
+    expect(changes(recorder, src)).toBe('0:0');
+    expect(changes(recorder, clk)).toBe('0:0 10:1 20:0');
+    expect(recorder.end).toBe(ns(25));
+    expect(recorder.size).toBe(5); // CLK 3, SRC 1, Y 1
+    sim.action('S', Drive.STRONG_1);
+    sim.runUntil(ns(35));
+    expect(changes(recorder, src)).toBe('0:0 25:1');
+    expect(changes(recorder, clk)).toBe('0:0 10:1 20:0 30:1');
+    expect(recorder.lastChange(clk)).toBe(ns(30));
+  });
+
+  it('keeps the instant it is cut at, so a change still made then merges into it', () => {
+    const { sim, recorder, src } = setup();
+    sim.action('S', Drive.STRONG_0);
+    sim.runUntil(ns(10));
+    sim.action('S', Drive.STRONG_1);
+    sim.runUntil(ns(10));
+    const snap = sim.snapshot();
+    sim.runUntil(ns(30));
+    sim.restore(snap);
+    recorder.seek(ns(10), ns(30));
+    recorder.cut(ns(10));
+    sim.action('S', Drive.STRONG_0); // back at the same instant: no change left at 10 ns
+    sim.runUntil(ns(10));
+    expect(changes(recorder, src)).toBe('0:0');
+  });
+
+  it('is not replaying when rewound to the present itself', () => {
+    const { sim, recorder } = setup();
+    sim.runUntil(ns(20));
+    recorder.seek(sim.now, sim.now);
+    expect(recorder.replaying).toBe(false);
+  });
+
+  it('trims a channel recording while replaying, never into the future', () => {
+    const { sim, recorder, clk } = setup(30); // 23 changes by 200 ns: no trim yet
+    sim.runUntil(ns(60));
+    const snap = sim.snapshot();
+    sim.runUntil(ns(200));
+    const record = changes(recorder, clk);
+    sim.restore(snap);
+    recorder.seek(sim.now, ns(200));
+    const late = recorder.addChannel(); // records CLK as well: past the budget while replaying
+    recorder.attachChannel(late, sim.netIndex('CLK'));
+    for (let t = ns(65); t <= ns(200); t += ns(10)) {
+      sim.runUntil(t);
+      expect(recorder.lastChange(clk), `at ${t}`).toBe(Math.floor(t / ns(10)) * ns(10));
+    }
+    expect(recorder.dropped).toBeGreaterThan(0);
+    expect(record.endsWith(changes(recorder, clk))).toBe(true); // only the oldest went
+    expect(recorder.level(clk, ns(195))).toBe(Level.L1);
+    expect(recorder.replaying).toBe(true);
+  });
+
+  it('over the budget with a large future, drops only what is behind the run', () => {
+    const { sim, recorder, clk } = setup(33);
+    sim.runUntil(ns(20));
+    const snap = sim.snapshot();
+    sim.runUntil(ns(300)); // 31 changes of CLK: nearly the whole budget
+    const record = changes(recorder, clk).split(' ');
+    sim.restore(snap);
+    recorder.seek(sim.now, ns(300));
+    const late = recorder.addChannel();
+    recorder.attachChannel(late, sim.netIndex('CLK'));
+    for (let t = ns(25); t <= ns(300); t += ns(10)) {
+      sim.runUntil(t);
+      expect(recorder.lastChange(clk), `at ${t}`).toBe(Math.floor(t / ns(10)) * ns(10));
+      const future = record.filter((c) => Number(c.split(':')[0]) * 1000 > t);
+      expect(changes(recorder, clk).endsWith(future.join(' ')), `at ${t}`).toBe(true);
+    }
+  });
+
+  it('records a channel added while replaying as usual', () => {
+    const { sim, recorder } = setup();
+    sim.runUntil(ns(20));
+    const snap = sim.snapshot();
+    sim.runUntil(ns(60));
+    sim.restore(snap);
+    recorder.seek(sim.now, ns(60));
+    const late = recorder.addChannel();
+    recorder.attachChannel(late, sim.netIndex('CLK'));
+    sim.runUntil(ns(45));
+    expect(changes(recorder, late)).toBe('19.999:0 30:1 40:0');
+    expect(recorder.lastChange(late)).toBe(ns(40));
+  });
+
+  it('never trims into the future, and keeps its cursors through a trim', () => {
+    const { sim, recorder, clk } = setup(16);
+    sim.runUntil(ns(150));
+    const snap = sim.snapshot();
+    sim.runUntil(ns(300));
+    sim.restore(snap);
+    recorder.seek(sim.now, ns(300));
+    const future = changes(recorder, clk)
+      .split(' ')
+      .filter((c) => Number(c.split(':')[0]) > 150);
+    sim.runUntil(ns(300));
+    expect(changes(recorder, clk).endsWith(future.join(' '))).toBe(true);
+    sim.runUntil(ns(400)); // past the present: trims as before
+    expect(recorder.size).toBeLessThanOrEqual(16);
+    expect(recorder.lastChange(clk)).toBe(ns(400));
+    expect(recorder.level(clk, ns(395))).toBe(Level.L1);
+  });
+
+  it('forgets a rewind on clear, and on detach keeps the record to the present', () => {
+    const { sim, recorder, clk } = setup();
+    sim.runUntil(ns(20));
+    const snap = sim.snapshot();
+    sim.runUntil(ns(60));
+    sim.restore(snap);
+    recorder.seek(sim.now, ns(60));
+    recorder.detach();
+    expect(recorder.replaying).toBe(false);
+    expect(recorder.end).toBe(ns(60));
+    expect(recorder.level(clk, ns(55))).toBe(Level.L1);
+    recorder.clear();
+    expect(recorder.end).toBe(0);
+    expect(recorder.size).toBe(0);
+  });
+});
+
+describe('Trigger across a rewind', () => {
+  it('resyncs to the rewound instant and fires again where it fired after it', async () => {
+    const { Trigger } = await import('./trigger');
+    const sim = new Simulator(circuit(), registry);
+    const recorder = new Recorder();
+    const clk = recorder.addChannel();
+    const src = recorder.addChannel();
+    recorder.attach(
+      sim,
+      new Map([
+        [clk, sim.netIndex('CLK')],
+        [src, sim.netIndex('SRC')],
+      ]),
+    );
+    sim.action('S', Drive.STRONG_1);
+    const rises: number[] = [];
+    const highs: number[] = [];
+    const rise = new Trigger(recorder, [{ kind: 'rise', channel: clk }], (t) => rises.push(t), {
+      repeat: true,
+    });
+    const high = new Trigger(
+      recorder,
+      [
+        { kind: 'level', channel: clk, level: Level.L1 },
+        { kind: 'level', channel: src, level: Level.L1 },
+      ],
+      (t) => highs.push(t),
+      { repeat: true },
+    );
+    rise.attach(sim);
+    high.attach(sim);
+    sim.runUntil(ns(25));
+    const snap = sim.snapshot(); // CLK low since 20 ns: the pattern doesn't hold
+    sim.runUntil(ns(55)); // it held when last evaluated, at 50 ns
+    expect(rises).toEqual([ns(10), ns(30), ns(50)]);
+    expect(highs).toEqual([ns(10), ns(30), ns(50)]);
+    sim.restore(snap);
+    recorder.seek(sim.now, ns(55));
+    rise.resync(sim.now);
+    high.resync(sim.now); // false at 25 ns: true again at 30 ns is anew
+    rises.length = 0;
+    highs.length = 0;
+    sim.runUntil(ns(55));
+    expect(rises).toEqual([ns(30), ns(50)]);
+    expect(highs).toEqual([ns(30), ns(50)]);
+  });
+
+  it('fires again at the instant it last fired, when rewound before it', async () => {
+    const { Trigger } = await import('./trigger');
+    const sim = new Simulator(circuit(), registry);
+    const recorder = new Recorder();
+    const clk = recorder.addChannel();
+    recorder.attach(sim, new Map([[clk, sim.netIndex('CLK')]]));
+    const fired: number[] = [];
+    const rise = new Trigger(recorder, [{ kind: 'rise', channel: clk }], (t) => fired.push(t), {
+      repeat: true,
+    });
+    rise.attach(sim);
+    sim.runUntil(ns(5));
+    const snap = sim.snapshot();
+    sim.runUntil(ns(12));
+    expect(fired).toEqual([ns(10)]);
+    sim.restore(snap);
+    recorder.seek(sim.now, ns(12));
+    rise.resync(sim.now);
+    sim.runUntil(ns(12));
+    expect(fired).toEqual([ns(10), ns(10)]);
+  });
+});

@@ -143,6 +143,16 @@ export class Trigger {
     this.#off = sim.onInstant((now) => this.#instant(now));
   }
 
+  /**
+   * The simulator it watches was rewound to `now` (its recorder `seek`s there): it goes on from
+   * the condition as it was then — a pattern that held then must become false before it fires
+   * again — and may fire again where it fired after `now`.
+   */
+  resync(now: Time): void {
+    this.#wasTrue = this.#pattern(now);
+    if (this.#lastFire > now) this.#lastFire = Number.NEGATIVE_INFINITY;
+  }
+
   /** Stops watching. */
   disarm(): void {
     this.#off?.();

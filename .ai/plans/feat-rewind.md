@@ -210,7 +210,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   counts); property test `tests/scenarios/rewind.test.ts` over every example with seeded
   actions (restore at random instants = the straight run: levels, drives, states,
   diagnostics); snapshot bytes and time measured on the examples and a 62256 circuit.
-- [ ] 3. `core`: Recorder `seek`/confirm/`cut` and `lastChange` at the cursor (same-instant
+- [x] 3. `core`: Recorder `seek`/confirm/`cut` and `lastChange` at the cursor (same-instant
   merges, the budget trimming with cursors), `Trigger.resync`; tests; recorder benchmark
   unchanged.
 - [ ] 4. `editor`: `Timeline` — checkpoints, action log, positions, reaching a position in a
@@ -308,6 +308,18 @@ Checkable statements; verified one by one in the finish-branch workflow.
   in-place thawing — the unit tests catch those). Measured (M3 Pro, after 1 ms): examples 0.7–
   4.4 KiB a snapshot, 3–31 µs, restore 1–8 µs; a 62256 + 28C256: 1154 KiB alone, 1.7 KiB against
   its base, 0.26 ms, restore 35 µs.
+- 2026-11-08 — task 3: `Recorder.seek(t, present)` (the present is the caller's: after a
+  restore the simulator's `now` no longer says how far the record reached), `replaying`, `cut(t)`;
+  per track a cursor (`past`) and `until`, meaningful only while replaying; changes at or before
+  `until` move the cursor over the record (the instant's collapsed level is already there),
+  later ones — a channel added while replaying — append; past the present the replay ends;
+  `lastChange` answers at the cursor; `end` is the present while replaying; a trim never
+  reaches past the simulator's `now`; `detach` keeps the record to the present.
+  `Trigger.resync(now)`: the pattern as at `now`, and a fire after `now` no longer blocks
+  firing there again. Mutation-checked (14 + 2; three survivors were equivalent code and went:
+  cursor resets outside a replay, a `max` with an earlier present). Benchmark (branch vs `main`
+  in a worktree, same session): within noise — ring oscillator 12.2–12.8M vs 12.7M events/s,
+  recording 1001 nets 7.7–7.9M vs 7.7–8.0M (the replay check sits outside the per-change call).
 
 ## Handoff
 
