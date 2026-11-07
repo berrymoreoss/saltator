@@ -6,7 +6,6 @@ import {
   cellText,
   type HexCursor,
   hexKey,
-  parseAddress,
   rowAddress,
   scrollToRow,
 } from './memory-view';
@@ -42,17 +41,6 @@ describe('cells', () => {
     expect(cellChar(0x41, 0)).toBe('A');
     expect(cellChar(0x20, 0)).toBe(' ');
     expect([cellChar(0x7f, 0), cellChar(0x0a, 0), cellChar(0x41, 1)]).toEqual(['.', '.', '.']);
-  });
-});
-
-describe('parseAddress', () => {
-  it('reads hex with or without a prefix, within the memory', () => {
-    expect(['7f0', '0x7F0', '$7f0', '7F0h', ' 7f0 '].map((t) => parseAddress(t, 2048))).toEqual([
-      0x7f0, 0x7f0, 0x7f0, 0x7f0, 0x7f0,
-    ]);
-    expect(parseAddress('800', 2048)).toBe('The last address is 7FF.');
-    expect(parseAddress('xyz', 2048)).toBe('Type a hex address, 0 to 7FF.');
-    expect(parseAddress('', 2048)).toBe('Type a hex address, 0 to 7FF.');
   });
 });
 

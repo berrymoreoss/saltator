@@ -24,6 +24,17 @@ export function isTimingViolation(kind: string): kind is TimingViolationKind {
   return (Object.values(TimingViolation) as string[]).includes(kind);
 }
 
+/**
+ * Short circuits, oscillations and timing violations break the circuit (a violated set-up time
+ * is an intermittent failure on a real board); the rest are warnings.
+ */
+export function diagnosticSeverity(diagnostic: { readonly kind: string }): 'error' | 'warning' {
+  const { kind } = diagnostic;
+  return kind === 'contention' || kind === 'oscillation' || isTimingViolation(kind)
+    ? 'error'
+    : 'warning';
+}
+
 /** The clock transition a part acts on. */
 export type Edge = 'rise' | 'fall';
 

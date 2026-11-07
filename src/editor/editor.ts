@@ -41,6 +41,7 @@ import {
   zoomStep,
 } from './camera';
 import { fragmentText, parseFragment } from './clipboard';
+import { Debugger, EMPTY_DEBUG_SETUP } from './debugger';
 import {
   EMPTY_HISTORY,
   type History,
@@ -300,6 +301,8 @@ export class Editor {
   readonly memory: MemoryInspector;
   /** The waveform analyzer: probes, their record, the view and the trigger (R13). */
   readonly analyzer: Analyzer;
+  /** The debugger: breakpoints, steps, watches, run statistics (R14). */
+  readonly debug: Debugger;
   #settings: EditorSettings;
   readonly #layouts = new LayoutCache();
   #hover: Hit | undefined;
@@ -346,6 +349,7 @@ export class Editor {
     });
     // After the host's own subscription: the analyzer follows the simulator the host keeps.
     this.analyzer = new Analyzer(this);
+    this.debug = new Debugger(this, options.simulation?.clock ?? BROWSER_CLOCK);
     this.simulation.revision.subscribe(() => this.#redrawNow());
     // Run (from stopped) arms the Interact tool; Stop leaves it.
     let running = false;
@@ -385,6 +389,7 @@ export class Editor {
   setCircuit(circuit: Circuit, options: { fit?: boolean; camera?: Camera } = {}): void {
     this.cancel();
     this.analyzer.clear();
+    this.debug.load(EMPTY_DEBUG_SETUP);
     this.#show(circuit, this.state.get().selection, undefined, options.fit && !options.camera);
     this.history.set(EMPTY_HISTORY);
     if (options.camera) {

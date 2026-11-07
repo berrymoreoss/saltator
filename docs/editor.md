@@ -24,7 +24,7 @@ A desktop CAD-style window (`Workbench`), dense like KiCad or Altium: 12 px UI t
 │ ▾ IO       │                                      │ Delay 1 ns   │
 │ ── preview │                                      │              │
 ├────────────┴──────────────────────────────────────┴──────────────┤
-│ MESSAGES  2  78 · SIMULATION  1 · PART · MEMORY · WAVEFORMS  3    │
+│ MESSAGES  2 · SIMULATION  1 · PART · MEMORY · WAVEFORMS 3 · DEBUG 2 │
 ├──────────────────────────────────────────────────────────────────┤
 │ X 12  Y 4 │ 100 % │ U1 · NAND │ hint …        14 parts · 20 wires │ ✖ 0 ⚠ 1 │
 └──────────────────────────────────────────────────────────────────┘
@@ -48,7 +48,9 @@ A desktop CAD-style window (`Workbench`), dense like KiCad or Altium: 12 px UI t
   counts. **Simulation** — what happened while running ([Simulation](#simulation)). **Part** —
   the pins and function table of the last part picked ([Part info](#part-info)). **Memory** —
   the cells of a memory part, live while simulating ([Memory inspector](#memory-inspector)).
-  **Waveforms** — the probed signals over simulated time ([Waveforms](#waveforms)).
+  **Waveforms** — the probed signals over simulated time ([Waveforms](#waveforms)). **Debug**
+  — steps, breakpoints and watches ([Debugger](#debugger)); the Simulation tab also shows the
+  run statistics.
 - **Status bar**: grid position under the pointer, zoom, a one-line selection summary, the
   simulation (state, simulated time, the speed reached when lagging, runtime problems; click opens
   the Simulation tab), a hint for the current tool and gesture (`statusHint`), part/wire counts,
@@ -126,6 +128,7 @@ the shortcuts dialog all read the same `CommandRegistry`, which rejects duplicat
 | Reset               | `Mod+Shift+F5`             | New Circuit                | `Mod+Alt+N`               |
 | Open…               | `Mod+O`                    | Save (As…)                 | `Mod+S` (`Mod+Shift+S`)   |
 | Net Label           | `L`                        | Probe tool                 | `P`                       |
+| Step Clock          | `F8`                       | Run For                    | `Shift+F8`                |
 
 Commands marked `global` run while typing in a text field and keep their key from the browser
 even while disabled: F5 never reloads the page, `Mod+S` and `Mod+O` never show the browser's own
@@ -444,6 +447,19 @@ the toolbar group (Run/Pause, Step, Stop, Reset, speed select) and `F5`, `F10`, 
   post-trigger end), which it then reaches within the same frame if the budget allows and
   pauses at exactly; at Max it also pauses there when nothing is left to happen. `pauseAt` is
   forgotten by Pause, Stop and every power-on.
+- **Steps** (R14, `runTo(goal)`): run at Max whatever the speed, across as many frames as they
+  take (`status.goal` names it meanwhile), then pause: a `time` goal at exactly its time (Run
+  For, Run To); an `edge` goal (Step Clock) through the next instant, then right before the
+  net is due to change to the level (the kernel's `stopBefore`) — from stopped the power-on
+  instant counts as the first. Pause cancels a step, Run turns it into a normal run at the
+  chosen speed.
+- **Pause requests** (R14, `requestPause(reason)`): from a listener — a breakpoint, an error
+  break — the host pauses at the end of the instant whatever a pending `pauseAt` or step says
+  (the first request of an instant wins; one made outside a run stops the next run after its
+  first instant).
+- **Why it paused**: `status.reason` — the request's reason, the step's label (`Step Clock`,
+  `Step Clock: nothing left to happen`), `pauseAt`'s reason (the analyzer's `Triggered at
+  1.5 µs`); cleared by Run, Step, Reset and Stop.
 - Design errors don't block running: parts the compiler left out are missing.
 - Opening a document stops the simulation first.
 
@@ -734,6 +750,107 @@ shows how many signals are probed and `T` while a trigger is armed.
 - **Marks**: `now` (dotted, while simulating), the trigger `T`, cursors `A` and `B`, each with a
   tag in the ruler.
 
+## Debugger
+
+R14 ([ADR-0020](adr/0020-debugger.md)): stop a run where something interesting happens and walk
+through it, as a debugger does with a program.
+
+### Debug tab
+
+```text
+ Step Clock [X1.Y] ↑ rising │ Run For [1 µs] │ Run To [1.5 ms] │ ☐ Break on errors ☐ warnings   Breakpoint 1: … = 5
+ Breakpoints                       Disable all  + Add…  │ Watches                [Watch: CLK, U5[1F]] Add
+ ☑ 1 U1.Q0 U1.Q1 U1.Q2 U1.Q3 = 5          1 hit  ✎ ×   │ U1.Q0 U1.Q1 U1.Q2 U1.Q3          0x5  hex ×
+ ☑ 2 X1.Y ↑ · U1.TC = 1                  0 of 2  ✎ ×   │ U2[0x00..0x03]          A5 5A 3C XX  hex ×
+```
+
+The sixth bottom-dock tab (`DebugPanel.tsx`, pure pieces in `debug-view.ts`; its badge counts
+the enabled breakpoints):
+
+- **Toolbar**: Step Clock with the step clock (a reference; empty: the default) and its active
+  edge, Run For with its duration, Run To with a time, Break on errors, Break on warnings, and
+  why it paused (`status.reason`) or what a step runs to.
+- **Breakpoints**: enabled checkbox, the condition (`CLK ↑ · D[0..7] = 2B`; struck through with
+  the reason when a signal doesn't resolve), hits since power-on (`3 hits`, `2 of 5` with a hit
+  count), edit, remove; Add… and edit open the **breakpoint dialog** — terms on typed signals
+  with completion, the Trigger dialog's conditions (`condition-terms.ts`), ANDed, at most one
+  edge, and "Pause from hit N on".
+- **Watches**: the name (double-click renames), the value now, marked (warning color, bold) when
+  it differs from its value at the last stop, the radix of a value, remove; added by typing a
+  signal or memory cells. The Memory tab's **Watch `U1[0x05]`** adds the cell at its cursor.
+- **Commands**: Simulate ▸ Step Clock (`F8`, also on the toolbar), Run For (`Shift+F8`), Run To…
+  (focuses the box), Add Breakpoint…, Disable All Breakpoints, Break on Errors. The item context
+  menu over a wire, pin, net label or bus (the Probe tool's hit rules) has **Break When `ref`
+  Rises** (single signals), **Add Breakpoint on `ref`…** and **Watch `ref`**.
+- The **status bar** says why it paused (`Paused · 500 ns · Breakpoint 1: CLK ↑`) or what a step
+  runs to (`Running · … · Step Clock (CLK ↑)…`).
+- **Run statistics** in the Simulation tab, beside the diagnostics: simulated time, wall time
+  running, events, delta cycles, evaluations, events and simulated time per second — since
+  power-on and for the last run (since the last Run or Debug step began); **Most active nets**
+  (measured on request: counts from then on, with the frequency `changes / 2 / time`).
+
+### Breakpoints
+
+- A **debug signal** is one reference (`CLK`, `U3.QA`, `D[0..7]`) or several 1-bit references,
+  bit 0 first, read as one value (`U3.Q0 U3.Q1 U3.Q2 U3.Q3`).
+- A breakpoint's terms are the trigger's ([simulation.md](simulation.md#triggers)) on debug
+  signals, evaluated by a repeating core `Trigger` on a `Recorder` of the debugger's own (only
+  the breakpoints' signals, 64K changes): it fires at every instant its condition holds anew —
+  at its edge, or, without one, when the pattern becomes true — never inside an instant (a
+  glitch) and never twice at one instant (a carry-over at its instant processes it again; a
+  breakpoint whose condition didn't change keeps its trigger across rebuilds). At its hit
+  count it asks the host to pause (`requestPause`, "Breakpoint 2: D[0..7] = 2B"). A disabled
+  breakpoint neither stops nor counts; hits count from power-on.
+- **Break on errors / warnings** (off by default): every report of an error (contention,
+  oscillation, timing violations: `diagnosticSeverity`) or a warning (floating input, …), repeats
+  of a merged entry included (`DiagnosticLog.onOccurrence`), pauses at the end of its instant
+  ("Error: CP rose at the same time as MR was released (recovery time ≥ 20 ns)").
+- Part renames rewrite the setup's references (pins: `renameReference`; memory cells by part);
+  a structural edit re-resolves and re-attaches, the hits go on.
+
+### Steps
+
+All steps run at Max whatever the speed (`Simulation.runTo`), stop early at a breakpoint or an
+error break, and are cancelled by Pause; Run turns one into a normal run.
+
+- **Step** (`F10`): to the next instant with events, as before.
+- **Step Clock** (`F8`): one cycle of the **step clock** — the setup's reference, else the net
+  named `CLK`, else the output of the first `io/clock` or `timer/ne555` — through its next active
+  edge and **right before the one after** (the kernel's `stopBefore` lookahead): the cycle has
+  settled, registers show what the last edge loaded and their inputs what the next will load;
+  `F10` then steps into the edge. From stopped it powers on and pauses before the first edge. A
+  **manual** `io/clock` (a clock module's step button) has no edge coming: Step Clock gives it
+  one pulse (its `step` action) and runs one period of its props — high, then low, as a hand
+  pressing the button again later; from stopped, power-on and the low time. A pause asked for
+  in the press's own instant (a timing violation at that edge) stops it there.
+- **Run For** (`Shift+F8`) the setup's duration, **Run To** a time: pause exactly then.
+
+### Watches
+
+A watch is a debug signal or **memory cells** (`U5[1F]`, at most 16: `U5[0x10..0x1F]`, kept as
+part and addresses), with a name and a radix. Values: a single signal's level letter; a value
+in its radix (`formatValue`); cells as `0x3F` (one) or `3F 06 5B` (several), `X` nibbles where
+bits are unknown, a stopped ROM's image, nothing for a stopped RAM. **Changed** compares with
+the value at the last stop — while paused, with the stop before — where a stop is every pause
+after something ran (a step, an action, a breakpoint).
+
+### The debug setup
+
+Breakpoints, watches, the step clock and edge, Run For's duration and the break-on toggles
+(`DebugSetup`) are kept with the session — autosaved per browser tab, restored after a reload
+(`parseDebugSetup` keeps the well-formed entries) — not in the file and not undoable, as an IDE
+keeps breakpoints with its workspace (Q2 of the R14 plan). New and Open (`setCircuit`) start
+without one.
+
+### Model
+
+`Debugger` (`src/editor/debugger.ts`, `editor.debug`) has no DOM: the setup and the views as
+stores, refreshed on the host's `ticks` and on every scene; stops noted on `status` and `ticks`
+(the state before the power-on instant is no stop); statistics from the kernel's counters and
+the wall time spent running; activity from an `onNetChange` counter while measured (carried
+over by net id). It maps the scene's nets to the simulator's through `Simulation.netOf` (a
+simulator kept across a same-structure edit may call its nets otherwise).
+
 ## Editor API
 
 `new Editor(registry, circuit?, settings?, options?)` (`src/editor/editor.ts`) owns the circuit,
@@ -761,6 +878,10 @@ focus Properties).
   `setSpeed`, `action(component, payload)`, `clearDiagnostics`; `state`, `simulator`,
   `signalView()`, `pinStyle`, `wireStyle`, `wiresOfNet`; stores `status`, `diagnostics`,
   `ticks`, `revision`.
+- Debugger (`editor.debug`, a `Debugger`): `setup`, `breakpoints`, `watches` stores; `load`,
+  `addBreakpoint`, `updateBreakpoint`, `removeBreakpoint`, `enableAll`, `setBreakOn`,
+  `addWatch`, `updateWatch`, `removeWatch`, `setClock`, `setRunFor`, `stepClock`, `runFor`,
+  `runToTime`, `stats`, `measureActivity`, `activity` ([Debugger](#debugger)).
 - Memories (`editor.memory`, a `MemoryInspector`): `memories`, `entry`, `cells`, `address`,
   `intensity`, `fading`, `write`, `load`, `erase`, `contents`
   ([Memory inspector](#memory-inspector)).
@@ -824,8 +945,8 @@ keeps its handle where the browser gives one.
 The open document is restored as it was after a reload or a closed tab (`src/ui/autosave.ts`):
 
 - `Autosave` writes a `StoredSession` — name, the document text in the file format, unsaved
-  flag, file handle, camera, time — at most **500 ms** after a change of the circuit, the session
-  or the view (later changes in that time ride along; selection and pointer moves don't count),
+  flag, file handle, camera, the debug setup (R14), time — at most **500 ms** after a change of
+  the circuit, the session, the view or the debug setup (later changes in that time ride along; selection and pointer moves don't count),
   at once when the page is hidden, and synchronously to `localStorage` on `pagehide`
   (`logic.unload.<id>`, without the handle: IndexedDB writes started while a page unloads don't
   finish). At start-up `recoverUnloadWrites` moves those into IndexedDB when newer.

@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { CircuitBuilder } from '../circuit';
-import { ms, ns, type PropDef } from '../core';
+import { diagnosticSeverity, ms, ns, type PropDef } from '../core';
 import { buildScene, MAX_SPEED, REAL_TIME, type SimStatus, selectionOf } from '../editor';
 import { createDefaultRegistry } from '../library';
 import { issueLocation } from './MessagesPanel';
 import { formatProp } from './PropertiesPanel';
 import { simulationSummary } from './SimControls';
-import { diagnosticLocation, diagnosticSeverity, diagnosticWhen } from './SimulationPanel';
+import { diagnosticLocation, diagnosticWhen } from './SimulationPanel';
 import { selectionSummary, statusHint } from './StatusBar';
 
 const registry = createDefaultRegistry();
@@ -94,6 +94,14 @@ describe('simulationSummary', () => {
     );
     expect(simulationSummary(status({ speed: MAX_SPEED, actual: 2e9 }))).toBe(
       'Running · 1.25 s · max 2 ms/s',
+    );
+  });
+
+  it('says why it paused, and what a step runs to', () => {
+    const paused = status({ state: 'paused', time: ns(500), reason: 'Breakpoint 1: CLK ↑' });
+    expect(simulationSummary(paused)).toBe('Paused · 500 ns · Breakpoint 1: CLK ↑');
+    expect(simulationSummary(status({ goal: 'Step Clock (CLK ↑)', speed: MAX_SPEED }))).toBe(
+      'Running · 1.25 s · Step Clock (CLK ↑)…',
     );
   });
 });

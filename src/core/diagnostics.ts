@@ -52,6 +52,7 @@ export class DiagnosticLog {
   private readonly list: Entry[] = [];
   private readonly byKey = new Map<string, Entry>();
   private readonly listeners: ((d: Diagnostic) => void)[] = [];
+  private readonly occurrences: ((d: DiagnosticInput) => void)[] = [];
   private droppedCount = 0;
 
   constructor(max = 1000) {
@@ -69,6 +70,7 @@ export class DiagnosticLog {
   }
 
   add(input: DiagnosticInput): void {
+    for (const listener of this.occurrences) listener(input);
     const key = `${input.kind}|${input.net ?? ''}|${input.component ?? ''}|${input.pin ?? ''}`;
     const existing = this.byKey.get(key);
     if (existing) {
@@ -84,6 +86,18 @@ export class DiagnosticLog {
     this.list.push(entry);
     this.byKey.set(key, entry);
     for (const listener of this.listeners) listener(entry);
+  }
+
+  /**
+   * Calls `listener` for every report, repeats of a merged entry and dropped ones included (a
+   * debugger breaking on each). Returns an unsubscribe function.
+   */
+  onOccurrence(listener: (d: DiagnosticInput) => void): () => void {
+    this.occurrences.push(listener);
+    return () => {
+      const i = this.occurrences.indexOf(listener);
+      if (i >= 0) this.occurrences.splice(i, 1);
+    };
   }
 
   /** Calls `listener` for each new distinct diagnostic. Returns an unsubscribe function. */

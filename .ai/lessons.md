@@ -268,3 +268,19 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
 - 2026-11-07 (R13) — `sameCircuit` decides both "no edit" (`Editor.edit`) and "unsaved"; a new
   document field it doesn't compare is silently dropped from undo and never marks the file
   dirty. Add every new field to it (and to `serializeDocument`, the schema and a migration).
+- 2026-11-08 (R14) — `runUntil(NaN)` never ended: `t < now` is false for `NaN`, and so is
+  `next > limit`, so the loop ran on with no limit (a silent test hang). Validate time limits
+  with a positive test (`Number.isNaN`, `!(t >= now)`), and resolve props before reading
+  them: `CircuitBuilder` and documents may leave defaults out (`duty` was `undefined`).
+- 2026-11-08 (R14) — Driving a circuit from a script or a test: an action at the instant the
+  last step ended is "at the same time" for the chips (a clock press right after releasing
+  CLR is a recovery violation; a second manual pulse at the end of the first is a 0 ps LOW).
+  Let simulated time pass between actions, as a hand on the real board does.
+- 2026-11-08 (R14) — A carry-over at an instant processes that instant again in the new
+  simulator (its forced evaluation runs `onInstant` at the carried time): anything evaluated
+  per instant — a trigger rebuilt for the new simulator — fires there a second time. Keep such
+  objects across a carry-over (re-attach them) and guard per-instant actions by the instant.
+- 2026-11-08 (R14) — Actions while paused happen at the instant the run paused at, so the
+  recorder merges them into that instant: a channel attached then saw no edge (fixed: its
+  first level goes 1 ps early). Test what a tool sees of a change made while paused, not only
+  of changes made while running.

@@ -32,7 +32,8 @@ How to read this file:
 | R12a | `feat/memory-chips`          | Memory chips (EEPROM, SRAM)                | done    |
 | R12b | `feat/memory-inspector`      | Memory inspector, image files              | done    |
 | R13  | `feat/logic-analyzer`        | Waveforms & probes                         | done    |
-| R14  | `feat/debugger`              | Breakpoints, stepping, watches             | next    |
+| R14a | `feat/debugger`              | Breakpoints, stepping, watches             | done    |
+| R14b | `feat/rewind`                | Snapshots & rewind                         | next    |
 | R11  | `feat/subcircuits`           | Hierarchical design                        | planned |
 | R15  | `feat/test-benches`          | Circuit test benches ("test before fab")   | planned |
 | R16a | `example/sap-1-modules`      | SAP-1 modules as tested subcircuits        | planned |
@@ -301,13 +302,38 @@ record or the cursor span. Probes ship with Clock Module and Data Bus. Spec:
 [editor.md](editor.md#waveforms), [simulation.md](simulation.md#recorder). Decision:
 [ADR-0019](adr/0019-waveforms.md). Plan: `.ai/plans/feat-logic-analyzer.md`.
 
-### R14 · Breakpoints, stepping, watches — `feat/debugger` — `next`
+R14 (breakpoints, stepping, watches, run statistics, snapshot & rewind) was split at its start
+into the debugger (R14a) and stepping backwards (R14b): rewind needs the whole kernel state
+saved and restored, user actions replayed, and the recorder and the memory inspector kept in
+step — a layer of its own on top of R14a's stepping and breakpoints.
 
-Step by clock edge / by time / by event, breakpoints on signal or bus conditions, watch panel,
-run statistics, snapshot & rewind.
-Builds on R13: the kernel's break at an instant (`requestBreak`, `onInstant`), the trigger's
-conditions on signals and bus values for breakpoints, the host's `pauseAt` for stepping by
-time, probes' references for watches.
+### R14a · Breakpoints, stepping, watches — `feat/debugger` — `done`
+
+The Debug tab: breakpoints on any signal — the trigger's terms (edges, levels, bus and group
+values) as repeating core triggers on a recorder of their own, hit counts, enable/disable — and
+breaks on every error or warning the simulation reports (`DiagnosticLog.onOccurrence`); the host
+pauses on requests with a reason that wins over a trigger's run-on (`requestPause`,
+`status.reason`). Steps run at Max as jumps (`Simulation.runTo`): **Step Clock** (`F8`) pauses
+right before the step clock's next active edge but one, the cycle settled, through a kernel
+lookahead (`stopBefore`; `io/clock` now schedules its edges a phase ahead), and gives a manual
+clock one pulse and one period (Ben Eater's step button); **Run For** (`Shift+F8`) and **Run
+To**. Watches of signals, groups and memory cells (`U5[1F]` in the resolver) marked when they
+changed since the last stop; a Watch button in the Memory tab; context-menu Break When … Rises,
+Add Breakpoint on …, Watch …; run statistics and the most active nets (measured on request) in
+the Simulation tab. The debug setup is kept with the session, not the file (Q2). Fixes on the
+way: `runUntil(NaN)` looped forever; a trigger never fires twice at one instant; a fresh
+recorder channel records its first level 1 ps early. Spec: [editor.md](editor.md#debugger),
+[simulation.md](simulation.md#running). Decision: [ADR-0020](adr/0020-debugger.md). Plan:
+`.ai/plans/feat-debugger.md`.
+
+### R14b · Snapshots & rewind — `feat/rewind` — `next`
+
+Snapshot and restore of the whole simulator state (levels, drives, queue, component states,
+diagnostics); a bounded history of snapshots taken while running and a log of user actions, so
+any instant since the last structural edit is reached again by restoring the snapshot before
+it and re-running deterministically: Step Back (to the previous instant with events), Step Back
+Clock, Reverse Continue to the previous breakpoint hit, rewind to a time from the waveform's
+ruler; the recorder, the memory inspector and the debugger follow.
 
 ### R11 · Hierarchical design — `feat/subcircuits`
 
@@ -427,5 +453,11 @@ Promote to a numbered item when needed.
   another simulator beside the circuit's); weak levels drawn paler (the recorder keeps levels
   only); probed wires marked on the canvas; the diagram as SVG/PDF; recording every net in a
   bounded buffer as an option, if probing before running proves a chore (R13, Q2).
+- Debugger follow-ups (R14a): breakpoints on memory accesses (break when `U5[0x0F]` is written
+  or read; with R17, on the CPU's program counter and instructions); log points (report instead
+  of pausing); breakpoint and watch marks on the canvas; break on chosen diagnostic kinds
+  rather than all errors or warnings; a shared end-of-instant listener for many breakpoints
+  (each costs ≈ 15 % on a ring of 1-instant events now); Step Clock by a gated manual clock (a
+  manual `io/clock` driving the net through gates is not recognized and has no edge coming).
 - Documents (R07 follow-ups): several documents open in one window (tabs); a title, notes and
   simulation settings (speed) stored in the file (schema v2).

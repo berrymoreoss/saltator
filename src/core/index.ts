@@ -136,6 +136,7 @@ export {
   type SimulatorCarry,
   type SimulatorOptions,
   type SimulatorStats,
+  type StopBefore,
 } from './simulator';
 export {
   COMBINING_OVERLINE,
@@ -152,6 +153,7 @@ export {
 } from './symbol';
 export { formatTime, ms, ns, parseTime, ps, TIME_MAX, type Time, us } from './time';
 export {
+  diagnosticSeverity,
   type Edge,
   isTimingViolation,
   type PinTimes,

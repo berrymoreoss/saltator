@@ -338,6 +338,7 @@ resolver.resolve('U5'); // { kind: 'part', part: 'U5', type: 'mem/6116' }
 resolver.resolve('U5.A0'); // { kind: 'pin', part: 'U5', pin: 'A0', net: 'A0' }
 resolver.resolve('CLK'); // { kind: 'net', net: 'CLK' } — by any name of the net, or its id
 resolver.resolve('D[0..7]'); // { kind: 'bus', bus: 'D[0..7]', members: ['D0', …, 'D7'] }
+resolver.resolve('U5[10..1F]'); // { kind: 'cells', part: 'U5', type, memory, from: 16, to: 31 }
 resolver.resolve('U9'); // 'no part or net named U9'
 resolver.memories(); // the parts with `memory`, in designator order (U2 before U10)
 resolver.signal('D[0..7]'); // { nets: ['D0', …, 'D7'], vector: true } — what a probe shows
@@ -350,6 +351,12 @@ resolver.netReference('U1.Y'); // how to probe a net: its name, else a (driving)
   a net of its own).
 - A **bus** reference lists its members bit 0 first; a member no net is named after is
   `undefined` (it reads `Z`, as on the canvas); a bus none of whose members is named is refused.
+- **Memory cells** (R14, watches): a memory part's designator with an address or a range in
+  brackets — `U5[1F]`, `U5[0x10..$1F]` — addresses as the Memory tab's Go to takes them
+  (`parseAddress`: hex, bare or with `0x`, `$` or `h`), either way round, within the memory
+  (`U5[800]: The last address is 7FF.`). A memory's designator before `[` wins over a bus name
+  (`U5[10..15]` is cells, not a bus); another part's is refused (`U1 holds no memory`) unless
+  the text is a bus name.
 - Parts the compiler left out (design errors) and schematic-only parts (net labels) are not in
   the simulation and don't resolve.
 - References that name nothing are refused with the reason (`U1 has no pin Q`, `no part U9`);
@@ -359,7 +366,8 @@ resolver.netReference('U1.Y'); // how to probe a net: its name, else a (driving)
   must each be one signal ("D[0..7] is a bus: a group's members are single signals"; a failing
   member is named: "U9.Y: no part U9"). `netReference(net)` is how the editor stores a probe
   on a wire: the net's name, else a pin on it — a driving one (`out`, `tristate`, `bidir`)
-  first.
+  first. `renameReference(ref, from, to)` rewrites a signal reference after a part rename: its
+  pins only (`U5.A0` → `U7.A0`; a net or a bus may be called like a designator).
 - `compareDesignators` orders designators as people count them (`U2` before `U10`).
 
 ## Performance

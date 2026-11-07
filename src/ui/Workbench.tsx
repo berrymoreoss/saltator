@@ -4,6 +4,7 @@ import { DARK_CANVAS, type Editor, LIGHT_CANVAS, Store } from '../editor';
 import { ContextMenu } from './ContextMenu';
 import { ClipboardBridge } from './clipboard';
 import { CommandRegistry, dispatchShortcut } from './commands';
+import { BreakpointDialog, DebugBadge, DebugPanel } from './DebugPanel';
 import { AboutDialog, FileProblemDialog, ShortcutsDialog, UnsavedChangesDialog } from './Dialogs';
 import type { DocumentController } from './document-controller';
 import { documentTitle, hasUnsavedChanges } from './document-session';
@@ -343,6 +344,16 @@ export function Workbench({
                     Waveforms
                     <WavesBadge editor={editor} />
                   </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={tab === 'debug'}
+                    className={tab === 'debug' ? 'tab active' : 'tab'}
+                    onClick={() => showTab('debug')}
+                  >
+                    Debug
+                    <DebugBadge editor={editor} />
+                  </button>
                 </div>
               }
               actions={
@@ -400,6 +411,15 @@ export function Workbench({
                   }
                 />
               )}
+              {tab === 'debug' && (
+                <DebugPanel
+                  editor={editor}
+                  runToRequest={uiState.runToRequest}
+                  onEditBreakpoint={(breakpointDialog) =>
+                    ui.update((s) => ({ ...s, breakpointDialog }))
+                  }
+                />
+              )}
             </Panel>
           </div>
         </>
@@ -413,6 +433,13 @@ export function Workbench({
         <ShortcutsDialog commands={commands} mac={MAC} onClose={closeDialog} />
       )}
       {uiState.dialog === 'about' && <AboutDialog onClose={closeDialog} />}
+      {uiState.breakpointDialog && (
+        <BreakpointDialog
+          editor={editor}
+          request={uiState.breakpointDialog}
+          onClose={() => ui.update(({ breakpointDialog: _, ...rest }) => rest)}
+        />
+      )}
       {uiState.dialog === 'examples' && (
         <ExampleGalleryDialog
           examples={examples}

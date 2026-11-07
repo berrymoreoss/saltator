@@ -31,6 +31,11 @@ Logisim's splitter and other tools' "bus ripper" do the same for several bits at
 hardware it causes excess current and undefined levels; the simulator reports a `contention`
 diagnostic and resolves the net to `X`.
 
+**Breakpoint** — a condition on signals (the trigger's terms: an edge, levels, bus values) that
+pauses the run at every instant it holds anew, as a debugger stops a program on a line; a hit
+count makes it stop from its n-th hit on (R14). **Break on errors** pauses at every contention
+or timing violation instead.
+
 **Carry-over** — continuing a running simulation in a recompiled netlist after an edit: unchanged
 parts keep their state, outputs, pending changes and timers (matched by designator, through
 renames), so the run goes on as if nothing happened (`Simulator.carryOver`).
@@ -72,6 +77,9 @@ to the notch, numbering runs counter-clockwise (seen from the top).
 **Document session** — the open document around the editor's circuit: its name, the file it
 was opened from or saved to, and the circuit as last saved, against which unsaved changes are
 measured. Autosaved per browser tab and restored after a reload (R07).
+
+**Debug setup** — the debugger's breakpoints, watches, step clock and Run For duration, kept
+with the browser tab's session, not in the file (R14).
 
 **Drive / strength** — what an output contributes to a net: a level plus a strength (`none`,
 `weak`, `strong`). Pull resistors are weak; CMOS outputs are strong.
@@ -174,6 +182,10 @@ probe part (`io/probe`, `TP`), which shows a level on the canvas.
 **Recorder** — what keeps the probed nets' levels over simulated time for the waveforms (core
 `Recorder`, R13): one level per instant, the oldest changes dropped past a budget.
 
+**Run statistics** — counters of a run (events, delta cycles, evaluations, simulated and wall
+time, their rates) since power-on and for the last run, and on request the nets that change
+most (R14, the Simulation tab).
+
 **Recovery time (trec)** — how long an asynchronous set or reset must have been released before
 the next clock edge acts; an earlier edge may or may not load.
 
@@ -236,6 +248,11 @@ gate shape). Parts describe it as data (body size, pin sides and offsets); the e
 **Stub (pin stub)** — the short line from a part's body to the pin's connection point, where a
 wire must end to connect.
 
+**Step Clock** — the debugger's step by one clock cycle: the run goes on through the step
+clock's next active edge and pauses right before the one after, the cycle settled (the kernel
+sees the edge coming: `stopBefore`); a manual clock gets one pulse instead (R14). **Run For** and
+**Run To** step by time.
+
 **Simulator host** — what runs the kernel against the wall clock in the app (`Simulation` in the
 editor): run, pause, step, stop, reset, speed, frame budget, following edits.
 
@@ -253,6 +270,9 @@ several outputs to share a bus.
 
 **VCD (Value Change Dump)** — the text format of IEEE 1364 for signal changes over time, read by
 GTKWave, Surfer, PulseView and HDL tools; the Waveforms tab exports one (R13).
+
+**Watch** — a value the Debug tab shows at every stop — a signal, a bus, a group of single
+signals or memory cells (`U5[1F]`) — marked when it changed since the last stop (R14).
 
 **Waveform / timing diagram** — signals drawn against time, one row each, as the Waveforms tab
 and data sheets' timing figures show them; cursors (`A`, `B`) measure the time between edges.

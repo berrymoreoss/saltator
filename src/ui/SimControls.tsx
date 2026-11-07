@@ -43,10 +43,15 @@ export function simulationSummary(status: SimStatus): string {
   if (status.state === 'stopped') return 'Stopped';
   const parts = [STATE_LABELS[status.state], formatTime(status.time)];
   if (status.state === 'halted') parts.push('oscillation — Reset to restart');
+  if (status.state === 'running' && status.goal) {
+    parts.push(`${status.goal}…`); // a step runs at Max whatever the speed
+    return parts.join(' · ');
+  }
   const max = status.speed.perSecond === undefined;
   if (status.state === 'running' && (status.lagging || max)) {
     parts.push(`${max ? 'max' : 'actual'} ${formatRate(status.actual)}`);
   }
+  if (status.state === 'paused' && status.reason) parts.push(status.reason);
   return parts.join(' · ');
 }
 

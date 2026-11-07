@@ -254,15 +254,22 @@ export function renameComponent(circuit: Circuit, from: string, to: string): Cir
   return { ...circuit, components, probes: renameInProbes(circuit.probes, from, to) };
 }
 
+/**
+ * A signal reference after part `from` was renamed `to`: its pins (`U5.A0` → `U7.A0`); anything
+ * else is unchanged (nets are named by their labels, and a bus name may look like a designator).
+ */
+export function renameReference(ref: string, from: string, to: string): string {
+  const prefix = `${from}.`;
+  return ref.startsWith(prefix) ? `${to}.${ref.slice(prefix.length)}` : ref;
+}
+
 /** Probes with the pin references of part `from` (`U5.A0`) rewritten to part `to`. */
 export function renameInProbes(
   probes: readonly Probe[],
   from: string,
   to: string,
 ): readonly Probe[] {
-  const prefix = `${from}.`;
-  const rename = (ref: string) =>
-    ref.startsWith(prefix) ? `${to}.${ref.slice(prefix.length)}` : ref;
+  const rename = (ref: string) => renameReference(ref, from, to);
   let changed = false;
   const renamed = probes.map((probe) => {
     const next = isGroupProbe(probe)

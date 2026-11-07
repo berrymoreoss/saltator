@@ -2,9 +2,12 @@
 import {
   Activity,
   BookOpen,
+  ChevronsRight,
+  CircleDot,
   ClipboardPaste,
   Copy,
   CopyPlus,
+  Eye,
   FileDown,
   FilePlus,
   FlipHorizontal2,
@@ -12,6 +15,7 @@ import {
   FolderOpen,
   Grid3x3,
   Hand,
+  Hourglass,
   Info,
   Keyboard,
   LayoutGrid,
@@ -38,6 +42,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
+import { formatTime, isBusName } from '../core';
 import { ALL_SPEEDS, type Editor, type Store } from '../editor';
 import type { ClipboardBridge } from './clipboard';
 import type { Command } from './commands';
@@ -90,6 +95,17 @@ export function createCommands({
 
   const simulation = editor.simulation;
   const simState = () => simulation.state;
+  const showDebug = () =>
+    settings.update((s) => ({
+      ...s,
+      bottomTab: 'debug',
+      panels: { ...s.panels, bottom: { ...s.panels.bottom, visible: true } },
+    }));
+  /** The single signal under the context menu (a pin or a net, not a bus). */
+  const oneBit = () => {
+    const spot = editor.contextProbe;
+    return spot && !isBusName(spot.ref) ? spot.ref : undefined;
+  };
   /** The memory part selected alone on the canvas, if any. */
   const selectedMemory = () => {
     const { selection, circuit } = editor.state.get();
@@ -448,6 +464,99 @@ export function createCommands({
       },
     },
     {
+      id: 'debug.stepClock',
+      label: 'Step Clock',
+      title: 'Step Clock: to right before the next active edge of the step clock but one',
+      icon: ChevronsRight,
+      shortcuts: ['F8'],
+      global: true,
+      enabled: () => simState() !== 'halted',
+      run: () => {
+        if (editor.debug.stepClock() !== undefined) showDebug(); // it says why there
+      },
+    },
+    {
+      id: 'debug.runFor',
+      label: 'Run For',
+      menuLabel: () => `Run For ${formatTime(editor.debug.setup.get().runFor)}`,
+      icon: Hourglass,
+      shortcuts: ['Shift+F8'],
+      global: true,
+      enabled: () => simState() !== 'halted',
+      run: () => {
+        editor.debug.runFor();
+      },
+    },
+    {
+      id: 'debug.runTo',
+      label: 'Run To…',
+      enabled: () => simState() !== 'halted',
+      run: () => {
+        showDebug();
+        ui.update((s) => ({ ...s, runToRequest: s.runToRequest + 1 }));
+      },
+    },
+    {
+      id: 'debug.addBreakpoint',
+      label: 'Add Breakpoint…',
+      icon: CircleDot,
+      run: () => ui.update((s) => ({ ...s, breakpointDialog: {} })),
+    },
+    {
+      id: 'debug.disableAll',
+      label: 'Disable All Breakpoints',
+      enabled: () => editor.debug.setup.get().breakpoints.some((b) => b.enabled),
+      run: () => editor.debug.enableAll(false),
+    },
+    {
+      id: 'debug.breakOnErrors',
+      label: 'Break on Errors',
+      checked: () => editor.debug.setup.get().breakOnErrors,
+      run: () => editor.debug.setBreakOn({ errors: !editor.debug.setup.get().breakOnErrors }),
+    },
+    {
+      id: 'debug.breakRise',
+      label: 'Break When Rises',
+      menuLabel: () => `Break When ${oneBit() ?? '…'} Rises`,
+      icon: CircleDot,
+      enabled: () => oneBit() !== undefined,
+      run: () => {
+        const signal = oneBit();
+        if (signal === undefined) return;
+        editor.debug.addBreakpoint([{ signal, kind: 'rise' }]);
+        showDebug();
+      },
+    },
+    {
+      id: 'debug.addBreakpointOn',
+      label: 'Add Breakpoint on…',
+      menuLabel: () => {
+        const spot = editor.contextProbe;
+        return spot ? `Add Breakpoint on ${spot.ref}…` : 'Add Breakpoint on…';
+      },
+      enabled: () => editor.contextProbe !== undefined,
+      run: () => {
+        const spot = editor.contextProbe;
+        if (spot) ui.update((s) => ({ ...s, breakpointDialog: { signal: spot.ref } }));
+      },
+    },
+    {
+      id: 'debug.watch',
+      label: 'Watch',
+      menuLabel: () => {
+        const spot = editor.contextProbe;
+        return spot ? `Watch ${spot.ref}` : 'Watch';
+      },
+      icon: Eye,
+      enabled: () => editor.contextProbe !== undefined,
+      run: () => {
+        const spot = editor.contextProbe;
+        if (!spot) return;
+        editor.debug.addWatch(spot.ref);
+        showDebug();
+      },
+    },
+    {
       id: 'sim.stop',
       label: 'Stop',
       title: 'Stop the simulation',
@@ -701,8 +810,15 @@ export function workbenchMenus(examples: readonly Example[], recentCount?: numbe
       items: [
         'sim.toggle',
         'sim.step',
+        'debug.stepClock',
+        'debug.runFor',
+        'debug.runTo',
         'sim.stop',
         'sim.reset',
+        SEPARATOR,
+        'debug.addBreakpoint',
+        'debug.disableAll',
+        'debug.breakOnErrors',
         SEPARATOR,
         { label: 'Speed', items: ALL_SPEEDS.map((s) => `sim.speed.${s.id}`) },
         SEPARATOR,
@@ -765,6 +881,9 @@ export const ITEM_CONTEXT_MENU: readonly MenuEntry[] = [
   'edit.partInfo',
   'edit.inspectMemory',
   'waves.toggleProbe',
+  'debug.breakRise',
+  'debug.addBreakpointOn',
+  'debug.watch',
 ];
 
 export const CANVAS_CONTEXT_MENU: readonly MenuEntry[] = [
@@ -781,7 +900,7 @@ export const TOOLBAR: readonly (readonly string[])[] = [
   ['tool.select', 'tool.pan', 'tool.wire', 'tool.bus', 'tool.interact', 'tool.probe'],
   ['edit.undo', 'edit.redo'],
   ['edit.rotate', 'edit.flipH', 'edit.delete'],
-  ['sim.toggle', 'sim.step', 'sim.stop', 'sim.reset', 'widget:speed'],
+  ['sim.toggle', 'sim.step', 'debug.stepClock', 'sim.stop', 'sim.reset', 'widget:speed'],
   ['view.zoomIn', 'view.zoomOut', 'view.zoomFit'],
   ['view.grid', 'view.gates.toggle'],
 ];

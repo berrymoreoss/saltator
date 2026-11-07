@@ -82,13 +82,30 @@ export type CarriedEvent =
  * - `budget`: stopped early because the event budget was used up;
  * - `break`: stopped after an instant because `requestBreak()` was called (a trigger, a
  *   breakpoint); `now` is that instant and the next run goes on from there;
+ * - `before`: stopped before the instant at which the `stopBefore` net is due to change to its
+ *   level; `now` is the last instant processed (a run without the option processes that
+ *   instant, one with it stops there again);
  * - `halted`: the simulation stopped for good (oscillation).
  */
-export type RunStatus = 'idle' | 'reached' | 'budget' | 'break' | 'halted';
+export type RunStatus = 'idle' | 'reached' | 'budget' | 'break' | 'before' | 'halted';
+
+/** A net and the level a run stops before it changes to (`RunOptions.stopBefore`). */
+export interface StopBefore {
+  /** Net index. */
+  readonly net: number;
+  readonly level: Level;
+}
 
 export interface RunOptions {
   /** Stop (status `budget`) once this many events were processed; checked between timestamps. */
   readonly maxEvents?: number;
+  /**
+   * Stop (status `before`) before processing an instant at which changes pending on the net's
+   * drivers make it change to `level` — a lookahead to the next edge of a clock (Step Clock).
+   * Only changes queued before the instant count: one a part makes with zero delay during the
+   * instant itself can't be seen ahead. The power-on instant is always processed.
+   */
+  readonly stopBefore?: StopBefore;
 }
 
 export interface SettleOptions extends RunOptions {
@@ -161,6 +178,7 @@ export class Simulator {
   private readonly slotDrive: Uint8Array;
   private readonly slotPendingSeq: Float64Array; // NO_EVENT when nothing is pending
   private readonly slotPendingDrive: Uint8Array;
+  private readonly slotPendingTime: Float64Array; // valid while slotPendingSeq isn't NO_EVENT
 
   // Nets: drivers and readers in CSR form.
   private readonly netDriverStart: Int32Array;
@@ -239,6 +257,7 @@ export class Simulator {
     this.slotDrive = new Uint8Array(slotCount);
     this.slotPendingSeq = new Float64Array(slotCount).fill(NO_EVENT);
     this.slotPendingDrive = new Uint8Array(slotCount);
+    this.slotPendingTime = new Float64Array(slotCount);
 
     nets.forEach((net, n) => {
       this.netIndexById.set(net.id, n);
@@ -329,6 +348,7 @@ export class Simulator {
       const slot = p < 0 ? -1 : this.pinSlot[this.pinStart[c]! + p]!;
       if (slot < 0) continue;
       this.slotPendingDrive[slot] = event.drive;
+      this.slotPendingTime[slot] = event.time;
       this.slotPendingSeq[slot] = this.queue.push(event.time, EVENT_DRIVE, slot, event.drive);
     }
 
@@ -522,7 +542,7 @@ export class Simulator {
         `cannot run backwards: now ${formatTime(this.currentTime)}, until ${formatTime(t)}`,
       );
     }
-    return this.run(t, options.maxEvents ?? Number.POSITIVE_INFINITY, true);
+    return this.run(t, options.maxEvents ?? Number.POSITIVE_INFINITY, true, options.stopBefore);
   }
 
   /** `runUntil(now + dt)`. */
@@ -537,11 +557,26 @@ export class Simulator {
   settle(options: SettleOptions = {}): RunStatus {
     // A negative span would set `now` back to the limit when events are pending.
     const limit = this.currentTime + Math.max(0, options.maxTime ?? ms(1));
-    return this.run(limit, options.maxEvents ?? DEFAULT_SETTLE_MAX_EVENTS, false);
+    return this.run(
+      limit,
+      options.maxEvents ?? DEFAULT_SETTLE_MAX_EVENTS,
+      false,
+      options.stopBefore,
+    );
   }
 
-  private run(limit: Time, maxEvents: number, advanceWhenIdle: boolean): RunStatus {
+  private run(
+    limit: Time,
+    maxEvents: number,
+    advanceWhenIdle: boolean,
+    stopBefore: StopBefore | undefined,
+  ): RunStatus {
+    // NaN compares false with everything: the loop would never reach the limit.
+    if (Number.isNaN(limit)) throw new Error('cannot run: the limit is not a time (NaN)');
     if (this.isHalted) return 'halted';
+    if (stopBefore && !(stopBefore.net >= 0 && stopBefore.net < this.levels.length)) {
+      throw new Error(`stopBefore: no net #${stopBefore.net}`);
+    }
     const startEvents = this.stats.events;
     if (!this.started) {
       this.started = true;
@@ -563,11 +598,28 @@ export class Simulator {
         return 'idle';
       }
       if (this.stats.events - startEvents >= maxEvents) return 'budget';
+      if (stopBefore && this.dueLevel(stopBefore.net, next) === stopBefore.level) return 'before';
       this.processTimestamp(next, false);
       if (this.isHalted) return 'halted';
       if (this.instantListeners.length > 0) this.instantEnded();
       if (this.breakRequested) return this.takeBreak();
     }
+  }
+
+  /**
+   * The level a net changes to in the first delta cycle at `t`, from the changes pending on its
+   * drivers then; −1 when they don't change it (without any, the drives resolve to its level).
+   */
+  private dueLevel(net: number, t: Time): number {
+    const end = this.netDriverStart[net + 1]!;
+    let bits = 0;
+    for (let s = this.netDriverStart[net]!; s < end; s++) {
+      const slot = this.netDrivers[s]!;
+      const due = this.slotPendingSeq[slot] !== NO_EVENT && this.slotPendingTime[slot] === t;
+      bits |= driveBits((due ? this.slotPendingDrive[slot]! : this.slotDrive[slot]!) as Drive);
+    }
+    const level = resolveBits(bits) & 3;
+    return level === this.levels[net] ? -1 : level;
   }
 
   private instantEnded(): void {
@@ -751,8 +803,10 @@ export class Simulator {
       this.slotPendingSeq[slot] = NO_EVENT;
     }
     if (this.slotDrive[slot] === drive) return;
+    const time = this.currentTime + delay;
     this.slotPendingDrive[slot] = drive;
-    this.slotPendingSeq[slot] = this.queue.push(this.currentTime + delay, EVENT_DRIVE, slot, drive);
+    this.slotPendingTime[slot] = time;
+    this.slotPendingSeq[slot] = this.queue.push(time, EVENT_DRIVE, slot, drive);
   }
 
   /** @internal */

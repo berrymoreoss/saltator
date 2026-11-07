@@ -246,16 +246,25 @@ const sim = new Simulator(netlist, registry, { maxDeltaCycles: 1000, maxDiagnost
   condition seen in the middle of an instant still lets the instant settle; asked between
   runs, the next run stops after the first instant it processes. The hot loop checks one flag
   per timestamp.
+- `stopBefore: { net, level }` (R14, a `runUntil`/`settle` option) — stop **before** the
+  instant at which the changes pending on the net's drivers make it change to `level`
+  (status `before`, `now` at the last instant processed): a lookahead to a clock's next edge,
+  for the debugger's Step Clock. The kernel keeps each driver's pending change time; the
+  drives due then are resolved with the others, so a change that keeps the level is none. Only
+  changes queued before the instant count — one a part makes with zero delay during the
+  instant itself can't be seen ahead (a gate's output is seen one delay ahead). The power-on
+  instant is always processed. Without the option the loop checks nothing.
 
 Run status (`RunStatus`): `idle` (nothing left to do), `reached` (time limit reached, events
 still pending — e.g. a clock), `budget` (event budget used up; checked between timestamps),
-`break` (`requestBreak()` was called; the editor's host pauses on it), `halted` (oscillation;
-final for this simulator, every later run returns `halted`).
+`break` (`requestBreak()` was called; the editor's host pauses on it), `before` (stopped
+before the `stopBefore` change), `halted` (oscillation; final for this simulator, every later
+run returns `halted`).
 
 A **simulator host** outside core maps wall-clock to simulation time: the editor's `Simulation`
 (R05, [editor.md](editor.md#simulation)) with speed presets, a frame budget and "can't keep up"
-reporting, run/pause/step to the next event/stop/reset. Debugger conveniences (step to the next
-clock edge, run until a breakpoint) come in R14 _(planned)_.
+reporting, run/pause/step to the next event/stop/reset, and the debugger's steps (Step Clock by
+`stopBefore`, Run For, Run To) and breakpoints (R14, [editor.md](editor.md#debugger)).
 
 ## Timing checks
 
@@ -367,6 +376,8 @@ the net ids.
   merged (`count`, `lastTime`); at most `maxDiagnostics` distinct entries are kept, the rest are
   counted in `dropped`. `subscribe(listener)` is called for each new entry.
   `contention` is reported when a net starts to conflict and again (merged) after it cleared.
+  `onOccurrence(listener)` (R14) is called for every report — repeats of a merged entry and
+  dropped ones included — so a debugger can break on each.
 - **Contention**: `sim.contended` is a `Uint8Array` with 1 for each net on which two strong
   drivers disagree right now (a short on real hardware), so a renderer can tell contention from
   an `X` that is merely unknown.
@@ -402,7 +413,10 @@ recorder.nextChange(clk, us(500)); // time of the next edge
   caller re-resolves what each channel shows and attaches the new simulator; the record goes
   on. A channel left out of an `attach` gets no data from that instant (`NO_DATA`), one given a
   net again resumes; `attachChannel` adds one while running; `detach` ends the record at `now`
-  (Stop); `clear` forgets it (power-on). Several channels may show one net.
+  (Stop); `clear` forgets it (power-on). Several channels may show one net. A fresh channel
+  attached at an instant after 0 records its first level 1 ps before it (R14): the level going
+  into the rest of the instant, so a change still made then — an action while paused — is an
+  edge a trigger sees, not merged into the first level.
 - **One instant, one level**: changes at the same instant (delta cycles) collapse into its last
   level, and a change back to the level before the instant leaves nothing — a zero-delay delta
   is not a pulse a real circuit makes.
@@ -445,7 +459,9 @@ trigger.attach(sim); // armed; attach the new simulator after a carry-over
   recorder's levels: a glitch inside one instant (collapsed by the recorder) never fires it.
 - Fires **once** (single shot) and disarms: at the edge while the other terms hold, or —
   without an edge term — when the pattern **becomes** true (one already true when armed waits
-  until it has been false).
+  until it has been false). With `{ repeat: true }` (R14's breakpoints) it fires at every such
+  instant and stays armed. Never twice at one instant: a carry-over at the instant it fired
+  processes that instant again.
 - Values: digits not written are 0, as in a number (`5` on eight bits is `0x05`, `X5` leaves the
   high nibble free); a bit that is `X` or `Z` matches no 0 or 1, so `notEqual` holds while it
   is. `conditionProblems(condition)` and `parseHexPattern(text, width)` give the reasons a
@@ -524,6 +540,6 @@ $end
 
 ## Planned extensions
 
-- Snapshot/restore of full simulator state (for "rewind" in the debugger) _(R14)_.
+- Snapshot/restore of full simulator state (for "rewind" in the debugger) _(R14b)_.
 - Web Worker host with SharedArrayBuffer levels _(backlog)_.
 - Fast mode for large synchronous designs (levelized/cycle-based evaluation) _(backlog)_.

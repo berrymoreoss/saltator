@@ -23,6 +23,13 @@ import {
   WAVE_RULER_HEIGHT,
   waveformTheme,
 } from '../editor';
+import {
+  CONDITIONS,
+  conditionId,
+  conditionTerm,
+  isValueCondition,
+  levelText,
+} from './condition-terms';
 import { Dialog } from './Dialogs';
 import type { ImageFileAccess } from './files';
 import { useStore } from './hooks';
@@ -258,9 +265,6 @@ export function WavesBadge({ editor }: { readonly editor: Editor }) {
     </>
   );
 }
-
-const levelText = (level: Level) =>
-  level === Level.L0 ? '0' : level === Level.L1 ? '1' : level === Level.Z ? 'Z' : 'X';
 
 /** The Add signal box: a reference with completion. */
 function AddSignal({ editor, onNotice }: { editor: Editor; onNotice: (text?: string) => void }) {
@@ -558,38 +562,17 @@ function Plot({ editor, theme, rows, scroll }: PlotProps) {
   );
 }
 
-const CONDITIONS: readonly {
-  readonly id: string;
-  readonly label: string;
-  readonly vector: boolean;
-}[] = [
-  { id: 'rise', label: 'rises', vector: false },
-  { id: 'fall', label: 'falls', vector: false },
-  { id: 'edge', label: 'changes', vector: false },
-  { id: 'level:1', label: 'is 1', vector: false },
-  { id: 'level:0', label: 'is 0', vector: false },
-  { id: 'level:X', label: 'is X', vector: false },
-  { id: 'level:Z', label: 'is Z', vector: false },
-  { id: 'equal', label: '=', vector: true },
-  { id: 'notEqual', label: '≠', vector: true },
-];
-
 interface DraftTerm {
   readonly probe: string;
   readonly condition: string;
   readonly value: string;
 }
 
-const LEVELS: Record<string, Level> = { '0': Level.L0, '1': Level.L1, X: Level.X, Z: Level.Z };
-
 function toTerm(draft: DraftTerm): AnalyzerTerm {
-  if (draft.condition.startsWith('level:')) {
-    return { probe: draft.probe, kind: 'level', level: LEVELS[draft.condition.slice(6)]! };
-  }
-  if (draft.condition === 'equal' || draft.condition === 'notEqual') {
-    return { probe: draft.probe, kind: draft.condition, value: draft.value };
-  }
-  return { probe: draft.probe, kind: draft.condition as 'rise' | 'fall' | 'edge' };
+  const { kind, level } = conditionTerm(draft.condition);
+  if (kind === 'level') return { probe: draft.probe, kind, level: level ?? Level.L1 };
+  if (isValueCondition(draft.condition)) return { probe: draft.probe, kind, value: draft.value };
+  return { probe: draft.probe, kind };
 }
 
 /** The Trigger dialog: terms (ANDed), where the trigger sits in the window, and the window. */
@@ -614,7 +597,7 @@ function TriggerDialog({
         : []
       : state.condition.terms.map((t) => ({
           probe: t.probe,
-          condition: t.kind === 'level' ? `level:${levelText(t.level ?? Level.L1)}` : t.kind,
+          condition: conditionId(t.kind, t.level),
           value: t.value ?? '',
         }));
   const [terms, setTerms] = useState<DraftTerm[]>(initial);

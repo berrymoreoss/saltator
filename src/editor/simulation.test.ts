@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { addComponents, addWires, type Circuit, CircuitBuilder, updateComponent } from '../circuit';
-import { type Level, levelChar, ms, ns } from '../core';
+import { Level, levelChar, ms, ns } from '../core';
 import { createDefaultRegistry } from '../library';
 import { Editor } from './editor';
 import { FakeClock } from './fake-clock';
@@ -28,6 +28,16 @@ function hello(frequency = 1000): Circuit {
     .add('PWR3', 'io/gnd', { at: [26, 13] })
     .connect('X1.Y', 'D2.A')
     .connect('D2.K', 'PWR3.Y')
+    .build();
+}
+
+/** A zero-delay NAND fed back to itself, enabled by a switch: oscillates once it is on. */
+function ring(): Circuit {
+  return new CircuitBuilder(registry)
+    .add('SW1', 'io/switch', { at: [0, 0] })
+    .add('U1', 'prim/nand', { at: [10, 0], props: { delay: 0 } })
+    .connect('SW1.Y', 'U1.A')
+    .connect('U1.Y', 'U1.B', [17, 2], [17, 5], [9, 5], [9, 3])
     .build();
 }
 
@@ -240,6 +250,237 @@ describe('Simulation: run control', () => {
   });
 });
 
+describe('Simulation: steps', () => {
+  /** The 1 MHz clock's net (rises at 500 ns, falls at 1 µs, …) as a Step Clock goal. */
+  const stepClock = (simulation: ReturnType<typeof setup>['simulation']) => {
+    const sim = simulation.simulator!;
+    const net = sim.netId(sim.pinNet('X1', 'Y'));
+    return { kind: 'edge', net, level: Level.L1, label: 'Step Clock' } as const;
+  };
+  const powered = (frequency = 1e6) => {
+    const s = setup(hello(frequency));
+    s.simulation.step(); // t = 0, paused
+    return s;
+  };
+
+  it('runs a time step at Max, whatever the speed, and pauses exactly there', () => {
+    const { simulation } = powered();
+    simulation.setSpeed(SPEEDS[0]!); // 1 ns/s
+    expect(simulation.runTo({ kind: 'time', until: ns(1234), label: 'Run For 1.234 µs' })).toBe(
+      true,
+    );
+    expect(simulation.state).toBe('paused');
+    expect(simulation.simulator!.now).toBe(ns(1234));
+    expect(simulation.status.get()).toMatchObject({ time: ns(1234), reason: 'Run For 1.234 µs' });
+    expect(simulation.status.get().goal).toBeUndefined();
+  });
+
+  it('powers on for a step from stopped', () => {
+    const { editor, simulation } = setup(hello(1e6));
+    simulation.runTo({ kind: 'time', until: ns(700), label: 'Run To' });
+    expect(simulation.state).toBe('paused');
+    expect(simulation.simulator!.now).toBe(ns(700));
+    expect(pin(editor, 'X1', 'Y')).toBe('1');
+  });
+
+  it('Step Clock pauses right before the next rising edge, the cycle settled', () => {
+    const { editor, simulation } = powered();
+    const goal = stepClock(simulation);
+    const sim = simulation.simulator!;
+    simulation.runTo(goal);
+    expect(simulation.status.get()).toMatchObject({ state: 'paused', reason: 'Step Clock' });
+    expect(sim.now).toBeLessThan(ns(500));
+    expect(sim.nextEventTime).toBe(ns(500)); // the edge is the next instant
+    expect(pin(editor, 'X1', 'Y')).toBe('0');
+    simulation.runTo(goal); // through that edge, right before the next one
+    expect(sim.now).toBe(ns(1000)); // the fall was the last thing to happen
+    expect(sim.nextEventTime).toBe(ns(1500));
+    simulation.step(); // F10 steps into the edge
+    expect(pin(editor, 'X1', 'Y')).toBe('1');
+    expect(simulation.status.get().reason).toBeUndefined();
+    simulation.runTo({ kind: 'time', until: ns(1700), label: 'Run For' }); // mid-cycle
+    simulation.runTo(goal);
+    expect(sim.nextEventTime).toBe(ns(2500));
+  });
+
+  it('Step Clock from stopped pauses before the first edge', () => {
+    const { simulation } = setup(hello(1e6));
+    simulation.runTo({ kind: 'edge', net: 'X1.Y', level: Level.L1, label: 'Step Clock' });
+    expect(simulation.state).toBe('paused');
+    expect(simulation.simulator!.nextEventTime).toBe(ns(500));
+  });
+
+  it('pauses at power-on when a pause is asked for there, before starting the step', () => {
+    const { simulation } = setup(hello(1e6));
+    const seen = new Set<unknown>();
+    // Tools attach to each new simulator when the state changes, before its first instant.
+    simulation.status.subscribe(() => {
+      const sim = simulation.simulator;
+      if (!sim || seen.has(sim)) return;
+      seen.add(sim);
+      sim.onInstant((t) => {
+        if (t === 0) simulation.requestPause('At power-on');
+      });
+    });
+    simulation.runTo({ kind: 'time', until: ns(700), label: 'Run To' });
+    expect(simulation.status.get()).toMatchObject({ state: 'paused', reason: 'At power-on' });
+    expect(simulation.simulator!.now).toBe(0);
+  });
+
+  it('settles: runs until nothing is left to happen', () => {
+    const { editor, simulation } = setup(
+      new CircuitBuilder(registry)
+        .add('X1', 'io/clock', { at: [0, 0], props: { frequency: 1e6, mode: 'manual' } })
+        .build(),
+    );
+    simulation.step();
+    simulation.action('X1', { type: 'step' }); // a 500 ns pulse
+    simulation.runTo({ kind: 'settle', label: 'Settle' });
+    expect(simulation.status.get()).toMatchObject({ state: 'paused', reason: 'Settle' });
+    expect(simulation.simulator!.now).toBe(ns(500));
+    expect(pin(editor, 'X1', 'Y')).toBe('0');
+  });
+
+  it('says so when no edge is coming or the net is gone', () => {
+    const { simulation } = setup(
+      new CircuitBuilder(registry).add('SW1', 'io/switch', { at: [0, 0] }).build(),
+    );
+    simulation.step();
+    const sim = simulation.simulator!;
+    const net = sim.netId(sim.pinNet('SW1', 'Y'));
+    simulation.runTo({ kind: 'edge', net, level: Level.L1, label: 'Step Clock' });
+    expect(simulation.status.get().reason).toBe('Step Clock: nothing left to happen');
+    simulation.runTo({ kind: 'edge', net: 'NOPE', level: Level.L1, label: 'Step Clock' });
+    expect(simulation.status.get().reason).toBe('Step Clock: no net NOPE');
+  });
+
+  it('spreads a long step over frames; Pause cancels it, Run makes it a normal run', () => {
+    const { clock, simulation } = powered();
+    clock.cost = 1; // 8 kernel calls a frame
+    const sim = simulation.simulator!;
+    const never = { kind: 'edge', net: sim.netId(sim.pinNet('U1', 'A')), level: Level.L1 } as const;
+    simulation.runTo({ ...never, label: 'Step Clock' });
+    expect(simulation.status.get()).toMatchObject({ state: 'running', goal: 'Step Clock' });
+    const first = sim.now;
+    clock.frames(8); // the status refreshes every 100 ms
+    expect(sim.now).toBeGreaterThan(first);
+    expect(simulation.status.get()).toMatchObject({ goal: 'Step Clock', lagging: false });
+    simulation.pause();
+    expect(simulation.status.get().goal).toBeUndefined();
+    expect(simulation.status.get().reason).toBeUndefined();
+    simulation.run(); // from paused: a normal run, the step forgotten
+    expect(simulation.status.get().goal).toBeUndefined();
+    simulation.pause();
+    simulation.runTo({ ...never, label: 'Step Clock' });
+    clock.cost = 0; // (every clock call would count as wall time passing)
+    simulation.run();
+    expect(simulation.status.get()).toMatchObject({ state: 'running' });
+    expect(simulation.status.get().goal).toBeUndefined();
+    const at = sim.now;
+    clock.frame(16);
+    expect(sim.now).toBe(at + ms(16)); // real time again
+  });
+
+  it('a requested pause wins over a step and over a pending pauseAt, with its reason', () => {
+    const breakAtRise = (simulation: ReturnType<typeof setup>['simulation']) => {
+      const sim = simulation.simulator!;
+      const net = sim.pinNet('X1', 'Y');
+      return sim.onNetChange((_, n, level) => {
+        if (n !== net || levelChar(level) !== '1') return;
+        simulation.requestPause('Breakpoint 1');
+        simulation.requestPause('Breakpoint 2'); // the first of an instant wins
+      });
+    };
+    const stepping = powered();
+    breakAtRise(stepping.simulation);
+    stepping.simulation.runTo({ kind: 'time', until: ns(5000), label: 'Run For' });
+    expect(stepping.simulation.simulator!.now).toBe(ns(500));
+    expect(stepping.simulation.status.get().reason).toBe('Breakpoint 1');
+
+    const { clock, simulation } = setup(hello(1e6));
+    simulation.setSpeed(MAX_SPEED);
+    simulation.run();
+    simulation.pauseAt(ns(5000), 'Triggered');
+    breakAtRise(simulation);
+    clock.frame(16);
+    expect(simulation.state).toBe('paused');
+    expect(simulation.simulator!.now).toBe(ns(500));
+    expect(simulation.status.get().reason).toBe('Breakpoint 1');
+    expect(simulation.pausesAt).toBeUndefined();
+    simulation.run(); // Run clears the reason
+    expect(simulation.status.get().reason).toBeUndefined();
+  });
+
+  it('gives the reason of a pauseAt, and of a pause asked for during a step or an action', () => {
+    const { clock, simulation } = setup(hello(1e6));
+    simulation.run();
+    simulation.pauseAt(ns(1234), 'Triggered at 1 µs');
+    clock.frame(16);
+    expect(simulation.status.get().reason).toBe('Triggered at 1 µs');
+
+    // A trigger firing during a step: its post-trigger end comes first.
+    const triggered = powered();
+    const host = triggered.simulation;
+    const sim0 = host.simulator!;
+    const clk = sim0.pinNet('X1', 'Y');
+    const off = sim0.onNetChange((time, n, level) => {
+      if (n !== clk || levelChar(level) !== '1') return;
+      sim0.requestBreak();
+      host.pauseAt(time + ns(300), 'Triggered');
+      off();
+    });
+    host.runTo({ kind: 'time', until: ns(5000), label: 'Run For' });
+    expect(sim0.now).toBe(ns(800));
+    expect(host.status.get().reason).toBe('Triggered');
+
+    const paused = powered();
+    const sim = paused.simulation.simulator!;
+    const net = sim.pinNet('X1', 'Y');
+    sim.onNetChange((_, n, level) => {
+      if (n === net && levelChar(level) === '1') paused.simulation.requestPause('Breakpoint 2');
+    });
+    while (sim.now < ns(500)) paused.simulation.step();
+    expect(sim.now).toBe(ns(500));
+    expect(paused.simulation.status.get().reason).toBe('Breakpoint 2');
+    paused.simulation.step();
+    expect(paused.simulation.status.get().reason).toBeUndefined();
+  });
+
+  it('forgets a pause asked for outside a run at power-on', () => {
+    const { clock, simulation } = powered();
+    simulation.requestPause('Stale'); // no run takes it
+    simulation.reset();
+    simulation.run();
+    const sim = simulation.simulator!;
+    const clk = sim.pinNet('X1', 'Y');
+    const off = sim.onNetChange((time, n, level) => {
+      if (n !== clk || levelChar(level) !== '1') return;
+      sim.requestBreak(); // a trigger: it runs on
+      simulation.pauseAt(time + ns(300), 'Triggered');
+      off();
+    });
+    clock.frame(16);
+    expect(sim.now).toBe(ns(800));
+    expect(simulation.status.get().reason).toBe('Triggered');
+  });
+
+  it('does not step a halted simulation; a step that halts says so', () => {
+    const { clock, simulation } = setup(ring());
+    simulation.step();
+    simulation.action('SW1', { type: 'toggle' });
+    expect(simulation.state).toBe('halted');
+    expect(simulation.runTo({ kind: 'time', until: ns(1), label: 'Run For' })).toBe(false);
+    simulation.reset();
+    expect(simulation.runTo({ kind: 'time', until: Number.NaN, label: 'Run For' })).toBe(false);
+    expect(simulation.state).toBe('running');
+    simulation.pause();
+    simulation.runTo({ kind: 'time', until: ms(1), label: 'Run For' });
+    simulation.action('SW1', { type: 'toggle' });
+    clock.frame(16);
+    expect(simulation.state).toBe('halted');
+  });
+});
+
 describe('Simulation: actions', () => {
   it('applies an action at once while paused, and in the next frame while running', () => {
     const { clock, editor, simulation } = setup();
@@ -354,16 +595,6 @@ describe('Simulation: following the document', () => {
 });
 
 describe('Simulation: oscillation and diagnostics', () => {
-  /** A zero-delay NAND fed back to itself, enabled by a switch: oscillates once it is on. */
-  function ring(): Circuit {
-    return new CircuitBuilder(registry)
-      .add('SW1', 'io/switch', { at: [0, 0] })
-      .add('U1', 'prim/nand', { at: [10, 0], props: { delay: 0 } })
-      .connect('SW1.Y', 'U1.A')
-      .connect('U1.Y', 'U1.B', [17, 2], [17, 5], [9, 5], [9, 3])
-      .build();
-  }
-
   it('halts on an oscillation; an edit or reset gets out', () => {
     const { clock, editor, simulation } = setup(ring());
     simulation.run();
@@ -397,6 +628,14 @@ describe('Simulation: oscillation and diagnostics', () => {
 });
 
 describe('Simulation: signals', () => {
+  it('finds the simulator net of a scene net by its id, through a pin on it', () => {
+    const { simulation } = setup();
+    expect(simulation.netOf('X1.Y')).toBeUndefined(); // stopped
+    simulation.step();
+    expect(simulation.netOf('X1.Y')).toBe(simulation.simulator!.pinNet('X1', 'Y'));
+    expect(simulation.netOf('nothing')).toBeUndefined();
+  });
+
   it('maps every wire to its net, and wires on no pin to −1', () => {
     const { circuit } = addWires(hello(), [
       [

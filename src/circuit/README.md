@@ -12,7 +12,8 @@ Modules: `document.ts` (types), `schema.ts` + `migrations.ts` (loading), `serial
 (saving), `geometry.ts`, `layout.ts` (pin positions), `connectivity.ts` (nets from wires),
 `compile.ts` + `checks.ts` (netlist, net names, design checks), `resolve.ts` (references such
 as `U5`, `U5.A0`, `CLK`, `D[0..7]` to the compiled parts and nets; the memories, R12b; what a
-probe shows and how to probe an unnamed net, R13),
+probe shows and how to probe an unnamed net, R13; memory cells `U5[1F]` and
+`renameReference`, R14),
 `builder.ts` (code-first documents). Net labels are parts like any other (`schematicOnly`, a pin with a `net` name): the
 compiler joins pins by name and leaves those parts out of the netlist. Bus lines (`Wire.bus`)
 and bus pins (`PinDef.bus`) are a second layer, connected apart from wires and pins

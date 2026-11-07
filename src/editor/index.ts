@@ -5,6 +5,7 @@
 
 export * from './analyzer';
 export * from './camera';
+export * from './debugger';
 export * from './dev-parts';
 export * from './editor';
 export * from './graphics';

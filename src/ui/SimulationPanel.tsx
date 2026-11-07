@@ -1,19 +1,8 @@
 import { CircleCheck, CircleX, Play, TriangleExclamationPoint } from 'lucide-react';
-import { type Diagnostic, formatTime, isTimingViolation, KernelDiagnosticKind } from '../core';
+import { type Diagnostic, diagnosticSeverity, formatTime } from '../core';
 import type { Editor } from '../editor';
+import { formatCount, formatFrequency, statsRows } from './debug-view';
 import { useStore, useStoreValue } from './hooks';
-
-/**
- * Short circuits, oscillations and timing violations break the circuit (a violated set-up time
- * is an intermittent failure on a real board); the rest are warnings.
- */
-export function diagnosticSeverity(d: Diagnostic): 'error' | 'warning' {
-  return d.kind === KernelDiagnosticKind.CONTENTION ||
-    d.kind === KernelDiagnosticKind.OSCILLATION ||
-    isTimingViolation(d.kind)
-    ? 'error'
-    : 'warning';
-}
 
 /** Where a diagnostic is: `U1.A`, `U3`, `net U1.Y`. */
 export function diagnosticLocation(d: Diagnostic): string {
@@ -28,11 +17,87 @@ export function diagnosticWhen(d: Diagnostic): string {
 }
 
 /**
+ * The Simulation tab: what the kernel and the parts reported while simulating, beside the run
+ * statistics (R14).
+ */
+export function SimulationPanel({ editor }: { readonly editor: Editor }) {
+  return (
+    <div className="sim-tab">
+      <Diagnostics editor={editor} />
+      <RunStatistics editor={editor} />
+    </div>
+  );
+}
+
+/**
+ * The run's counters since power-on and for the last run, and — measured on request — the
+ * nets that change most (a forgotten fast clock, a ring that oscillates).
+ */
+function RunStatistics({ editor }: { readonly editor: Editor }) {
+  useStore(editor.simulation.ticks);
+  const active = useStoreValue(editor.simulation.status, (s) => s.state !== 'stopped');
+  const { debug } = editor;
+  if (!active) return null;
+  const rows = statsRows(debug.stats());
+  const activity = debug.activity();
+  return (
+    <aside className="sim-stats" aria-label="Run statistics" data-testid="run-statistics">
+      <table className="sim-stats-table">
+        <thead>
+          <tr>
+            <th scope="col" aria-label="Counter" />
+            <th scope="col">Since power-on</th>
+            <th scope="col">Last run</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(([name, total, last]) => (
+            <tr key={name}>
+              <th scope="row">{name}</th>
+              <td className="mono">{total}</td>
+              <td className="mono">{last}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="sim-activity">
+        <label className="check-label" title="Count each net's changes from now on (costs speed)">
+          <input
+            type="checkbox"
+            checked={debug.measuring}
+            onChange={(e) => debug.measureActivity(e.target.checked)}
+          />
+          Most active nets
+          {debug.measuring && (
+            <span className="muted"> since {formatTime(debug.activityFrom)}</span>
+          )}
+        </label>
+        {activity.length > 0 && (
+          <table className="sim-stats-table" data-testid="net-activity">
+            <tbody>
+              {activity.map((a) => (
+                <tr key={a.net}>
+                  <th scope="row" className="mono">
+                    {a.net}
+                  </th>
+                  <td className="mono">{formatCount(a.changes)}</td>
+                  <td className="mono">{formatFrequency(a.frequency)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </aside>
+  );
+}
+
+/**
  * What the kernel and the parts reported while simulating: contention, floating inputs,
  * oscillation, timing violations. Click locates the part, or the wires of the net; double-click
  * zooms to it.
  */
-export function SimulationPanel({ editor }: { readonly editor: Editor }) {
+function Diagnostics({ editor }: { readonly editor: Editor }) {
   const diagnostics = useStore(editor.simulation.diagnostics);
   const active = useStoreValue(editor.simulation.status, (s) => s.state !== 'stopped');
   if (!active) {

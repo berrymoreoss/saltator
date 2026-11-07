@@ -5,7 +5,7 @@
  * Results are recorded in the plan of the branch that changed them.
  */
 import { describe, type TestContext, test } from 'vitest';
-import { NetlistBuilder, ns, Recorder, Simulator, strong, us } from '../../src/core';
+import { NetlistBuilder, ns, Recorder, Simulator, strong, Trigger, us } from '../../src/core';
 import { testDriver } from '../../src/core/testing';
 import { createDefaultRegistry } from '../../src/library';
 
@@ -232,4 +232,39 @@ describe('kernel', () => {
       });
     });
   }
+
+  // R14: a breakpoint's cost (its own recorder of one net, a repeating trigger looking at the end
+  // of every instant) and measuring every net's activity (a counting listener).
+  test('ring oscillator ×1001 with a breakpoint: 100 µs', async ({ bench }) => {
+    const sim = ring(1001);
+    sim.action('EN', strong(0));
+    sim.settle();
+    const recorder = new Recorder({ budget: 65_536 });
+    const channel = recorder.addChannel();
+    recorder.attach(sim, new Map([[channel, sim.pinNet('I500', 'Y')]]));
+    // It fires at every rise of its net; the callback (a host's pause) does nothing here.
+    new Trigger(recorder, [{ kind: 'rise', channel }], () => undefined, { repeat: true }).attach(
+      sim,
+    );
+    sim.action('EN', strong(1));
+    sim.runFor(us(10));
+    await measure(bench, 'ring oscillator ×1001 with a breakpoint', sim, () => {
+      sim.runFor(us(100));
+    });
+  });
+
+  test('ring oscillator ×1001 measuring activity: 100 µs', async ({ bench }) => {
+    const sim = ring(1001);
+    const counts = new Float64Array(sim.netCount);
+    sim.onNetChange((_, net) => {
+      counts[net] = counts[net]! + 1;
+    });
+    sim.action('EN', strong(0));
+    sim.settle();
+    sim.action('EN', strong(1));
+    sim.runFor(us(10));
+    await measure(bench, 'ring oscillator ×1001 measuring activity', sim, () => {
+      sim.runFor(us(100));
+    });
+  });
 });
