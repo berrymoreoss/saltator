@@ -168,6 +168,61 @@ describe('Simulation: run control', () => {
     }
   });
 
+  it('pauses where pauseAt says, at real time and at Max', () => {
+    for (const speed of [REAL_TIME, MAX_SPEED]) {
+      const { clock, simulation } = setup(hello(1e6));
+      simulation.setSpeed(speed);
+      simulation.run();
+      simulation.pauseAt(ns(1234));
+      expect(simulation.pausesAt).toBe(ns(1234));
+      clock.frame(16);
+      expect(simulation.state).toBe('paused');
+      expect(simulation.simulator!.now).toBe(ns(1234));
+      expect(simulation.pausesAt).toBeUndefined();
+    }
+  });
+
+  it('runs on past a break to a pending pauseAt within the same frame', () => {
+    const { clock, simulation } = setup(hello(1e6)); // first rising edge at 500 ns
+    simulation.run();
+    const sim = simulation.simulator!;
+    const net = sim.pinNet('X1', 'Y');
+    const off = sim.onNetChange((time, n, level) => {
+      if (n !== net || levelChar(level) !== '1') return;
+      sim.requestBreak(); // a trigger: break here, then run on for 300 ns
+      simulation.pauseAt(time + ns(300));
+      off();
+    });
+    clock.frame(16);
+    expect(simulation.state).toBe('paused');
+    expect(sim.now).toBe(ns(800));
+  });
+
+  it('at Max, pauses when nothing is left to happen before pauseAt', () => {
+    const idle = setup(
+      new CircuitBuilder(registry).add('SW1', 'io/switch', { at: [0, 0] }).build(),
+    );
+    idle.simulation.setSpeed(MAX_SPEED);
+    idle.simulation.run();
+    idle.simulation.pauseAt(ms(1));
+    idle.clock.frame(16);
+    expect(idle.simulation.state).toBe('paused');
+  });
+
+  it('forgets pauseAt on pause and on power-on', () => {
+    const { clock, simulation } = setup();
+    simulation.run();
+    simulation.pauseAt(ms(500));
+    simulation.pause();
+    expect(simulation.pausesAt).toBeUndefined();
+    simulation.run();
+    simulation.pauseAt(ms(500));
+    simulation.reset();
+    expect(simulation.pausesAt).toBeUndefined();
+    clock.frames(3);
+    expect(simulation.state).toBe('running');
+  });
+
   it('lists the speeds slowest first, real time and Max last', () => {
     expect(ALL_SPEEDS.map((s) => s.label)).toEqual([
       '1 ns/s',

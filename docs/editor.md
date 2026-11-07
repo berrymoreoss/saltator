@@ -438,6 +438,11 @@ the toolbar group (Run/Pause, Step, Stop, Reset, speed select) and `F5`, `F10`, 
 - **Stop** discards the simulator; the tool goes back to Select. **Reset** powers on again at
   t = 0 (diagnostics and brightness samples cleared), keeping running or paused; a halted
   simulation runs again.
+- **Breaks** (R13): when the kernel returns `break` (a listener called `requestBreak()`), the
+  host pauses there — unless `pauseAt(time)` asks it to run on to a later instant (a trigger's
+  post-trigger end), which it then reaches within the same frame if the budget allows and
+  pauses at exactly; at Max it also pauses there when nothing is left to happen. `pauseAt` is
+  forgotten by Pause, Stop and every power-on.
 - Design errors don't block running: parts the compiler left out are missing.
 - Opening a document stops the simulation first.
 

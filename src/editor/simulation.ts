@@ -265,6 +265,7 @@ export class Simulation {
   /** Counts of the entries cleared from the list: they show again only if they recur. */
   #cleared = new WeakMap<Diagnostic, number>();
   #flash = true;
+  #pauseAt: Time | undefined;
   /** Brightness samples of the indicators, by component id. */
   readonly #lights = new Map<string, LightSample>();
   /** Live views of the parts in the simulator, by component id (rebuilt with the simulator). */
@@ -445,6 +446,19 @@ export class Simulation {
     return sim.stats.events !== before;
   }
 
+  /**
+   * While running, pause once simulated time reaches `time` (a trigger's post-trigger end);
+   * `undefined` cancels. Cleared when it pauses there, by Pause, Stop and every power-on.
+   */
+  pauseAt(time: Time | undefined): void {
+    this.#pauseAt = time;
+  }
+
+  /** Where `pauseAt` will pause; undefined when nothing is pending. */
+  get pausesAt(): Time | undefined {
+    return this.#pauseAt;
+  }
+
   /** Discards the simulator: back to the plain drawing. */
   stop(): void {
     if (this.state === 'stopped') return;
@@ -527,6 +541,7 @@ export class Simulation {
   /** A fresh simulator at t = 0 for the current netlist; false if it can't be built. */
   #powerOn(): boolean {
     this.#lights.clear();
+    this.#pauseAt = undefined;
     if (!this.#build(undefined)) return false;
     this.#signals = signalMap(this.#scene, this.#sim!);
     this.#events = 0;
@@ -556,6 +571,7 @@ export class Simulation {
   }
 
   #setState(state: SimState): void {
+    if (state !== 'running') this.#pauseAt = undefined;
     const sim = this.#sim;
     this.status.update(({ error: _, ...status }) => ({
       ...status,
@@ -593,15 +609,25 @@ export class Simulation {
     const speed = this.status.get().speed;
     const start = sim.now;
     const deadline = wall + this.#budget;
+    // From where the kernel got to, not where it should be: a backlog is dropped, not caught up.
+    const target =
+      speed.perSecond === undefined
+        ? Number.POSITIVE_INFINITY
+        : start + Math.round((elapsed / 1000) * speed.perSecond);
     let result: RunStatus;
-    if (speed.perSecond === undefined) {
-      do result = sim.settle({ maxTime: MAX_SETTLE, maxEvents: CHUNK_EVENTS });
-      while (result === 'budget' && clock.now() < deadline);
-    } else {
-      // From where the kernel got to, not where it should be: a backlog is dropped, not caught up.
-      const target = start + Math.round((elapsed / 1000) * speed.perSecond);
-      do result = sim.runUntil(target, { maxEvents: CHUNK_EVENTS });
-      while (result === 'budget' && clock.now() < deadline);
+    for (;;) {
+      const pauseAt = this.#pauseAt ?? Number.POSITIVE_INFINITY;
+      result =
+        speed.perSecond === undefined
+          ? sim.settle({
+              maxTime: Math.min(MAX_SETTLE, pauseAt - sim.now),
+              maxEvents: CHUNK_EVENTS,
+            })
+          : sim.runUntil(Math.min(target, pauseAt), { maxEvents: CHUNK_EVENTS });
+      if (clock.now() >= deadline) break;
+      // A trigger that fired asks to run on to its post-trigger end (`pauseAt`): go on there.
+      const runOn = result === 'break' && this.#pauseAt !== undefined && sim.now < this.#pauseAt;
+      if (result !== 'budget' && !runOn) break;
     }
     if (elapsed > 0) {
       const rate = ((sim.now - start) * 1000) / elapsed;
@@ -612,8 +638,12 @@ export class Simulation {
       this.#setState('halted');
       return;
     }
-    if (result === 'break') {
-      // A trigger or breakpoint asked the kernel to stop at its instant.
+    const pauseAt = this.#pauseAt;
+    const reached =
+      pauseAt !== undefined && (sim.now >= pauseAt || (result === 'idle' && target > sim.now));
+    if (reached || (result === 'break' && pauseAt === undefined)) {
+      // A breakpoint, or a trigger's post-trigger time is over (or nothing is left to happen).
+      this.#pauseAt = undefined;
       this.pause();
       return;
     }
