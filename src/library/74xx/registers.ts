@@ -317,12 +317,117 @@ export const REG377_SPEC: RegisterSpec = {
   paths: [{ from: 'CP', to: Q8, delay: 'tpd(CP to Qn)' }],
 };
 
-export const REGISTER_SPECS: readonly RegisterSpec[] = [REG175_SPEC, REG273_SPEC, REG377_SPEC];
+export const REG173_SPEC: RegisterSpec = {
+  number: '173',
+  title: 'Quad D-type flip-flop; positive-edge trigger; 3-state',
+  keywords: [...KEYWORDS, 'quad', '3-state', 'tri-state', 'bus', 'enable', 'reset', 'clear'],
+  pinCount: 16,
+  pins: [
+    pins('OE1, OE2', '1, 2', 'in', 'output enable input (active LOW)', { activeLow: true }),
+    pins('Q0, Q1, Q2, Q3', '3, 4, 5, 6', 'tristate', '3-state flip-flop output'),
+    pins('CP', '7', 'in', 'clock input (LOW-to-HIGH, edge triggered)', { clock: true }),
+    pins('GND', '8', 'power', 'ground (0 V)'),
+    pins('E1, E2', '9, 10', 'in', 'data enable input (active LOW)', { activeLow: true }),
+    pins('D0, D1, D2, D3', '14, 13, 12, 11', 'in', 'data input'),
+    pins('MR', '15', 'in', 'asynchronous master reset (active HIGH)'),
+    pins('VCC', '16', 'power', 'supply voltage'),
+  ],
+  functionTable: {
+    inputs: ['MR', 'CP', 'E1', 'E2', 'Dn', 'OE1', 'OE2'],
+    outputs: ['Qn'],
+    rows: [
+      'H X X X X L L | L',
+      'L ↑ l l l L L | L',
+      'L ↑ l l h L L | H',
+      'L X h X X L L | qn',
+      'L X X h X L L | qn',
+      'X X X X X H X | Z',
+      'X X X X X X H | Z',
+    ],
+    note: 'each flip-flop (n = 0 to 3): reset, parallel load, hold, outputs disabled (tables 3 and 4 merged: Qn shows the register while OE1 = OE2 = L)',
+    state: { qn: 'Qn' },
+  },
+  data: 'D0, D1, D2, D3',
+  outputs: 'Q0, Q1, Q2, Q3',
+  setup: 'tsu(Dn to CP)',
+  hold: 'th(Dn to CP)',
+  clockWidth: 'tW(CP)',
+  reset: { active: 'high', width: 'tW(MR)', recovery: 'trec(MR to CP)' },
+  enable: { pins: 'E1, E2', setup: 'tsu(En to CP)', hold: 'th(En to CP)' },
+  outputEnable: { pins: 'OE1, OE2', ten: 'ten(OEn to Qn)', tdis: 'tdis(OEn to Qn)' },
+  paths: [
+    { from: 'CP', to: 'Q0, Q1, Q2, Q3', delay: 'tpd(CP to Qn)' },
+    { from: 'MR', to: 'Q0, Q1, Q2, Q3', delay: 'tPHL(MR to Qn)' },
+  ],
+};
+
+/** The 374 and 574 share their function; only the pinout differs (574: flow-through). */
+const OCTAL_3STATE_TABLE = {
+  inputs: ['OE', 'CP', 'Dn'],
+  outputs: ['Internal', 'Qn'],
+  rows: ['L ↑ l | L L', 'L ↑ h | H H', 'H ↑ l | L Z', 'H ↑ h | H Z'],
+  note: 'each flip-flop (n = 0 to 7): load and read register; load register and disable outputs (Internal: the register bit)',
+} as const;
+
+export const REG374_SPEC: RegisterSpec = {
+  number: '374',
+  title: 'Octal D-type flip-flop; positive edge-trigger; 3-state',
+  keywords: [...KEYWORDS, 'octal', '3-state', 'tri-state', 'bus'],
+  pinCount: 20,
+  pins: [
+    pins('OE', '1', 'in', 'output enable input (active LOW)', { activeLow: true }),
+    pins(Q8, '2, 5, 6, 9, 12, 15, 16, 19', 'tristate', 'data outputs'),
+    pins(D8, '3, 4, 7, 8, 13, 14, 17, 18', 'in', 'data inputs'),
+    pins('GND', '10', 'power', 'ground (0 V)'),
+    pins('CP', '11', 'in', 'clock pulse input (active rising edge)', { clock: true }),
+    pins('VCC', '20', 'power', 'supply voltage'),
+  ],
+  functionTable: OCTAL_3STATE_TABLE,
+  data: D8,
+  outputs: Q8,
+  setup: 'tsu(Dn to CP)',
+  hold: 'th(Dn to CP)',
+  clockWidth: 'tW(CP)',
+  outputEnable: { pins: 'OE', ten: 'ten(OE to Qn)', tdis: 'tdis(OE to Qn)' },
+  paths: [{ from: 'CP', to: Q8, delay: 'tpd(CP to Qn)' }],
+};
+
+export const REG574_SPEC: RegisterSpec = {
+  number: '574',
+  title: 'Octal D-type flip-flop; positive edge-trigger; 3-state',
+  keywords: [...KEYWORDS, 'octal', '3-state', 'tri-state', 'bus', 'flow-through'],
+  pinCount: 20,
+  pins: [
+    pins('OE', '1', 'in', '3-state output enable input (active LOW)', { activeLow: true }),
+    pins(D8, '2, 3, 4, 5, 6, 7, 8, 9', 'in', 'data inputs'),
+    pins('GND', '10', 'power', 'ground (0 V)'),
+    pins('CP', '11', 'in', 'clock input (LOW-to-HIGH, edge triggered)', { clock: true }),
+    pins(Q8, '19, 18, 17, 16, 15, 14, 13, 12', 'tristate', '3-state flip-flop outputs'),
+    pins('VCC', '20', 'power', 'supply voltage'),
+  ],
+  functionTable: OCTAL_3STATE_TABLE,
+  data: D8,
+  outputs: Q8,
+  setup: 'tsu(Dn to CP)',
+  hold: 'th(Dn to CP)',
+  clockWidth: 'tW(CP)',
+  outputEnable: { pins: 'OE', ten: 'ten(OE to Qn)', tdis: 'tdis(OE to Qn)' },
+  paths: [{ from: 'CP', to: Q8, delay: 'tpd(CP to Qn)' }],
+};
+
+export const REGISTER_SPECS: readonly RegisterSpec[] = [
+  REG173_SPEC,
+  REG175_SPEC,
+  REG273_SPEC,
+  REG374_SPEC,
+  REG377_SPEC,
+  REG574_SPEC,
+];
 
 /** The registers of a family. */
 export function registerChips(family: LogicFamily): AnyComponentDefinition[] {
   return REGISTER_SPECS.map((spec) => chipDefinition(spec, family, registerBehavior(spec)));
 }
 
-/** 74HC175, 273, 377. */
+/** 74HC173, 175, 273, 374, 377, 574. */
 export const hcRegisters = registerChips(HC);

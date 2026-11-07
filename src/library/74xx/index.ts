@@ -33,9 +33,12 @@ export { GATE_SPECS, type GateSpec, gateChips } from './gates';
 export { HC } from './hc-timing';
 export { MUX_SPECS, type MuxSpec, muxChips } from './multiplexers';
 export {
+  REG173_SPEC,
   REG175_SPEC,
   REG273_SPEC,
+  REG374_SPEC,
   REG377_SPEC,
+  REG574_SPEC,
   REGISTER_SPECS,
   type RegisterSpec,
   type RegisterState,

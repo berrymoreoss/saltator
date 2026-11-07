@@ -196,7 +196,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 5. JK flip-flops 74HC107, 109, 112 with tests (toggle, hold, negative/positive edges,
   set/reset, checks).
 - [x] 6. Registers 74HC175, 273, 377 with tests (377's enable setup/hold, Q̅ of the 175).
-- [ ] 7. 3-state registers 74HC173, 374, 574 with tests (`ten`/`tdis`, loading while
+- [x] 7. 3-state registers 74HC173, 374, 574 with tests (`ten`/`tdis`, loading while
   disabled, the 173's data enables and active-HIGH MR).
 - [ ] 8. 74HC4511 LE checks (setup, hold, LE pulse width) with tests.
 - [ ] 9. Across parts: carry-over property over random networks with the new chips
@@ -293,6 +293,10 @@ Checkable statements; verified one by one in the finish-branch workflow.
   `TimingChecks.track` called on every watched pin reported floating data inputs nobody used —
   `track` now records from `ctx.prev` only ("left LOW at", "left HIGH at"; pulse widths count
   from leaving the opposite level). Regression test in core; mutation-checked (10 mutations).
+- 2026-11-07 — task 7: 74HC173, 374, 574 as `RegisterSpec`s; the 374/574 share a function
+  table (their Internal column is display only). The register suite is one parametrized
+  `describe` over all six (controls as "idle" levels), plus 3-state (ten/tdis, loading while
+  disabled, unknown/floating OE) and 173 enable tests; mutation-checked.
 
 ## Handoff
 

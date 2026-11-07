@@ -21,6 +21,9 @@ const word = (prefix: string, bits: number, value: number): BenchValues =>
     Array.from({ length: bits }, (_, n) => [`${prefix}${n}`, (value >> n) & 1 ? 1 : 0]),
   );
 
+/** A column of a register's function table for bit `n`: a control's pin number, or by role. */
+type Column = number | 'D' | 'Q' | 'QN' | null;
+
 interface RegisterCase {
   readonly number: string;
   readonly bits: number;
@@ -28,76 +31,115 @@ interface RegisterCase {
   readonly d: readonly number[];
   readonly q: readonly number[];
   readonly qn?: readonly number[];
-  /** Pin numbers of the controls in the function table's order before D. */
-  readonly controls: readonly number[];
+  /** The function table's columns (`null`: display only, the 374's Internal register bit). */
+  readonly columns: readonly Column[];
   readonly rows: number;
-  readonly reset: boolean;
-  readonly enable: boolean;
+  /** Controls for plain operation: loading, outputs enabled, not in reset. */
+  readonly idle: BenchValues;
+  /** The master reset's active level and its pulse width and recovery minima. */
+  readonly reset?: { readonly on: 0 | 1; readonly tW: number; readonly trec: number };
+  /** The table has previous-state rows (`qn`). */
+  readonly states?: boolean;
   readonly tpd: number;
   readonly tsu: number;
   readonly th: number;
-  readonly tWReset?: number;
-  readonly trec?: number;
 }
 
+const D8_PINS = [3, 4, 7, 8, 13, 14, 17, 18];
+const Q8_PINS = [2, 5, 6, 9, 12, 15, 16, 19];
+
 const CASES: readonly RegisterCase[] = [
+  {
+    number: '173',
+    bits: 4,
+    d: [14, 13, 12, 11],
+    q: [3, 4, 5, 6],
+    columns: [15, 7, 9, 10, 'D', 1, 2, 'Q'], // MR, CP, E1, E2, Dn, OE1, OE2 | Qn
+    rows: 178, // reset 16 + loads 2 + holds 2 × 8 × 2 + disabled 2 × 64
+    idle: { MR: 0, E1: 0, E2: 0, OE1: 0, OE2: 0 },
+    reset: { on: 1, tW: 16, trec: 12 },
+    states: true,
+    tpd: 20,
+    tsu: 12,
+    th: 1,
+  },
   {
     number: '175',
     bits: 4,
     d: [4, 5, 12, 13],
     q: [2, 7, 10, 15],
     qn: [3, 6, 11, 14],
-    controls: [1, 9], // MR, CP
+    columns: [1, 9, 'D', 'Q', 'QN'], // MR, CP, Dn | Qn, Q̅n
     rows: 6,
-    reset: true,
-    enable: false,
+    idle: { MR: 1 },
+    reset: { on: 0, tW: 16, trec: 5 },
     tpd: 20,
     tsu: 16,
     th: 5,
-    tWReset: 16,
-    trec: 5,
   },
   {
     number: '273',
     bits: 8,
-    d: [3, 4, 7, 8, 13, 14, 17, 18],
-    q: [2, 5, 6, 9, 12, 15, 16, 19],
-    controls: [1, 11],
+    d: D8_PINS,
+    q: Q8_PINS,
+    columns: [1, 11, 'D', 'Q'],
     rows: 6,
-    reset: true,
-    enable: false,
+    idle: { MR: 1 },
+    reset: { on: 0, tW: 12, trec: 10 },
     tpd: 15,
     tsu: 12,
     th: 3,
-    tWReset: 12,
-    trec: 10,
+  },
+  {
+    number: '374',
+    bits: 8,
+    d: D8_PINS,
+    q: Q8_PINS,
+    columns: [1, 11, 'D', null, 'Q'], // OE, CP, Dn | Internal, Qn
+    rows: 4,
+    idle: { OE: 0 },
+    tpd: 18,
+    tsu: 12,
+    th: 5,
   },
   {
     number: '377',
     bits: 8,
-    d: [3, 4, 7, 8, 13, 14, 17, 18],
-    q: [2, 5, 6, 9, 12, 15, 16, 19],
-    controls: [11, 1], // CP, E
+    d: D8_PINS,
+    q: Q8_PINS,
+    columns: [11, 1, 'D', 'Q'], // CP, E, Dn | Qn
     rows: 14, // two loads + hold rows from two states (2 × 2 + 4 × 2)
-    reset: false,
-    enable: true,
+    idle: { E: 0 },
+    states: true,
     tpd: 16,
     tsu: 12,
     th: 3,
+  },
+  {
+    number: '574',
+    bits: 8,
+    d: [2, 3, 4, 5, 6, 7, 8, 9],
+    q: [19, 18, 17, 16, 15, 14, 13, 12],
+    columns: [1, 11, 'D', null, 'Q'],
+    rows: 4,
+    idle: { OE: 0 },
+    tpd: 17,
+    tsu: 12,
+    th: 5,
   },
 ];
 
 describe.each(CASES)('74HC$number', (c) => {
   const d = chip(c.number);
   const mask = (1 << c.bits) - 1;
+  const resetOn: BenchValues = c.reset ? { MR: c.reset.on } : {};
+  const resetOff: BenchValues = c.reset ? { MR: c.reset.on === 1 ? 0 : 1 } : {};
 
-  /** Cleared (reset, or 0 loaded) long ago; CP low, D = 0, loading enabled. */
+  /** Cleared (reset, or 0 loaded) long ago; CP low, D = 0, controls idle. */
   function bench(): Bench {
     const b = new Bench(d);
-    b.set({ CP: 0, ...word('D', c.bits, 0), ...(c.enable ? { E: 0 } : {}) });
-    if (c.reset) b.set({ MR: 0 });
-    b.run(us(1));
-    if (c.reset) b.set({ MR: 1 });
+    b.set({ ...c.idle, CP: 0, ...word('D', c.bits, 0), ...resetOn }).run(us(1));
+    if (c.reset) b.set(resetOff);
     else b.set({ CP: 1 });
     b.run(us(1));
     b.set({ CP: 0 }).run(us(1));
@@ -122,18 +164,23 @@ describe.each(CASES)('74HC$number', (c) => {
     'follows its function table, by pin number (bit %s)',
     (n) => {
       const b = bench();
-      const columns = names(d, [...c.controls, c.d[n]!, c.q[n]!, ...(c.qn ? [c.qn[n]!] : [])]);
+      const role = { D: c.d[n]!, Q: c.q[n]!, QN: c.qn?.[n] ?? -1 };
+      const columns = c.columns.map((col) =>
+        col === null ? null : names(d, [typeof col === 'number' ? col : role[col]])[0]!,
+      );
       const table = d.functionTable!;
-      expect(columns.map((name) => name.replace(/\d+/, 'n'))).toEqual([
-        ...table.inputs,
-        ...table.outputs,
-      ]);
+      // Each pin is the column of that name, or of its generic name (D3 → Dn).
+      [...table.inputs, ...table.outputs].forEach((name, i) => {
+        const pin = columns[i];
+        if (pin !== null) expect([pin, pin!.replace(/\d+/, 'n')]).toContain(name);
+      });
       const D = `D${n}`;
-      const states: BenchValues[][] = [
-        [{ E: 0, [D]: 0, CP: 0 }, { CP: 1 }, { CP: 0 }],
-        [{ E: 0, [D]: 1, CP: 0 }, { CP: 1 }, { CP: 0 }],
-      ];
-      expect(functionTable(b, table, columns, c.enable ? { states } : {})).toBe(c.rows);
+      const states = ([0, 1] as const).map((v): BenchValues[] => [
+        { ...c.idle, [D]: v, CP: 0 },
+        { CP: 1 },
+        { CP: 0 },
+      ]);
+      expect(functionTable(b, table, columns, c.states ? { states } : {})).toBe(c.rows);
       expect(b.diagnostics).toEqual([]);
     },
   );
@@ -153,12 +200,7 @@ describe.each(CASES)('74HC$number', (c) => {
 
   it('is unknown from power-on until it is reset or loaded', () => {
     const b = new Bench(d);
-    b.set({
-      CP: 0,
-      ...word('D', c.bits, 1),
-      ...(c.enable ? { E: 0 } : {}),
-      ...(c.reset ? { MR: 1 } : {}),
-    });
+    b.set({ ...c.idle, CP: 0, ...word('D', c.bits, 1), ...resetOff });
     b.run(us(1));
     b.expect({ Q0: 'X', Q1: 'X' });
     clock(b);
@@ -196,7 +238,7 @@ describe.each(CASES)('74HC$number', (c) => {
       clock(b);
       const tPHL =
         d.timing!.typical[Object.keys(d.timing!.typical).find((k) => k.startsWith('tPHL'))!];
-      expect(b.measure({ MR: 0 }, 'Q0')).toBe(tPHL);
+      expect(b.measure(resetOn, 'Q0')).toBe(tPHL);
     }
   });
 
@@ -268,26 +310,26 @@ describe.each(CASES)('74HC$number', (c) => {
         const b = bench();
         b.set({ D0: 1 }).run(us(1));
         clock(b);
-        b.set({ MR: 0 }).run(ns(width));
-        b.set({ MR: 1 }).run(us(1));
+        b.set(resetOn).run(ns(width));
+        b.set(resetOff).run(us(1));
         return b;
       };
-      expect(timing(pulse(c.tWReset!))).toEqual([]);
-      pulse(c.tWReset!).expect({ Q0: 0 });
-      const short = pulse(c.tWReset! - 1);
+      expect(timing(pulse(c.reset!.tW))).toEqual([]);
+      pulse(c.reset!.tW).expect({ Q0: 0 });
+      const short = pulse(c.reset!.tW - 1);
       expect(timing(short).map((x) => `${x.kind} ${x.pin}`)).toEqual(['pulse-width-violation MR']);
       short.expect({ Q0: 'X', Q1: 0 }); // only the bit the reset changed
 
       const recover = (after: number) => {
         const b = bench();
-        b.set({ D0: 1, MR: 0 }).run(us(1));
-        b.set({ MR: 1 }).run(ns(after));
+        b.set({ D0: 1, ...resetOn }).run(us(1));
+        b.set(resetOff).run(ns(after));
         b.set({ CP: 1 }).run(us(1));
         return b;
       };
-      expect(timing(recover(c.trec!))).toEqual([]);
-      recover(c.trec!).expect({ Q0: 1 });
-      const early = recover(c.trec! - 1);
+      expect(timing(recover(c.reset!.trec))).toEqual([]);
+      recover(c.reset!.trec).expect({ Q0: 1 });
+      const early = recover(c.reset!.trec - 1);
       expect(timing(early).map((x) => `${x.kind} ${x.pin}`)).toEqual(['recovery-violation MR']);
       early.expect({ Q0: 'X', Q1: 0 });
     });
@@ -298,9 +340,9 @@ describe.each(CASES)('74HC$number', (c) => {
       clock(b);
       b.set({ MR: 'X' }).run(us(1));
       b.expect({ Q0: 'X', Q1: 0 });
-      b.set({ MR: 0 }).run(us(1));
+      b.set(resetOn).run(us(1));
       b.expect({ Q0: 0 });
-      b.set({ CP: 1, MR: 0 }).run(us(1)); // a clock held in reset loads nothing, checks nothing
+      b.set({ CP: 1 }).run(us(1)); // a clock held in reset loads nothing, checks nothing
       b.set({ D1: 1 }).run(ns(1));
       b.set({ CP: 0 }).run(ns(1));
       b.expect({ Q0: 0, Q1: 0 });
@@ -368,5 +410,99 @@ describe('74HC377 data enable', () => {
     b.set({ E: 1 }).run(ns(5)); // disabled 5 ns before the edge
     b.set({ CP: 1 }).run(us(1));
     b.expect({ Q0: 'X', Q1: 0 });
+  });
+});
+
+const THREE_STATE: readonly {
+  number: string;
+  oe: readonly string[];
+  idle: BenchValues;
+  ten: number;
+  tdis: number;
+}[] = [
+  { number: '173', oe: ['OE1', 'OE2'], idle: { MR: 0, E1: 0, E2: 0 }, ten: 19, tdis: 19 },
+  { number: '374', oe: ['OE'], idle: {}, ten: 15, tdis: 18 },
+  { number: '574', oe: ['OE'], idle: {}, ten: 16, tdis: 14 },
+];
+
+describe.each(THREE_STATE)('74HC$number 3-state outputs', ({ number, oe, idle, ten, tdis }) => {
+  const d = chip(number);
+  const enable = (level: 0 | 1 | 'X' | 'Z') => Object.fromEntries(oe.map((p) => [p, level]));
+
+  it('loads while disabled; enabling shows the register after ten, disabling releases after tdis', () => {
+    const b = new Bench(d);
+    b.set({ ...idle, ...enable(1), CP: 0, D0: 1, D1: 0 }).run(us(1));
+    b.set({ CP: 1 }).run(us(1));
+    b.expect({ Q0: 'Z', Q1: 'Z' });
+    expect(b.measure(enable(0), 'Q0')).toBe(ns(ten));
+    b.expect({ Q0: 1, Q1: 0 });
+    expect(b.measure(enable(1), 'Q0')).toBe(ns(tdis));
+    b.expect({ Q0: 'Z' });
+    expect(timing(b)).toEqual([]);
+  });
+
+  it('drives X while an output enable is unknown or floating (it might be driving)', () => {
+    const b = new Bench(d);
+    b.set({ ...idle, ...enable(0), CP: 0, D0: 1 }).run(us(1));
+    b.set({ CP: 1 }).run(us(1));
+    b.set({ [oe[0]!]: 'X' }).run(us(1));
+    b.expect({ Q0: 'X' });
+    b.set({ [oe[0]!]: 'Z' }).run(us(1));
+    b.expect({ Q0: 'X' });
+    expect(b.diagnostics.map((x) => `${x.kind} ${x.net}`)).toContain(
+      `${KernelDiagnosticKind.FLOATING_INPUT} ${oe[0]}`,
+    );
+    if (oe.length > 1) {
+      b.set({ OE2: 1 }).run(us(1)); // the other one decides: disabled
+      b.expect({ Q0: 'Z' });
+    }
+  });
+});
+
+describe('74HC173 data enables', () => {
+  const hc173 = chip('173');
+  function bench(): Bench {
+    const b = new Bench(hc173);
+    b.set({ OE1: 0, OE2: 0, E1: 0, E2: 0, CP: 0, MR: 1, ...word('D', 4, 0) }).run(us(1));
+    b.set({ MR: 0 }).run(us(1));
+    return b;
+  }
+
+  it.each([
+    [{ E1: 1, E2: 0 }, 0],
+    [{ E1: 0, E2: 1 }, 0],
+    [{ E1: 1, E2: 1 }, 0],
+    [{ E1: 0, E2: 0 }, 1],
+    [{ E1: 'X', E2: 0 }, 'X'],
+    [{ E1: 'X', E2: 1 }, 0], // E2 decides: hold
+  ] as const)('loads only with both enables LOW: %o → Q0 = %s', (enables, q0) => {
+    const b = bench();
+    b.set({ ...enables, D0: 1 }).run(us(1));
+    b.set({ CP: 1 }).run(us(1));
+    b.expect({ Q0: q0, Q1: 0 });
+  });
+
+  it('checks the enables: set-up 20 ns; their hold minimum is 0', () => {
+    const setup = (before: number) => {
+      const b = bench();
+      b.set({ E1: 1, D0: 1 }).run(us(1));
+      b.set({ E1: 0 }).run(ns(before));
+      b.set({ CP: 1 }).run(ns(0));
+      b.set({ E2: 1 }).run(us(1)); // right at the edge: th = 0 allows it
+      return b;
+    };
+    expect(timing(setup(20))).toEqual([]);
+    setup(20).expect({ Q0: 1 });
+    const late = setup(19);
+    expect(timing(late).map((x) => `${x.kind} ${x.pin}`)).toEqual(['setup-violation E1']);
+    late.expect({ Q0: 'X', Q1: 0 });
+  });
+
+  it('is cleared by MR HIGH, asynchronously, after tPHL', () => {
+    const b = bench();
+    b.set({ D0: 1 }).run(us(1));
+    b.set({ CP: 1 }).run(us(1));
+    b.expect({ Q0: 1 });
+    expect(b.measure({ MR: 1 }, 'Q0')).toBe(ns(16));
   });
 });
