@@ -1,6 +1,13 @@
 import { type ReactNode, type Ref, useEffect, useRef, useState } from 'react';
 import { designatorError } from '../circuit';
-import { formatTime, type PropDef, type PropValue, pinsOf } from '../core';
+import {
+  formatTime,
+  type PropDef,
+  type PropValue,
+  pinsOf,
+  programmedBytes,
+  readImage,
+} from '../core';
 import { type Editor, LED_COLORS, type Scene, type ScenePart, type SceneWire } from '../editor';
 import { useStore } from './hooks';
 import { LevelBadge, LiveLevel, styleBit } from './LiveLevel';
@@ -16,10 +23,21 @@ export function formatProp(def: PropDef, value: PropValue | undefined): string {
       return value ? 'Yes' : 'No';
     case 'enum':
       return def.options?.find((o) => o.value === value)?.label ?? String(value);
+    case 'image':
+      return imageSummary(def, String(value));
     default:
       if (def.type === 'number' && def.si) return formatSi(Number(value), def.unit);
       return def.unit ? `${value} ${def.unit}` : String(value);
   }
+}
+
+/** A memory image as Properties shows it: `214 of 2048 bytes programmed`, `Erased (2048 bytes)`. */
+export function imageSummary(def: PropDef, text: string): string {
+  const size = def.max ?? 0;
+  const bytes = readImage(text, size);
+  if (typeof bytes === 'string') return 'Invalid contents';
+  const programmed = programmedBytes(bytes);
+  return programmed === 0 ? `Erased (${size} bytes)` : `${programmed} of ${size} bytes programmed`;
 }
 
 function Row({ label, children }: { readonly label: string; readonly children: ReactNode }) {
@@ -332,7 +350,8 @@ function PropEditor({
   readonly editable: boolean;
   readonly onChange: (value: PropValue) => string | undefined;
 }) {
-  if (!editable) return <>{formatProp(def, value)}</>;
+  // Contents are loaded, not typed (the memory inspector edits them, R12b).
+  if (!editable || def.type === 'image') return <>{formatProp(def, value)}</>;
   const testId = `prop-${def.key}`;
   if (def.type === 'boolean') {
     return (

@@ -12,7 +12,8 @@ How parts are described in `src/library`. Rationale for modeling chips as packag
 > `timing.min` with timing checks, sequential function tables and the pin `clock` flag on
 > packages; R10a added the `net` family (net labels), the `net` pin field, `schematicOnly`,
 > `nextProps`, prop `pattern`s and `centered` symbols; R10b bus labels, bus entries and the
-> `bus` pin field.
+> `bus` pin field; R12a the `mem` family, `image` props, `memory` definitions and timing as a
+> function of props (speed grades).
 
 ## Families and type ids
 
@@ -25,9 +26,9 @@ the part before the slash (`familyOf(type)`).
 | `prim`   | `prim/nand`, `prim/tristate-buffer`, `prim/pull`                   | Abstract building blocks (Logisim-style), configurable inputs and delay. For prototyping and learning. |
 | `io`     | `io/switch`, `io/button`, `io/led`, `io/clock`, `io/seven-segment` | Interaction and indication: rails, switches, LEDs, displays, clock, probe ([below](#io-parts-io)).     |
 | `net`    | `net/label`, `net/bus-entry`                                       | Schematic-only connections: net and bus labels, bus entries ([below](#net-labels-net)); ports later.   |
-| `74xx`   | `74xx/74hc00`, `74xx/74hc245`, `74xx/74ls189`                      | Real logic chips ([below](#74xx-chips-74xx)). Behavior shared per function; timing per logic family.   |
+| `74xx`   | `74xx/74hc00`, `74xx/74hc245`, `74xx/74hc574`                      | Real logic chips ([below](#74xx-chips-74xx)). Behavior shared per function; timing per logic family.   |
 | `timer`  | `timer/ne555`                                                      | Analog timers, behavioral: the RC network as props ([below](#timers-timer)).                           |
-| `mem`    | `mem/at28c256`, `mem/62256`                                        | ROM/EEPROM/SRAM with inspectors _(planned, R12)_.                                                      |
+| `mem`    | `mem/at28c16`, `mem/6116`                                          | EEPROMs (read as ROMs) and SRAMs ([below](#memories-mem)); the inspector _(planned, R12b)_.            |
 | `cpu`    | `cpu/w65c02s`                                                      | Processors (pin-level) _(planned, R17)_. Later: Z80, AVR, PIC.                                         |
 | `periph` | `periph/w65c22`, `periph/hd44780`                                  | Peripherals _(planned, R18)_.                                                                          |
 | `test`   | `test/driver`                                                      | Test-only parts from `src/core/testing`; not in the default registry.                                  |
@@ -47,11 +48,12 @@ interface ComponentDefinition<Props, State> {
   package?: PackageDef; // { kind: 'dip', pins: 14 }; absent for abstract parts
   units?: UnitDef[]; // gate sections, for the future symbol view
   props?: PropDef[]; // user-editable properties (inspector)
-  timing?: TimingDef; // datasheet numbers + source/conditions
+  timing?: TimingDef | ((props: Props) => TimingDef); // datasheet numbers + source/conditions
   functionTable?: FunctionTable; // datasheet function table (one unit's), shown in Part Info
   symbol?: SymbolDef | ((props: Props) => SymbolDef); // geometry when drawn as a symbol
   schematicOnly?: boolean; // drawn and connected, never simulated: left out of the netlist
   nextProps?: (props: Props) => Props; // props of the next instance placed after this one
+  memory?: MemoryDef<State>; // a memory's size and a view of its cells (inspectors, test benches)
 
   create(props: Props): Behavior<State>; // see docs/simulation.md
 }
@@ -166,7 +168,7 @@ later).
 interface PropDef {
   key: string; // 'color', 'frequency', 'inputs', 'delay'
   label: string;
-  type: 'number' | 'integer' | 'boolean' | 'enum' | 'color' | 'string' | 'time';
+  type: 'number' | 'integer' | 'boolean' | 'enum' | 'color' | 'string' | 'time' | 'image';
   default: number | boolean | string;
   min?: number;
   max?: number;
@@ -182,6 +184,10 @@ interface PropDef {
   converts for display.
 - `number` props with `si` hold base units (ohms, farads, hertz) and are typed and shown with SI
   prefixes (`4.7k`, `100n`, `1u`; shown `4.7 kΩ`), as resistor and capacitor values are.
+- `image` props hold a memory's contents as text, sparse hex runs (`0000:A9FF8D 7FFC:0080`:
+  an address, a colon, the bytes; unlisted bytes erased, `0xFF`); `max` is the size in bytes
+  (`parseImage`, `formatImage` in core; [Memories](#contents-in-the-document)). Properties
+  shows them as a summary (`214 of 2048 bytes programmed`).
 - Props are part of the saved document; changing one recompiles the netlist.
 - `resolveProps(definition, raw)` (used by the netlist resolver) fills in defaults and rejects
   unknown keys, wrong types, non-integers for `integer`/`time`, out-of-range values and unknown
@@ -223,6 +229,13 @@ which the timing checks use ([below](#timing-checks)), and its typical value in 
 25 °C, the temperature of the typical delays (conditions: `…, min at 25 °C`); the 74HC74's data
 sheet (rev. 9) gives them only for −40 °C to +85 °C, used as given (`min at −40 °C to +85 °C`).
 The Part tab shows every delay and requirement with its source.
+
+**Limits only** (R12a). Memory data sheets give no typical values, only guaranteed limits:
+memories keep `typical` empty, the maxima of what they drive (`tACC`, `tDF`) in `max` and the
+minima of their outputs (`tOH`, `tCLZ`) and of their requirements in `min` — a key may have
+both (`tOE`, min 10 / max 70 ns on the AT28C16). **Speed grades**: a part sold in several grades
+takes a `speed` prop and gives `timing` as a function of props (`timingOf(definition, props)`);
+the Part tab shows the picked instance's.
 
 ## Function tables
 
@@ -723,3 +736,84 @@ RESET overrides TRIG, which overrides THRES.
   0 V); timers use `wakeAfter` with a generation token in the state (RESET and new pulses make a
   pending wake stale). CONT is never simulated. Changing `rb` while running acts like turning a
   potentiometer: the next phase uses it (carry-over).
+
+## Memories (`mem/*`)
+
+R12a: memory chips as their data sheets describe them ([ADR-0017](adr/0017-memories.md)), in
+`src/library/mem`. Data sheets: Atmel/Microchip for the EEPROMs, Renesas (IDT) for the 6116,
+Alliance Memory for the 62256.
+
+| Type           | Part               | Organization   | Package | Read (max)                     | Notes                                            |
+| -------------- | ------------------ | -------------- | ------- | ------------------------------ | ------------------------------------------------ |
+| `mem/at28c16`  | AT28C16-15         | 2K × 8 EEPROM  | DIP-24  | tACC 150, tCE 150, tOE 70 ns   | read as a ROM; `contents` image                  |
+| `mem/at28c64b` | AT28C64B-15        | 8K × 8 EEPROM  | DIP-28  | tACC 150, tCE 150, tOE 70 ns   | the current part (the plain AT28C64 is not made) |
+| `mem/at28c256` | AT28C256-15        | 32K × 8 EEPROM | DIP-28  | tACC 150, tCE 150, tOE 70 ns   | the -20/-25/-35 grades are military only         |
+| `mem/6116`     | 6116SA/LA 15/20/25 | 2K × 8 SRAM    | DIP-24  | tAA 15/19/25, tACS 15/20/25 ns | `speed` (25 ns by default), `powerOn`            |
+| `mem/62256`    | AS6C62256-55       | 32K × 8 SRAM   | DIP-28  | tAA 55, tACE 55, tOE 30 ns     | `powerOn`; Alliance's names `DQ0`…`DQ7`, `VSS`   |
+
+- **Pins**: data sheet names, the data pins named `IO0`…`IO7` and drawn `I/O0`… (no `/` in pin
+  names: R11's instance paths will use it), `DQ0`…`DQ7` on the AS6C62256; `CE̅`/`CS̅`, `OE̅`, `WE̅` active LOW, data pins `bidir`.
+  The mode tables are `functionTable`s with text cells (`Dout`, `Din`), checked by hand.
+- **Reads** (`ReadPath` in `memory.ts`), with the outputs driving while `CE̅` and `OE̅` are LOW
+  (and, for a RAM, `WE̅` HIGH):
+  - after an address change the old data for `tOH`, then `X`, the new data `tACC`/`tAA` after
+    the change;
+  - after `CE̅` or `OE̅` falls, floating until `tCLZ`/`tOLZ` (0 when the data sheet gives none:
+    the EEPROMs), then `X`; the data is valid at the latest of the address, chip enable and
+    output enable deadlines (so `OE̅` may come `tACC − tOE` after the address for free);
+  - after a disable (`CE̅`/`OE̅` rising, a RAM's `WE̅` falling) the outputs keep driving what they
+    drove until the maximum release time (`tDF`, `tCHZ`, `tOHZ`, `tWHZ`; from the first control
+    that turned them off), then float: a driver turning on sooner fights them (contention);
+  - unknown address bits merge the cells they could select (each bit known where the cells
+    agree; more than 8 unknown bits: all `X`); an unknown enable that might drive drives `X`.
+  - The address is read only while the outputs drive: a deselected chip on a floating bus
+    reports nothing.
+- **RAM writes** (`WritePath` in `write.ts`): under way while `CS̅` and `WE̅` are LOW; the cell
+  takes the data present when the first rises. Changes at the same instant as a write's start
+  count as before it, at the same instant as its end as after it (`tAS`, `tWR`, `tDH` of 0 are
+  met by them). The data sheet's requirements, as timing violations on the pin at fault:
+
+  | Requirement                         | Violated when                                        | Becomes `X`                          |
+  | ----------------------------------- | ---------------------------------------------------- | ------------------------------------ |
+  | `tAS` address set-up                | the address changed less than `tAS` before the start | the cells at the old and new address |
+  | address stable during the write     | the address changes while the write is under way     | the cells at the old and new address |
+  | `tAW` address valid to end of write | the address changed less than `tAW` before the end   | the cells at the old and new address |
+  | `tWR` write recovery                | the address changes less than `tWR` after the end    | the cells at the old and new address |
+  | `tWP` write pulse (CS̅ and WE̅ LOW)   | the write lasted less                                | the written cell                     |
+  | `tCW` chip select to end of write   | `CS̅` was LOW for less when the write ended           | the written cell                     |
+  | `tDW` data set-up                   | a data bit changed less than `tDW` before the end    | that bit                             |
+  | `tDH` data hold                     | a data bit changes less than `tDH` after the end     | that bit, where it differs           |
+
+  A real chip may also write the addresses an address change passes through; only the old and
+  new address are marked. The 6116's note 7 (with `OE̅` LOW the pulse must last `tWHZ + tDW`)
+  needs no check of its own: the outputs drive the cell's data until `tWHZ`, so the bits that
+  differ change late and miss `tDW`. Floating data is reported when the write ends, not while
+  the bus turns round. An unknown `CS̅` or `WE̅` that might write merges the data into the cell
+  (unknown where they differ); unknown address bits do so for every cell they could select;
+  unknown data bits are stored `X`. Before `CS̅` and `WE̅` were first known after power-on, an
+  unknown write is no write (every gate output starts `X` for its first delay).
+- **EEPROMs** read as ROMs: their contents come from the `contents` image (erased: `0xFF`). A
+  write the circuit attempts — `WE̅` (or `CE̅`) falling while the other is LOW and `OE̅` HIGH, the
+  data sheet's byte write — is reported (`write-ignored`, a warning: "EEPROM writes are not
+  simulated: the write to 0x005 was ignored") and changes nothing; the data sheet's write
+  inhibit (`OE̅` LOW, `CE̅` or `WE̅` HIGH) is no attempt. Write cycles are backlog.
+- **Power-on** (`powerOn`, RAMs): `x` (default: every bit unknown until written), `zeros`,
+  `random` (`SeededRandom` seeded from the designator's hash: the same bytes in every run,
+  different ones in two RAMs). The state's cells are typed arrays (`data`, `unknown` with a set
+  bit per unknown bit), moved by the carry-over.
+- **Debug write**: a RAM takes the action `{ type: 'poke', address, data: number[] }` at the
+  current instant: the cells change at once, outputs reading them follow through the read path
+  (`X`, then the data after `tAA`). ROM contents change through the image (a document edit).
+- **Inspection**: `memory: { words, width, volatile, view(state) }` on the definition; the view
+  is the instance's cells (`data`, `unknown`), read without copying.
+- **Tests** (`src/library/mem/*.test.ts`): pinouts by number from the data sheets' figures, every
+  read path's limits measured (`changes` lists a pin's changes with their times), the window,
+  unknowns, each write requirement just inside (silent, stored) and just outside (reported,
+  `X`), with a test part for the requirements the 6116 has as 0; mutation-checked. Scenarios
+  (`tests/scenarios/memory.test.ts`): a 6116 written and read back through a 74HC245 (with `OE̅`
+  following WRITE the RAM fights the 245 for 5 ns), an AT28C16 decoding hex for a 7-segment
+  display, a 74HC574 clocked before `tAA` latching `X`; the carry-over property runs random
+  networks of memories. Benchmark: a 74HC4040 sweeping sixteen 6116s, ≈ 7.5M events/s.
+- **Examples**: EEPROM 7-Segment Decoder (an AT28C16 lighting the hex digit of four switches)
+  and RAM by Hand (a 6116 written from switches through a 74HC245 in PROGRAM mode and read back
+  onto LEDs).

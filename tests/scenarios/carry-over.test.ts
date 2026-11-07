@@ -334,6 +334,81 @@ describe('recompiling counters and shift registers mid-run', () => {
   });
 });
 
+describe('recompiling memories mid-run', () => {
+  it('is invisible in random networks of EEPROMs and SRAMs, writes and pokes included (seeded)', () => {
+    const memories = ['mem/at28c16', 'mem/6116', 'mem/62256'];
+    let changes = 0;
+    let violations = 0;
+    for (let seed = 1; seed <= 25; seed++) {
+      const random = rng(4000 + seed);
+      const pick = <T>(items: readonly T[]): T => items[Math.floor(random() * items.length)]!;
+      const b = new NetlistBuilder();
+      const outputs: string[] = [];
+      const inputs: string[] = [];
+      const data: string[] = [];
+      const rams: string[] = [];
+      for (let i = 0; i < 2; i++) {
+        b.add(`X${i}`, 'io/clock', { frequency: 2e6 + Math.floor(random() * 30e6), duty: 50 });
+        b.add(`T${i}`, 'test/driver');
+        outputs.push(`X${i}.Y`, `T${i}.Y`);
+      }
+      // A counter to sweep addresses.
+      b.add('C', '74xx/74hc4040');
+      inputs.push('C.CP', 'C.MR');
+      for (let q = 0; q < 12; q++) outputs.push(`C.Q${q}`);
+      for (let i = 0; i < 3; i++) {
+        const type = pick(memories);
+        const bytes = Array.from({ length: 16 }, () => Math.floor(random() * 256));
+        const powerOn = pick(['x', 'zeros', 'random']);
+        const props =
+          type === 'mem/6116'
+            ? { speed: pick(['15', '20', '25']), powerOn }
+            : type === 'mem/62256'
+              ? { powerOn }
+              : { contents: `0000:${bytes.map((x) => x.toString(16).padStart(2, '0')).join('')}` };
+        b.add(`M${i}`, type, props);
+        if (type !== 'mem/at28c16') rams.push(`M${i}`);
+        for (const pin of pinsOf(registry.get(type)!, resolveProps(registry.get(type)!, props))) {
+          if (pin.dir === 'in') inputs.push(`M${i}.${pin.name}`);
+          if (pin.dir === 'bidir') data.push(`M${i}.${pin.name}`);
+        }
+      }
+      // Controls from the clocks and drivers (writes, often too short or too late), addresses
+      // from anywhere; data pins on shared nets with drivers or each other.
+      const sources = ['X0.Y', 'X1.Y', 'T0.Y', 'T1.Y'];
+      for (const input of inputs) {
+        const control = /\.(CS|CE|OE|WE)$/.test(input);
+        if (control) b.connect(pick(sources), input);
+        else if (random() < 0.9) b.connect(pick(outputs), input);
+      }
+      for (const pin of data) if (random() < 0.8) b.connect(pick([...outputs, ...data]), pin);
+      const netlist = b.build();
+      const pokes: Poke[] = Array.from({ length: 10 }, () => {
+        const time = Math.floor(random() * us(3));
+        if (rams.length > 0 && random() < 0.3) {
+          const address = Math.floor(random() * 2040);
+          return {
+            time,
+            component: pick(rams),
+            action: { type: 'poke', address, data: [1, 2, 3] },
+          };
+        }
+        return {
+          time,
+          component: pick(['T0', 'T1']),
+          action: pick([Drive.STRONG_0, Drive.STRONG_1, Drive.Z]),
+        };
+      });
+      const at = Array.from({ length: 12 }, () => Math.floor(random() * us(3)));
+      const { changes: list, sim } = expectInvisible(netlist, us(3), pokes, at);
+      changes += list.length;
+      for (const d of sim.diagnostics.entries) if (isTimingViolation(d.kind)) violations += d.count;
+    }
+    expect(changes).toBeGreaterThan(5000);
+    expect(violations).toBeGreaterThan(50);
+  });
+});
+
 describe('editing while running', () => {
   const latch = (extra?: (b: NetlistBuilder) => NetlistBuilder) => {
     const b = new NetlistBuilder()

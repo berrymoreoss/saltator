@@ -108,8 +108,10 @@ tests ([ADR-0011](adr/0011-real-chips.md)).
 
 Bigger parts (ROM/RAM, CPUs, microcontrollers, peripherals) are ordinary components with internal
 state; they additionally expose an **inspection interface** (memory view, CPU registers) for UI
-panels and a **debug access** path (flash a ROM, poke RAM) that bypasses simulated timing
-_(planned, R12/R17)_.
+panels and a **debug access** path (flash a ROM, poke RAM) that bypasses simulated timing: memories
+have them since R12a (`ComponentDefinition.memory`, the `poke` action; a ROM's contents are an
+`image` prop), CPUs _(planned, R17)_. Memories simulate with their data sheets' limits and show
+`X` until their access time ([ADR-0017](adr/0017-memories.md)).
 
 ## Circuit model
 
@@ -214,7 +216,8 @@ session (name, file, saved circuit) and asks before replacing unsaved changes. T
 unsaved changes, file handle and view included — is autosaved to IndexedDB and restored at
 start-up, per browser tab (`src/ui/autosave.ts`, `browser-storage.ts`); Open Recent keeps file
 handles there too. Example circuits are files in `examples/`. Spec:
-[editor.md](editor.md#files). ROM images import and export as `.bin` and Intel HEX _(R12)_.
+[editor.md](editor.md#files). ROM contents are saved in the document as `image` props (sparse hex
+runs, R12a); they import and export as `.bin` and Intel HEX _(planned, R12b)_.
 
 ## Testing strategy
 

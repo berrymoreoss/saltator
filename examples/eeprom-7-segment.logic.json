@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 2,
+  "circuits": [
+    {
+      "id": "main",
+      "name": "Main",
+      "components": [
+        { "id": "U1", "type": "mem/at28c16", "x": 14, "y": 0, "props": { "contents": "0000:3F065B4F666D7D077F6F777C395E7971" } },
+        { "id": "SW1", "type": "io/dip-switch", "label": "ADDRESS (S1 = A0)", "x": 0, "y": 5, "props": { "count": 4, "contact": "spdt", "on": 0 } },
+        { "id": "NL1", "type": "net/label", "x": 4, "y": 6, "props": { "name": "A0" } },
+        { "id": "NL2", "type": "net/label", "x": 14, "y": 8, "rotation": 180, "props": { "name": "A0" } },
+        { "id": "NL3", "type": "net/label", "x": 4, "y": 7, "props": { "name": "A1" } },
+        { "id": "NL4", "type": "net/label", "x": 14, "y": 7, "rotation": 180, "props": { "name": "A1" } },
+        { "id": "NL5", "type": "net/label", "x": 4, "y": 8, "props": { "name": "A2" } },
+        { "id": "NL6", "type": "net/label", "x": 14, "y": 6, "rotation": 180, "props": { "name": "A2" } },
+        { "id": "NL7", "type": "net/label", "x": 4, "y": 9, "props": { "name": "A3" } },
+        { "id": "NL8", "type": "net/label", "x": 14, "y": 5, "rotation": 180, "props": { "name": "A3" } },
+        { "id": "NL9", "type": "net/label", "x": 14, "y": 4, "rotation": 180, "props": { "name": "GND" } },
+        { "id": "NL10", "type": "net/label", "x": 14, "y": 3, "rotation": 180, "props": { "name": "GND" } },
+        { "id": "NL11", "type": "net/label", "x": 14, "y": 2, "rotation": 180, "props": { "name": "GND" } },
+        { "id": "NL12", "type": "net/label", "x": 14, "y": 1, "rotation": 180, "props": { "name": "GND" } },
+        { "id": "PWR2", "type": "io/gnd", "x": 13, "y": 12 },
+        { "id": "NL13", "type": "net/label", "x": 24, "y": 2, "props": { "name": "GND" } },
+        { "id": "NL14", "type": "net/label", "x": 24, "y": 3, "props": { "name": "GND" } },
+        { "id": "NL15", "type": "net/label", "x": 24, "y": 6, "props": { "name": "GND" } },
+        { "id": "NL16", "type": "net/label", "x": 24, "y": 5, "props": { "name": "GND" } },
+        { "id": "NL17", "type": "net/label", "x": 24, "y": 7, "props": { "name": "GND" } },
+        { "id": "NL18", "type": "net/label", "x": 24, "y": 4, "props": { "name": "VCC" } },
+        { "id": "PWR1", "type": "io/vcc", "x": 23, "y": -1 },
+        { "id": "NL19", "type": "net/label", "x": 14, "y": 9, "rotation": 180, "props": { "name": "a" } },
+        { "id": "NL20", "type": "net/label", "x": 14, "y": 10, "rotation": 180, "props": { "name": "b" } },
+        { "id": "NL21", "type": "net/label", "x": 14, "y": 11, "rotation": 180, "props": { "name": "c" } },
+        { "id": "NL22", "type": "net/label", "x": 24, "y": 12, "props": { "name": "d" } },
+        { "id": "NL23", "type": "net/label", "x": 24, "y": 11, "props": { "name": "e" } },
+        { "id": "NL24", "type": "net/label", "x": 24, "y": 10, "props": { "name": "f" } },
+        { "id": "NL25", "type": "net/label", "x": 24, "y": 9, "props": { "name": "g" } },
+        { "id": "DS1", "type": "io/seven-segment", "x": 34, "y": 6, "props": { "common": "cathode", "color": "red" } },
+        { "id": "NL26", "type": "net/label", "x": 35, "y": 6, "rotation": 270, "props": { "name": "g" } },
+        { "id": "NL27", "type": "net/label", "x": 36, "y": 6, "rotation": 270, "props": { "name": "f" } },
+        { "id": "NL28", "type": "net/label", "x": 38, "y": 6, "rotation": 270, "props": { "name": "a" } },
+        { "id": "NL29", "type": "net/label", "x": 39, "y": 6, "rotation": 270, "props": { "name": "b" } },
+        { "id": "NL30", "type": "net/label", "x": 35, "y": 15, "rotation": 90, "props": { "name": "e" } },
+        { "id": "NL31", "type": "net/label", "x": 36, "y": 15, "rotation": 90, "props": { "name": "d" } },
+        { "id": "NL32", "type": "net/label", "x": 38, "y": 15, "rotation": 90, "props": { "name": "c" } },
+        { "id": "NL33", "type": "net/label", "x": 37, "y": 6, "rotation": 270, "props": { "name": "GND" } }
+      ],
+      "wires": []
+    }
+  ]
+}

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { type AnyComponentDefinition, KernelDiagnosticKind, ns, pinsOf } from '../../core';
+import {
+  type AnyComponentDefinition,
+  KernelDiagnosticKind,
+  ns,
+  pinsOf,
+  timingOf,
+} from '../../core';
 import { Bench, functionTable, Trace, truthTable } from '../../core/testing';
 import { GATE_SPECS, hcGates } from './gates';
 
@@ -139,7 +145,7 @@ describe.each(GATE_SPECS.map((spec) => [spec.number, spec] as const))('74HC%s', 
   });
 
   it('switches its output tpd after an input, both ways', () => {
-    expect(def.timing!.typical.tpd).toBe(ns(TPD_NS[number]!));
+    expect(timingOf(def, {})!.typical.tpd).toBe(ns(TPD_NS[number]!));
     const [first, ...rest] = spec.units[0]!.pins.slice(0, -1);
     const output = spec.units[0]!.pins.at(-1)!;
     // The other inputs at the level that lets the first one through.

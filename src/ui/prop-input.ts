@@ -2,7 +2,15 @@
  * Text ↔ value for the Properties panel's fields: what a prop shows while edited, and what typed
  * text means (or why it isn't valid). Pure.
  */
-import { formatTime, type PropDef, type PropValue, parseTime } from '../core';
+import {
+  formatImage,
+  formatTime,
+  IMAGE_HINT,
+  type PropDef,
+  type PropValue,
+  parseTime,
+  readImage,
+} from '../core';
 
 export type Parsed = { readonly value: PropValue } | { readonly error: string };
 
@@ -116,5 +124,11 @@ export function parsePropText(def: PropDef, text: string): Parsed {
       return { value: text };
     case 'color':
       return { value: text };
+    case 'image': {
+      const bytes = readImage(trimmed, def.max ?? 0);
+      return typeof bytes === 'string'
+        ? { error: `Use ${IMAGE_HINT}: ${bytes}.` }
+        : { value: formatImage(bytes) };
+    }
   }
 }

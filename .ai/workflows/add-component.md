@@ -64,6 +64,11 @@ near-identical parts such as gates). Use `defineComponent<Props, State>({ … })
   - `ctx.rose`/`ctx.fell` read the pin (a floating net gets reported): to observe a pin, use
     `ctx.changed` and `ctx.prev`.
   - No allocations in `evaluate`, no module-level mutable variables, no randomness, no clocks.
+  - Memories (`src/library/mem`): data sheets give limits only — `typical: {}`, maxima in `max`,
+    output and requirement minima in `min`; an `SramSpec` (or the EEPROM specs) per part,
+    timing per speed grade with a `speed` prop where the data sheet sells several; the shared
+    `ReadPath` (the `X` window) and `WritePath` (level-sensitive writes and their checks)
+    rather than new behaviors (docs/components.md#memories-mem, ADR-0017).
 
 ## 3. Register it
 

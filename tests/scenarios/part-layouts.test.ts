@@ -10,8 +10,9 @@ function propVariants(definition: AnyComponentDefinition): Record<string, PropVa
   const variants: Record<string, PropValue>[] = [{}];
   for (const prop of definition.props ?? []) {
     const values: PropValue[] = [];
-    if (prop.min !== undefined) values.push(prop.min);
-    if (prop.max !== undefined) values.push(prop.max);
+    // An image's max is its size, not a value.
+    if (prop.min !== undefined && prop.type !== 'image') values.push(prop.min);
+    if (prop.max !== undefined && prop.type !== 'image') values.push(prop.max);
     for (const option of prop.options ?? []) values.push(option.value);
     if (prop.type === 'boolean') values.push(false, true);
     for (const value of values) variants.push({ [prop.key]: value });

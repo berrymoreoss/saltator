@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { type AnyComponentDefinition, isDriverPin, pinsOf, Registry } from '../../core';
+import { type AnyComponentDefinition, isDriverPin, pinsOf, Registry, timingOf } from '../../core';
 import { chips74xx } from '.';
 
 const pinList = (d: AnyComponentDefinition) => pinsOf(d, {});
@@ -85,7 +85,7 @@ describe('74xx chips', () => {
     const ti = /^https:\/\/www\.ti\.com\/lit\/ds\/symlink\/((?:sn|cd)74hc\d+)\.pdf$/.exec(
       d.datasheet ?? '',
     )?.[1];
-    const timing = d.timing!;
+    const timing = timingOf(d, {})!;
     if (nexperia) {
       expect(timing.source).toMatch(
         new RegExp(

@@ -55,6 +55,9 @@ interface Wire {
   (an editor command). `label` is free text for display and identifies nothing.
 - **Props** are stored as set by the user; the compiler fills defaults (`resolveProps`). The
   editor writes all props at placement, so a file doesn't change meaning when a default changes.
+  A memory's contents are a string prop of type `image` in sparse hex runs (`"contents":
+  "0000:3F065B4F 07FC:0080"`; [components.md](components.md#properties)), so a ROM's program is
+  saved with the circuit.
 
 ## Loading, versioning, saving
 

@@ -29,7 +29,8 @@ How to read this file:
 | R09b | `feat/74hc-counters`         | 74HC counters & shift registers            | done    |
 | R10a | `feat/net-labels`            | Net labels                                 | done    |
 | R10b | `feat/buses`                 | Buses, rippers, bus values                 | done    |
-| R12  | `feat/memory`                | ROM / RAM + memory inspector               | next    |
+| R12a | `feat/memory-chips`          | Memory chips (EEPROM, SRAM)                | done    |
+| R12b | `feat/memory-inspector`      | Memory inspector, image files              | next    |
 | R13  | `feat/logic-analyzer`        | Waveforms & probes                         | planned |
 | R14  | `feat/debugger`              | Breakpoints, stepping, watches             | planned |
 | R11  | `feat/subcircuits`           | Hierarchical design                        | planned |
@@ -238,13 +239,33 @@ and the debugger are useful on the flat circuits that net labels and buses alrea
 workable, and the SAP-1 modules need R12's chips anyway; hierarchy lands right before the test
 benches and the full SAP-1 build, which need it most.
 
-### R12 · ROM / RAM + memory inspector — `feat/memory` — `next`
+R12 (ROM / RAM + memory inspector) was split at its start into the chips with their contents
+(R12a) and the inspector with image files (R12b). The 74LS189 went to the backlog with the 74LS
+family (TTL inputs, no current data sheet); the SAP-1's RAM is built on a 6116 or 62256.
 
-AT28C16, AT28C64, AT28C256 (EEPROM), 6116, 62256 (SRAM), 74LS189; memory inspector (hex view,
-edit, live read/write highlighting, follow address), import/export `.bin` and Intel HEX, "programmer"
-dialog, power-on contents option (zeros / random / X). The inspector, and later R13's probes and
-R14's watches and breakpoints, refer to parts and nets through one resolver over the compiled
-netlist, so R11 adds paths into subcircuit instances (`U5/D0`) in one place.
+### R12a · Memory chips — `feat/memory-chips` — `done`
+
+AT28C16, AT28C64B, AT28C256 (EEPROMs, read as ROMs for now: a write the circuit attempts is
+reported) from the Atmel/Microchip data sheets, the 6116 (Renesas, speed grades 15/20/25 ns as a
+prop) and the 62256 (Alliance AS6C62256-55) SRAMs: the data sheets' guaranteed limits (no typical
+values exist), reads that keep the old data for `tOH`, show `X` until the access time and keep
+driving until their release time (a driver turning on sooner fights them), level-sensitive RAM
+writes checked against `tAS`, `tAW`, `tWP`, `tCW`, `tDW`, `tDH`, `tWR` (`X` where a violation may
+have written). ROM contents in the document (an `image` prop in sparse hex runs), RAM powering on
+`X`, zeros or random (seeded by the designator); a memory view (`ComponentDefinition.memory`) and
+a debug write (`poke`) for the inspector and test benches; timing as a function of props. The
+Part tab shows limits-only timing. Examples: EEPROM 7-Segment Decoder, RAM by Hand. Spec:
+[components.md](components.md#memories-mem). Decision: [ADR-0017](adr/0017-memories.md). Plan:
+`.ai/plans/feat-memory-chips.md`.
+
+### R12b · Memory inspector, image files — `feat/memory-inspector` — `next`
+
+Memory inspector (hex view, edit, live read/write highlighting, follow address), import/export
+`.bin` and Intel HEX, "programmer" dialog. The inspector, and later R13's probes and R14's
+watches and breakpoints, refer to parts and nets through one resolver over the compiled netlist,
+so R11 adds paths into subcircuit instances (`U5/D0`) in one place. The SAP-1 modules M2 still
+needs (ALU and B register, RAM and memory address register, the output register with its EEPROM
+decoder) as examples.
 
 **M2 acceptance:** Ben Eater SAP-1 modules (clock, A/B registers, ALU, program counter, RAM and
 memory address register, output register with its EEPROM decoder) built and verified
@@ -266,7 +287,7 @@ run statistics, snapshot & rewind.
 
 Multiple circuits per project, subcircuit instances with generated or custom symbols, navigation
 into instances while simulating. A subcircuit's interface pins (ports) join the Place menu (R10a).
-Extends the part and net resolver (R12) with instance paths, so the memory inspector, probes,
+Extends the part and net resolver (R12b) with instance paths, so the memory inspector, probes,
 watches and breakpoints reach into instances, and test benches (R15) can test a subcircuit as a
 unit.
 
@@ -333,7 +354,12 @@ Promote to a numbered item when needed.
   minima (not recorded yet: add them as a third requirement column); a "report only" setting
   that keeps bits known after a timing violation, if `X` gets in the way.
 - More logic families (R06 follow-up): 74HCT and 74AC as timing tables for the existing chip
-  specs; 74LS/74F also need TTL inputs (a floating input reads high).
+  specs; 74LS/74F also need TTL inputs (a floating input reads high). The 74LS189 (16 × 4 RAM,
+  inverted 3-state outputs; Ben Eater's SAP-1 RAM) comes with them (R12a, Q2); its data sheet
+  is the archived Fairchild DM74LS189.
+- EEPROM writes from the circuit (R12a follow-up): byte and page writes, the self-timed write
+  cycle with DATA polling and toggle bit, the power-on write delay and noise filter, software
+  data protection (AT28C64B/256). Until then an EEPROM is a ROM and a write attempt is reported.
 - Kernel: mark the forced evaluation (power-on, after a recompile) so multi-section chips can
   re-evaluate only the sections whose inputs changed (a 74HC04 chain runs at ≈ 8.4M events/s
   against ≈ 13.2M for `prim/not`, R06).

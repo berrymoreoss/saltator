@@ -24,6 +24,7 @@ export {
   pinsOf,
   resolveProps,
   type TimingDef,
+  timingOf,
   type UnitDef,
 } from './component';
 export {
@@ -61,6 +62,18 @@ export {
   xor,
 } from './logic';
 export {
+  ERASED,
+  formatImage,
+  IMAGE_HINT,
+  isPokeAction,
+  type MemoryDef,
+  type MemoryView,
+  type PokeAction,
+  parseImage,
+  programmedBytes,
+  readImage,
+} from './memory';
+export {
   BUS_NAME,
   type BusName,
   busMembers,
@@ -87,6 +100,7 @@ export {
   resolveNetlist,
   sameNetlistStructure,
 } from './netlist';
+export { hashString, SeededRandom } from './random';
 export { type ComponentRegistry, familyOf, Registry } from './registry';
 export {
   type CarriedComponent,
