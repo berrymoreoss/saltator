@@ -21,6 +21,8 @@ bottom-dock tabs. R06: `PartInfoPanel` (the Part tab; pure model in `part-info.t
 `document-controller` (New, Open, Save, Save As, examples, drops; "Save changes?"),
 `autosave` (session restore, per tab) with its IndexedDB and Web Locks side in
 `browser-storage`, `recent-files` (Open Recent), `ExampleGallery` (File ▸ New from Example…);
-the unsaved-changes and file-problem dialogs in `Dialogs`.
+the unsaved-changes and file-problem dialogs in `Dialogs`. R12b: `MemoryPanel` (the Memory tab;
+pure layout and keys in `memory-view.ts`), `ImageDialogs` (Load…, Save…, Erase; pure parts in
+`image-dialogs.ts`), `ImageFileAccess` in `files` (image files as bytes, pickers of their own).
 
 Spec: [docs/editor.md](../../docs/editor.md#shell).

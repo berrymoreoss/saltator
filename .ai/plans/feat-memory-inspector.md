@@ -106,7 +106,7 @@ on them to show and follow the address the chip sees (`0x01F`, or with `X` bits)
 `resolve.ts`: `new Resolver(compileResult, registry)` over one compiled circuit.
 
 - References as the rest of the app writes them: `U5` (a part), `U5.A0` (a pin), `CLK` (a named
-  net, or a net id), `D[0..7]` (a bus, its members most significant first, as Properties lists
+  net, or a net id), `D[0..7]` (a bus, its members bit 0 first, as `busMembers` lists
   them). `resolve(text)` returns the target with its netlist ids (component id, net ids) or the
   reason it doesn't resolve ("no part U9", "U5 has no pin Q3", "D[0..7] has no member named on
   this circuit"); `parts(filter?)` and `memories()` (the parts whose definitions have `memory`,
@@ -223,7 +223,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   digit while running, undo; a `.hex` and a `.bin` loaded; RAM by Hand — a write by the
   switches highlighted, a poke read back on the LEDs, Save Image's file checked; looked at in
   both themes, stopped and running.
-- [ ] 8. Docs: editor.md (Memory tab, dialogs), components.md (stamps, address pins),
+- [x] 8. Docs: editor.md (Memory tab, dialogs), components.md (stamps, address pins),
   simulation.md (inspection), circuit.md (resolver), architecture.md, glossary, READMEs,
   ADR-0018; roadmap (R12b done, R13 next; backlog: image scripts); lessons.
 
@@ -319,10 +319,15 @@ Checkable statements; verified one by one in the finish-branch workflow.
   past the end refused), Erase; RAM by Hand's write lit orange, a poke read back on the pins,
   Save writing 2048 bytes with unknown bits as 0; a 62256 rendering fewer than 40 rows, the
   last cell reached by scrolling, which turns Follow off. Both themes looked at. `pnpm e2e`: 63.
+- 2026-11-07 — task 8: editor.md (Memory inspector: tab, image files, model; shell, settings,
+  API, testing), components.md (inspection with stamps and address pins; Image files),
+  simulation.md, circuit.md (Resolver), architecture.md, glossary (Intel HEX, memory
+  inspector, programmer, resolver), READMEs, ADR-0018, roadmap entry, lessons.
 
 ## Handoff
 
-- **State:** tasks 1–7 done; code complete, docs to write.
-- **Next step:** task 8 (docs, ADR-0018, roadmap, lessons).
+- **State:** tasks 1–8 done.
+- **Next step:** finish-branch: verify the acceptance criteria, close the plan and roadmap item,
+  ask to merge.
 - **Watch out:** —
 - **Verify with:** `pnpm check`.

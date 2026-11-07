@@ -98,6 +98,11 @@ hold a push button, step a manual clock (`I`; Run selects it).
 Saved in the circuit as sparse hex runs: `0000:A9FF8D` is three bytes from address 0; bytes not
 listed are erased (`0xFF`).
 
+**Intel HEX** — a text format for memory images: lines (records) of `:`, a byte count, a 16-bit
+address, a record type and the data in hex, ending in a checksum (`:048000000102030472` writes
+four bytes at 0x8000). Extended address records reach beyond 64 KB; an end-of-file record closes
+it. Assemblers and EEPROM programmers read and write it, as the Memory tab does.
+
 **Inertial delay** — a delay model in which input pulses shorter than the element's delay do not
 reach the output.
 
@@ -107,6 +112,10 @@ not.
 
 **Level** — the resolved value of a net as seen by readers: `0`, `1`, `X` (unknown) or `Z`
 (high impedance / floating).
+
+**Memory inspector** — the Memory tab: a hex view of a memory part's cells, live while
+simulating, with the cells just read (green) and written (orange) lit and the address on the
+chip's pins outlined; bytes are edited in place, and image files loaded and saved.
 
 **Metastability** — what a flip-flop may do when its data changes too close to the clock edge:
 hover between 0 and 1 for a while and then fall either way. The simulator doesn't model the
@@ -149,6 +158,11 @@ path** (74HC138: `An to Yn`, `E3 to Yn`); several inputs changing at once take t
 
 **Pull-up / pull-down** — a resistor that weakly drives a net to 1 / 0 when nothing else drives it.
 
+**Programmer (EEPROM programmer)** — the device that writes an image into an EEPROM before it
+goes into the board (a TL866, Ben Eater's Arduino programmer): it erases the chip, writes the
+file's bytes, and shows the file's range and checksum. The Memory tab's Load dialog plays its
+part.
+
 **Recovery time (trec)** — how long an asynchronous set or reset must have been released before
 the next clock edge acts; an earlier edge may or may not load.
 
@@ -177,6 +191,10 @@ shifting.
 
 **Johnson counter** — a shift register whose inverted last stage feeds its input: it fills with
 ones, then with zeros, 2n states for n stages (the Shift Register LEDs example).
+
+**Resolver** — what turns a reference (`U5`, `U5.A0`, `CLK`, `D[0..7]`) into the compiled
+circuit's part, pin, net or bus; one place for the memory inspector, probes, watches and test
+benches, where subcircuit paths (`U5/D0`) will be added.
 
 **Rubber-banding** — wires following a part as it is moved, rotated or flipped: they stretch,
 slide a corner or bend, so connections are kept.

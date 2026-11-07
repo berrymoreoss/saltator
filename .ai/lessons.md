@@ -229,3 +229,19 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
 - 2026-11-07 (R12a) — A table `<caption>` with a long conditions string widens the Part tab's
   timing table past the dock (the Min column went off-screen at 1500 px). Keep `conditions`
   short; check a new part's Part tab in the browser.
+- 2026-11-07 (R12b) — A focused element that takes typed keys but isn't an `<input>` (the hex
+  view) gets single-key shortcuts too: `B`, `C`, `D`, `E`, `F` would arm tools or flip parts.
+  Handle the keys in the element and `preventDefault` them — `dispatchShortcut` skips prevented
+  events — and leave the rest (Mod+S, F5) alone.
+- 2026-11-07 (R12b) — Undo restores the selection from before the edit: a browser test that
+  edits from a panel with nothing selected loses its canvas selection (and Properties) on Undo.
+  Select the part again before reading its pins.
+- 2026-11-07 (R12b) — While running, `Simulation.action` only queues: the action happens in the
+  next frame. A fake-clock test runs a frame (`clock.frame(16)`) before reading levels; while
+  paused the action's zero-delay effects are applied at once.
+- 2026-11-07 (R12b) — Compute Intel HEX checksums with a script when writing test files (sum of
+  the record's bytes, two's complement); a guessed checksum twice turned a load test into a
+  test of the error dialog.
+- 2026-11-07 (R12b) — A mutation that survives may be equivalent code, not a missing test:
+  `high < words ? low : low % words` is `low % words`, and an "after the last sample" shortcut
+  matched what the binary search returns anyway. Simplify the code instead of testing around it.

@@ -111,7 +111,9 @@ state; they additionally expose an **inspection interface** (memory view, CPU re
 panels and a **debug access** path (flash a ROM, poke RAM) that bypasses simulated timing: memories
 have them since R12a (`ComponentDefinition.memory`, the `poke` action; a ROM's contents are an
 `image` prop), CPUs _(planned, R17)_. Memories simulate with their data sheets' limits and show
-`X` until their access time ([ADR-0017](adr/0017-memories.md)).
+`X` until their access time ([ADR-0017](adr/0017-memories.md)); they stamp when each cell was
+last read and written, which the Memory tab lights up (R12b,
+[ADR-0018](adr/0018-memory-inspector.md)).
 
 ## Circuit model
 
@@ -142,6 +144,9 @@ Implemented in R02. Full spec: [circuit.md](circuit.md). Rationale:
   versions forward and rejects newer ones. Never break old files silently.
 - **Compiler** (`compileCircuit`): document → `Netlist` with deterministic, readable net ids, plus
   the net of every wire and the junction dots for the editor. It never throws on user mistakes.
+- **Resolver** (R12b): references (`U5`, `U5.A0`, `CLK`, `D[0..7]`) to the compiled parts and
+  nets, for the memory inspector and later probes, watches, breakpoints and test benches; R11
+  adds instance paths there ([circuit.md](circuit.md#resolver)).
 - **Design checks** (pre-simulation): unknown part types, invalid props, shorted push-pull
   outputs, undriven inputs, dangling wires, nets with several names, lone net labels, bus
   entries that aren't members of their bus; later power-pin checks.
@@ -189,14 +194,16 @@ commands, and the clipboard goes through the browser's clipboard events; R05 mad
 Simulate menu and toolbar group with a speed select, the simulation in the status bar, a
 Simulation tab with runtime diagnostics, live levels in Properties; R06 added the Part tab (pins
 with data sheet descriptions and the function table of the part picked last), R09a its timing
-(delays and the minima the timing checks use).
+(delays and the minima the timing checks use); R12b the Memory tab (a live hex view of a
+memory with reads and writes lit, edits, `.bin` and Intel HEX through a programmer-style Load
+dialog, [editor.md](editor.md#memory-inspector)).
 
 ```
 ┌───────────────────────── menu bar · toolbar (tools, zoom, grid, gate style) ─────────────────────────┐
 │ Parts    │                                canvas                                    │ Properties    │
 │ (search, │                                                                          │ (of the       │
 │ preview) │                                                                          │ selection)    │
-├──────────┴──── bottom dock: Messages · Simulation · Part (later: memory · logic analyzer) ┴────────────┤
+├──────────┴──── bottom dock: Messages · Simulation · Part · Memory (later: logic analyzer) ┴────────────┤
 │ status bar: cursor · zoom · selection · simulation · counts · issues                                  │
 ```
 
@@ -217,7 +224,8 @@ unsaved changes, file handle and view included — is autosaved to IndexedDB and
 start-up, per browser tab (`src/ui/autosave.ts`, `browser-storage.ts`); Open Recent keeps file
 handles there too. Example circuits are files in `examples/`. Spec:
 [editor.md](editor.md#files). ROM contents are saved in the document as `image` props (sparse hex
-runs, R12a); they import and export as `.bin` and Intel HEX _(planned, R12b)_.
+runs, R12a); they load and save as `.bin` and Intel HEX in the Memory tab (R12b,
+`src/core/image-files.ts`, files through `ImageFileAccess`).
 
 ## Testing strategy
 

@@ -269,12 +269,20 @@ with them — its modules as subcircuits with their own test benches (phase 4, M
 
 ### R12b · Memory inspector, image files — `feat/memory-inspector` — `in-progress`
 
-Memory inspector (a Memory tab: hex view, edit, live read/write highlighting, follow address),
-import/export `.bin` and Intel HEX through a programmer-style Load Image dialog. The inspector,
-and later R13's probes and R14's watches and breakpoints, refer to parts and nets through one
-resolver over the compiled netlist, so R11 adds paths into subcircuit instances (`U5/D0`) in one
-place. RAMs stay volatile: their contents are edited while simulating and loaded before t = 0 by
-a test bench's setup (R15). Plan: `.ai/plans/feat-memory-inspector.md`.
+The Memory tab: a virtualized hex view of any memory of the circuit (8/16/32 cells a row,
+ASCII, `X` nibbles), live while simulating — cells read since the last frame lit green, written
+orange, from per-cell access stamps the parts keep (`readAt`, `writtenAt`), the address on the
+chip's pins (`MemoryDef.addressPins`) outlined and followed — with bytes typed in place: a ROM's
+image as an undoable, coalesced document edit (a running ROM follows), a simulated RAM poked.
+`.bin` and Intel HEX (records 00–05, checksums, errors with lines) read, placed and written in
+`core`; the programmer is the Load dialog (range, bytes, sum; load address, fill the rest with
+FF), with Save and Erase. One resolver (`circuit`) turns `U5`, `U5.A0`, `CLK`, `D[0..7]` into
+netlist ids for the inspector and later probes, watches, breakpoints and benches; R11 adds
+instance paths there. RAMs stay volatile (Q2): a test bench's setup loads them before t = 0
+(R15). The roadmap was reordered at its start: design tools first (M2 "Tools"), then the SAP-1
+(R16a, R16b). Spec: [editor.md](editor.md#memory-inspector),
+[components.md](components.md#image-files), [circuit.md](circuit.md#resolver). Decision:
+[ADR-0018](adr/0018-memory-inspector.md). Plan: `.ai/plans/feat-memory-inspector.md`.
 
 ### R13 · Waveforms & probes — `feat/logic-analyzer`
 
