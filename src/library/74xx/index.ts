@@ -10,6 +10,7 @@ import { hcEncoders } from './encoders';
 import { hcFlipFlops } from './flip-flops';
 import { hcGates } from './gates';
 import { hcMultiplexers } from './multiplexers';
+import { hcRegisters } from './registers';
 import { hc4511 } from './seven-segment-decoder';
 import { hc245 } from './transceiver';
 
@@ -32,6 +33,15 @@ export { GATE_SPECS, type GateSpec, gateChips } from './gates';
 export { HC } from './hc-timing';
 export { MUX_SPECS, type MuxSpec, muxChips } from './multiplexers';
 export {
+  REG175_SPEC,
+  REG273_SPEC,
+  REG377_SPEC,
+  REGISTER_SPECS,
+  type RegisterSpec,
+  type RegisterState,
+  registerChips,
+} from './registers';
+export {
   BCD_DECODER_SPEC,
   type BcdDecoderState,
   bcdDecoderChip,
@@ -49,4 +59,5 @@ export const chips74xx: readonly AnyComponentDefinition[] = [
   ...hcEncoders,
   hc4511,
   ...hcFlipFlops,
+  ...hcRegisters,
 ].sort((a, b) => Number(a.name.slice(4)) - Number(b.name.slice(4)));

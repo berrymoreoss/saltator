@@ -195,7 +195,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   path, each check inside/outside its limit, unknown and floating inputs).
 - [x] 5. JK flip-flops 74HC107, 109, 112 with tests (toggle, hold, negative/positive edges,
   set/reset, checks).
-- [ ] 6. Registers 74HC175, 273, 377 with tests (377's enable setup/hold, Q̅ of the 175).
+- [x] 6. Registers 74HC175, 273, 377 with tests (377's enable setup/hold, Q̅ of the 175).
 - [ ] 7. 3-state registers 74HC173, 374, 574 with tests (`ten`/`tdis`, loading while
   disabled, the 173's data enables and active-HIGH MR).
 - [ ] 8. 74HC4511 LE checks (setup, hold, LE pulse width) with tests.
@@ -286,6 +286,13 @@ Checkable statements; verified one by one in the finish-branch workflow.
   parametrized suite (function table per unit, toggling, uncertain edges, unknown J/K, every
   path, set-up/hold/recovery/clock width at their limits). The 109's K̅ pin description adds
   "(K̅: active LOW)" — the data sheet says only "synchronous input", its overline says the rest.
+- 2026-11-07 — task 6: `registers.ts`, one `RegisterSpec` engine for every register (optional
+  MR active LOW/HIGH, data enables, complement outputs, 3-state outputs), with the 175, 273,
+  377. A late enable that ends disabled may still have loaded (found reviewing the draft). Found
+  by the tests: `ctx.rose`/`ctx.fell` **read** the pin (a floating net counts as used), so
+  `TimingChecks.track` called on every watched pin reported floating data inputs nobody used —
+  `track` now records from `ctx.prev` only ("left LOW at", "left HIGH at"; pulse widths count
+  from leaving the opposite level). Regression test in core; mutation-checked (10 mutations).
 
 ## Handoff
 

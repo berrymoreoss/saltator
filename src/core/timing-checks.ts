@@ -28,15 +28,16 @@ export function isTimingViolation(kind: string): kind is TimingViolationKind {
 export type Edge = 'rise' | 'fall';
 
 /**
- * Per pin (by `PinRef`): the time of its last change, last rise and last fall (strict 0 ↔ 1), as
- * three consecutive entries; `-Infinity` until it happens. Plain data in the instance's state:
- * absolute simulation times, so a carry-over keeps them.
+ * Per pin (by `PinRef`): the time of its last change, and of the last time it left LOW and left
+ * HIGH, as three consecutive entries; `-Infinity` until it happens. Plain data in the instance's
+ * state: absolute simulation times, so a carry-over keeps them. Recorded from `ctx.prev` only: a
+ * check observes a pin, it doesn't read it (reading a floating net would report it as used).
  */
 export type PinTimes = Float64Array;
 
 const CHANGED = 0;
-const ROSE = 1;
-const FELL = 2;
+const LEFT_LOW = 1;
+const LEFT_HIGH = 2;
 
 /** Setup and hold of data (or enable) inputs against a clock edge. */
 export interface SetupHoldSpec {
@@ -143,8 +144,9 @@ export class TimingChecks {
       const pin = watched[i]!;
       if (!ctx.changed(pin)) continue;
       times[pin * 3 + CHANGED] = now;
-      if (ctx.rose(pin)) times[pin * 3 + ROSE] = now;
-      else if (ctx.fell(pin)) times[pin * 3 + FELL] = now;
+      const was = ctx.prev(pin);
+      if (was === Level.L0) times[pin * 3 + LEFT_LOW] = now;
+      else if (was === Level.L1) times[pin * 3 + LEFT_HIGH] = now;
     }
   }
 
@@ -154,7 +156,8 @@ export class TimingChecks {
     const clock = this.#pin(spec.clock);
     const tsu = this.#limit(spec.setup);
     const th = spec.hold === undefined ? 0 : this.#limit(spec.hold);
-    const edgeSlot = spec.edge === 'rise' ? ROSE : FELL;
+    // The last active edge: when the clock last left the level before it.
+    const edgeSlot = spec.edge === 'rise' ? LEFT_LOW : LEFT_HIGH;
     const verb = edgeVerb(spec.edge);
     const pins = this.#pins;
     const clockName = pins[clock]!.name;
@@ -209,12 +212,12 @@ export class TimingChecks {
     return {
       check(ctx, times, armed = true) {
         if (!armed || !ctx.changed(pin)) return false;
-        // A phase counts from a strict edge into it: one that began from X/Z (power-on) is
-        // not a pulse.
+        // A phase counts from the pin leaving the opposite level: one that began from Z or X
+        // only (power-on) is not a pulse.
         const was = ctx.prev(pin);
         let since: number;
-        if (was === Level.L1 && high) since = times[pin * 3 + ROSE]!;
-        else if (was === Level.L0 && low) since = times[pin * 3 + FELL]!;
+        if (was === Level.L1 && high) since = times[pin * 3 + LEFT_LOW]!;
+        else if (was === Level.L0 && low) since = times[pin * 3 + LEFT_HIGH]!;
         else return false;
         const width = ctx.now - since;
         if (width >= tw) return false;
@@ -232,8 +235,9 @@ export class TimingChecks {
     const pin = this.#pin(spec.pin);
     const clock = this.#pin(spec.clock);
     const trec = this.#limit(spec.recovery);
-    // Released = the strict edge out of the active level.
-    const releaseSlot = spec.active === 'low' ? ROSE : FELL;
+    // Released = leaving the active level.
+    const activeLevel = spec.active === 'low' ? Level.L0 : Level.L1;
+    const releaseSlot = spec.active === 'low' ? LEFT_LOW : LEFT_HIGH;
     const name = this.#pins[pin]!.name;
     const clockName = this.#pins[clock]!.name;
     const verb = edgeVerb(spec.edge);
@@ -241,7 +245,7 @@ export class TimingChecks {
       check(ctx, times) {
         const edge = spec.edge === 'rise' ? ctx.rose(clock) : ctx.fell(clock);
         if (!edge) return false;
-        const released = spec.active === 'low' ? ctx.rose(pin) : ctx.fell(pin);
+        const released = ctx.changed(pin) && ctx.prev(pin) === activeLevel;
         const elapsed = released ? 0 : ctx.now - times[pin * 3 + releaseSlot]!;
         if (elapsed >= trec) return false;
         const when = elapsed === 0 ? 'at the same time as' : `${formatTime(elapsed)} after`;

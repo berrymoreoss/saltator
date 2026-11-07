@@ -310,6 +310,17 @@ describe('TimingChecks armed', () => {
   });
 });
 
+describe('TimingChecks observe', () => {
+  it("doesn't read the pins it watches: a floating data input away from an edge isn't used", () => {
+    // `ctx.rose`/`ctx.fell` read the pin; `track` must not use them (regression).
+    const b = bench();
+    b.set({ D0: 'Z' }).run(ns(20));
+    b.expectNoDiagnostics();
+    b.set({ CP: 1 }).run(ns(20)); // the edge reads D0: now it is reported
+    expect(b.diagnostics.map((d) => `${d.kind} ${d.net}`)).toEqual(['floating-input D0']);
+  });
+});
+
 describe('TimingChecks across a carry-over', () => {
   const registry = new Registry([rising, testDriver]);
   const netlist = (() => {

@@ -36,10 +36,13 @@ describe('74xx chips', () => {
       '153',
       '157',
       '158',
+      '175',
       '240',
       '244',
       '245',
+      '273',
       '283',
+      '377',
       '4511',
     ]);
     expect(new Registry(chips74xx).list()).toHaveLength(chips74xx.length);
