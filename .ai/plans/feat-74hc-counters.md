@@ -1,0 +1,271 @@
+# Plan: feat/74hc-counters
+
+| Field      | Value                                                                          |
+| ---------- | ------------------------------------------------------------------------------ |
+| Branch     | `feat/74hc-counters`                                                           |
+| Roadmap    | R09b — 74HC counters & shift registers ([roadmap](../../docs/roadmap.md))      |
+| Status     | in-progress                                                                    |
+| Depends on | R09a (timing checks, edge-triggered helpers, sequential function tables), R08 |
+| Created    | 2026-11-07                                                                     |
+
+## Goal
+
+The second half of R09: the 74HC counters and shift registers a homebrew computer is built
+from — Ben Eater's program counter is a 161, a 595 drives LEDs or a display from three pins, a
+4040 divides a clock — from their Nexperia data sheets, on R09a's timing checks and its `X`
+policy. With them the remaining SAP-1 sequential modules can be built and checked, and the
+classic counter traps (a ripple counter's decoding glitches, a 595 with its clocks tied
+together) show up in the simulator as they would on the bench.
+
+## Scope
+
+**In scope**
+
+- `library/74xx`: 74HC161, 163, 191, 193 (synchronous counters), 164, 165, 595 (shift
+  registers), 4040 (12-stage ripple counter) as `ChipSpec`s with HC timing (delays per path,
+  timing requirements), in `createDefaultRegistry()`.
+- Shared helpers in `edge-triggered.ts`: 4-state increment/decrement, merging the outcomes of
+  unknown or late control inputs.
+- `core`: whatever the new chips' requirements need from `TimingChecks` (at least the 595's
+  `tsu(SHCP to STCP)`, an edge-to-edge set-up; Q3).
+- Tests per chip (function table per bit through pin numbers, counting/shifting sequences,
+  unknown and floating inputs, every delay path, every timing check just inside and just
+  outside its limit); scenarios (161 cascade through TC/CET, a 4040's ripple and a decoding
+  glitch, two 595s cascaded through Q7S, 165 → 595 serial link); carry-over property with the
+  new chips; a counter benchmark.
+- Partial overline labels (`U/D̅`, `Q̅7`; the 175's `Q̅0` backlog nit) — Q4.
+- Examples: Shift Register LEDs (self-running 595) and SAP-1 Program Counter (Q1, Q2); e2e.
+- Docs: components.md, simulation.md (`TimingChecks` edge-to-edge set-up), editor.md
+  (labels), glossary, READMEs, lessons, roadmap (backlog: partial overlines done).
+
+**Out of scope** (and where it goes instead)
+
+- Seeded random power-on state (a 4040 dividing a clock with MR tied LOW stays `X` until a
+  reset, like every R09a chip) → backlog item, unchanged (R01 Q2 decided `X`).
+- Other counters (4020, 4024, 4060, 390, 192 decade) → later, on the same engines, when needed.
+- Worst-case timing mode, "report only" → backlog (R09a).
+- 74HCT/74LS → backlog.
+
+## Context
+
+Read before starting:
+
+- [docs/components.md](../../docs/components.md#edge-triggered-chips) — edge-triggered chips,
+  the `X` policy table, timing checks; [docs/simulation.md](../../docs/simulation.md#timing-checks)
+  — `TimingChecks` API, inertial model (confirming a pending value keeps it).
+- [ADR-0014](../../docs/adr/0014-timing-checks.md) — minima at 25 °C, a violation makes the
+  loaded bits `X`, checks armed only while the clock matters.
+- `src/library/74xx/` — `edge-triggered.ts` (clock edges, `either`, `couldBe`), `registers.ts`
+  (the `RegisterSpec` engine: async MR, data enables, 3-state, the `X` handling to copy),
+  `flip-flops.ts`, `hc-timing.ts`, `paths.ts`, `pinout.ts`.
+- `src/core/timing-checks.ts`, `src/core/function-table.ts`, `src/core/testing/function-table.ts`.
+- `tests/scenarios/sequential-74hc.test.ts`, `carry-over.test.ts`, `examples.test.ts`;
+  `examples/sap-1-register.logic.json`; `tests/e2e/registers.spec.ts`.
+- `.ai/lessons.md` — R06 (Nexperia downloads, pdftotext), R08 (overlines lost, example
+  generators), R09a (`ctx.rose` reads pins, checker ordering, `pnpm check` not just `test`,
+  mutation checks, `wire()` helper).
+
+## Design
+
+### Parts
+
+All from the Nexperia data sheets. Names, pinouts and pin names below are from memory and get
+fixed in task 1 from the rendered pinning figures.
+
+| Part     | Function                                                         | Package | Shape                                                           |
+| -------- | ---------------------------------------------------------------- | ------- | --------------------------------------------------------------- |
+| 74HC161  | presettable synchronous 4-bit binary counter; asynchronous reset | DIP-16  | MR̅, CP, D0–D3, CEP, CET, PE̅ → Q0–Q3, TC                         |
+| 74HC163  | presettable synchronous 4-bit binary counter; synchronous reset  | DIP-16  | as the 161, MR̅ acts on the clock edge                           |
+| 74HC191  | presettable synchronous 4-bit binary up/down counter             | DIP-16  | CP, CE̅, U/D̅, PL̅ (asynchronous), D0–D3 → Q0–Q3, TC, RC̅           |
+| 74HC193  | presettable synchronous 4-bit binary up/down counter; two clocks | DIP-16  | CPU, CPD, PL̅ (asynchronous), MR (HIGH), D0–D3 → Q0–Q3, TC̅U, TC̅D |
+| 74HC164  | 8-bit serial-in, parallel-out shift register                     | DIP-14  | DSA, DSB (ANDed), CP, MR̅ → Q0–Q7                                |
+| 74HC165  | 8-bit parallel-in, serial-out shift register                     | DIP-16  | PL̅ (asynchronous), D0–D7, DS, CP, CE̅ → Q7, Q̅7                   |
+| 74HC595  | 8-bit shift register with output latches; 3-state                | DIP-16  | DS, SHCP, MR̅, STCP, OE̅ → Q0–Q7 (3-state), Q7S                  |
+| 74HC4040 | 12-stage binary ripple counter                                   | DIP-16  | CP̅ (falling edge), MR (HIGH) → Q0–Q11                           |
+
+### Engines
+
+No single engine fits eight chips this different; three files on shared helpers:
+
+- `counters.ts`: one behavior for the synchronous counters, driven by a `CounterSpec` (count
+  direction: up, or up/down by pin, or by two clocks; parallel load synchronous (161/163) or
+  asynchronous and transparent (191/193); reset none/synchronous/asynchronous with its polarity;
+  count enables; terminal count outputs and their logic). If 193's dual clocks make the spec
+  awkward, 191/193 get their own behavior — decided while writing task 3.
+- `shift-registers.ts`: 164, 165, 595 as separate behaviors sharing a shift helper.
+- `ripple-counter.ts`: 4040 (and later 4020/4024/4060 by stage count).
+- `edge-triggered.ts` grows: 4-state `increment`/`decrement` over a bit array (a ternary
+  ripple carry: a bit is `X` only where the carry or the bit is unknown), and a helper that
+  computes the next state for every value an unknown or late control could have and merges them
+  bit by bit (`either`) — the R09a rule generalized from one enable to several controls (at
+  most 3 unknown at once: ≤ 8 outcomes, no allocation).
+
+### Behavior
+
+- **Power-on and the `X` policy** as R09a: every stored bit `X` until a reset or a clean load;
+  strict edges, never clocked by the forced evaluation; an uncertain edge makes `X` the bits the
+  edge would change; a violation makes `X` the bits the edge may have loaded. Counting from an
+  `X` state gives `X` where the carry reaches.
+- **Priorities** per function table (161: MR̅ > PE̅ > count > hold; 163: the same, MR̅ on the
+  edge; 191/193: MR > PL̅ > count).
+- **Terminal counts** are combinational from the state and their inputs, with their own paths:
+  161/163 `TC = CET·Q0·Q1·Q2·Q3`; 191 `TC` at 15 up / 0 down, `RC̅` LOW while CE̅ = L, TC = H
+  and CP = L; 193 `TC̅U` LOW while CPU = L at 15, `TC̅D` LOW while CPD = L at 0. Cascading
+  works the data sheet way (161 TC → next CET; 191 RC̅ → next CP or CE̅; 193 TC̅U/TC̅D → next
+  CPU/CPD).
+- **Asynchronous parallel load** (191, 193, 165): transparent while PL̅ is LOW (Q follows D,
+  paths `tpd(Dn to Qn)` and `tpd(PL to Qn)`); D must meet set-up/hold to PL̅'s rising edge.
+- **193 clocks**: counts on the rising edge of one clock while the other is HIGH; what an edge
+  does while the other clock is LOW comes from the logic diagram (task 1).
+- **165 clock**: the internal clock is `CP + CE̅` (the data sheet says the two pins are
+  interchangeable); a rising edge of either while the other is LOW shifts.
+- **595**: two registers. SHCP shifts DS into the shift register (MR̅ clears it, asynchronous,
+  not the storage register); STCP copies the shift register into the storage register; OE̅
+  enables Q0–Q7 (`ten`/`tdis`, loading works while disabled); Q7S is the shift register's last
+  bit (always driven, for cascading). With SHCP and STCP tied together the storage register
+  takes the shift register's contents **before** the shift ("one clock pulse behind", as the
+  data sheet says) — the order inside one `evaluate`. The check between the two clocks (Q3):
+  STCP rising at the same instant as SHCP is that documented mode, no violation; rising
+  0 < Δ < `tsu(SHCP to STCP)` after it is a set-up violation, and the storage bits where the
+  old and new shift register contents differ become `X`.
+- **4040 ripple**: the count is stored at the falling edge, but output `Qn` changes
+  `tpd(CP to Q0) + n·tpd(Qn to Qn+1)` after it, so `0111 → 1000` passes through `0110`, `0100`,
+  `0000` as on the chip; decoding the outputs with gates glitches (a scenario shows it). The
+  inertial model keeps confirmed pending changes, so in-spec clocks never cancel a ripple.
+- **Delays** per data sheet path with `pathDelays`; no allocation in `evaluate`.
+
+### Timing checks
+
+From the data sheets' requirement tables (task 1), against the minima at 25 °C (ADR-0014),
+armed only while the clock matters. Expected beyond R09a's kinds of checks: count enables and
+PE̅ / U/D̅ / the 163's MR̅ set-up and hold to CP; D set-up/hold to PL̅'s release; PL̅ and MR
+pulse widths and recovery to each clock (193: both clocks); 595 `tsu(SHCP to STCP)`; 165
+`tsu(CE to CP)`. `TimingChecks.setupHold` learns an edge-to-edge form for the 595 (Q3): only
+the data pin's active transition counts, and the same instant can be declared allowed. Messages and `X` follow components.md#timing-checks; the late control's
+`X` covers the bits where the outcomes it chooses between differ.
+
+### Function tables
+
+The data sheets' tables as written, with their text cells (`count up`, `shift`, footnoted TC)
+kept for display; rows the checker can't run (text outputs) are covered by hand-written tests,
+as R08/R09a did. Nexperia splits some tables (the 595 has one per register): merged into one
+where they share columns, with a note.
+
+### Partial overlines (Q4)
+
+A pin label marks the overlined letters itself with a combining overline (U+0305, as the docs
+already write them): `U/D̅`, `Q̅7`, and the 175's `Q̅0` becomes right. A label with explicit
+overlines isn't overlined as a whole; `activeLow` keeps its meaning. The schematic's DIP
+drawing, the Part tab and pin descriptions draw it; the exact syntax is settled in task 8 after
+reading the renderer (plain-text places — Messages, search — show the combining characters).
+
+### Examples (Q1, Q2)
+
+- **Shift Register LEDs** (`examples/shift-register-leds.logic.json`): a 74HC595 with SHCP and
+  STCP tied to an `io/clock` (a few Hz), Q7S → a 74HC04 inverter → DS: an 8-bit Johnson
+  counter, the LEDs fill and empty in 16 steps by themselves. LEDs on Q0–Q7 (the storage
+  register, one pulse behind the shift register) and on Q7S; OE̅ LOW; MR̅ on a CLEAR push
+  button with a pull-up — the shift register is `X` until cleared, said in the card (as the
+  SAP-1 A register's "press CLR first").
+- **SAP-1 Program Counter** (`examples/sap-1-program-counter.logic.json`): Ben Eater's PC — a
+  74HC161 counting on the clock with CE (CEP, CET), J̅ (PE̅) loading bus bits 0–3, CLR̅ (MR̅),
+  a 74HC245 driving Q0–Q3 onto the bus under CO̅; a DIP switch through a second 245 as the
+  rest of the computer (as in the A register example); pull-downs and LEDs on the bus and the
+  counter; manual clock. Layout and bus width decided in the generator.
+
+Both from a throwaway `CircuitBuilder` generator that checks every net (R07/R08 lessons), saved
+canonically, run by scenario tests.
+
+### Data sheets
+
+The user downloads from `https://assets.nexperia.com/documents/data-sheet/<name>.pdf` into
+`~/Downloads/nexperia-74hc/`: `74HC_HCT161`, `74HC_HCT163`, `74HC_HCT191`, `74HC_HCT193`,
+`74HC_HCT164`, `74HC_HCT165`, `74HC_HCT595`, `74HC_HCT4040` (a name that 404s: the product
+page's data sheet link). Pinning figures, function tables and logic diagrams are rendered with
+`pdftoppm` and looked at (overlines, arrows, the 193's clock logic).
+
+## Tasks
+
+Small, ordered, each committable on its own with its tests (`pnpm check` green).
+
+- [ ] 1. Data sheets: the user downloads the PDFs; delays per path and requirements (typ and min
+  at 25 °C, max delays at −40…+85 °C) into `hc-timing.ts`, sources cited; findings (193 clock
+  logic, 595 tied clocks, 165 clock gating, 4040 ripple) in the progress log. Pinouts and
+  function tables land with each chip's behavior.
+- [ ] 2. `core`: `TimingChecks.setupHold` edge-to-edge form (the data pin's active transition
+  only; same instant allowed — Q3) and anything else task 1 finds, with tests on a fixture.
+- [ ] 3. Counting helpers (`increment`/`decrement`, outcome merging over controls) and the
+  74HC161, 163, with tests (function table, counting 0–15 and wrap, load, enables, TC and its
+  paths, MR̅ asynchronous vs synchronous, unknown/floating/late controls, every check).
+- [ ] 4. 74HC191, 193 with tests (up/down, asynchronous load, TC/RC̅, TC̅U/TC̅D, cascading
+  signals, the 193's clock rule, every check).
+- [ ] 5. 74HC4040 with tests (counting, MR, the ripple delay of every stage, transient states,
+  uncertain edges, checks).
+- [ ] 6. 74HC164, 165 with tests (shifting, AND of DSA·DSB, asynchronous load, CP/CE̅
+  interchangeable, Q̅7, checks).
+- [ ] 7. 74HC595 with tests (shift and storage registers, MR̅ clears only the shift register,
+  tied clocks one pulse behind, `ten`/`tdis`, loading while disabled, Q7S, checks).
+- [ ] 8. Partial overline labels (Q4): label syntax, DIP drawing, Part tab; the 175's `Q̅0`,
+  the 165's `Q̅7`, the 191's `U/D̅`; looked at in both themes.
+- [ ] 9. Across parts: registry, carry-over property with the new chips (mutation-checked),
+  symbol-drawing scenario, scenarios (8-bit 161 cascade, 4040 decoding glitch, two 595s via
+  Q7S, 165 → 595), counter benchmark.
+- [ ] 10. Examples: Shift Register LEDs and SAP-1 Program Counter (Q1, Q2) from a throwaway
+  generator checking every net, run by scenario tests, looked at in the browser in both themes.
+- [ ] 11. e2e: the examples open with no design issues and run with no diagnostics; a counter's
+  Part tab.
+- [ ] 12. Docs: components.md (counters and shift registers table and rules), simulation.md (if
+  `TimingChecks` grew), glossary (synchronous counter, terminal count, shift register, storage
+  register…), `src/library/README.md`, lessons, roadmap text.
+
+## Acceptance criteria
+
+Checkable statements; verified one by one in the finish-branch workflow.
+
+- [ ] `pnpm check`, `pnpm build` and `pnpm e2e` are green.
+- [ ] All eight chips are in `createDefaultRegistry()` under `74xx/74hc…` with data sheet pin
+  numbers, names and descriptions, a function table, a data sheet URL, and timing for every
+  delay path and requirement with source and conditions.
+- [ ] Every chip has tests of its function table through pin numbers, its counting/shifting
+  sequence, unknown and floating inputs (uncertain clock edges included), a timing assertion for
+  each distinct path, and each timing check just inside (silent) and just outside (diagnostic +
+  `X`) its limit.
+- [ ] Pin labels overline only the letters they mark (`U/D̅`, `Q̅7`, `Q̅0`) on the schematic
+  and in the Part tab.
+- [ ] The 4040's outputs ripple stage by stage; a 595 with tied clocks shows the storage
+  register one pulse behind.
+- [ ] The carry-over invariance property passes on random networks including the new chips.
+- [ ] Shift Register LEDs and SAP-1 Program Counter open from File ▸ New from Example, compile
+  with no design issues and do what they are for (test and by hand in the browser).
+
+## Open questions
+
+- [x] Q1. Examples — the 595 LEDs example was decided in R09a (Q4); add Ben Eater's program
+  counter (a 74HC161 + a 74HC245 onto the bus: CE, CO̅, J̅, CLR — an M2 module)? —
+  _proposed:_ both. — **answer:** both.
+- [x] Q2. How the 595 example is driven — _proposed:_ by hand (DATA switch, SHIFT and LATCH
+  buttons, CLEAR, OE̅ → eight LEDs); alternative: a clock on both clocks and Q7S → an inverter
+  → DS (a Johnson counter, LEDs fill and empty). — **answer:** self-running (the Johnson
+  counter).
+- [x] Q3. SHCP and STCP tied together (the 595 data sheet's "one clock pulse behind" mode) —
+  _proposed:_ the same instant is the documented mode (no violation); STCP 0 < Δ <
+  `tsu(SHCP to STCP)` after SHCP is a violation and `X` where old and new contents differ;
+  alternatives: any Δ < tsu is a violation, no check. — **answer:** as proposed.
+- [x] Q4. Partial overline labels (backlog: the 175's `Q̅0` is drawn `Q̅0̅`); this branch adds
+  `U/D̅` (191), `Q̅7` (165) — _proposed:_ do it here; alternative: whole-label overlines, the
+  191's pin plain `U/D`. — **answer:** do it here.
+
+## Progress log
+
+- 2026-11-07 — plan drafted; `main` green (1431 tests). Q1–Q4 answered: both examples, the
+  595 example self-running, tied 595 clocks allowed at the same instant, partial overlines here.
+- 2026-11-07 — plan approved; branch started. The user downloaded the eight data sheets to
+  `~/Downloads/nexperia-74hc/`; the 161 and 191 are HC-only documents (`74HC161`, `74HC191`),
+  the rest `74HC_HCT…`.
+
+## Handoff
+
+- **State:** plan approved, branch started; data sheets downloaded.
+- **Next step:** task 1 (timing from the data sheets).
+- **Watch out:** pinouts and names in the Parts table are from memory.
+- **Verify with:** `pnpm check`.

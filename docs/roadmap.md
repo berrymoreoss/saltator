@@ -26,7 +26,7 @@ How to read this file:
 | R07  | `feat/persistence`           | Save, load, examples                       | done    |
 | R08  | `feat/74hc-msi`              | 74HC combinational MSI                     | done    |
 | R09a | `feat/74hc-registers`        | 74HC flip-flops, registers + timing checks | done    |
-| R09b | `feat/74hc-counters`         | 74HC counters & shift registers            | next    |
+| R09b | `feat/74hc-counters`         | 74HC counters & shift registers            | in-progress |
 | R10  | `feat/nets-and-buses`        | Net labels, tunnels, buses                 | planned |
 | R11  | `feat/subcircuits`           | Hierarchical design                        | planned |
 | R12  | `feat/memory`                | ROM / RAM + memory inspector               | planned |
@@ -180,7 +180,7 @@ Spec: [components.md](components.md#edge-triggered-chips),
 [simulation.md](simulation.md#timing-checks). Decision:
 [ADR-0014](adr/0014-timing-checks.md). Plan: `.ai/plans/feat-74hc-registers.md`.
 
-### R09b · 74HC counters & shift registers — `feat/74hc-counters` — `next`
+### R09b · 74HC counters & shift registers — `feat/74hc-counters` — `in-progress`
 
 74HC161, 163, 191, 193 (counters), 164, 165, 595 (shift registers), 4040 (ripple counter) on
 R09a's machinery and checks. Example: a 74HC595 driving eight LEDs.
