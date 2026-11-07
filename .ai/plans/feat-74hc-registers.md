@@ -315,8 +315,14 @@ Checkable statements; verified one by one in the finish-branch workflow.
 
 ## Handoff
 
-- **State:** plan approved, branch started; data sheets in `~/Downloads/nexperia-74hc/`.
-- **Next step:** task 1 (timing checks in `core`).
-- **Watch out:** the forced evaluation must neither clock nor record change times; checks must
-  stay idempotent for the carry-over property.
-- **Verify with:** `pnpm check`.
+- **State:** tasks 1–9 done and committed (core checks, sequential function tables, timing data,
+  ten chips, 4511 LE checks, property/scenarios/benchmark). `pnpm check` green.
+- **Next step:** task 10 — UI: Part tab timing section (`src/ui/part-info.ts` +
+  `PartInfoPanel.tsx`: delays typ/max, requirements min/typ, conditions, source), timing
+  violations as errors in `diagnosticSeverity` (`SimulationPanel.tsx`, use `isTimingViolation`);
+  look at DIP drawings of the new chips (overlined falling-edge CP, `1Q̅` labels, clock flag) in
+  both themes. Then task 11 (SAP-1 register example), 12 (e2e), 13 (docs).
+- **Watch out:** `ctx.rose`/`ctx.fell` read the pin (floating report) — observe with `prev`;
+  timing checks take `armed`; the function table checker sets `clock` pins after the data;
+  vitest doesn't typecheck — run `pnpm check` before committing.
+- **Verify with:** `pnpm check`; `pnpm bench` (574 pipeline ≈ 5.5M events/s).
