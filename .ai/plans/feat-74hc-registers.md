@@ -199,7 +199,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 7. 3-state registers 74HC173, 374, 574 with tests (`ten`/`tdis`, loading while
   disabled, the 173's data enables and active-HIGH MR).
 - [x] 8. 74HC4511 LE checks (setup, hold, LE pulse width) with tests.
-- [ ] 9. Across parts: carry-over property over random networks with the new chips
+- [x] 9. Across parts: carry-over property over random networks with the new chips
   (mutation-checked); symbol-drawing scenario; scenarios (74 shift chain without hold
   violations, ripple counter with visible ripple delays, a race caught by a setup check, two
   173s and a 245 on a bus); benchmark of a register chain (cost of the checks).
@@ -301,6 +301,17 @@ Checkable statements; verified one by one in the finish-branch workflow.
   fires). The R08 test "a code arriving as LE rises is not taken (hold time 0)" was wrong about
   what hold 0 means: a code arriving _with_ LE now violates set-up (latched `X` where 5 and 7
   differ); hold 0 lets the code change right after LE rose — two tests now.
+- 2026-11-07 — task 9: carry-over property over 30 random networks of the ten chips and the
+  4511 (≈ 7200 net changes, ≈ 330 timing violations), now also comparing the timing violations
+  of the plain and recompiled runs (floating inputs are reported again after a recompile, by
+  design, so only timing kinds); mutation-checked (a flip-flop clocking on the forced
+  evaluation; a set-up check not waiting for the edge). The symbol-drawing scenario covers the
+  new chips as is. Scenarios (`sequential-74hc.test.ts`): a 74 shift chain (no hold violation:
+  tpd 17 > th 3; at 30 MHz every CP reports its pulse width), a 107 ripple counter (15 → 0
+  ripples 19, 38, 57, 76 ns), a data/clock race through one 74HC08 (setup 9 < 15 ns: `X`; two
+  ANDs fix it), Ben's A register (two 173s, two 245s, pull-downs) loading and driving the bus.
+  Benchmark: 74HC574 pipeline ×100 at 5.54M events/s (6.72M with the checks switched off: they
+  cost ≈ 18 %); inverter chain 13.6M, 74HC04 chain 8.5M, ring 14.6M (unchanged).
 
 ## Handoff
 

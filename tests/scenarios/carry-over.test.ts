@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   Drive,
+  isTimingViolation,
   levelChar,
   type Netlist,
   NetlistBuilder,
@@ -58,6 +59,11 @@ function expectInvisible(netlist: Netlist, end: Time, pokes: readonly Poke[], at
   const edited = run(netlist, end, pokes, at);
   expect(edited.changes).toEqual(plain.changes);
   expect(edited.sim.now).toBe(plain.sim.now);
+  // The same timing violations too: a check firing on the recompile's forced evaluation would
+  // show here. (Floating inputs are reported again after a recompile, by design.)
+  const violations = (sim: Simulator) =>
+    sim.diagnostics.entries.filter((d) => isTimingViolation(d.kind));
+  expect(violations(edited.sim)).toEqual(violations(plain.sim));
   for (const { id } of netlist.components) {
     expect(edited.sim.stateOf(id), id).toEqual(plain.sim.stateOf(id));
   }
@@ -241,6 +247,48 @@ describe('recompiling an unchanged netlist is invisible', () => {
       total += expectInvisible(netlist, us(2), pokes, at).changes.length;
     }
     expect(total).toBeGreaterThan(3000);
+  });
+});
+
+describe('recompiling flip-flops and registers mid-run', () => {
+  it('is invisible in random networks of them, timing violations included (seeded)', () => {
+    const chips = ['74', '107', '109', '112', '173', '175', '273', '374', '377', '574', '4511'];
+    let changes = 0;
+    let violations = 0;
+    for (let seed = 1; seed <= 30; seed++) {
+      const random = rng(2000 + seed);
+      const pick = <T>(items: readonly T[]): T => items[Math.floor(random() * items.length)]!;
+      const b = new NetlistBuilder();
+      const outputs: string[] = [];
+      const inputs: string[] = [];
+      for (let i = 0; i < 2; i++) {
+        b.add(`X${i}`, 'io/clock', { frequency: 5e6 + Math.floor(random() * 40e6), duty: 50 });
+        b.add(`T${i}`, 'test/driver');
+        outputs.push(`X${i}.Y`, `T${i}.Y`);
+      }
+      for (let i = 0; i < 5; i++) {
+        const type = `74xx/74hc${pick(chips)}`;
+        b.add(`U${i}`, type);
+        for (const pin of pinsOf(registry.get(type)!, {})) {
+          if (pin.dir === 'in') inputs.push(`U${i}.${pin.name}`);
+          if (pin.dir === 'out' || pin.dir === 'tristate') outputs.push(`U${i}.${pin.name}`);
+        }
+      }
+      // Clocks, data and resets from anywhere: racing inputs make plenty of violations.
+      for (const input of inputs) if (random() < 0.9) b.connect(pick(outputs), input);
+      const netlist = b.build();
+      const pokes: Poke[] = Array.from({ length: 8 }, () => ({
+        time: Math.floor(random() * us(2)),
+        component: pick(['T0', 'T1']),
+        action: pick([Drive.STRONG_0, Drive.STRONG_1, Drive.Z]),
+      }));
+      const at = Array.from({ length: 10 }, () => Math.floor(random() * us(2)));
+      const { changes: list, sim } = expectInvisible(netlist, us(2), pokes, at);
+      changes += list.length;
+      for (const d of sim.diagnostics.entries) if (isTimingViolation(d.kind)) violations += d.count;
+    }
+    expect(changes).toBeGreaterThan(5000); // the networks really switch
+    expect(violations).toBeGreaterThan(200); // and the checks really fire
   });
 });
 
