@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { designatorPrefixOf, familyOf } from '../core';
 import { createDefaultRegistry } from './registry';
 
+const MEMORIES = ['mem/at28c16', 'mem/at28c64b', 'mem/at28c256'];
+
 const CHIPS = [
   '74xx/74hc00',
   '74xx/74hc02',
@@ -85,6 +87,7 @@ describe('createDefaultRegistry', () => {
       'net/bus-entry',
       ...CHIPS,
       'timer/ne555',
+      ...MEMORIES,
     ]);
   });
 
@@ -93,7 +96,7 @@ describe('createDefaultRegistry', () => {
       expect(d.name, d.type).not.toBe('');
       expect(d.title, d.type).not.toBe('');
       expect(d.keywords?.length, d.type).toBeGreaterThan(0);
-      expect(['prim', 'io', 'net', '74xx', 'timer']).toContain(familyOf(d.type));
+      expect(['prim', 'io', 'net', '74xx', 'timer', 'mem']).toContain(familyOf(d.type));
     }
   });
 
@@ -130,6 +133,7 @@ describe('createDefaultRegistry', () => {
       'net/bus-entry': 'BE',
       ...Object.fromEntries(CHIPS.map((type) => [type, 'U'])),
       'timer/ne555': 'U',
+      ...Object.fromEntries(MEMORIES.map((type) => [type, 'U'])),
     });
   });
 

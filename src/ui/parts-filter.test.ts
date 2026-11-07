@@ -19,6 +19,7 @@ describe('parts filter', () => {
     expect(groups.map((g) => g.label)).toEqual([
       '74HC Logic',
       'Timers',
+      'Memory',
       'Primitives',
       'Input / Output',
       'Nets',

@@ -302,7 +302,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 2. `core`: `image` prop type with `parseImage`/`formatImage`/summary and `resolveProps`
   validation; `random.ts` (seeded generator, string hash); `MemoryDef`/`MemoryView` on
   definitions with registry validation; tests (image round trip as a property test).
-- [ ] 3. `library`: the memory read engine with the `X` window (`src/library/mem/`), the three
+- [x] 3. `library`: the memory read engine with the `X` window (`src/library/mem/`), the three
   EEPROMs as ROMs (write attempts reported), mode tables, `memory` views; tests: mode tables,
   every read path's limits, the window, unknown controls and address bits, images.
 - [ ] 4. `library`: the SRAM write engine and its checks, `mem/6116` (speed grades) and

@@ -13,6 +13,7 @@ export interface PartGroup {
 const FAMILIES: readonly (readonly [string, string])[] = [
   ['74xx', '74HC Logic'],
   ['timer', 'Timers'],
+  ['mem', 'Memory'],
   ['prim', 'Primitives'],
   ['io', 'Input / Output'],
   ['net', 'Nets'],
