@@ -4,7 +4,7 @@
 | ---------- | ----------------------------------------------------------------------------- |
 | Branch     | `feat/74hc-counters`                                                          |
 | Roadmap    | R09b — 74HC counters & shift registers ([roadmap](../../docs/roadmap.md))     |
-| Status     | in-progress                                                                   |
+| Status     | done                                                                          |
 | Depends on | R09a (timing checks, edge-triggered helpers, sequential function tables), R08 |
 | Created    | 2026-11-07                                                                    |
 
@@ -235,21 +235,28 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 
 Checkable statements; verified one by one in the finish-branch workflow.
 
-- [ ] `pnpm check`, `pnpm build` and `pnpm e2e` are green.
-- [ ] All eight chips are in `createDefaultRegistry()` under `74xx/74hc…` with data sheet pin
+- [x] `pnpm check`, `pnpm build` and `pnpm e2e` are green. (1631 tests, build, 51 e2e.)
+- [x] All eight chips are in `createDefaultRegistry()` under `74xx/74hc…` with data sheet pin
   numbers, names and descriptions, a function table, a data sheet URL, and timing for every
-  delay path and requirement with source and conditions.
-- [ ] Every chip has tests of its function table through pin numbers, its counting/shifting
+  delay path and requirement with source and conditions. (`chips.test.ts`, `registry.test.ts`.)
+- [x] Every chip has tests of its function table through pin numbers, its counting/shifting
   sequence, unknown and floating inputs (uncertain clock edges included), a timing assertion for
   each distinct path, and each timing check just inside (silent) and just outside (diagnostic +
-  `X`) its limit.
-- [ ] Pin labels are overlined as the data sheets draw them (letters, not digits: `1R̅D̅`, `E̅1`;
-  marked exceptions `U̅/D`, `Q̅0̅`) on the schematic and in the Part tab.
-- [ ] The 4040's outputs ripple stage by stage; a 595 with tied clocks shows the storage
-  register one pulse behind.
-- [ ] The carry-over invariance property passes on random networks including the new chips.
-- [ ] Shift Register LEDs and SAP-1 Program Counter open from File ▸ New from Example, compile
-  with no design issues and do what they are for (test and by hand in the browser).
+  `X`) its limit. (The walk found gaps — pulse widths at their limits on the 164, 165, 193,
+  595; the 193's floating input, PL̅ path and its D set-up and PL̅ recovery inside the limit; the
+  595's uncertain SHCP edge and unknown MR̅ — added before ticking. Hold minima of 0 can't be
+  broken: tests show a change right after the edge is accepted.)
+- [x] Pin labels are overlined as the data sheets draw them (letters, not digits: `1R̅D̅`, `E̅1`;
+  marked exceptions `U̅/D`, `Q̅0̅`) on the schematic and in the Part tab. (symbol-drawing and
+  part-info tests, e2e on the 191; looked at in Chromium in both themes.)
+- [x] The 4040's outputs ripple stage by stage; a 595 with tied clocks shows the storage
+  register one pulse behind. (`ripple-counter.test.ts`: every output's change time and the
+  intermediate counts; `shift-registers.test.ts` and the example's scenario.)
+- [x] The carry-over invariance property passes on random networks including the new chips. (30 networks,
+  mutation-checked.)
+- [x] Shift Register LEDs and SAP-1 Program Counter open from File ▸ New from Example, compile
+  with no design issues and do what they are for (test and by hand in the browser). (Scenario
+  tests, e2e; operated in the dev app: CLEAR, then the LEDs fill; CLR, CE, three steps, CO on.)
 
 ## Open questions
 
@@ -384,12 +391,23 @@ Checkable statements; verified one by one in the finish-branch workflow.
   rules, pin names as drawn), six lessons, roadmap text and backlog (the overline item done). No
   new ADR: the prose usage rules apply ADR-0014; the overline rule is a drawing convention
   (components.md, editor.md). The roadmap status flip is left to finish-branch.
+- 2026-11-07 — finish: acceptance walked one by one; the walk found test gaps (above), added.
+  `pnpm check` (1631 tests), `pnpm build`, `pnpm e2e` (51) green.
+- **Summary:** eight 74HC counters and shift registers (Nexperia): 161/163 on a
+  `SyncCounterSpec`, 191/193 with asynchronous load, the 4040 rippling stage by stage, 164/165/595
+  (the 595's storage register one pulse behind with tied clocks). Unknown or late controls merge
+  every mode they allow; prose usage rules (191 CE̅ and U̅/D, 193's other clock) checked like
+  timing requirements. Core: `setupHold` edge-to-edge and hold-only, `checkableRows`, `q7` state
+  letters, `pinTextRuns`. Pin labels overlined as the data sheets draw them (letters, not
+  digits; marked exceptions), on the canvas and in the Part tab (Q5). Examples: Shift Register
+  LEDs and SAP-1 Program Counter. Found on the way: the 191's pin is U̅/D (LOW counts up), the
+  193 counts partially with the other clock LOW, the 163's TC column contradicts its note, the
+  overline backlog item was wrong, the 139's columns were never overlined.
 
 ## Handoff
 
-- **State:** all 12 tasks done; acceptance criteria not walked yet.
-- **Next step:** finish-branch workflow: walk the acceptance criteria one by one, `pnpm check`,
-  `pnpm build`, `pnpm e2e`, roadmap R09b → done and R10 → next, then ask to merge.
-- **Watch out:** the acceptance walk in R09a found test gaps; look for them here too (every
-  chip's floating inputs and uncertain edges, every path).
-- **Verify with:** `pnpm check`, `pnpm build`, `pnpm e2e`.
+- **State:** done; waiting for the user's approval to merge into `main` (no remote: local
+  `--no-ff` merge).
+- **Follow-ups:** R10 `feat/nets-and-buses` (next). Backlog: other counters on these engines
+  (4020, 4024, 4060, 390, 192 decade) when needed; seeded random power-on stays a backlog item
+  (a 4040 divider with MR tied LOW stays `X` until a reset).
