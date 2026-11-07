@@ -41,6 +41,8 @@ export interface DrawContext {
    * pin, as its wires show it (weak, contention included).
    */
   readonly pinColor?: (pin: string) => string;
+  /** While simulating, for bus labels: the bus's value (`0x3F`), if it has members. */
+  readonly busValue?: string;
 }
 
 /** Draws a part's body (pin stubs are drawn by the renderer). */

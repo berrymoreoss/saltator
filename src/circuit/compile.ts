@@ -43,7 +43,10 @@ export interface CompileResult {
   readonly wireBuses: ReadonlyMap<string, string>;
   /** Points where a junction dot is drawn on wires, sorted by x, then y. */
   readonly junctions: readonly Point[];
-  /** Points where a junction dot is drawn on bus lines, sorted by x, then y. */
+  /**
+   * Points where three or more bus line ends or interiors meet, sorted by x, then y. Bus pins
+   * don't count: the entries along a bus would each get a dot.
+   */
   readonly busJunctions: readonly Point[];
   /**
    * Pins that touch nothing at their point (`U1.A`), net labels and bus pins included: a bus pin
@@ -188,7 +191,8 @@ export function compileCircuit(circuit: Circuit, registry: ComponentRegistry): C
       busWires.map((wire, i) => [wire.id, buses[busConnectivity.wireNet[i]!]!.id]),
     ),
     junctions: connectivity.junctions,
-    busJunctions: busConnectivity.junctions,
+    // Only where bus lines meet: entries and labels along a bus would each get a dot.
+    busJunctions: connect([], busWires).junctions,
     openPins: new Set([
       ...connectivity.openPins.map((i) => pinId(allPins[i]!)),
       ...busConnectivity.openPins.map((i) => pinId(busPins[i]!)),

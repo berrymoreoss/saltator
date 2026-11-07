@@ -487,9 +487,10 @@ describe('compileCircuit', () => {
       ]);
     });
 
-    it('get junction dots of their own', () => {
+    it('get junction dots of their own, where bus lines meet', () => {
       const result = compile(
-        [],
+        // An entry and a label on b1's middle: no dots there.
+        [entry('BE1', 'D0', -3, 1), busLabel('BL1', 'D[0..3]', 0, 7)],
         [
           bus('b1', 0, 0, 0, 8),
           bus('b2', 0, 4, 4, 4),

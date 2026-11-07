@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CircuitBuilder } from '../circuit';
 import { createDefaultRegistry } from '../library';
 import { DEFAULT_CAMERA } from './camera';
-import { WIRE_WIDTH } from './graphics';
+import { BUS_WIDTH, WIRE_WIDTH } from './graphics';
 import { drawCircuitPreview } from './preview';
 import { type RenderOptions, renderScene, type SignalView } from './renderer';
 import { buildScene } from './scene';
@@ -66,6 +66,8 @@ const levels = DARK_CANVAS.levels;
 const signals = (styles: Record<string, SignalStyle>, flash = true): SignalView => ({
   wire: (id) => styles[id] ?? SignalStyle.NONE,
   point: () => SignalStyle.NONE,
+  busPoint: () => SignalStyle.NONE,
+  busValue: () => undefined,
   flash,
   part: () => undefined,
 });
@@ -106,6 +108,67 @@ describe('renderScene: signals', () => {
       signals: signals({ [w1]: SignalStyle.L0, [w2]: SignalStyle.L0 }),
     });
     expect(wireStrokes(strokes)).toEqual([`${levels.l0}: 2`, `${DARK_CANVAS.selection}: 1`]);
+  });
+});
+
+describe('renderScene: buses', () => {
+  // A bus entry on SW1's output, a bus line through its bus end labeled D[0..1]; a plain wire.
+  const b = new CircuitBuilder(registry)
+    .add('SW1', 'io/switch', { at: [0, 0] })
+    .add('BE1', 'net/bus-entry', { at: [4, 1], props: { name: 'D0' } });
+  const busCircuit = b
+    .bus('BE1.B', [7, 8])
+    .bus([7, 5], [10, 5])
+    .add('NL1', 'net/label', { at: [7, 8], props: { name: 'D[0..1]' } })
+    .wire([0, 12], [5, 12])
+    .build();
+  const busScene = buildScene(busCircuit, registry);
+  const lines = busScene.wires.filter((w) => w.bus).map((w) => w.id);
+
+  function drawBuses(options: Partial<RenderOptions>) {
+    const { ctx, strokes } = recordingContext();
+    renderScene(
+      ctx,
+      busScene,
+      { camera: DEFAULT_CAMERA, viewport: { width: 800, height: 600 }, dpr: 1 },
+      {
+        theme: DARK_CANVAS,
+        gateStyle: 'ansi',
+        showGrid: false,
+        selection: EMPTY_SELECTION,
+        ...options,
+      },
+    );
+    return strokes;
+  }
+
+  it('draws bus lines and bus stubs heavier, in the bus color', () => {
+    expect(busScene.busJunctions).toEqual([[7, 5]]);
+    expect(busScene.wires.map((w) => [w.id, w.net, w.bus])).toEqual([
+      [lines[0], 'D[0..1]', true],
+      [lines[1], 'D[0..1]', true],
+      ['w3', 'w3', false],
+    ]);
+    const strokes = drawBuses({});
+    // The two bus lines in one path, then the entry's and the label's bus stubs.
+    expect(wireStrokes(strokes, BUS_WIDTH)).toEqual([
+      `${DARK_CANVAS.bus}: 2`,
+      `${DARK_CANVAS.bus}: 1`,
+      `${DARK_CANVAS.bus}: 1`,
+    ]);
+    expect(wireStrokes(strokes)).toContain(`${DARK_CANVAS.wire}: 1`);
+  });
+
+  it('draws a bus by its style while simulating, a selected one over a halo', () => {
+    const selection = { parts: new Set<string>(), wires: new Set([lines[0]!]) };
+    const unknown = drawBuses({
+      selection,
+      signals: signals({ [lines[0]!]: SignalStyle.X, [lines[1]!]: SignalStyle.X }),
+    });
+    expect(wireStrokes(unknown, BUS_WIDTH)[0]).toBe(`${levels.x}: 2`);
+    expect(wireStrokes(unknown, BUS_WIDTH * 2.5)).toEqual([`${DARK_CANVAS.hover}: 1`]);
+    const known = drawBuses({ signals: signals({ [lines[0]!]: SignalStyle.BUS }) });
+    expect(wireStrokes(known, BUS_WIDTH)[0]).toBe(`${DARK_CANVAS.bus}: 2`);
   });
 });
 

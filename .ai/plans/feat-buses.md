@@ -171,7 +171,7 @@ single entries vs a multi-bit ripper.
 - [x] 5. `library`: bus labels (the name pattern, the bus pin), `net/bus-entry`; tests;
   scenarios (two 74HC245s joined over a bus by entries, a member missing reads `Z`, adding a bus
   line or label while running keeps the simulator).
-- [ ] 6. `editor`: scene and renderer for buses (thick lines, bus dots, marks), the bus-entry
+- [x] 6. `editor`: scene and renderer for buses (thick lines, bus dots, marks), the bus-entry
   drawer, bus label outline; live bus colors and the value tag (signal map members); Symbol
   Gallery entries; tests.
 - [ ] 7. `editor`: the Bus tool, buses dragged out of bus pins and ends, layer-aware routing and
@@ -222,12 +222,22 @@ single entries vs a multi-bit ripper.
   bus labels.
 - 2026-11-07 — Q5 answered (a new Data Bus example); plan approved, branch started. Roadmap:
   R10b in progress.
+- 2026-11-07 — tasks 1–5 done: net/bus name grammar moved to core (`NET_NAME`, `BUS_NAME`,
+  `LABEL_NAME`, indices 0…99, ≤ 32 characters — expressible as a regex, so `PropDef.pattern`
+  stays a regex), `busMembers`, `busValueText`, `PinDef.bus`; `Wire.bus` with schema v2 (identity
+  migration, examples re-saved); the compiler's bus layer (`buses`, `wireBuses`, `busJunctions`),
+  layer-aware `addWires`/`normalizeWires` (property test with buses), `CircuitBuilder.bus`;
+  checks `bus-entry-member`, `multiple-net-names` on buses, `single-net-label` for entries; bus
+  labels and `net/bus-entry` with a first drawer; scenario `tests/scenarios/buses.test.ts`.
+  1764 tests.
 
 ## Handoff
 
-- **State:** plan approved, nothing implemented yet.
-- **Next step:** task 1 (`core`: bus names, bus value text, `PinDef.bus`).
-- **Watch out:** the layer check covers tests (`src/circuit/*.test.ts` use `test-parts.ts`).
-  Schema v2 changes every example file's first line; the examples test checks they are
-  canonical. Gate commits on `pnpm check`'s exit code.
+- **State:** tasks 1–5 done (core, circuit, library). Editor and UI not started.
+- **Next step:** task 6 — scene/renderer for buses (`SceneWire` needs to know its bus; scene
+  pins of bus parts have no net), live bus colors and the value tag via the signal map
+  (members by name → simulator nets; a member nothing is named after reads `Z`).
+- **Watch out:** the layer check covers tests (`src/circuit/*.test.ts` use `test-parts.ts`,
+  library tests can't import `circuit`). 74HC245 pins are 0-based (A0…A7). Gate commits on
+  `pnpm check`'s exit code.
 - **Verify with:** `pnpm check`.

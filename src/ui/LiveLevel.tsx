@@ -11,6 +11,7 @@ const STYLE_TEXT: Readonly<Record<SignalStyle, [text: string, className: string,
     [SignalStyle.WEAK_0]: ['0', 'weak0', 'Pulled low (weak)'],
     [SignalStyle.WEAK_1]: ['1', 'weak1', 'Pulled high (weak)'],
     [SignalStyle.CONTENTION]: ['X', 'contention', 'Contention: drivers disagree (a short)'],
+    [SignalStyle.BUS]: ['', '', ''], // a bus shows its value, not a level
   };
 
 /**
@@ -33,7 +34,7 @@ export function LiveLevel({
     : wire !== undefined
       ? simulation.wireStyle(wire)
       : undefined;
-  if (style === undefined || style === SignalStyle.NONE) return null;
+  if (style === undefined || style === SignalStyle.NONE || style === SignalStyle.BUS) return null;
   const [text, className, title] = STYLE_TEXT[style];
   return (
     <span className={`level-badge ${className}`} title={title} data-testid="live-level">

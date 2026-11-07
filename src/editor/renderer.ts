@@ -4,10 +4,17 @@
  * Stateless: the caller (the canvas view) owns the canvas and decides when to redraw.
  * Spec: docs/editor.md#rendering.
  */
-import type { Point, Rect } from '../circuit';
+import type { Point, Rect, Side } from '../circuit';
 import type { Level } from '../core';
 import { type Camera, type Viewport, visibleRect } from './camera';
-import { CanvasGraphics, LINE_WIDTH, MIN_LINE_PX, WIRE_WIDTH } from './graphics';
+import {
+  BUS_WIDTH,
+  CanvasGraphics,
+  LINE_WIDTH,
+  MIN_LINE_PX,
+  type Paint,
+  WIRE_WIDTH,
+} from './graphics';
 import { gridSpacing } from './grid';
 import type { BoxMode, Hit } from './hit-test';
 import type { Scene, ScenePart } from './scene';
@@ -29,6 +36,10 @@ export interface SignalView {
   wire(id: string): SignalStyle;
   /** Style at a connection point: junction dots. */
   point(p: Point): SignalStyle;
+  /** Style of the bus at a bus line's point or a bus pin: bus junction dots, bus stubs. */
+  busPoint(p: Point): SignalStyle;
+  /** A bus's value (`0x3F`), by bus id; undefined for a bus without members. */
+  busValue(bus: string): string | undefined;
   /** Contention is in its bright phase (it flashes while running). */
   readonly flash: boolean;
   /** A part as it is in the simulation; undefined for parts the simulation doesn't have. */
@@ -178,10 +189,13 @@ function drawSelectionFills(
 
 function drawWires(g: CanvasGraphics, scene: Scene, view: Rect, options: RenderOptions): void {
   const { selection, theme, ghost, signals } = options;
-  // One path per color: plain or level colors, the selection color for selected and ghost wires.
-  // While simulating, a selected wire keeps its level color over a selection halo.
+  // One path per color and width: plain or level colors, the selection color for selected and
+  // ghost wires. While simulating, a selected wire keeps its level color over a selection halo.
+  // Bus lines are heavier, in the bus color (a bus has no level: `X` or `Z` when its members are).
   const halo: (readonly [Point, Point])[] = [];
+  const busHalo: (readonly [Point, Point])[] = [];
   const byColor = new Map<string, (readonly [Point, Point])[]>();
+  const busByColor = new Map<string, (readonly [Point, Point])[]>();
   for (const wire of scene.wires) {
     const [x0, y0] = wire.from;
     const [x1, y1] = wire.to;
@@ -193,17 +207,21 @@ function drawWires(g: CanvasGraphics, scene: Scene, view: Rect, options: RenderO
     };
     if (!intersects(box, view, 1)) continue;
     const selected = selection.wires.has(wire.id);
+    const idle = wire.bus ? theme.bus : theme.wire;
     let color: string;
     if (ghost?.wires.has(wire.id)) color = theme.selection;
     else if (signals) {
-      color = signalColor(theme, signals.wire(wire.id), signals.flash);
-      if (selected) halo.push([wire.from, wire.to]);
-    } else color = selected ? theme.selection : theme.wire;
-    groupPush(byColor, color, [wire.from, wire.to] as const);
+      const style = signals.wire(wire.id);
+      color = style === SignalStyle.NONE ? idle : signalColor(theme, style, signals.flash);
+      if (selected) (wire.bus ? busHalo : halo).push([wire.from, wire.to]);
+    } else color = selected ? theme.selection : idle;
+    groupPush(wire.bus ? busByColor : byColor, color, [wire.from, wire.to] as const);
   }
   g.world();
   if (halo.length > 0) strokeSegments(g, halo, theme.hover, WIRE_WIDTH * 4);
+  if (busHalo.length > 0) strokeSegments(g, busHalo, theme.hover, BUS_WIDTH * 2.5);
   for (const [color, segments] of byColor) strokeSegments(g, segments, color, WIRE_WIDTH);
+  for (const [color, segments] of busByColor) strokeSegments(g, segments, color, BUS_WIDTH);
 }
 
 /** Adds `item` to its group's list. */
@@ -228,18 +246,28 @@ function strokeSegments(
 }
 
 function drawJunctions(g: CanvasGraphics, scene: Scene, view: Rect, options: RenderOptions): void {
-  if (scene.junctions.length === 0) return;
   const { signals, theme } = options;
-  const r = Math.max(0.2, 2.5 / g.scale);
+  const visible = ([x, y]: Point) =>
+    x >= view.x - 1 &&
+    x <= view.x + view.width + 1 &&
+    y >= view.y - 1 &&
+    y <= view.y + view.height + 1;
   const byColor = new Map<string, Point[]>();
   for (const p of scene.junctions) {
-    const [x, y] = p;
-    if (x < view.x - 1 || x > view.x + view.width + 1) continue;
-    if (y < view.y - 1 || y > view.y + view.height + 1) continue;
+    if (!visible(p)) continue;
     const color = signals ? signalColor(theme, signals.point(p), signals.flash) : theme.junction;
     groupPush(byColor, color, p);
   }
+  const busByColor = new Map<string, Point[]>();
+  for (const p of scene.busJunctions) {
+    if (visible(p)) groupPush(busByColor, busColor(theme, signals, p), p);
+  }
   g.world();
+  fillDots(g, byColor, Math.max(0.2, 2.5 / g.scale));
+  fillDots(g, busByColor, Math.max(0.35, 3.5 / g.scale));
+}
+
+function fillDots(g: CanvasGraphics, byColor: ReadonlyMap<string, readonly Point[]>, r: number) {
   for (const [color, points] of byColor) {
     g.beginPath();
     for (const [x, y] of points) {
@@ -248,6 +276,12 @@ function drawJunctions(g: CanvasGraphics, scene: Scene, view: Rect, options: Ren
     }
     g.fill(color);
   }
+}
+
+/** The color of the bus at a bus point: the bus color, or its live `X`/`Z` color. */
+function busColor(theme: CanvasTheme, signals: SignalView | undefined, p: Point): string {
+  const style = signals?.busPoint(p) ?? SignalStyle.NONE;
+  return style === SignalStyle.NONE ? theme.bus : signalColor(theme, style, signals?.flash);
 }
 
 /**
@@ -263,12 +297,16 @@ function liveDraw(
   const simulated = signals.part(part.id);
   if (simulated) return { part: simulated, levelColor };
   if (part.definition?.schematicOnly !== true) return undefined;
+  const busPin = part.pins.find((p) => p.bus && p.net !== undefined);
+  const value = busPin ? signals.busValue(busPin.net!) : undefined;
   return {
     levelColor,
     pinColor: (name) => {
       const pin = part.pins.find((p) => p.name === name);
+      if (pin?.bus) return busColor(theme, signals, pin.at);
       return signalColor(theme, pin ? signals.point(pin.at) : SignalStyle.NONE, signals.flash);
     },
+    ...(value !== undefined && { busValue: value }),
   };
 }
 
@@ -282,28 +320,17 @@ function drawPart(
   g.highlight = selection.parts.has(part.id) ? theme.selection : undefined;
   g.place(part.placement);
 
-  if (part.layout.pins.length > 0) {
-    g.beginPath();
-    for (const pin of part.layout.pins) {
-      const [x, y] = pin.at;
-      g.moveTo(x, y);
-      switch (pin.side) {
-        case 'left':
-          g.lineTo(x + 1, y);
-          break;
-        case 'right':
-          g.lineTo(x - 1, y);
-          break;
-        case 'top':
-          g.lineTo(x, y + 1);
-          break;
-        case 'bottom':
-          g.lineTo(x, y - 1);
-          break;
-      }
-    }
-    g.stroke('pin', LINE_WIDTH);
-  }
+  // Pin stubs; a bus pin's stub belongs to its bus: heavy, in its color.
+  strokeStubs(
+    g,
+    part.layout.pins.filter((_, i) => part.pins[i]?.bus !== true),
+    'pin',
+    LINE_WIDTH,
+  );
+  part.layout.pins.forEach((pin, i) => {
+    const scenePin = part.pins[i];
+    if (scenePin?.bus) strokeStubs(g, [pin], live?.pinColor?.(scenePin.name) ?? 'bus', BUS_WIDTH);
+  });
   drawPartBody(g, part, gateStyle, theme.error, live);
 
   g.world();
@@ -318,6 +345,32 @@ function drawPart(
   }
   g.highlight = undefined;
 }
+
+/** Strokes pin stubs from their tips one cell into the body, in local coordinates. */
+function strokeStubs(
+  g: CanvasGraphics,
+  pins: readonly { readonly at: Point; readonly side: Side }[],
+  paint: Paint,
+  width: number,
+): void {
+  if (pins.length === 0) return;
+  g.beginPath();
+  for (const { at, side } of pins) {
+    const [x, y] = at;
+    const [dx, dy] = INWARD[side];
+    g.moveTo(x, y);
+    g.lineTo(x + dx, y + dy);
+  }
+  g.stroke(paint, width);
+}
+
+/** From a pin's tip towards the body, by the side it sticks out of. */
+const INWARD: Readonly<Record<Side, Point>> = {
+  left: [1, 0],
+  right: [-1, 0],
+  top: [0, 1],
+  bottom: [0, -1],
+};
 
 /** Open circles on unconnected pin ends, squares on dangling wire ends (not for ghosts). */
 function drawMarks(

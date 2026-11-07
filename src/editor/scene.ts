@@ -47,8 +47,10 @@ export interface ScenePin {
   readonly base: Point;
   /** Side of the body after placement. */
   readonly side: Side;
-  /** Net id; undefined for parts left out of the netlist. */
+  /** Net id (bus id for a bus pin); undefined for parts left out of the netlist. */
   readonly net?: string;
+  /** The pin connects on the bus layer (bus entries' bus ends, bus labels). */
+  readonly bus: boolean;
   /** Nothing else is connected to this pin. */
   readonly open: boolean;
 }
@@ -77,7 +79,10 @@ export interface SceneWire {
   readonly id: string;
   readonly from: Point;
   readonly to: Point;
+  /** Net id of a wire, bus id of a bus line (`CompileResult.buses`). */
   readonly net: string;
+  /** A bus line. */
+  readonly bus: boolean;
 }
 
 export interface Scene {
@@ -89,7 +94,9 @@ export interface Scene {
   readonly partById: ReadonlyMap<string, ScenePart>;
   readonly wireById: ReadonlyMap<string, SceneWire>;
   readonly junctions: readonly Point[];
-  /** Wire ends that touch nothing. */
+  /** Junction dots of bus lines. */
+  readonly busJunctions: readonly Point[];
+  /** Wire and bus ends that touch nothing. */
   readonly danglingEnds: readonly Point[];
   readonly issues: readonly DesignIssue[];
   /** Bounding box of everything, or undefined for an empty circuit. */
@@ -137,18 +144,23 @@ export function buildScene(
     for (const pin of net.pins) pinNet.set(`${pin.component}.${pin.pin}`, net.id);
     for (const pin of net.schematicPins) pinNet.set(`${pin.component}.${pin.pin}`, net.id);
   }
+  const busPins = new Set<string>();
+  for (const bus of compiled.buses) {
+    for (const pin of bus.pins) {
+      const key = `${pin.component}.${pin.pin}`;
+      pinNet.set(key, bus.id);
+      busPins.add(key);
+    }
+  }
 
   const parts = circuit.components.map((instance) =>
-    buildPart(instance, registry, layouts, pinNet, compiled.openPins),
+    buildPart(instance, registry, layouts, { pinNet, busPins, openPins: compiled.openPins }),
   );
-  const wires = circuit.wires.map(
-    (wire): SceneWire => ({
-      id: wire.id,
-      from: wire.from,
-      to: wire.to,
-      net: compiled.wireNets.get(wire.id) ?? wire.id,
-    }),
-  );
+  const wires = circuit.wires.map((wire): SceneWire => {
+    const bus = wire.bus === true;
+    const net = (bus ? compiled.wireBuses : compiled.wireNets).get(wire.id) ?? wire.id;
+    return { id: wire.id, from: wire.from, to: wire.to, net, bus };
+  });
   const danglingEnds = compiled.issues.flatMap((issue) =>
     issue.code === 'dangling-wire' && issue.at ? [issue.at] : [],
   );
@@ -161,6 +173,7 @@ export function buildScene(
     partById: new Map(parts.map((part) => [part.id, part])),
     wireById: new Map(wires.map((wire) => [wire.id, wire])),
     junctions: compiled.junctions,
+    busJunctions: compiled.busJunctions,
     danglingEnds,
     issues: compiled.issues,
     ...optional('bounds', sceneBounds(parts, wires)),
@@ -175,9 +188,13 @@ function buildPart(
   instance: ComponentInstance,
   registry: ComponentRegistry,
   layouts: LayoutCache,
-  pinNet: ReadonlyMap<string, string>,
-  openPins: ReadonlySet<string>,
+  pinsOf: {
+    readonly pinNet: ReadonlyMap<string, string>;
+    readonly busPins: ReadonlySet<string>;
+    readonly openPins: ReadonlySet<string>;
+  },
 ): ScenePart {
+  const { pinNet, busPins, openPins } = pinsOf;
   const placement = placementOf(instance);
   const definition = registry.get(instance.type);
   let props: Readonly<Record<string, PropValue>> = instance.props;
@@ -205,6 +222,7 @@ function buildPart(
       base: transformPoint(stubBase(pin.at, pin.side), placement),
       side: transformSide(pin.side, placement),
       ...(net !== undefined && { net }),
+      bus: busPins.has(key),
       open: openPins.has(key),
     };
   });
@@ -272,7 +290,8 @@ function partTexts(
   bounds: Rect,
 ): SceneText[] {
   const symbolKind = drawing.kind === 'symbol' ? drawing.symbol.kind : undefined;
-  if (symbolKind === 'net-label') return []; // the tag shows its name; no designator
+  // Net labels and bus entries show their names; their designators are never drawn.
+  if (symbolKind === 'net-label' || symbolKind === 'bus-entry') return [];
   if (definition && symbolKind !== undefined && RAIL_KINDS.has(symbolKind)) {
     const lines: TextLine[] = [{ text: instance.label ?? definition.name, role: 'name' }];
     return placeTextBlock(lines, bounds, textSide([], pins[0]?.side));
