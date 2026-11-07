@@ -19,6 +19,7 @@ import {
   busMembers,
   busValueText,
   conditionProblems,
+  formatTime,
   isBusName,
   Level,
   levelChar,
@@ -595,7 +596,7 @@ export class Analyzer {
     });
     sim.requestBreak();
     this.#pause = time + Math.round(window * (1 - position));
-    this.#editor.simulation.pauseAt(this.#pause);
+    this.#editor.simulation.pauseAt(this.#pause, `Triggered at ${formatTime(time)}`);
   }
 
   // ── Following the editor ─────────────────────────────────────────────────────────────────

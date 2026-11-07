@@ -78,6 +78,30 @@ export interface SimStatus {
   readonly lagging: boolean;
   /** Why no simulator could be built (a library bug), for the user. */
   readonly error?: string;
+  /**
+   * Why it paused by itself — a breakpoint (`requestPause`), a step reached (`runTo`), a
+   * trigger (`pauseAt`); cleared by Run, Step, Reset and Stop.
+   */
+  readonly reason?: string;
+  /** While running a step (`runTo`): what it runs to. */
+  readonly goal?: string;
+}
+
+/**
+ * A step the host runs at Max, whatever the speed, until it is reached, then pauses (R14):
+ * - `time`: until simulated time `until` (Run For, Run To);
+ * - `edge`: through the next instant, then until right before net `net` (a netlist id) is due
+ *   to change to `level` — one clock cycle, the cycle settled (Step Clock).
+ */
+export type StepGoal =
+  | { readonly kind: 'time'; readonly until: Time; readonly label: string }
+  | { readonly kind: 'edge'; readonly net: string; readonly level: Level; readonly label: string };
+
+/** A step under way: its goal, whether the first instant is behind it, why it ended. */
+interface Step {
+  readonly goal: StepGoal;
+  passed: boolean;
+  done?: string;
 }
 
 /** Wall-clock time and frames: the browser's, or a fake in tests. */
@@ -266,6 +290,10 @@ export class Simulation {
   #cleared = new WeakMap<Diagnostic, number>();
   #flash = true;
   #pauseAt: Time | undefined;
+  #pauseAtReason: string | undefined;
+  /** A pause asked for at the end of the current instant (a breakpoint), and why. */
+  #pauseRequest: string | undefined;
+  #step: Step | undefined;
   /** Brightness samples of the indicators, by component id. */
   readonly #lights = new Map<string, LightSample>();
   /** Live views of the parts in the simulator, by component id (rebuilt with the simulator). */
@@ -396,9 +424,15 @@ export class Simulation {
 
   // ── Run control ─────────────────────────────────────────────────────────────────────────
 
-  /** Stopped: powers on at t = 0 and runs. Paused: goes on. */
+  /** Stopped: powers on at t = 0 and runs. Paused: goes on. Running a step: runs on freely. */
   run(): void {
     const state = this.state;
+    if (state === 'running' && this.#step) {
+      // From now on at the chosen speed: the step's frames ran at Max.
+      this.#step = undefined;
+      this.#lastWall = this.#clock.now();
+      this.#setState('running');
+    }
     if (state === 'running' || state === 'halted') return;
     if (state === 'stopped' && !this.#powerOn()) return;
     this.#lastWall = this.#clock.now();
@@ -410,9 +444,13 @@ export class Simulation {
 
   pause(): void {
     if (this.state !== 'running') return;
+    this.#pauseWith(undefined);
+  }
+
+  #pauseWith(reason: string | undefined): void {
     this.#unschedule();
     this.#sampleLights(false);
-    this.#setState('paused');
+    this.#setState('paused', reason);
   }
 
   /** Run / Pause. */
@@ -435,6 +473,7 @@ export class Simulation {
       this.#afterRun();
       return true;
     }
+    this.#setReason(undefined);
     const sim = this.#sim!;
     const before = sim.stats.events;
     // Cancelled changes leave stale events behind: skip them until something real happens.
@@ -447,11 +486,55 @@ export class Simulation {
   }
 
   /**
-   * While running, pause once simulated time reaches `time` (a trigger's post-trigger end);
-   * `undefined` cancels. Cleared when it pauses there, by Pause, Stop and every power-on.
+   * Runs a step (`StepGoal`) at Max until it is reached, then pauses there with the goal's label
+   * as the reason; from stopped it powers on first (the power-on instant counts as the first
+   * one). A breakpoint (`requestPause`) or a trigger's `pauseAt` on the way pause it earlier;
+   * Pause cancels it, Run turns it into a normal run. False when halted or nothing to run.
    */
-  pauseAt(time: Time | undefined): void {
+  runTo(goal: StepGoal): boolean {
+    const state = this.state;
+    if (state === 'halted') return false;
+    let passed = goal.kind === 'time';
+    if (state === 'stopped') {
+      if (!this.#powerOn()) return false;
+      this.#setState('paused');
+      this.#sim!.runUntil(0);
+      passed = true;
+      if (this.#pauseRequest !== undefined || this.#sim!.halted) {
+        this.#afterRun();
+        return true;
+      }
+    }
+    this.#unschedule();
+    this.#step = { goal, passed };
+    this.#lastWall = this.#clock.now();
+    this.#lagFrames = 0;
+    this.#actual = 0;
+    this.#setState('running');
+    this.#frame();
+    return true;
+  }
+
+  /**
+   * Pause at the end of the instant being processed, whatever a pending `pauseAt` or step says
+   * — a breakpoint or an error break, from a listener — with `reason` shown in the status. The
+   * first request of an instant wins.
+   */
+  requestPause(reason: string): void {
+    const sim = this.#sim;
+    if (!sim) return;
+    this.#pauseRequest ??= reason;
+    sim.requestBreak();
+  }
+
+  /**
+   * While running, pause once simulated time reaches `time` (a trigger's post-trigger end),
+   * saying `reason`; `undefined` cancels. Cleared when it pauses there, by Pause, Stop and every
+   * power-on.
+   */
+  pauseAt(time: Time | undefined, reason?: string): void {
     this.#pauseAt = time;
+    this.#pauseAtReason = time === undefined ? undefined : reason;
   }
 
   /** Where `pauseAt` will pause; undefined when nothing is pending. */
@@ -542,6 +625,7 @@ export class Simulation {
   #powerOn(): boolean {
     this.#lights.clear();
     this.#pauseAt = undefined;
+    this.#pauseRequest = undefined;
     if (!this.#build(undefined)) return false;
     this.#signals = signalMap(this.#scene, this.#sim!);
     this.#events = 0;
@@ -570,15 +654,22 @@ export class Simulation {
     }
   }
 
-  #setState(state: SimState): void {
-    if (state !== 'running') this.#pauseAt = undefined;
+  #setState(state: SimState, reason?: string): void {
+    if (state !== 'running') {
+      this.#pauseAt = undefined;
+      this.#pauseAtReason = undefined;
+      this.#step = undefined;
+    }
     const sim = this.#sim;
-    this.status.update(({ error: _, ...status }) => ({
+    const goal = state === 'running' ? this.#step?.goal.label : undefined;
+    this.status.update(({ error: _error, reason: _reason, goal: _goal, ...status }) => ({
       ...status,
       state,
       time: sim?.now ?? 0,
       actual: state === 'running' ? this.#actual : 0,
       lagging: state === 'running' && this.#lagFrames > 0,
+      ...(reason !== undefined && { reason }),
+      ...(goal !== undefined && { goal }),
     }));
     this.#lastStatus = this.#clock.now();
     this.#refreshDiagnostics();
@@ -609,22 +700,40 @@ export class Simulation {
     const speed = this.status.get().speed;
     const start = sim.now;
     const deadline = wall + this.#budget;
+    const step = this.#step;
+    const perSecond = speed.perSecond;
     // From where the kernel got to, not where it should be: a backlog is dropped, not caught up.
     const target =
-      speed.perSecond === undefined
+      perSecond === undefined
         ? Number.POSITIVE_INFINITY
-        : start + Math.round((elapsed / 1000) * speed.perSecond);
+        : start + Math.round((elapsed / 1000) * perSecond);
     let result: RunStatus;
+    let stop = false;
+    let reason: string | undefined;
     for (;;) {
       const pauseAt = this.#pauseAt ?? Number.POSITIVE_INFINITY;
-      result =
-        speed.perSecond === undefined
-          ? sim.settle({
-              maxTime: Math.max(0, Math.min(MAX_SETTLE, pauseAt - sim.now)),
-              maxEvents: CHUNK_EVENTS,
-            })
-          : sim.runUntil(Math.min(target, pauseAt), { maxEvents: CHUNK_EVENTS });
-      if (clock.now() >= deadline) break;
+      // A step runs at Max whatever the speed: it is a jump, not something to watch.
+      if (step) result = this.#stepChunk(sim, step, pauseAt);
+      else if (perSecond === undefined) {
+        result = sim.settle({
+          maxTime: Math.max(0, Math.min(MAX_SETTLE, pauseAt - sim.now)),
+          maxEvents: CHUNK_EVENTS,
+        });
+      } else result = sim.runUntil(Math.min(target, pauseAt), { maxEvents: CHUNK_EVENTS });
+      if (result === 'halted') break;
+      // Why it pauses here, if it does: a breakpoint, a step reached, a trigger's post-trigger
+      // time over (or nothing left to happen before it), a plain break.
+      if (result === 'break' && this.#pauseRequest !== undefined) reason = this.#pauseRequest;
+      else if (step?.done !== undefined) reason = step.done;
+      else if (
+        this.#pauseAt !== undefined &&
+        (sim.now >= this.#pauseAt || (result === 'idle' && (step || target > sim.now)))
+      ) {
+        reason = this.#pauseAtReason;
+        stop = true;
+      } else stop = result === 'break' && this.#pauseAt === undefined;
+      stop ||= reason !== undefined;
+      if (stop || clock.now() >= deadline) break;
       // A trigger that fired asks to run on to its post-trigger end (`pauseAt`): go on there.
       const runOn = result === 'break' && this.#pauseAt !== undefined && sim.now < this.#pauseAt;
       if (result !== 'budget' && !runOn) break;
@@ -633,18 +742,14 @@ export class Simulation {
       const rate = ((sim.now - start) * 1000) / elapsed;
       this.#actual = this.#actual === 0 ? rate : this.#actual * 0.8 + rate * 0.2;
     }
-    this.#lagFrames = result === 'budget' ? LAG_FRAMES : Math.max(0, this.#lagFrames - 1);
+    const lagged = result === 'budget' && !step;
+    this.#lagFrames = lagged ? LAG_FRAMES : Math.max(0, this.#lagFrames - 1);
     if (result === 'halted') {
       this.#setState('halted');
       return;
     }
-    const pauseAt = this.#pauseAt;
-    const reached =
-      pauseAt !== undefined && (sim.now >= pauseAt || (result === 'idle' && target > sim.now));
-    if (reached || (result === 'break' && pauseAt === undefined)) {
-      // A breakpoint, or a trigger's post-trigger time is over (or nothing is left to happen).
-      this.#pauseAt = undefined;
-      this.pause();
+    if (stop) {
+      this.#pauseWith(reason);
       return;
     }
     let changed = this.#sampleLights(true);
@@ -660,6 +765,56 @@ export class Simulation {
     this.#schedule();
   }
 
+  /**
+   * One piece of a step, at Max: `budget` while there is more to do; otherwise what the kernel
+   * returned, with `step.done` set once the goal is reached (or can't be).
+   */
+  #stepChunk(sim: Simulator, step: Step, pauseAt: Time): RunStatus {
+    const { goal } = step;
+    if (goal.kind === 'time') {
+      const limit = Math.min(goal.until, pauseAt);
+      const result = sim.runUntil(Math.max(sim.now, limit), { maxEvents: CHUNK_EVENTS });
+      if ((result === 'reached' || result === 'idle') && sim.now >= goal.until) {
+        step.done = goal.label;
+      }
+      return result;
+    }
+    let net: number;
+    try {
+      net = sim.netIndex(goal.net);
+    } catch {
+      step.done = `${goal.label}: no net ${goal.net}`;
+      return 'idle';
+    }
+    if (!step.passed) {
+      // Through the next instant first: right before an edge, that is the edge itself.
+      const next = sim.nextEventTime;
+      if (next === Number.POSITIVE_INFINITY) {
+        step.done = `${goal.label}: nothing left to happen`;
+        return 'idle';
+      }
+      step.passed = true; // (no `pauseAt` yet: pausing forgets it)
+      const result = sim.runUntil(next);
+      return result === 'reached' || result === 'idle' ? 'budget' : result;
+    }
+    const result = sim.settle({
+      maxTime: Math.max(0, Math.min(MAX_SETTLE, pauseAt - sim.now)),
+      maxEvents: CHUNK_EVENTS,
+      stopBefore: { net, level: goal.level },
+    });
+    if (result === 'before') step.done = goal.label;
+    else if (result === 'idle') step.done = `${goal.label}: nothing left to happen`;
+    return result; // `reached` after an hour without the edge: the next frame goes on
+  }
+
+  #setReason(reason: string | undefined): void {
+    if (this.status.get().reason === reason) return;
+    this.status.update(({ reason: _reason, ...status }) => ({
+      ...status,
+      ...(reason !== undefined && { reason }),
+    }));
+  }
+
   /** After a step, an action while paused or a recompile: show the result now. */
   #afterRun(): void {
     const sim = this.#sim;
@@ -667,6 +822,11 @@ export class Simulation {
       this.#unschedule();
       this.#setState('halted');
       return;
+    }
+    // A breakpoint that asked to pause while not running (a step, an action): say why.
+    if (this.#pauseRequest !== undefined && this.state !== 'running') {
+      this.#setReason(this.#pauseRequest);
+      this.#pauseRequest = undefined;
     }
     this.#events = sim?.stats.events ?? 0;
     this.#sampleLights(false);

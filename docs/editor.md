@@ -444,6 +444,19 @@ the toolbar group (Run/Pause, Step, Stop, Reset, speed select) and `F5`, `F10`, 
   post-trigger end), which it then reaches within the same frame if the budget allows and
   pauses at exactly; at Max it also pauses there when nothing is left to happen. `pauseAt` is
   forgotten by Pause, Stop and every power-on.
+- **Steps** (R14, `runTo(goal)`): run at Max whatever the speed, across as many frames as they
+  take (`status.goal` names it meanwhile), then pause: a `time` goal at exactly its time (Run
+  For, Run To); an `edge` goal (Step Clock) through the next instant, then right before the
+  net is due to change to the level (the kernel's `stopBefore`) — from stopped the power-on
+  instant counts as the first. Pause cancels a step, Run turns it into a normal run at the
+  chosen speed.
+- **Pause requests** (R14, `requestPause(reason)`): from a listener — a breakpoint, an error
+  break — the host pauses at the end of the instant whatever a pending `pauseAt` or step says
+  (the first request of an instant wins; one made outside a run stops the next run after its
+  first instant).
+- **Why it paused**: `status.reason` — the request's reason, the step's label (`Step Clock`,
+  `Step Clock: nothing left to happen`), `pauseAt`'s reason (the analyzer's `Triggered at
+  1.5 µs`); cleared by Run, Step, Reset and Stop.
 - Design errors don't block running: parts the compiler left out are missing.
 - Opening a document stops the simulation first.
 

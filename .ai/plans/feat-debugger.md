@@ -210,7 +210,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   `netChanges` counter was tried and dropped: ≈ 3 % on gate chains.)
 - [x] 4. `circuit`: memory references in the resolver (cells, ranges, address forms, the bus
   ambiguity) and `renameReference`; tests.
-- [ ] 5. `editor`: host — stepping goals (`runTo`: a time, before a clock edge) at Max across
+- [x] 5. `editor`: host — stepping goals (`runTo`: a time, before a clock edge) at Max across
   frames, `requestPause(reason)`, the pause reason in the status, breaks during steps, Pause /
   Run during a step; fake-clock tests with exact instants at every speed.
 - [ ] 6. `editor`: `Debugger` — breakpoints (resolve, own recorder, repeating triggers, hits,
@@ -304,11 +304,20 @@ Checkable statements; verified one by one in the finish-branch workflow.
   Memory tab share it); `renameReference` (pins only — `U5` and `D1[0..7]` stay: a net or a bus
   may look like a designator), so watches keep a memory reference as data (part, from, to)
   that a rename rewrites, not as text.
+- 2026-11-07 — task 5: `Simulation.runTo(StepGoal)` — `time` (until) and `edge` (net id,
+  level: through the next instant, then `settle` with `stopBefore`), at Max, the first frame
+  run at once (short steps end synchronously, like Step), spread over frames otherwise;
+  `requestPause(reason)` (first of an instant wins, beats `pauseAt` and steps); `status.reason`
+  and `status.goal`; `pauseAt(time, reason)` (the analyzer says `Triggered at …`). Found while
+  testing: Run during a step kept the step's wall time, so the first normal frame jumped
+  (`#lastWall` reset). Mutation-checked (19 mutations; three survivors were equivalent code —
+  removed: a speed override the step chunk made moot, a `budget` after an hour without an
+  edge, a pass-phase `pauseAt` guard that pausing makes dead).
 
 ## Handoff
 
-- **State:** in progress; tasks 1–4 done.
-- **Next step:** task 5 (host: stepping goals, `requestPause`, pause reasons).
+- **State:** in progress; tasks 1–5 done.
+- **Next step:** task 6 (`Debugger` model: breakpoints, break on, steps, watches, stats).
 - **Watch out:** `io/clock` drives at its wake with zero delay — the lookahead can't see it
   until task 2; a breakpoint during a trigger's post-trigger time must win over `pauseAt`.
 - **Verify with:** `pnpm check`, `pnpm bench`.
