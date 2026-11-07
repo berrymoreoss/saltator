@@ -208,15 +208,21 @@ function mergeController(into: Controller, other: Controller): void {
   for (let i = 0; i < 64; i++) {
     into.cgramX[i]! |= other.cgramX[i]! | (into.cgram[i]! ^ other.cgram[i]!);
   }
+  // The pending nibble and the read latch matter only to outcomes awaiting a low nibble.
+  if (other.iface & Iface.LOW) {
+    if (into.iface & Iface.LOW) {
+      into.pendingX |= other.pendingX | (into.pending ^ other.pending);
+      into.latchX |= other.latchX | (into.latch ^ other.latch);
+    } else {
+      into.pending = other.pending;
+      into.pendingX = other.pendingX;
+      into.latch = other.latch;
+      into.latchX = other.latchX;
+    }
+  }
   into.iface |= other.iface;
-  into.pendingX |= other.pendingX | (into.pending ^ other.pending);
-  into.latchX |= other.latchX | (into.latch ^ other.latch);
-  into.maybeBusyUntil = Math.max(
-    into.maybeBusyUntil,
-    other.maybeBusyUntil,
-    into.busyUntil,
-    other.busyUntil,
-  );
+  // maybeBusyUntil ≥ busyUntil holds in every outcome (`startBusy`), so in the merge too.
+  into.maybeBusyUntil = Math.max(into.maybeBusyUntil, other.maybeBusyUntil);
   into.busyUntil = Math.min(into.busyUntil, other.busyUntil);
   into.acShownX |= other.acShownX | (into.acShown ^ other.acShown);
   into.acShownUntil = Math.max(into.acShownUntil, other.acShownUntil);

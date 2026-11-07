@@ -251,7 +251,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 3. `library`: bus timing checks and unknowns — each requirement just inside (silent) and
   just outside (the diagnostic and its `X`), busy, power-on 15 ms, uncertain `E`, unknown bits
   in data and instructions, unknown `AC`; mutation-checked.
-- [ ] 4. (Q1) `powerOn: unknown` — interface hypotheses, the init waits; tests: Figures 23 and 24
+- [x] 4. (Q1) `powerOn: unknown` — interface hypotheses, the init waits; tests: Figures 23 and 24
   bring every hypothesis to the known state; short waits and missing steps stay unknown.
 - [ ] 5. `editor`: the `lcd` drawer, `PartLive.time`; symbol-drawing test, drawer tests
   (recording graphics); looked at in the browser — every size, backlight, both themes, zoom.
@@ -363,13 +363,20 @@ mode), 15 `LED+` (anode, +5 V via an on-board resistor), 16 `LED−` (cathode); 
   at 0, move to 1" agree) and only CGRAM-or-DDRAM unknown. 20 more mutations: two survived
   (DB0–3 changing late in 4-bit mode, "the transfer may not have happened") until the tests
   checked exactly that.
+- 2026-11-08 — task 4: `hd44780-power-on.test.ts` — Figures 23 and 24 from every interface mode
+  to a fully known controller (the mode resolves after the third 0x3, as the data sheet says),
+  a 1 ms first wait leaves it unknown (a Return home may still run: busy-violation "may be"),
+  Ben Eater's 8-bit code without the three 0x3 stays unknown (works with the reset). Bug found
+  by tracing Figure 24 first: merging outcomes mixed the pending nibble of outcomes not
+  awaiting a low nibble — now merged only across LOW outcomes. One equivalent mutation
+  (maybeBusyUntil ≥ busyUntil always) simplified away.
 
 ## Handoff
 
-- **State:** tasks 1–3 done: the part, its bus checks and unknowns, tested and
-  mutation-checked.
-- **Next step:** task 4 — `powerOn: unknown`: tests that Figures 23/24 resolve every interface
-  mode, short waits and missing steps stay unknown (the controller code already merges modes).
+- **State:** tasks 1–4 done: the part with both power-on modes, tested and mutation-checked;
+  a basic `lcd` drawer exists.
+- **Next step:** task 5 — polish the drawer and look at it in the browser (every size and
+  backlight, both themes, zoom); the Part tab and Properties for the new props.
 - **Watch out:** the data sheet copy is in the session scratchpad only; download it again if
   the scratchpad is gone.
 - **Verify with:** `pnpm check`.
