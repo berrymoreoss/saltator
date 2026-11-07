@@ -203,7 +203,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   (mutation-checked); symbol-drawing scenario; scenarios (74 shift chain without hold
   violations, ripple counter with visible ripple delays, a race caught by a setup check, two
   173s and a 245 on a bus); benchmark of a register chain (cost of the checks).
-- [ ] 10. UI: Part tab timing section; timing violations as errors in the Simulation tab;
+- [x] 10. UI: Part tab timing section; timing violations as errors in the Simulation tab;
   looked at in both themes.
 - [ ] 11. Example: SAP-1 register per Q4, run by a scenario test, looked at in the browser;
   File ▸ New from Example lists it.
@@ -312,6 +312,12 @@ Checkable statements; verified one by one in the finish-branch workflow.
   ANDs fix it), Ben's A register (two 173s, two 245s, pull-downs) loading and driving the bus.
   Benchmark: 74HC574 pipeline ×100 at 5.54M events/s (6.72M with the checks switched off: they
   cost ≈ 18 %); inverter chain 13.6M, 74HC04 chain 8.5M, ring 14.6M (unchanged).
+- 2026-11-07 — task 10: Part tab Timing table under the function table (`timingInfo`: symbol
+  with subscript, path with pin names as drawn — labels, overlines — typ, max for delays, min
+  for requirements, conditions, source); timing violations are errors in the Simulation tab.
+  Looked at in Chromium, both themes (Playwright script in the scratchpad, Symbol Gallery): the
+  new DIPs draw clock triangles from the `clock` flag, falling-edge clocks overlined (107, 112),
+  `1Q̅`, the 109's `K̅`, the 175's `Q̅n` (the whole label overlined: `Q̅0̅`, a nit).
 
 ## Handoff
 

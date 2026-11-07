@@ -7,6 +7,7 @@ import {
   functionTableInfo,
   outputsHeading,
   pinInfo,
+  timingInfo,
 } from './part-info';
 
 const registry = createDefaultRegistry();
@@ -130,5 +131,47 @@ describe('datasheetName', () => {
     );
     expect(datasheetName('https://www.ti.com/')).toBe('www.ti.com');
     expect(datasheetName('not a url')).toBe('not a url');
+  });
+});
+
+describe('timingInfo', () => {
+  const of = (type: string) => timingInfo(registry.get(type)!)!;
+
+  it('lists delays with typical and max, pin names as drawn', () => {
+    const t = of('74xx/74hc74');
+    expect(t.delays[0]).toEqual({
+      symbol: 'tpd',
+      path: [
+        { text: 'nCP', overline: false },
+        ' to ',
+        { text: 'nQ', overline: false },
+        ', ',
+        { text: 'nQ', overline: true }, // 1QN, drawn 1Q̅
+      ],
+      typical: '17 ns',
+      max: '44 ns',
+    });
+  });
+
+  it('lists the requirements with their typical value and the minimum the checks use', () => {
+    const t = of('74xx/74hc74');
+    expect(t.requirements.map((r) => [r.symbol, r.typical, r.min])).toEqual([
+      ['tW', '7 ns', '20 ns'],
+      ['tW', '7 ns', '20 ns'],
+      ['trec', '1 ns', '8 ns'],
+      ['tsu', '2 ns', '15 ns'],
+      ['th', '-2 ns', '3 ns'],
+    ]);
+    expect(t.conditions).toContain('min at −40 °C to +85 °C');
+    expect(t.source).toMatch(/^Nexperia 74HC_HCT74 product data sheet, rev\. 9/);
+  });
+
+  it('overlines a falling-edge clock, and leaves single delays without a path', () => {
+    expect(of('74xx/74hc107').delays[0]!.path[0]).toEqual({ text: 'nCP', overline: true });
+    expect(of('74xx/74hc00')).toMatchObject({
+      delays: [{ symbol: 'tpd', path: [], typical: '9 ns', max: '23 ns' }],
+      requirements: [],
+    });
+    expect(timingInfo(registry.get('io/led')!)).toBeUndefined();
   });
 });

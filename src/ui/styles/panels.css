@@ -737,6 +737,16 @@ kbd {
   border-left: 1px solid var(--border-strong);
 }
 
+.timing-table {
+  margin: 4px 10px 6px;
+}
+
+.timing-table .legend {
+  padding-top: 4px;
+  color: var(--fg-subtle);
+  white-space: normal;
+}
+
 .function-table .legend {
   padding-top: 4px;
   color: var(--fg-subtle);
