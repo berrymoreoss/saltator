@@ -223,7 +223,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 6. `editor`: the tools follow — analyzer (recorder seek/confirm/cut, trigger state),
   debugger (hits by time, triggers resynced, Step Back Clock, Reverse Continue scanner,
   watches' stops, activity), memory inspector (highlights); headless tests; mutation-checked.
-- [ ] 7. `ui`: commands, shortcuts, toolbar and Debug tab buttons, status bar, Run To a past
+- [x] 7. `ui`: commands, shortcuts, toolbar and Debug tab buttons, status bar, Run To a past
   time; Waveforms: the future dimmed, ruler click/drag; looked at in both themes.
 - [ ] 8. e2e: Clock Module / Data Bus — Step Back and Step return to the same state, a ruler
   click rewinds and the waveform keeps its future; SAP-1 Program Counter — Step Back Clock
@@ -368,6 +368,18 @@ Checkable statements; verified one by one in the finish-branch workflow.
   time goal ending exactly at a recorded action delivered it (the original run had stopped
   before it) — it is done first now; `Recorder.replaying` is false once the run is at the
   present. Mutation-checked (21; one equivalent removed: a separate `found` in the hit search).
+- 2026-11-08 — task 7: commands `sim.stepBack` (Alt+F10, toolbar between Run and Step),
+  `debug.stepBackClock` (Alt+F8), `debug.reverseContinue` (Alt+F5), `sim.toPresent` (Go to
+  Present, enabled while behind), all in Simulate between the forward steps and Stop; the
+  Debug tab's Reverse Continue and Step Back Clock beside Step Clock; Run To a past time goes
+  back (`runToTime` refuses only now itself and times before the history); the status bar
+  says `· 11 µs behind the present` while paused behind it (`simulationSummary(status,
+  history)`); a search's `status.goal` is its label (the summary adds the `…`). Waveforms: the
+  recorded future veiled past the `now` mark (`WaveformScene.now`, theme `future`); a click
+  or drag in the ruler goes to that time (`Analyzer.goTo`: back or forward within the record,
+  Run To past its end, the history's start at most; one go per animation frame while
+  dragging), the pointer `ew-resize` over the ruler. Looked at in the browser (Data Bus, dark
+  and light): the veil, the now mark, the status, the Debug tab's buttons.
 
 ## Handoff
 

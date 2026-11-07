@@ -126,7 +126,7 @@ export interface RewindEvent {
  * while the history's segments replay, newest first, until it knows where to go.
  */
 export interface BackSearch {
-  /** The reason it stops with (`Step Back`), and, with `…`, what the status says meanwhile. */
+  /** The reason it stops with (`Step Back`), and what the status says meanwhile (`goal`). */
   readonly label: string;
   /** Why it went to the history's start: nothing found (`no earlier hit`). */
   readonly notFound: string;
@@ -704,7 +704,7 @@ export class Simulation {
 
   /**
    * Searches the history backwards from where the run is (`BackSearch`), one segment at a time
-   * in the replica — the first at once, the rest over frames, `status.goal` saying so — then
+   * in the replica — the first at once, the rest over frames, `status.goal` naming it — then
    * goes where it found, paused with its label as the reason, or to the history's start. Pause
    * cancels it (the run stays where it was). False when stopped.
    */
@@ -932,9 +932,7 @@ export class Simulation {
     }
     const sim = this.#sim;
     const goal =
-      state === 'running'
-        ? (this.#step?.goal.label ?? (this.#search && `${this.#search.search.label}…`))
-        : undefined;
+      state === 'running' ? (this.#step?.goal.label ?? this.#search?.search.label) : undefined;
     this.status.update(({ error: _error, reason: _reason, goal: _goal, ...status }) => ({
       ...status,
       state,

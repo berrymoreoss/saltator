@@ -446,3 +446,25 @@ describe('Analyzer: after a rewind', () => {
     expect(s.analyzer.trigger.get()).toMatchObject({ status: 'triggered', time: us(1.5) });
   });
 });
+
+describe('Analyzer: going to a time from the ruler', () => {
+  it('goes back, forward within the record, on past its end, never before the start', () => {
+    const s = setup();
+    expect(s.analyzer.goTo(us(1))).toBe('Nothing to go to: run the simulation first.');
+    runTo(s, us(3));
+    s.simulation.pause();
+    expect(s.analyzer.goTo(us(1.25))).toBeUndefined();
+    expect(s.simulation.simulator!.now).toBe(us(1.25));
+    expect(s.simulation.status.get().reason).toBe('Rewound to 1.25 µs');
+    s.analyzer.goTo(us(2.5)); // forward, still within the record
+    expect(s.simulation.simulator!.now).toBe(us(2.5));
+    expect(s.analyzer.end).toBe(us(3));
+    s.analyzer.goTo(-us(1)); // before the start: the start
+    expect(s.simulation.simulator!.now).toBe(0);
+    s.analyzer.goTo(us(3.5)); // past the end: a run to it
+    s.clock.cost = 1;
+    for (let i = 0; s.simulation.state === 'running' && i < 100; i++) s.clock.frame(16);
+    expect(s.simulation.simulator!.now).toBe(us(3.5));
+    expect(s.simulation.status.get().reason).toBe('Run To 3.5 µs');
+  });
+});

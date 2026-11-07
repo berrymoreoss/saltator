@@ -267,7 +267,10 @@ describe('Debugger: steps', () => {
     expect(s.debug.runFor()).toBeUndefined();
     expect(s.simulation.simulator!.now).toBe(ns(700));
     expect(s.simulation.status.get().reason).toBe('Run For 700 ns');
-    expect(s.debug.runToTime(ns(100))).toBe('The simulation is at 700 ns already.');
+    expect(s.debug.runToTime(ns(700))).toBe('The simulation is at 700 ns already.');
+    expect(s.debug.runToTime(ns(100))).toBeUndefined(); // the past: back to it (R14b)
+    expect(s.simulation.simulator!.now).toBe(ns(100));
+    expect(s.simulation.status.get().reason).toBe('Run To 100 ns');
     s.debug.addBreakpoint([{ signal: 'X2.Y', kind: 'rise' }]);
     s.debug.runToTime(us(5));
     expect(s.simulation.simulator!.now).toBe(us(1));

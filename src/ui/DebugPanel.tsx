@@ -54,6 +54,24 @@ export function DebugPanel({ editor, runToRequest, onEditBreakpoint }: DebugPane
         <button
           type="button"
           className="tool-button memory-action"
+          title="Back to the previous breakpoint hit (Alt+F5)"
+          disabled={status.state === 'stopped'}
+          onClick={() => setNotice(debug.reverseContinue())}
+        >
+          Reverse Continue
+        </button>
+        <button
+          type="button"
+          className="tool-button memory-action"
+          title="Back to right before the step clock's last active edge (Alt+F8)"
+          disabled={clock.net === undefined || status.state === 'stopped'}
+          onClick={() => setNotice(debug.stepBackClock())}
+        >
+          Step Back Clock
+        </button>
+        <button
+          type="button"
+          className="tool-button memory-action"
           title="Run to right before the step clock's next active edge but one (F8)"
           disabled={clock.net === undefined || status.state === 'halted'}
           onClick={() => setNotice(debug.stepClock())}

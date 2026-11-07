@@ -51,6 +51,11 @@ export interface WaveformScene {
   readonly height: number;
   /** Draw `now` (simulating). */
   readonly live: boolean;
+  /**
+   * Where the simulation is, when it isn't the record's end (after a rewind, R14b): the record
+   * after it is the future a run replays, veiled.
+   */
+  readonly now?: Time;
   /** The trigger's instant, when it fired. */
   readonly trigger?: Time;
 }
@@ -198,6 +203,8 @@ export interface WaveformTheme {
   readonly trigger: string;
   readonly now: string;
   readonly hatch: string;
+  /** Laid over the recorded future (after a rewind). */
+  readonly future: string;
 }
 
 export function waveformTheme(theme: CanvasTheme): WaveformTheme {
@@ -219,6 +226,7 @@ export function waveformTheme(theme: CanvasTheme): WaveformTheme {
     trigger: theme.error,
     now: theme.openPin,
     hatch: dark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.06)',
+    future: dark ? 'rgba(0, 0, 0, 0.45)' : 'rgba(255, 255, 255, 0.6)',
   };
 }
 
@@ -271,6 +279,16 @@ export function drawWaveforms(ctx: WaveCanvas, scene: WaveformScene, theme: Wave
   ctx.stroke();
 
   for (const row of rows) drawRow(ctx, scene, row, theme);
+  const now = scene.live ? (scene.now ?? recorder.end) : undefined;
+  if (now !== undefined && now < recorder.end) {
+    // The recorded future: what a run from now repeats, until it is acted on.
+    const x0 = Math.max(0, (now - view.start) / view.scale);
+    const x1 = Math.min(width, (recorder.end - view.start) / view.scale);
+    if (x1 > x0) {
+      ctx.fillStyle = theme.future;
+      ctx.fillRect(x0, WAVE_RULER_HEIGHT, x1 - x0, height - WAVE_RULER_HEIGHT);
+    }
+  }
   drawRuler(ctx, view, ticks, theme);
   drawMarks(ctx, scene, theme, recorder);
   ctx.restore();
@@ -476,7 +494,7 @@ function drawMarks(
     ctx.textAlign = 'center';
     ctx.fillText(label, x, 6);
   };
-  if (scene.live) line(recorder.end, theme.now, '', [2, 3]);
+  if (scene.live) line(scene.now ?? recorder.end, theme.now, '', [2, 3]);
   if (scene.trigger !== undefined) line(scene.trigger, theme.trigger, 'T');
   if (view.cursorA !== undefined) line(view.cursorA, theme.cursorA, 'A');
   if (view.cursorB !== undefined) line(view.cursorB, theme.cursorB, 'B');

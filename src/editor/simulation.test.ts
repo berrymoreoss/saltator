@@ -1142,7 +1142,7 @@ describe('Simulation: rewinding', () => {
       target: () => undefined,
     });
     expect(segments).toBe(1);
-    expect(simulation.status.get()).toMatchObject({ state: 'running', goal: 'Find…' });
+    expect(simulation.status.get()).toMatchObject({ state: 'running', goal: 'Find' });
     clock.frame(16);
     expect(segments).toBe(2);
     simulation.pause();

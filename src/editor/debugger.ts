@@ -569,10 +569,17 @@ export class Debugger {
     return this.#runTo(now + duration, `Run For ${formatTime(duration)}`);
   }
 
-  /** Run To a simulated time; why not instead. */
+  /** Run To a simulated time — back to it, when it is past (R14b); why not instead. */
   runToTime(time: Time): string | undefined {
-    const now = this.#editor.simulation.simulator?.now ?? 0;
-    if (time <= now) return `The simulation is at ${formatTime(now)} already.`;
+    const host = this.#editor.simulation;
+    const now = host.simulator?.now ?? 0;
+    if (time === now && host.state !== 'stopped') {
+      return `The simulation is at ${formatTime(now)} already.`;
+    }
+    if (time < now) {
+      const start = host.timeline?.start ?? 0;
+      if (time < start) return `The history reaches back to ${formatTime(start)} only.`;
+    }
     return this.#runTo(time, `Run To ${formatTime(time)}`);
   }
 

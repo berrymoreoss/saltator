@@ -193,4 +193,36 @@ describe('drawWaveforms', () => {
     );
     expect(calls()).toBeGreaterThan(100);
   });
+
+  it('veils the recorded future after a rewind, with `now` where the simulation is', () => {
+    const { recorder, x1 } = recorded();
+    const fills: [number, number, number, number, unknown][] = [];
+    const { ctx } = recordingCanvas();
+    let style: unknown;
+    const spy = {
+      ...ctx,
+      set fillStyle(value: unknown) {
+        style = value;
+      },
+      get fillStyle() {
+        return style;
+      },
+      fillRect: (x: number, y: number, w: number, h: number) => fills.push([x, y, w, h, style]),
+    };
+    const theme = waveformTheme(DARK_CANVAS);
+    const scene = {
+      recorder,
+      view: view(0, ns(10), 400),
+      rows: [{ channel: channel(0, [x1]), y: 0, height: WAVE_ROW_HEIGHT }],
+      height: WAVE_ROW_HEIGHT + 20,
+      live: true,
+    };
+    drawWaveforms(spy as typeof ctx, { ...scene, now: recorder.end - us(1) }, theme);
+    const veil = fills.filter((f) => f[4] === theme.future);
+    expect(veil).toHaveLength(1);
+    expect(veil[0]![0]).toBeCloseTo((recorder.end - us(1)) / ns(10));
+    fills.length = 0;
+    drawWaveforms(spy as typeof ctx, scene, theme);
+    expect(fills.filter((f) => f[4] === theme.future)).toEqual([]);
+  });
 });

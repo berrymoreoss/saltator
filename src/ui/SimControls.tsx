@@ -1,6 +1,12 @@
 import { Gauge, TriangleExclamationPoint } from 'lucide-react';
 import { formatTime } from '../core';
-import { ALL_SPEEDS, formatRate, type SimStatus, type Simulation } from '../editor';
+import {
+  ALL_SPEEDS,
+  formatRate,
+  type HistoryStatus,
+  type SimStatus,
+  type Simulation,
+} from '../editor';
 import { useStore } from './hooks';
 
 /** The speed select on the toolbar: simulated time per wall second, or Max. */
@@ -38,7 +44,7 @@ const STATE_LABELS: Readonly<Record<SimStatus['state'], string>> = {
 };
 
 /** `Running · 1.25 s · actual 310 ms/s`: the simulation in one status-bar line. */
-export function simulationSummary(status: SimStatus): string {
+export function simulationSummary(status: SimStatus, history?: HistoryStatus): string {
   if (status.error) return `Can't simulate: ${status.error}`;
   if (status.state === 'stopped') return 'Stopped';
   const parts = [STATE_LABELS[status.state], formatTime(status.time)];
@@ -52,6 +58,10 @@ export function simulationSummary(status: SimStatus): string {
     parts.push(`${max ? 'max' : 'actual'} ${formatRate(status.actual)}`);
   }
   if (status.state === 'paused' && status.reason) parts.push(status.reason);
+  // Behind the present (R14b): forward runs replay the recording up to it.
+  if (history?.behind && status.state !== 'running') {
+    parts.push(`${formatTime(history.present - status.time)} behind the present`);
+  }
   return parts.join(' · ');
 }
 
@@ -67,6 +77,7 @@ export function SimulationStatus({
   readonly onClick: () => void;
 }) {
   const status = useStore(simulation.status);
+  const history = useStore(simulation.history);
   const problems = useStore(simulation.diagnostics).length;
   const warn = status.error !== undefined || status.state === 'halted' || status.lagging;
   return (
@@ -82,7 +93,7 @@ export function SimulationStatus({
       }
     >
       <span className="sim-dot" aria-hidden />
-      <span className="mono">{simulationSummary(status)}</span>
+      <span className="mono">{simulationSummary(status, history)}</span>
       {problems > 0 && (
         <span className="issue-count warning">
           <TriangleExclamationPoint size={12} /> {problems}
