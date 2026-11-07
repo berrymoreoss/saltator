@@ -5,6 +5,7 @@
 import type { ComponentDiagnostic } from './diagnostics';
 import type { FunctionTable } from './function-table';
 import type { Drive, Level } from './logic';
+import { IMAGE_HINT, type MemoryDef, readImage } from './memory';
 import type { SymbolDef } from './symbol';
 import type { Time } from './time';
 
@@ -91,8 +92,11 @@ export type PropValue = number | boolean | string;
 export interface PropDef {
   readonly key: string;
   readonly label: string;
-  /** `time` values are integer picoseconds, like every time in the kernel. */
-  readonly type: 'number' | 'integer' | 'boolean' | 'enum' | 'color' | 'string' | 'time';
+  /**
+   * `time` values are integer picoseconds, like every time in the kernel. `image` values are a
+   * memory's contents as text (sparse hex runs, `parseImage`); `max` is the size in bytes.
+   */
+  readonly type: 'number' | 'integer' | 'boolean' | 'enum' | 'color' | 'string' | 'time' | 'image';
   readonly default: PropValue;
   readonly min?: number;
   readonly max?: number;
@@ -217,6 +221,11 @@ export interface ComponentDefinition<
    * function of props for parts like LED bars. Ignored when `package` is set.
    */
   readonly symbol?: SymbolDef | ((props: Props) => SymbolDef);
+  /**
+   * The part holds memory (ROM, RAM): its size and a view of an instance's cells, for inspectors
+   * and test benches.
+   */
+  readonly memory?: MemoryDef<State>;
   /** Creates the behavior of one instance. `props` are validated and defaulted. */
   create(props: Props): Behavior<State>;
 }
@@ -316,13 +325,17 @@ export function resolveProps(
     const value = raw[def.key] ?? def.default;
     const expected = propProblem(def, value);
     if (expected !== undefined) {
-      throw new Error(
-        `${where}: prop "${def.key}" must be ${expected}, got ${JSON.stringify(value)}`,
-      );
+      throw new Error(`${where}: prop "${def.key}" must be ${expected}, got ${shown(value)}`);
     }
     props[def.key] = value as PropValue;
   }
   return props;
+}
+
+/** A value in a message: long strings (images) cut short. */
+function shown(value: unknown): string {
+  const text = JSON.stringify(value) ?? String(value);
+  return text.length > 40 ? `${text.slice(0, 37)}..."` : text;
 }
 
 /** Returns what the value should have been, or `undefined` if it is valid. */
@@ -353,5 +366,10 @@ function propProblem(def: PropDef, value: unknown): string | undefined {
       return def.pattern === undefined || def.pattern.regex.test(value)
         ? undefined
         : def.pattern.hint;
+    case 'image': {
+      if (typeof value !== 'string') return 'a string';
+      const result = readImage(value, def.max ?? 0);
+      return typeof result === 'string' ? `${IMAGE_HINT} (${result})` : undefined;
+    }
   }
 }

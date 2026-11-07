@@ -216,11 +216,80 @@ simulator vs written into the document; EEPROM write cycles deferred.
 
 ### Data sheets
 
-The Microchip and Renesas PDFs download directly (checked: AT28C16 `doc0540.pdf`, Renesas
-`6116sala-data-sheet`); Alliance's AS6C62256 link returned an HTML page, so the user may need to
-download it. Pinning figures and timing diagrams are rendered with `pdftoppm` and looked at
-(overlines, which edge latches what). Every number goes into the plan with its table before it
-goes into code.
+The Microchip and Renesas PDFs download directly; Alliance's product table loads by script, so
+the user downloads the AS6C62256. Pinning figures and timing tables were rendered with
+`pdftoppm` and read off the images (`pdftotext` garbles the 6116's tables).
+
+| Part      | Document                                                                                  |
+| --------- | ----------------------------------------------------------------------------------------- |
+| AT28C16   | Atmel AT28C16, rev. 0540B–10/98 (`ww1.microchip.com/downloads/en/DeviceDoc/doc0540.pdf`)  |
+| AT28C64B  | Atmel AT28C64B, rev. 0270L–PEEPR–2/09 (`…/DeviceDoc/doc0270.pdf`)                         |
+| AT28C256  | Atmel AT28C256, rev. 0006M–PEEPR–12/09 (`…/DeviceDoc/doc0006.pdf`)                        |
+| 6116      | Renesas (IDT) 6116SA/LA, Jul.17.20 (`renesas.com/us/en/document/dst/6116sala-data-sheet`) |
+| AS6C62256 | Alliance Memory AS6C62256 (55 ns) — _the user downloads it_                               |
+
+**Pinouts** (DIP; active-LOW controls overlined in every figure):
+
+- AT28C16, 6116 (DIP-24): 1 A7, 2 A6, 3 A5, 4 A4, 5 A3, 6 A2, 7 A1, 8 A0, 9 I/O0, 10 I/O1,
+  11 I/O2, 12 GND, 13 I/O3, 14 I/O4, 15 I/O5, 16 I/O6, 17 I/O7, 18 CE̅ (6116: CS̅), 19 A10,
+  20 OE̅, 21 WE̅, 22 A9, 23 A8, 24 VCC.
+- AT28C64B (DIP-28): 1 NC, 2 A12, 3 A7 … 10 A0, 11 I/O0, 12 I/O1, 13 I/O2, 14 GND, 15 I/O3 …
+  19 I/O7, 20 CE̅, 21 A10, 22 OE̅, 23 A11, 24 A9, 25 A8, 26 NC, 27 WE̅, 28 VCC.
+- AT28C256 (DIP-28): as the 64B with 1 A14 and 26 A13.
+
+**Mode tables**: the EEPROMs — Read (CE̅ L, OE̅ L, WE̅ H: Dout), Write (L, H, L: Din), Standby /
+Write Inhibit (H, X, X: High Z), Write Inhibit (X, X, H), Write Inhibit (X, L, X), Output
+Disable (X, H, X: High Z), Chip Erase (OE̅ at 12 V: not modeled). The 6116 — Standby (CS̅ H:
+High-Z), Read (L, L, H: DATAout), Read (L, H, H: High-Z), Write (L, X, L: DATAin).
+
+**EEPROM reads** (ns; one grade each for commercial/industrial use: AT28C16-15, AT28C64B-15,
+AT28C256-15 — the 256's -20/-25/-35 are military only). VCC = 5 V ± 10%, CL = 100 pF (`tDF`
+at 5 pF):
+
+| Limit                                   | 28C16   | 28C64B | 28C256 |
+| --------------------------------------- | ------- | ------ | ------ |
+| `tACC` address to output, max           | 150     | 150    | 150    |
+| `tCE` CE̅ to output, max                 | 150     | 150    | 150    |
+| `tOE` OE̅ to output, min / max           | 10 / 70 | 0 / 70 | 0 / 70 |
+| `tDF` CE̅ or OE̅ high to float, min / max | 0 / 50  | 0 / 50 | 0 / 50 |
+| `tOH` output hold, min                  | 0       | 0      | 0      |
+
+No low-Z time is given: the outputs may start driving as soon as they are enabled, so the `X`
+starts at the enabling edge. Notes 1–2 (CE̅ may come `tACC − tCE` after the address, OE̅
+`tCE − tOE` after CE̅) follow from taking the latest deadline.
+
+**6116 reads and writes** (ns; VCC = 5 V ± 10%; commercial grades 15 (0–70 °C only), 20, 25;
+CL = 30 pF, the low-Z/high-Z times at 5 pF):
+
+| Limit                                      | 15  | 20  | 25  |
+| ------------------------------------------ | --- | --- | --- |
+| `tAA` address access, max                  | 15  | 19  | 25  |
+| `tACS` chip select access, max             | 15  | 20  | 25  |
+| `tCLZ` CS̅ to output in low-Z, min          | 5   | 5   | 5   |
+| `tOE` OE̅ to output valid, max              | 10  | 10  | 13  |
+| `tOLZ` OE̅ to output in low-Z, min          | 0   | 0   | 5   |
+| `tCHZ` CS̅ deselect to high-Z, max          | 10  | 11  | 12  |
+| `tOHZ` OE̅ disable to high-Z, max           | 8   | 8   | 10  |
+| `tOH` output hold from address change, min | 5   | 5   | 5   |
+| `tCW` CS̅ to end of write, min              | 13  | 15  | 17  |
+| `tAW` address valid to end of write, min   | 14  | 15  | 17  |
+| `tAS` address set-up, min                  | 0   | 0   | 0   |
+| `tWP` write pulse width, min               | 12  | 12  | 15  |
+| `tWR` write recovery, min                  | 0   | 0   | 0   |
+| `tWHZ` WE̅ to output in high-Z, max         | 7   | 8   | 16  |
+| `tDW` data to end of write, min            | 12  | 12  | 13  |
+| `tDH` data hold from end of write, min     | 0   | 0   | 0   |
+| `tOW` output active from end of write, min | 0   | 0   | 0   |
+
+The write waveforms' notes decide the model: "WE̅ or CS̅ must be HIGH during all address
+transitions" (an address change during a write is a violation); "a write occurs during the
+overlap of a LOW CS̅ and a LOW WE̅"; with OE̅ LOW during a WE̅-controlled write the pulse must be
+at least `tWHZ + tDW` (the outputs must turn off before the data arrives) — a third pulse-width
+requirement; `tWR` counts from the earlier of CS̅, WE̅ rising; CS̅ falling with or after WE̅
+leaves the outputs off. `tWC`/`tRC` (cycle times) are covered by `tAS`, `tAW`, `tWR` and the
+read path's `X`, so they are not checked separately. After a write the outputs turn on `tOW`
+after its end; the data sheet gives no figure for when they are valid, so the read path's `tAA`
+counts from the end of the write (the cell just changed).
 
 ## Tasks
 
@@ -230,7 +299,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   (`tACC`/`tAA`, `tCE`/`tACS`, `tOE`, `tOH`, `tCLZ`, `tOLZ`, `tDF`/`tCHZ`/`tOHZ`, `tWHZ`), the
   RAM write requirements (`tAS`, `tAW`, `tWP`, `tCW`, `tDW`, `tDH`, `tWR`), conditions, mode
   tables and pinouts in this plan.
-- [ ] 2. `core`: `image` prop type with `parseImage`/`formatImage`/summary and `resolveProps`
+- [x] 2. `core`: `image` prop type with `parseImage`/`formatImage`/summary and `resolveProps`
   validation; `random.ts` (seeded generator, string hash); `MemoryDef`/`MemoryView` on
   definitions with registry validation; tests (image round trip as a property test).
 - [ ] 3. `library`: the memory read engine with the `X` window (`src/library/mem/`), the three

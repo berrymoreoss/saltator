@@ -37,7 +37,8 @@ export class Registry implements ComponentRegistry {
 
   /**
    * Adds definitions. Throws on a malformed or duplicate type id, a malformed designator prefix,
-   * a malformed function table, or on invalid pins or symbol with the default props
+   * a malformed function table or memory size, an `image` prop without a size, or on invalid
+   * pins or symbol with the default props
    * (prop-dependent ones are checked again when instances are laid out).
    */
   register(...definitions: AnyComponentDefinition[]): this {
@@ -57,6 +58,7 @@ export class Registry implements ComponentRegistry {
       const symbol = symbolOf(definition, props);
       if (symbol) validateSymbol(symbol, pins, type);
       if (definition.functionTable) validateFunctionTable(definition.functionTable, type);
+      validateMemory(definition);
       this.byType.set(type, definition);
     }
     return this;
@@ -72,5 +74,32 @@ export class Registry implements ComponentRegistry {
 
   list(): readonly AnyComponentDefinition[] {
     return [...this.byType.values()];
+  }
+}
+
+/**
+ * A memory part's size must be whole words of 1–8 bits; an `image` prop needs its size in bytes
+ * (`max`), the memory's word count when the part has one.
+ */
+function validateMemory(definition: AnyComponentDefinition): void {
+  const { type, memory } = definition;
+  if (memory) {
+    if (!Number.isInteger(memory.words) || memory.words < 1) {
+      throw new Error(`${type}: memory words must be a positive integer, got ${memory.words}`);
+    }
+    if (!Number.isInteger(memory.width) || memory.width < 1 || memory.width > 8) {
+      throw new Error(`${type}: memory width must be 1 to 8 bits, got ${memory.width}`);
+    }
+  }
+  for (const prop of definition.props ?? []) {
+    if (prop.type !== 'image') continue;
+    if (prop.max === undefined || !Number.isInteger(prop.max) || prop.max < 1) {
+      throw new Error(`${type}: image prop "${prop.key}" needs its size in bytes as max`);
+    }
+    if (memory && prop.max !== memory.words) {
+      throw new Error(
+        `${type}: image prop "${prop.key}" holds ${prop.max} bytes, the memory ${memory.words} words`,
+      );
+    }
   }
 }

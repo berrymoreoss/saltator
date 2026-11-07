@@ -15,7 +15,9 @@ Modules: `time`, `logic` (levels, drives, resolution, 4-state operators), `event
 (`NetlistBuilder`, `resolveNetlist`, `sameNetlistStructure`), `diagnostics`, `simulator`
 (including `carryOver` for editing while running), `function-table` (the datasheet table format,
 sequential letters included), `timing-checks` (`TimingChecks`: set-up, hold, pulse width and
-recovery against `timing.min`, R09a; edge-to-edge and hold-only set-up/hold, R09b). Test
+recovery against `timing.min`, R09a; edge-to-edge and hold-only set-up/hold, R09b), `memory`
+(ROM images as sparse hex runs, `MemoryDef`/`MemoryView`, the `poke` debug write, R12a), `random`
+(`SeededRandom`, `hashString`: reproducible randomness, R12a). Test
 utilities (`Bench`, `functionTable`, `checkableRows`, `truthTable`, `Trace`) live in `testing/`
 and are imported from
 `src/core/testing`, not from the main index.
