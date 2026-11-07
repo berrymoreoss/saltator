@@ -1,19 +1,7 @@
 import { CircleCheck, CircleX, Play, TriangleExclamationPoint } from 'lucide-react';
-import { type Diagnostic, formatTime, isTimingViolation, KernelDiagnosticKind } from '../core';
+import { type Diagnostic, diagnosticSeverity, formatTime } from '../core';
 import type { Editor } from '../editor';
 import { useStore, useStoreValue } from './hooks';
-
-/**
- * Short circuits, oscillations and timing violations break the circuit (a violated set-up time
- * is an intermittent failure on a real board); the rest are warnings.
- */
-export function diagnosticSeverity(d: Diagnostic): 'error' | 'warning' {
-  return d.kind === KernelDiagnosticKind.CONTENTION ||
-    d.kind === KernelDiagnosticKind.OSCILLATION ||
-    isTimingViolation(d.kind)
-    ? 'error'
-    : 'warning';
-}
 
 /** Where a diagnostic is: `U1.A`, `U3`, `net U1.Y`. */
 export function diagnosticLocation(d: Diagnostic): string {

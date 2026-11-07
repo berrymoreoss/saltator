@@ -613,6 +613,14 @@ describe('Simulation: oscillation and diagnostics', () => {
 });
 
 describe('Simulation: signals', () => {
+  it('finds the simulator net of a scene net by its id, through a pin on it', () => {
+    const { simulation } = setup();
+    expect(simulation.netOf('X1.Y')).toBeUndefined(); // stopped
+    simulation.step();
+    expect(simulation.netOf('X1.Y')).toBe(simulation.simulator!.pinNet('X1', 'Y'));
+    expect(simulation.netOf('nothing')).toBeUndefined();
+  });
+
   it('maps every wire to its net, and wires on no pin to −1', () => {
     const { circuit } = addWires(hello(), [
       [

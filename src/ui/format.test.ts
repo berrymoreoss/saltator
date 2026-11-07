@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { CircuitBuilder } from '../circuit';
-import { ms, ns, type PropDef } from '../core';
+import { diagnosticSeverity, ms, ns, type PropDef } from '../core';
 import { buildScene, MAX_SPEED, REAL_TIME, type SimStatus, selectionOf } from '../editor';
 import { createDefaultRegistry } from '../library';
 import { issueLocation } from './MessagesPanel';
 import { formatProp } from './PropertiesPanel';
 import { simulationSummary } from './SimControls';
-import { diagnosticLocation, diagnosticSeverity, diagnosticWhen } from './SimulationPanel';
+import { diagnosticLocation, diagnosticWhen } from './SimulationPanel';
 import { selectionSummary, statusHint } from './StatusBar';
 
 const registry = createDefaultRegistry();

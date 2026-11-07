@@ -32,7 +32,7 @@ breakpoints.
   helper for any reference.
 - `editor`: the host's stepping goals (run at Max until a time or until right before a clock
   edge, then pause), pause requests that win over a trigger's run-on, the reason it paused; a
-  `Debugger` model (`editor.debugger`, DOM-free): breakpoints, break on errors/warnings, Step
+  `Debugger` model (`editor.debug`, DOM-free): breakpoints, break on errors/warnings, Step
   Clock, Run For, Run To, watches, statistics.
 - `ui`: the **Debug** tab (sixth bottom-dock tab: stepping toolbar, breakpoints, watches), run
   statistics in the Simulation tab, Simulate-menu commands, shortcuts and a toolbar button,
@@ -213,7 +213,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 5. `editor`: host — stepping goals (`runTo`: a time, before a clock edge) at Max across
   frames, `requestPause(reason)`, the pause reason in the status, breaks during steps, Pause /
   Run during a step; fake-clock tests with exact instants at every speed.
-- [ ] 6. `editor`: `Debugger` — breakpoints (resolve, own recorder, repeating triggers, hits,
+- [x] 6. `editor`: `Debugger` — breakpoints (resolve, own recorder, repeating triggers, hits,
   hit count, enable, problems, renames, carry-over, power-on), break on errors/warnings, Step
   Clock (default clock, edge), Run For / Run To, watches (values, changed since the last
   stop), statistics; headless tests; mutation-checked.
@@ -313,11 +313,30 @@ Checkable statements; verified one by one in the finish-branch workflow.
   (`#lastWall` reset). Mutation-checked (19 mutations; three survivors were equivalent code —
   removed: a speed override the step chunk made moot, a `budget` after an hour without an
   edge, a pass-phase `pauseAt` guard that pausing makes dead).
+- 2026-11-08 — task 6: `editor/debugger.ts` (`editor.debug` — `debugger` is a reserved word):
+  `setup` store (`DebugSetup`: breakpoints, watches, clock, edge, Run For, break-on toggles;
+  `load`, cleared by `setCircuit`), breakpoints on debug signals (one reference, or several
+  1-bit references bit 0 first as a group) evaluated by repeating core `Trigger`s on a recorder
+  of their own; hits since power-on, hit counts, enable/disable, problems; break on
+  errors/warnings through `onOccurrence` (`diagnosticSeverity` moved from the Simulation panel
+  to core); Step Clock (default clock: the net `CLK`, else the first `io/clock`/`timer/ne555`
+  output), Run For, Run To; watches of signals, groups and memory cells (`formatCells`),
+  `changed` against the stop before (stops noted on status and ticks; the state before the
+  power-on instant is no stop); `stats()` (since power-on, last run, wall time running);
+  `measureActivity`/`activity()` (an `onNetChange` counter, carried by net id). The host got
+  `netOf(sceneNetId)` (through the signal map's pins: a kept simulator may name nets
+  otherwise), used by steps, breakpoints and watches. Found while testing: a carry-over at a
+  breakpoint's instant made rebuilt triggers fire there again — a trigger is now kept while
+  its condition is the same. Mutation-checked (16 mutations; renaming the recorder's keys on a
+  part rename was equivalent and was removed; dropping unused channels is cleanup only).
+  Benchmark: ring oscillator 12.75M events/s, 10.90M with a breakpoint (every event of the
+  ring is an instant of its own: the trigger's end-of-instant look is the cost), 11.90M
+  measuring activity.
 
 ## Handoff
 
-- **State:** in progress; tasks 1–5 done.
-- **Next step:** task 6 (`Debugger` model: breakpoints, break on, steps, watches, stats).
+- **State:** in progress; tasks 1–6 done (core, circuit, host, `Debugger` model).
+- **Next step:** task 7 (the Debug tab, commands, context menus, status reason).
 - **Watch out:** `io/clock` drives at its wake with zero delay — the lookahead can't see it
   until task 2; a breakpoint during a trigger's post-trigger time must win over `pauseAt`.
 - **Verify with:** `pnpm check`, `pnpm bench`.

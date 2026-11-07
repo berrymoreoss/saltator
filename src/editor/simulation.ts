@@ -140,6 +140,11 @@ export interface BusLive {
 
 /** Where each wire and connection point of the scene is in the simulator's nets. */
 export interface SignalMap {
+  /**
+   * Net index of each net of the scene, by its id in the scene's compile result (through a pin
+   * on it: a simulator kept across a same-structure edit may call its nets otherwise).
+   */
+  readonly nets: ReadonlyMap<string, number>;
   /** Net index of each wire, by wire id; −1 when the simulator has no such net. */
   readonly wires: ReadonlyMap<string, number>;
   /** Net index at wire ends and pin tips, by `pointKey` (junction dots). */
@@ -156,6 +161,7 @@ export interface SignalMap {
 }
 
 const EMPTY_SIGNALS: SignalMap = {
+  nets: new Map(),
   wires: new Map(),
   points: new Map(),
   buses: new Map(),
@@ -331,6 +337,15 @@ export class Simulation {
   /** True while there is a simulator (running, paused or halted). */
   get active(): boolean {
     return this.#sim !== undefined;
+  }
+
+  /**
+   * The simulator's index of a net of the scene (its id in the scene's compile result: what
+   * the resolver gives); undefined without a simulator or for a net it doesn't have.
+   */
+  netOf(net: string): number | undefined {
+    const index = this.#signals.nets.get(net);
+    return index === undefined || index < 0 ? undefined : index;
   }
 
   /** Signal style of a component pin's net (Properties); undefined without a simulator. */
@@ -779,10 +794,8 @@ export class Simulation {
       }
       return result;
     }
-    let net: number;
-    try {
-      net = sim.netIndex(goal.net);
-    } catch {
+    const net = this.netOf(goal.net);
+    if (net === undefined) {
       step.done = `${goal.label}: no net ${goal.net}`;
       return 'idle';
     }
@@ -933,6 +946,7 @@ export class Simulation {
  * them: net ids may differ when the simulator was kept across a same-structure edit.
  */
 export function signalMap(scene: Scene, sim: Simulator): SignalMap {
+  const nets = new Map<string, number>();
   const wires = new Map<string, number>();
   const points = new Map<number, number>();
   const named = new Map<string, number>();
@@ -946,6 +960,7 @@ export function signalMap(scene: Scene, sim: Simulator): SignalMap {
       }
       if (index >= 0) break;
     }
+    nets.set(net.id, index);
     for (const wire of net.wires) {
       wires.set(wire.id, index);
       points.set(pointKey(wire.from), index);
@@ -970,5 +985,5 @@ export function signalMap(scene: Scene, sim: Simulator): SignalMap {
     }
     for (const pin of bus.pins) busPoints.set(pointKey(pin.at), bus.id);
   }
-  return { wires, points, buses, busWires, busPoints };
+  return { nets, wires, points, buses, busWires, busPoints };
 }
