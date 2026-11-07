@@ -206,7 +206,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 1. `core` + `library`: `readAt`/`writtenAt` on `MemoryView`, `addressPins` on `MemoryDef`
   (registry validation); the read path, write path and `poke` stamp; tests (each access kind,
   merged addresses stamp nothing, carry-over keeps stamps); mutation-checked; benchmark.
-- [ ] 2. `core`: image file codecs — binary and Intel HEX parse/format, file summary (range,
+- [x] 2. `core`: image file codecs — binary and Intel HEX parse/format, file summary (range,
   bytes, checksum), placing into a memory with offset and erase; tests (record types, checksum
   and syntax errors with lines, > 64 KB addresses, round trip as a property test).
 - [ ] 3. `circuit`: the resolver — parts, pins, nets, buses, memories, error messages, `/`
@@ -277,10 +277,16 @@ Checkable statements; verified one by one in the finish-branch workflow.
   violation `X`, data hold) and `poke`; `MemoryDef.addressPins` (validated: `2 ** n` words,
   input pins). Mutation-checked (8 mutations). Benchmark 7.82M events/s vs 7.92M on `main`
   (−1.2 %). 1930 tests.
+- 2026-11-07 — task 2: `core/image-files.ts` — format detection, binary and Intel HEX reading
+  (records 00–05, checksums, segment wrap, overlaps, a missing end record: errors with lines),
+  `summarizeImage`, `suggestedLoadAddress` (the lowest address modulo the size), `placeImage`
+  (`at`, `eraseRest`) giving writes for a ROM image or pokes, `memoryBytes` (unknown bits 0),
+  `writeIntelHex` (`base`, `omitErased`, 04 records above 64 KB); round trip as a property test;
+  mutation-checked (one equivalent mutation led to a simpler `suggestedLoadAddress`).
 
 ## Handoff
 
-- **State:** task 1 done (access stamps, `addressPins`).
-- **Next step:** task 2 (image file codecs in `core`).
+- **State:** tasks 1–2 done (access stamps, `addressPins`; image file codecs).
+- **Next step:** task 3 (the resolver in `circuit`).
 - **Watch out:** —
 - **Verify with:** `pnpm check`.
