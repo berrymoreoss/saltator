@@ -22,7 +22,9 @@ power-on and carry-over, the view, cursors, the trigger, R13), `waveforms` (draw
 diagram, R13), `probe-target` (what the Probe tool and the context menu probe at a point, R13),
 `debugger` (the Debug tab's model: breakpoints as repeating triggers, breaks on errors, Step
 Clock / Run For / Run To through the host's `runTo`, watches, run statistics, the debug setup,
-R14),
+R14; Step Back Clock and Reverse Continue as backward searches, R14b), `timeline` (the
+history of a simulator: checkpoints, the action log, positions, reaching a position in a
+replica, R14b),
 `symbols/interact` (part actions for the Interact tool),
 `recording-graphics` and `fake-clock` (tests), `dev-parts` (renderer fixtures, never in the
 default registry). Pure modules and the gestures (`gestures.test.ts`) have Node unit tests;

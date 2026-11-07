@@ -230,7 +230,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   counts 3, 2, 1 and Step Clock replays 2, 3; Reverse Continue stops at the previous breakpoint
   hit; a switch toggled while running happens again on replay, a click at a rewound point
   drops the future.
-- [ ] 9. Docs: simulation.md (snapshots, recorder cursor, the planned marker), editor.md
+- [x] 9. Docs: simulation.md (snapshots, recorder cursor, the planned marker), editor.md
   (Simulation: timeline and rewinds; Debugger: back steps; Waveforms: ruler, future),
   architecture.md, glossary (checkpoint, timeline, present, rewind, Step Back, Reverse
   Continue), READMEs, ADR-0021; roadmap (R14b done, R11 next; backlog: bookmarks, re-running
@@ -386,6 +386,12 @@ Checkable statements; verified one by one in the finish-branch workflow.
   `= 1` found by Reverse Continue (Alt+F5), again "no earlier hit"; a click on CLR behind the
   present starts a new future. Data Bus: a click in the ruler rewinds there, Go to Present comes
   back. `pnpm e2e`: 73 passed.
+- 2026-11-08 — task 9: simulation.md (Snapshots; the recorder across a rewind; `resync`; the
+  planned marker gone), editor.md (Rewinding; Steps back; the ruler and the veiled future; the
+  Memory tab after a rewind; shortcuts, commands, Editor API), architecture.md, glossary
+  (Rewind, Step Back / Step Back Clock / Reverse Continue), the core and editor READMEs,
+  ADR-0021 and its index row; roadmap (R14b done, R11 next; backlog "Rewind follow-ups");
+  lessons.
 
 ## Handoff
 

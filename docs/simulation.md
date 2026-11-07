@@ -263,8 +263,10 @@ run returns `halted`).
 
 A **simulator host** outside core maps wall-clock to simulation time: the editor's `Simulation`
 (R05, [editor.md](editor.md#simulation)) with speed presets, a frame budget and "can't keep up"
-reporting, run/pause/step to the next event/stop/reset, and the debugger's steps (Step Clock by
-`stopBefore`, Run For, Run To) and breakpoints (R14, [editor.md](editor.md#debugger)).
+reporting, run/pause/step to the next event/stop/reset, the debugger's steps (Step Clock by
+`stopBefore`, Run For, Run To) and breakpoints (R14, [editor.md](editor.md#debugger)), and
+rewinding through a history of [snapshots](#snapshots) (R14b,
+[editor.md](editor.md#rewinding)).
 
 ## Timing checks
 
@@ -356,6 +358,51 @@ simulator at all: `sameNetlistStructure(a, b)` is true when both netlists have t
 components in the same order (id, type, props) and the same pins connected together, whatever
 the net ids.
 
+## Snapshots
+
+`sim.snapshot(base?)` (R14b) takes the whole state of a simulation between runs, and
+`sim.restore(snapshot)` puts the simulation back there, so it runs on exactly as it did from
+that point ([ADR-0021](adr/0021-rewind.md)):
+
+```ts
+const snap = sim.snapshot();
+sim.runUntil(us(50));
+sim.restore(snap); // back at the snapshot's time; the same run follows
+const copy = sim.replica(); // the same netlist, its own listeners, at power-on
+copy.restore(snap); // replays run here, unseen by whatever watches `sim`
+sim.restore(copy.snapshot());
+```
+
+- **What a snapshot holds**: time, statistics, whether power-on was processed (a snapshot
+  before it processes it again), `halted` (rewinding out of an oscillation halt works; it comes
+  back at the same instant), every net's level, drive, contention and floating-input mark,
+  every driver slot's drive and pending change, the event queue (in heap order, with its seq
+  counter: same-time events keep their FIFO order and later ones get the seqs they got), every
+  component's state and the diagnostic log's entries and counts. Not the per-delta stamps: the
+  delta id keeps counting across a restore, so no stale stamp can match a later delta.
+  Listeners are not part of it, and a restore calls none of them (whoever watches catches up).
+- **Component states** are frozen copies (`freezeState` in `state-copy.ts`): plain data —
+  objects, arrays, primitives, typed arrays — as `createState` promises; a `Map`, a class
+  instance, a function or an object reached twice throws, naming where. Typed arrays are kept
+  in 4 KiB pages, and a page equal to the one at the same place in `base` (the snapshot before)
+  is shared: a 62256 and a 28C256 whose cells and stamps didn't change cost 1.7 KiB instead of
+  1.1 MB. Restore writes into the live state objects where the shape is the same (views onto
+  them — the memory inspector's, the indicators' samples — stay valid). `snapshot.bytes` is
+  what a snapshot holds of its own; `snapshotBytes(s, relativeTo)` recounts it against
+  another (a history dropping the one between).
+- **Replicas**: a snapshot restores into the simulator it came from or a `replica()` of it
+  (same netlist, same layout token); anything else throws. Taking or restoring one during a run
+  (from a listener) throws.
+- **Diagnostics**: entries are only ever appended and counted, so a snapshot shares the entry
+  objects and copies the counts; restore truncates and resets in place, keeping an entry for
+  the same report as the same object.
+- **Cost** (M3 Pro): 0.7–4.4 KiB and 3–31 µs a snapshot for the examples, a restore 1–8 µs.
+- **The property** (`tests/scenarios/rewind.test.ts`): on every example with seeded actions
+  (switches, buttons, DIP switches, manual clocks, RAM pokes, two actions at one instant) and
+  on every registered part, a simulation rewound through a replica to an instant is the
+  straight run's there — levels, drives, contention, the queue's head, statistics, diagnostics,
+  part states — and runs on to the same end.
+
 ## Observability
 
 - **Levels**: `sim.levels` is a `Uint8Array` with one resolved level per net (by net index),
@@ -431,6 +478,15 @@ recorder.nextChange(clk, us(500)); // time of the next edge
 - **Cost**: no listener without channels; with them, one call per changed net that looks the net
   up in an `Int32Array`. Ring oscillator benchmark: 13.7M events/s, 13.2M recording 16 of its
   1001 nets, 8.7M recording all of them (R13).
+- **Across a rewind** (R14b): `seek(t, present)` after the attached simulator was restored to
+  `t` keeps the record after `t` — the future a run from `t` repeats, up to `present` (the
+  caller's: after a restore `now` no longer says how far it reached). While the run is behind
+  it (`replaying`), a change at or before `present` is confirmed — a cursor per channel moves
+  over the record, which has that instant collapsed already — instead of recorded again;
+  `lastChange` answers at the cursor, `end` is the present, queries see the whole record. A
+  channel added meanwhile records as usual; past the present recording goes on; a trim never
+  reaches past `now`. `cut(t)` drops every change after `t` when the run leaves its recorded
+  future.
 
 ## Triggers
 
@@ -462,6 +518,9 @@ trigger.attach(sim); // armed; attach the new simulator after a carry-over
   until it has been false). With `{ repeat: true }` (R14's breakpoints) it fires at every such
   instant and stays armed. Never twice at one instant: a carry-over at the instant it fired
   processes that instant again.
+- `resync(now)` (R14b): after a rewind, the condition as it was at `now` (a pattern that held
+  then must become false before it fires again), and a fire after `now` no longer blocks
+  firing there again.
 - Values: digits not written are 0, as in a number (`5` on eight bits is `0x05`, `X5` leaves the
   high nibble free); a bit that is `X` or `Z` matches no 0 or 1, so `notEqual` holds while it
   is. `conditionProblems(condition)` and `parseHexPattern(text, width)` give the reasons a
@@ -540,6 +599,5 @@ $end
 
 ## Planned extensions
 
-- Snapshot/restore of full simulator state (for "rewind" in the debugger) _(R14b)_.
 - Web Worker host with SharedArrayBuffer levels _(backlog)_.
 - Fast mode for large synchronous designs (levelized/cycle-based evaluation) _(backlog)_.
