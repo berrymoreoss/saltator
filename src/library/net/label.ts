@@ -1,4 +1,12 @@
-import { defineComponent, NET_NAME, NET_NAME_HINT, netNameRuns, runsText } from '../../core';
+import {
+  defineComponent,
+  isBusName,
+  LABEL_NAME,
+  LABEL_NAME_HINT,
+  NET_NAME,
+  netNameRuns,
+  runsText,
+} from '../../core';
 
 /** The name of the first net label placed in a session (`nextNetName` continues from there). */
 export const FIRST_NET_NAME = 'NET1';
@@ -31,13 +39,15 @@ export function nextNetName(name: string): string {
 /**
  * Net label: a flag with a name and one connection point. Every label of a name is one net, so
  * distant parts connect without a wire between them (KiCad's net label, Logisim's tunnel).
- * Schematic-only: it joins nets and is never simulated. Spec: docs/components.md#net-labels.
+ * Named like a bus (`D[0..7]`) it is a bus label: its pin sits on a bus line and names that bus,
+ * and every bus label of a name is one bus. Schematic-only: it joins nets and buses and is never
+ * simulated. Spec: docs/components.md#net-labels-net.
  */
 export const netLabel = defineComponent<{ name: string }, undefined>({
   type: 'net/label',
   name: 'NET LABEL',
-  title: 'Net label (joins every label of its name)',
-  keywords: ['net', 'label', 'tunnel', 'name', 'signal', 'flag'],
+  title: 'Net label (joins every label of its name), or bus label',
+  keywords: ['net', 'label', 'tunnel', 'name', 'signal', 'flag', 'bus'],
   designatorPrefix: 'NL',
   schematicOnly: true,
   props: [
@@ -46,12 +56,14 @@ export const netLabel = defineComponent<{ name: string }, undefined>({
       label: 'Name',
       type: 'string',
       default: FIRST_NET_NAME,
-      pattern: { regex: NET_NAME, hint: NET_NAME_HINT },
+      pattern: { regex: LABEL_NAME, hint: LABEL_NAME_HINT },
     },
   ],
   nextProps: ({ name }) => ({ name: nextNetName(name) }),
   pins: ({ name }) => [
-    { name: 'N', dir: 'nc', net: name, description: `joins every net label named ${name}` },
+    isBusName(name)
+      ? { name: 'N', dir: 'nc', net: name, bus: true, description: `names the bus ${name}` }
+      : { name: 'N', dir: 'nc', net: name, description: `joins every net label named ${name}` },
   ],
   symbol: ({ name }) => ({
     kind: 'net-label',

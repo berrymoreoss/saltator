@@ -14,8 +14,18 @@ describe('net/label', () => {
 
   it('refuses a bad name with a hint saying what names may be', () => {
     expect(() => resolveProps(netLabel, { name: 'A B' }, 'NL1')).toThrow(
-      'NL1: prop "name" must be letters, digits, _ + - / # and ~{…} for an overline, at most 32 characters, got "A B"',
+      'NL1: prop "name" must be letters, digits, _ + - / # and ~{…} for an overline, at most 32 characters, or a bus such as D[0..7], got "A B"',
     );
+    expect(() => resolveProps(netLabel, { name: 'D[0..100]' })).toThrow('or a bus such as');
+  });
+
+  it('is a bus label when named like a bus: its pin sits on the bus layer', () => {
+    const props = resolveProps(netLabel, { name: 'D[0..7]' });
+    expect(pinsOf(netLabel, props)).toEqual([
+      { name: 'N', dir: 'nc', net: 'D[0..7]', bus: true, description: 'names the bus D[0..7]' },
+    ]);
+    expect(symbolOf(netLabel, props)).toMatchObject({ kind: 'net-label', width: 4 });
+    expect(netLabel.nextProps!(props)).toEqual({ name: 'D[0..7]' });
   });
 
   it('is a centered tag as wide as its name', () => {

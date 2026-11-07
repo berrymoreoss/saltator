@@ -53,7 +53,7 @@ const CHIPS = [
 ];
 
 describe('createDefaultRegistry', () => {
-  it('contains every primitive, IO part, net label and 74xx chip', () => {
+  it('contains every primitive, IO part, net part and 74xx chip', () => {
     expect(
       createDefaultRegistry()
         .list()
@@ -82,6 +82,7 @@ describe('createDefaultRegistry', () => {
       'io/hex-display',
       'io/probe',
       'net/label',
+      'net/bus-entry',
       ...CHIPS,
       'timer/ne555',
     ]);
@@ -126,6 +127,7 @@ describe('createDefaultRegistry', () => {
       'io/hex-display': 'DS',
       'io/probe': 'TP',
       'net/label': 'NL',
+      'net/bus-entry': 'BE',
       ...Object.fromEntries(CHIPS.map((type) => [type, 'U'])),
       'timer/ne555': 'U',
     });

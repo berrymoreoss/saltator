@@ -168,7 +168,7 @@ single entries vs a multi-bit ripper.
   normalization property test with buses.
 - [x] 4. `circuit`: checks `bus-entry-member`, `multiple-net-names` on buses, `single-net-label`
   with entries and without bus labels; tests.
-- [ ] 5. `library`: bus labels (the name pattern, the bus pin), `net/bus-entry`; tests;
+- [x] 5. `library`: bus labels (the name pattern, the bus pin), `net/bus-entry`; tests;
   scenarios (two 74HC245s joined over a bus by entries, a member missing reads `Z`, adding a bus
   line or label while running keeps the simulator).
 - [ ] 6. `editor`: scene and renderer for buses (thick lines, bus dots, marks), the bus-entry
