@@ -158,7 +158,7 @@ single entries vs a multi-bit ripper.
 
 ## Tasks
 
-- [ ] 1. `core`: bus names (`parseBusName`, `busMembers`), the bus value text from member
+- [x] 1. `core`: bus names (`parseBusName`, `busMembers`), the bus value text from member
   levels, `PinDef.bus` (validated: `nc` only); tests.
 - [ ] 2. `circuit`: `Wire.bus`, schema v2 with the migration, load/serialize; example files
   re-saved as v2; tests.

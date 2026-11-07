@@ -61,6 +61,18 @@ export {
   xor,
 } from './logic';
 export {
+  BUS_NAME,
+  type BusName,
+  busMembers,
+  busValueText,
+  isBusName,
+  LABEL_NAME,
+  LABEL_NAME_HINT,
+  NET_NAME,
+  NET_NAME_HINT,
+  parseBusName,
+} from './net-names';
+export {
   type Netlist,
   NetlistBuilder,
   type NetlistComponent,

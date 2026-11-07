@@ -95,6 +95,14 @@ describe('pins', () => {
     );
   });
 
+  it('validatePins allows bus pins only on nc pins', () => {
+    expect(() => validatePins([{ name: 'B', dir: 'nc', bus: true }], 'x/y')).not.toThrow();
+    expect(() => validatePins([{ name: 'A', dir: 'in', bus: false }], 'x/y')).not.toThrow();
+    expect(() => validatePins([{ name: 'A', dir: 'in', bus: true }], 'x/y')).toThrow(
+      'x/y: pin "A" is "in" and cannot be a bus pin',
+    );
+  });
+
   it('validatePins allows constant only on strong outputs, with level 0 or 1', () => {
     expect(() => validatePins([{ name: 'Y', dir: 'out', constant: 0 }], 'x/y')).not.toThrow();
     expect(() => validatePins([{ name: 'Y', dir: 'tristate', constant: 1 }], 'x/y')).toThrow(

@@ -1,17 +1,4 @@
-import { defineComponent, netNameRuns, runsText } from '../../core';
-
-/** One character of a net name. */
-const NAME_CHAR = String.raw`[A-Za-z0-9_+\-/#]`;
-
-/**
- * What a net name may be: letters, digits, `_ + - / #`, and `~{…}` for an overline (KiCad's
- * syntax), at most 32 characters. No whitespace; no `.`, which netlists use to address pins
- * (`U1.Y`); no `[` `]`, kept for bus ranges (R10b).
- */
-export const NET_NAME = new RegExp(`^(?=.{1,32}$)(?:${NAME_CHAR}|~\\{${NAME_CHAR}+\\})+$`);
-
-export const NET_NAME_HINT =
-  'letters, digits, _ + - / # and ~{…} for an overline, at most 32 characters';
+import { defineComponent, NET_NAME, NET_NAME_HINT, netNameRuns, runsText } from '../../core';
 
 /** The name of the first net label placed in a session (`nextNetName` continues from there). */
 export const FIRST_NET_NAME = 'NET1';
