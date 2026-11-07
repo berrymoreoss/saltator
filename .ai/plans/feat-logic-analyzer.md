@@ -4,7 +4,7 @@
 | ---------- | ---------------------------------------------------------------------------------------- |
 | Branch     | `feat/logic-analyzer`                                                                    |
 | Roadmap    | R13 — Waveforms & probes ([roadmap](../../docs/roadmap.md))                              |
-| Status     | in-progress                                                                              |
+| Status     | done                                                                                     |
 | Depends on | R05 (simulator host, carry-over), R10b (buses), R12b (resolver, bottom-dock tab pattern) |
 | Created    | 2026-11-07                                                                               |
 
@@ -275,26 +275,37 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 
 Checkable statements; verified one by one in the finish-branch workflow.
 
-- [ ] `pnpm check`, `pnpm build` and `pnpm e2e` are green.
-- [ ] Nets, pins, buses and groups can be probed from the canvas and by typed reference; the
-  Waveforms tab shows them over simulated time while running, following `now`, and after Stop.
-- [ ] Zoom and pan reach from single gate delays (ps–ns) to the whole capture; a 1 MHz clock
-  zoomed out over 10 ms draws as a block without slowing the frame (redraw time recorded).
-- [ ] Two cursors measure Δt and 1/Δt, snapping to edges: the Clock Module's period read off the
-  cursors matches its 555's frequency (e2e).
-- [ ] A bus shows its value per segment in hex, decimal, binary and ASCII, `X` nibbles where
-  bits are unknown; a group of single nets reads as one value.
-- [ ] A trigger on a bus value stops the simulation at its instant plus the post-trigger time,
-  with the trigger marked (unit with exact times; e2e on Data Bus).
-- [ ] VCD export of the capture or of the cursor range opens in a VCD reader: the file matches
-  a hand-checked dump (unit) and the exported Data Bus capture parses back (e2e).
-- [ ] Recording survives structural edits while running (carry-over) and part renames; Reset
-  clears it.
-- [ ] Probes are saved in the file (schema v3; v2 files still open), and adding or removing one
-  is one undo step that doesn't restart a running simulation.
-- [ ] The Probe tool adds and removes nets, pins and buses with one click, while stopped and
-  while running.
-- [ ] Kernel benchmark: no change without probes; the cost with 16 probed nets recorded here.
+- [x] `pnpm check` (2088 tests), `pnpm build` and `pnpm e2e` (67) are green.
+- [x] Nets, pins, buses and groups can be probed from the canvas and by typed reference; the
+  Waveforms tab shows them over simulated time while running, following `now`, and after Stop
+  (`probe-target.test.ts`, `analyzer.test.ts` recording/Stop, e2e Probe tool, context menu and
+  Add signal; looked at on Clock Module and Data Bus).
+- [x] Zoom and pan reach from single gate delays (ps–ns) to the whole capture (scale 0.02 ps …
+  10 ms a pixel, `analyzer.test.ts`); a 1 MHz clock zoomed out over 10 ms (20 001 changes) is
+  one dense segment, laid out in 0.17 ms a row and drawn in 0.68 ms for 8 rows (median of 30,
+  Node under the module runner).
+- [x] Two cursors measure Δt and 1/Δt, snapping to edges: the Clock Module's period read off the
+  cursors matches its 555's frequency (e2e: `Δ 652.113 ms · 1.533 Hz` = 0.693 (RA + 2 RB) C).
+- [x] A bus shows its value per segment in hex, decimal, binary and ASCII, `X` nibbles where
+  bits are unknown; a group of single nets reads as one value (`formatValue` tests, the
+  renderer's vector segments, the group in Data Bus and in `analyzer.test.ts`).
+- [x] A trigger on a bus value stops the simulation at its instant plus the post-trigger time,
+  with the trigger marked (unit: exact pause instants at Max and real time; e2e on Data Bus:
+  the record ends 90 ms after `= 2B` with a 100 ms window).
+- [x] VCD export of the capture or of the cursor range: the file matches a hand-checked dump
+  (`vcd.test.ts`, the 74HC161 scenario, `vcd-export.test.ts`) and the exported Data Bus capture
+  is read back (e2e). Not opened in GTKWave itself (none installed); the header and value lines
+  follow IEEE 1364 §18.
+- [x] Recording survives structural edits while running (carry-over) and part renames; Reset
+  clears it (`analyzer.test.ts`).
+- [x] Probes are saved in the file (schema v3; v2 files still open), and adding or removing one
+  is one undo step that doesn't restart a running simulation (schema/serialize tests,
+  `keeps a running simulator when probes change`, e2e save and Undo/Redo while running).
+- [x] The Probe tool adds and removes nets, pins and buses with one click, while stopped and
+  while running (`probe-target.test.ts`, e2e).
+- [x] Kernel benchmark: no change without probes; the cost with 16 probed nets recorded here
+  (ring oscillator 13.69M events/s, 13.24M with 16 probed nets, 8.68M with all 1001; the
+  break flag left the other benchmarks within noise).
 
 ## Open questions
 
@@ -402,12 +413,21 @@ Checkable statements; verified one by one in the finish-branch workflow.
   VCD, waveform), the layers' READMEs, the roadmap entry and a backlog item for waveform
   follow-ups, lessons; probes in Clock Module (the 555s and CLK) and Data Bus (the bus, CP and
   the register's outputs as a group), checked to resolve by a scenario.
+- 2026-11-07 — finished. Acceptance criteria checked (above); the e2e tests were moved onto
+  pins the examples don't probe yet. R13 delivered the Waveforms tab (probes saved in the
+  document, schema v3; a Canvas2D timing diagram with fit/follow/free views, cursors snapping
+  to edges, bus and group values in four radixes), the Probe tool and Add to Waveforms, a
+  single-shot trigger that breaks the kernel at its instant and pauses after the post-trigger
+  time, VCD export; in core `requestBreak`, `onInstant`, `Recorder`, `Trigger`, `writeVcd`;
+  ADR-0019; a kernel fix (`settle` with a negative span). Follow-ups: backlog "Waveform
+  follow-ups (R13)"; R14 builds breakpoints and edge stepping on the break and the conditions;
+  R15 records and dumps headless.
 
 ## Handoff
 
-- **State:** all tasks done; finishing (acceptance criteria, build, close the plan).
-- **Next step:** finish-branch: verify the acceptance criteria, `pnpm build`, ask to merge.
-- **Watch out:** nets have no identity across compiles — channels are references, re-resolved
-  on every carry-over; the kernel's listener reports levels only. Docs already link
-  `adr/0019-waveforms.md` (write it in task 11). Max-speed tests need `clock.cost > 0`.
-- **Verify with:** `pnpm check`.
+- **State:** done; waiting for the user's approval to merge into `main`.
+- **Next step:** merge (`git merge --no-ff`), then R14 `feat/debugger`.
+- **Watch out:** R14 should reuse `Simulator.requestBreak`/`onInstant` and the `Trigger`
+  conditions for breakpoints, and `Simulation.pauseAt` for stepping by time; probes are
+  references, so R11's instance paths reach them through the resolver.
+- **Verify with:** `pnpm check`, `pnpm e2e tests/e2e/waveforms.spec.ts`.
