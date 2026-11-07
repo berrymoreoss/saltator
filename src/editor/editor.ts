@@ -94,6 +94,8 @@ export type WheelMode = 'pan' | 'zoom';
 export interface PlaceTool {
   readonly kind: 'place';
   readonly type: string;
+  /** Props every placed part gets (a pull-up is `prim/pull` with `direction: 'up'`). */
+  readonly props?: Readonly<Record<string, PropValue>>;
 }
 
 /**
@@ -463,9 +465,9 @@ export class Editor {
     this.#updateCursor();
   }
 
-  /** Arms the place tool with a part type (the Parts panel). */
-  placePart(type: string): void {
-    this.setTool({ kind: 'place', type });
+  /** Arms the place tool with a part type (the Parts panel), optionally with preset props. */
+  placePart(type: string, props?: Readonly<Record<string, PropValue>>): void {
+    this.setTool(props ? { kind: 'place', type, props } : { kind: 'place', type });
   }
 
   selectAll(): void {
@@ -847,6 +849,10 @@ export class Editor {
    */
   #nextProps(type: string): Record<string, PropValue> {
     const definition = this.registry.get(type)!;
+    const tool = this.tool.get();
+    if (typeof tool === 'object' && tool.type === type && tool.props && !this.#dragType) {
+      return resolveProps(definition, tool.props);
+    }
     const last = this.#lastProps.get(type);
     if (!last || !definition.nextProps) return resolveProps(definition, {});
     try {

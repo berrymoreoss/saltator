@@ -243,6 +243,15 @@ describe('placing parts', () => {
     expect(editor.displayed.components.at(-1)).toMatchObject({ x: 30, y: 30, rotation: 90 });
   });
 
+  it('places a part with preset props (Place ▸ Pull-down)', () => {
+    const editor = new Editor(registry, connected);
+    editor.placePart('prim/pull', { direction: 'down' });
+    click(editor, [30, 10]);
+    click(editor, [40, 10]);
+    const pulls = editor.state.get().circuit.components.filter((c) => c.type === 'prim/pull');
+    expect(pulls.map((c) => c.props.direction)).toEqual(['down', 'down']);
+  });
+
   it('drops a part dragged from the panel', () => {
     const editor = new Editor(registry, connected);
     editor.dragPart('io/probe', px([20, 20]));

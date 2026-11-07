@@ -341,6 +341,23 @@ export function createCommands({
       run: () => editor.setTool('wire'),
     },
 
+    ...PLACE_PARTS.map(
+      (item): Command => ({
+        id: item.id,
+        label: item.label,
+        ...(item.shortcuts && { shortcuts: item.shortcuts }),
+        checked: () => {
+          const tool = editor.tool.get();
+          return (
+            typeof tool === 'object' &&
+            tool.type === item.type &&
+            tool.props?.direction === item.props?.direction
+          );
+        },
+        run: () => editor.placePart(item.type, item.props),
+      }),
+    ),
+
     {
       id: 'tool.interact',
       label: 'Interact',
@@ -596,7 +613,7 @@ export function workbenchMenus(examples: readonly Example[], recentCount?: numbe
         'parts.search',
       ],
     },
-    { label: 'Place', items: ['tool.wire', 'parts.search'] },
+    { label: 'Place', items: PLACE_MENU },
     {
       label: 'View',
       items: [
@@ -638,6 +655,37 @@ export function workbenchMenus(examples: readonly Example[], recentCount?: numbe
   ];
 }
 
+/**
+ * Parts placed often, one right click away (Place submenu) and in the Place menu: each arms the
+ * sticky place tool, like a click in the Parts panel.
+ */
+const PLACE_PARTS: readonly {
+  readonly id: string;
+  readonly label: string;
+  readonly type: string;
+  readonly props?: Readonly<Record<string, string>>;
+  readonly shortcuts?: readonly string[];
+}[] = [
+  { id: 'place.vcc', label: 'Power (VCC)', type: 'io/vcc' },
+  { id: 'place.gnd', label: 'Ground (GND)', type: 'io/gnd' },
+  { id: 'place.pullUp', label: 'Pull-up', type: 'prim/pull', props: { direction: 'up' } },
+  { id: 'place.pullDown', label: 'Pull-down', type: 'prim/pull', props: { direction: 'down' } },
+  { id: 'place.netLabel', label: 'Net Label', type: 'net/label', shortcuts: ['L'] },
+];
+
+/** The Place menu and the canvas context menu's Place submenu. */
+export const PLACE_MENU: readonly MenuEntry[] = [
+  'place.vcc',
+  'place.gnd',
+  'place.pullUp',
+  'place.pullDown',
+  SEPARATOR,
+  'tool.wire',
+  'place.netLabel',
+  SEPARATOR,
+  'parts.search',
+];
+
 /** The context menu over a part or wire, and over empty canvas. */
 export const ITEM_CONTEXT_MENU: readonly MenuEntry[] = [
   'edit.cut',
@@ -656,6 +704,8 @@ export const ITEM_CONTEXT_MENU: readonly MenuEntry[] = [
 ];
 
 export const CANVAS_CONTEXT_MENU: readonly MenuEntry[] = [
+  { label: 'Place', items: PLACE_MENU },
+  SEPARATOR,
   'edit.paste',
   SEPARATOR,
   'edit.selectAll',
