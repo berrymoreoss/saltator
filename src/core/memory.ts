@@ -12,6 +12,24 @@ export interface MemoryView {
   readonly data: Uint8Array;
   /** A set bit is unknown (`X`): the bit stored in `data` means nothing. */
   readonly unknown: Uint8Array;
+  /**
+   * When each cell was last read, in ps (`-Infinity`: never): the outputs drove its data for
+   * one known address. Inspectors light up the cells read since their last look.
+   */
+  readonly readAt: Float64Array;
+  /**
+   * When each cell was last written, in ps (`-Infinity`: never): a write of the circuit changed
+   * it (or made it `X`), or a debug write did.
+   */
+  readonly writtenAt: Float64Array;
+}
+
+/** Fresh access stamps for `words` cells: never read, never written. */
+export function createAccessStamps(words: number): Pick<MemoryView, 'readAt' | 'writtenAt'> {
+  return {
+    readAt: new Float64Array(words).fill(-Infinity),
+    writtenAt: new Float64Array(words).fill(-Infinity),
+  };
 }
 
 /**
@@ -19,12 +37,14 @@ export interface MemoryView {
  * The view reads the instance's state; it never copies.
  */
 export interface MemoryDef<State = unknown> {
-  /** Number of words (addresses). */
+  /** Number of words (addresses): `2 ** addressPins.length`. */
   readonly words: number;
   /** Bits per word, 1–8. */
   readonly width: number;
   /** RAM: contents live only while simulating. ROM: contents come from an `image` prop. */
   readonly volatile: boolean;
+  /** The address pins, A0 first: the address the chip sees is read from them. */
+  readonly addressPins: readonly string[];
   view(state: State): MemoryView;
 }
 

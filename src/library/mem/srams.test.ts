@@ -328,9 +328,12 @@ describe('6116 unknowns', () => {
     write(b, 1, 0x0f);
     b.set(dataBus(0x3c)).run(ns(20));
     b.set({ WE: 'X' }).run(ns(20));
+    const end = b.now;
     b.set({ WE: 1 }).run(ns(10));
     b.set(dataBus('Z')).run(ns(10));
     expect(readAt(b, 1)).toBe('00XX11XX');
+    // A write that may have happened counts as one.
+    expect((b.sim.stateOf('DUT') as RamState).writtenAt[1]).toBe(end);
   });
 
   it('the address changing while WE̅ is unknown merges the data into the old and new cell', () => {
@@ -428,6 +431,50 @@ describe('6116 power-on and debug writes', () => {
     expect([...view.data.subarray(0, 3)]).toEqual([0x12, 0x34, 0]);
   });
 
+  it('stamps the cells it reads, writes and is poked at', () => {
+    const b = idle();
+    const view = sram6116.memory!.view(b.sim.stateOf('DUT') as RamState);
+    expect(sram6116.memory!.addressPins).toHaveLength(11);
+    write(b, 1, 0x11);
+    // The write ends as WE̅ rises: 10 ns hold and 20 ns gap before the helper returns.
+    expect(view.writtenAt[1]).toBe(b.now - ns(30));
+    expect(view.readAt[1]).toBe(-Infinity);
+    const t = b.now;
+    expect(readAt(b, 1)).toBe(hex(0x11));
+    expect(view.readAt[1]).toBe(t + ns(13)); // valid tOE after OE̅ fell
+    b.action({ type: 'poke', address: 7, data: [1, 2] });
+    expect([view.writtenAt[7], view.writtenAt[8]]).toEqual([b.now, b.now]);
+    expect(view.writtenAt.filter((at) => at !== -Infinity)).toHaveLength(3);
+    expect(view.readAt.filter((at) => at !== -Infinity)).toHaveLength(1);
+  });
+
+  it('keeps its stamps when the simulation goes on in a recompiled netlist', () => {
+    const registry = new Registry([sram6116]);
+    const old = new Simulator(new NetlistBuilder().add('U1', 'mem/6116').build(), registry);
+    old.runUntil(ns(10));
+    old.action('U1', { type: 'poke', address: 3, data: [7] });
+    const netlist = new NetlistBuilder().add('U1', 'mem/6116').add('U2', 'mem/6116').build();
+    const sim = new Simulator(netlist, registry, { carry: old.carryOver() });
+    expect((sim.stateOf('U1') as RamState).writtenAt[3]).toBe(ns(10));
+    expect((sim.stateOf('U2') as RamState).writtenAt[3]).toBe(-Infinity);
+  });
+
+  it('stamps what a violated write made X, and every cell a write with unknown address may hit', () => {
+    const b = idle();
+    const view = sram6116.memory!.view(b.sim.stateOf('DUT') as RamState);
+    b.set(dataBus(0x55)).run(ns(20));
+    b.set({ WE: 0 }).run(ns(10));
+    b.set(address(2, 11)).run(ns(30)); // the address changes during the write
+    b.set({ WE: 1 }).run(ns(20));
+    expect(view.writtenAt[0]).toBe(b.now - ns(50));
+    expect(view.writtenAt[2]).toBeGreaterThan(-Infinity);
+    b.set({ ...address(4, 11), A0: 'X' }).run(ns(20));
+    const t = b.now;
+    b.set({ WE: 0 }).run(ns(30));
+    b.set({ WE: 1 }).run(ns(20));
+    expect([view.writtenAt[4], view.writtenAt[5]]).toEqual([t + ns(30), t + ns(30)]);
+  });
+
   it('rejects pokes outside the memory and unknown actions', () => {
     const b = powerOn('x');
     expect(() => b.action({ type: 'poke', address: 2047, data: [1, 2] })).toThrow(
@@ -519,7 +566,9 @@ describe('write requirements the 6116 has as 0 (a test part)', () => {
     b.set(dataBus(0x0f)).run(ns(20));
     b.set({ WE: 0 }).run(ns(20));
     b.set({ WE: 1 }).run(ns(4));
+    const late = b.now;
     b.set({ IO7: 1, IO0: 0 }).run(ns(10));
+    expect((b.sim.stateOf('DUT') as RamState).writtenAt[1]).toBe(late);
     b.set(dataBus('Z')).run(ns(10));
     expect(violations(b).map((v) => [v[0], v[1]])).toEqual([
       [TimingViolation.HOLD, 'IO0'],

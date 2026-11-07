@@ -6,6 +6,7 @@ import {
   designatorPrefixOf,
   type PinDef,
 } from './component';
+import { createAccessStamps } from './memory';
 import { familyOf, Registry } from './registry';
 import type { SymbolDef } from './symbol';
 
@@ -106,13 +107,22 @@ describe('Registry', () => {
   });
 
   describe('memory parts', () => {
-    const view = () => ({ data: new Uint8Array(0), unknown: new Uint8Array(0) });
-    const memory = { words: 16, width: 8, volatile: false, view };
+    const view = () => ({
+      data: new Uint8Array(0),
+      unknown: new Uint8Array(0),
+      ...createAccessStamps(0),
+    });
+    const addressPins = ['A0', 'A1', 'A2', 'A3'];
+    const pins: PinDef[] = [
+      ...addressPins.map((name) => ({ name, dir: 'in' as const })),
+      { name: 'DQ', dir: 'bidir' as const },
+    ];
+    const memory = { words: 16, width: 8, volatile: false, addressPins, view };
     const image = (max?: number) =>
       [{ key: 'contents', label: 'Contents', type: 'image', default: '', max }] as const;
 
     it('accepts a memory with an image prop of its size', () => {
-      const rom = part('mem/rom', { memory, props: image(16) });
+      const rom = part('mem/rom', { pins, memory, props: image(16) });
       expect(new Registry([rom]).has('mem/rom')).toBe(true);
     });
 
@@ -121,15 +131,24 @@ describe('Registry', () => {
       [{ ...memory, words: 2.5 }, 'mem/bad: memory words must be a positive integer, got 2.5'],
       [{ ...memory, width: 9 }, 'mem/bad: memory width must be 1 to 8 bits, got 9'],
       [{ ...memory, width: 0 }, 'mem/bad: memory width must be 1 to 8 bits, got 0'],
-    ])('rejects a malformed size', (bad, message) => {
-      expect(() => new Registry([part('mem/bad', { memory: bad })])).toThrow(message);
+      [{ ...memory, words: 32 }, 'mem/bad: 4 address pins select 16 words, the memory has 32'],
+      [
+        { ...memory, addressPins: ['A0', 'A1', 'A2', 'A9'] },
+        'mem/bad: address pin "A9" is not an input pin',
+      ],
+      [
+        { ...memory, addressPins: ['A0', 'A1', 'A2', 'DQ'] },
+        'mem/bad: address pin "DQ" is not an input pin',
+      ],
+    ])('rejects a malformed size or address', (bad, message) => {
+      expect(() => new Registry([part('mem/bad', { pins, memory: bad })])).toThrow(message);
     });
 
     it('rejects an image prop without its size, or of another size than the memory', () => {
       expect(() => new Registry([part('mem/bad', { props: image() })])).toThrow(
         'mem/bad: image prop "contents" needs its size in bytes as max',
       );
-      expect(() => new Registry([part('mem/bad', { memory, props: image(32) })])).toThrow(
+      expect(() => new Registry([part('mem/bad', { pins, memory, props: image(32) })])).toThrow(
         'mem/bad: image prop "contents" holds 32 bytes, the memory 16 words',
       );
     });

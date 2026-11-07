@@ -7,6 +7,7 @@ import { srams } from './srams';
 
 export { AT28C16, AT28C64B, AT28C256, EEPROM_MODES, eeproms } from './eeproms';
 export {
+  addressPinNames,
   createMemoryState,
   enabledByLow,
   MemoryDiagnosticKind,

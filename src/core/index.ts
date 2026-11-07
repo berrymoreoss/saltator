@@ -62,6 +62,7 @@ export {
   xor,
 } from './logic';
 export {
+  createAccessStamps,
   ERASED,
   formatImage,
   IMAGE_HINT,

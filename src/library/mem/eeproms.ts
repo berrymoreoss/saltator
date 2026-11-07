@@ -17,6 +17,7 @@ import {
 } from '../../core';
 import { dipPins, type PinRow, pins } from '../74xx/pinout';
 import {
+  addressPinNames,
   createMemoryState,
   enabledByLow,
   MemoryDiagnosticKind,
@@ -184,7 +185,13 @@ function eepromDefinition(spec: EepromSpec): AnyComponentDefinition {
     props: [{ key: 'contents', label: 'Contents', type: 'image', default: '', max: spec.words }],
     timing: spec.timing,
     functionTable: EEPROM_MODES,
-    memory: { words: spec.words, width: 8, volatile: false, view: (state) => state },
+    memory: {
+      words: spec.words,
+      width: 8,
+      volatile: false,
+      addressPins: addressPinNames(Math.log2(spec.words)),
+      view: (state) => state,
+    },
     create: ({ contents }) => {
       const image = parseImage(contents, spec.words);
       return {
