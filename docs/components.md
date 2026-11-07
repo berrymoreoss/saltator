@@ -10,7 +10,8 @@ How parts are described in `src/library`. Rationale for modeling chips as packag
 > `package`, `units`, pin `description`s and `functionTable`; R08 added MSI chips with delays per
 > path, pin `label`s, `si` props and the `timer` family (NE555); R09a added edge-triggered chips,
 > `timing.min` with timing checks, sequential function tables and the pin `clock` flag on
-> packages.
+> packages; R10a added the `net` family (net labels), the `net` pin field, `schematicOnly`,
+> `nextProps`, prop `pattern`s and `centered` symbols.
 
 ## Families and type ids
 
@@ -22,6 +23,7 @@ the part before the slash (`familyOf(type)`).
 | -------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
 | `prim`   | `prim/nand`, `prim/tristate-buffer`, `prim/pull`                   | Abstract building blocks (Logisim-style), configurable inputs and delay. For prototyping and learning. |
 | `io`     | `io/switch`, `io/button`, `io/led`, `io/clock`, `io/seven-segment` | Interaction and indication: rails, switches, LEDs, displays, clock, probe ([below](#io-parts-io)).     |
+| `net`    | `net/label`                                                        | Schematic-only connections: net labels ([below](#net-labels-net)); bus parts and ports later.          |
 | `74xx`   | `74xx/74hc00`, `74xx/74hc245`, `74xx/74ls189`                      | Real logic chips ([below](#74xx-chips-74xx)). Behavior shared per function; timing per logic family.   |
 | `timer`  | `timer/ne555`                                                      | Analog timers, behavioral: the RC network as props ([below](#timers-timer)).                           |
 | `mem`    | `mem/at28c256`, `mem/62256`                                        | ROM/EEPROM/SRAM with inspectors _(planned, R12)_.                                                      |
@@ -47,6 +49,8 @@ interface ComponentDefinition<Props, State> {
   timing?: TimingDef; // datasheet numbers + source/conditions
   functionTable?: FunctionTable; // datasheet function table (one unit's), shown in Part Info
   symbol?: SymbolDef | ((props: Props) => SymbolDef); // geometry when drawn as a symbol
+  schematicOnly?: boolean; // drawn and connected, never simulated: left out of the netlist
+  nextProps?: (props: Props) => Props; // props of the next instance placed after this one
 
   create(props: Props): Behavior<State>; // see docs/simulation.md
 }
@@ -62,6 +66,7 @@ interface PinDef {
   weak?: boolean; // only ever drives weakly (pull resistors); driver pins only
   sense?: boolean; // only observes the net (LEDs, displays, probes); `in` pins only
   constant?: 0 | 1; // output tied to this level (rails, constants); strong `out` pins only
+  net?: string; // joins the circuit-wide net of this name (net labels, VCC/GND symbols)
 }
 ```
 
@@ -74,7 +79,7 @@ duplicate pin names, flags on the wrong kind of pin, a symbol that doesn't place
 `designatorPrefix` (uppercase letters) is what the editor numbers new instances with, by
 KiCad/IEEE convention: `U` for chips, gates and other logic (the default), `R` resistors, `SW`
 switches and buttons, `D` LEDs, `DS` displays, `X` clocks and oscillators, `TP` probes, `PWR`
-power symbols.
+power symbols, `NL` net labels (never drawn).
 
 `pins` may be a function of the (resolved) props, for parts whose pin count is configurable
 (N-input gates, DIP-switch banks, LED bars). `pinsOf(definition, props)` returns an instance's
@@ -103,6 +108,17 @@ An `out` pin marked `constant: 0 | 1` is tied to that level for good (`io/vcc`, 
 `prim/constant` with 0/1). The `shorted-outputs` check counts outputs tied to the same level as
 one source: two VCC symbols wired together are fine, VCC to GND or VCC to a gate output is a
 short.
+
+A pin with `net: 'NAME'` joins the circuit-wide net of that name wherever it sits: every pin of
+one name is on one net, without a wire between them, and the net is called by the name
+([circuit.md](circuit.md#connectivity)). The VCC and GND symbols have `net: 'VCC'` / `'GND'`; a
+net label's pin has its `name` prop (its pins are a function of props).
+
+A `schematicOnly` part is drawn and connects but is never simulated: the compiler leaves it out
+of the netlist and keeps its pins apart from the simulated ones, so adding, moving or renaming
+one only changes which pins share a net (net labels). `nextProps` gives the editor the props of
+the next instance placed after one was placed or edited — a net label continues `D0` with
+`D1` ([editor.md](editor.md#placing-parts)).
 
 ## Packages and pin numbering
 
@@ -152,6 +168,7 @@ interface PropDef {
   options?: { value: string; label: string }[]; // for 'enum'
   unit?: string; // display unit: 'Hz'
   si?: boolean; // 'number' entered and shown with SI prefixes: '4.7 kΩ', '100 nF'
+  pattern?: { regex: RegExp; hint: string }; // what a 'string' allows; hint ends "must be …"
 }
 ```
 
@@ -162,7 +179,8 @@ interface PropDef {
 - Props are part of the saved document; changing one recompiles the netlist.
 - `resolveProps(definition, raw)` (used by the netlist resolver) fills in defaults and rejects
   unknown keys, wrong types, non-integers for `integer`/`time`, out-of-range values and unknown
-  `enum` options, with a message naming the component and prop.
+  `enum` options and `string`s that don't match their `pattern`, with a message naming the
+  component and prop (`NL1: prop "name" must be letters, digits, … , got "A B"`).
 
 ## Timing
 
@@ -306,6 +324,7 @@ interface SymbolDef {
   width: number; // body size in grid cells, pin stubs excluded
   height: number;
   pins: Record<string, { side: PinSide; offset: number }>; // every pin, power and nc too
+  centered?: boolean; // the body sits half a cell higher (net labels): left/right pins only
 }
 type PinSide = 'left' | 'top' | 'right' | 'bottom';
 ```
@@ -313,6 +332,10 @@ type PinSide = 'left' | 'top' | 'right' | 'bottom';
 - A pin sits on a side of the body, `offset` cells from its top (left/right sides) or left
   (top/bottom sides) edge, 0 … height or 0 … width; its stub sticks out one cell and connects at
   the tip. No two pins on the same point.
+- A `centered` symbol's body is raised by half a cell, so a one-cell-high body sits centered on
+  the row of its pins at offset 0, and such parts stack on adjacent pins at a one-cell pitch
+  (net labels on a chip's data pins). Its bounding box then reaches half a cell above the
+  origin.
 - `partLayout` in `src/circuit` turns the symbol into connection points
   ([circuit.md](circuit.md#part-layouts)). A `package` wins over a `symbol` (chips are drawn as
   packages, ADR-0004); parts with neither get the generic box (none of the built-in parts).
@@ -329,7 +352,7 @@ rails change with zero delay, the clock's edges are exact.
 
 | Type               | Pins                         | Props (default)                                                                    | Behavior                                                              |
 | ------------------ | ---------------------------- | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `io/vcc`, `io/gnd` | `Y` (out, constant 1 / 0)    | —                                                                                  | strong 1 / 0 from t = 0                                               |
+| `io/vcc`, `io/gnd` | `Y` (out, constant 1 / 0)    | —                                                                                  | strong 1 / 0 from t = 0; every symbol on the net `VCC` / `GND`        |
 | `io/switch`        | `Y` (`ON`, `OFF` changeover) | `contact` (`spdt`), `on` (false): position at power-on                             | toggle switch; actions `toggle`, `set`                                |
 | `io/button`        | `Y`                          | `contact` (`spst-vcc`)                                                             | momentary; released at power-on; actions `press`, `release`           |
 | `io/dip-switch`    | `S1`…`Sn`                    | `count` 1–12 (8), `contact` (`spst-vcc`), `on` (0): power-on bitmask, bit 0 = `S1` | actions `toggle`, `set` with `index` (0 = `S1`)                       |
@@ -366,6 +389,29 @@ rails change with zero delay, the clock's edges are exact.
   difference of two samples divided by the frame's duration — a multiplexed display or an LED on
   a fast clock shows its real brightness instead of random frames. Hex display and probe are
   stateless: the renderer reads their pin levels.
+
+## Net labels (`net/*`)
+
+`net/label` (`src/library/net`): a flag with a name and one connection point. Every label of
+one name — and every VCC or GND symbol for the names `VCC`, `GND` — is one net, so distant parts
+connect without a wire between them (KiCad's net label, Logisim's tunnel). Schematic-only: it
+is drawn and connects, never simulated. Scope: the whole circuit (local vs global labels come
+with R11).
+
+| Pins       | Props           | Notes                                                                   |
+| ---------- | --------------- | ----------------------------------------------------------------------- |
+| `N` (`nc`) | `name` (`NET1`) | `net: name`; designator `NL`, not drawn; symbol `net-label`, `centered` |
+
+- **Names** (`NET_NAME`): letters, digits, `_ + - / #`, and `~{…}` for an overline as in KiCad
+  (`~{CLR}` → C̅L̅R̅, `~{CS}1` → C̅S̅1, `netNameRuns` in core), at most 32 characters,
+  case-sensitive. No whitespace, no `.` (netlists address pins as `U1.Y`), no `[` `]` (kept for
+  bus ranges, R10b). A name's identity is its text: `~{CLR}` and `CLR` are different nets.
+- **Drawing**: an outlined tag pointing at its connection point (one cell out, like every pin
+  stub), the name inside in a monospaced font; the body is as wide as the name
+  (`netLabelWidth`) and one cell high, `centered` on the pin's row, so labels stack on adjacent
+  DIP pins.
+- **Next name** (`nextNetName`, through `nextProps`): the trailing number incremented, keeping
+  its width (`D0` → `D1`, `A09` → `A10`); a name without one stays (`CLK`).
 
 ## 74xx chips (`74xx/*`)
 

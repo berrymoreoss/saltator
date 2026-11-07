@@ -78,13 +78,17 @@ Read before starting:
 - `connect(pins, wires, names?)` unions the nodes of pins that carry the same name before nets
   are numbered. Joining by name adds no junction dots (it isn't geometric).
 - Label pins belong to their `CircuitNet` (the editor colors a label by its net) but are kept
-  apart from simulated pins: no netlist pins, not counted by `undriven-input` or
-  `shorted-outputs`.
+  apart from simulated pins (`CircuitNet.schematicPins`): no netlist pins, not counted by
+  `undriven-input` or `shorted-outputs`.
+- An open pin is one that touches nothing at its point (`Connectivity.openPins`,
+  `CompileResult.openPins`): with nets joined by name, "the only pin on its net" no longer
+  means unconnected (a lone VCC symbol is on the VCC net with every other one).
 
 ### Net ids
 
-- A named net takes one of its names: rail names first (`VCC`, then `GND`), then label names in
-  code-point order — deterministic, independent of document order. More than one distinct name
+- A named net takes one of its names: names from simulated pins (rails) first, then label
+  names, each group in code-point order (so VCC tied to GND is called `GND`) — deterministic,
+  independent of document order. More than one distinct name
   on a net is a `multiple-net-names` warning ("net has the names CLK, CLOCK; it is called CLK"),
   as in KiCad. A label `VCC` on a GND wire still makes `shorted-outputs` (rails tied together).
 - Unnamed nets keep today's ids (first driver pin, first pin, first wire). Pin-based ids contain
@@ -105,28 +109,35 @@ Read before starting:
 - `net/label` in a new Parts family **Nets** (R10b's bus parts and R11's ports join it; VCC and
   GND keep their `io/` types, which never change), keywords `net label tunnel name signal`.
   Designator prefix `NL`, never drawn: the label shows its name only.
-- Symbol `kind: 'net-label'`, its width from the name's length, one pin. Labels must stack on
-  adjacent DIP pins (D0…D7 on a 245) without overlapping, so the drawn tag and its hit area
-  stay within ±0.5 cell of the pin row — the 1-cell grid of `SymbolDef` may need a thinner hit
-  body for this (decided in task 5, recorded in the progress log).
+- Symbol `kind: 'net-label'`, its width from the name's length (monospaced, 0.6 cell font),
+  one pin `N` (`nc`: never read or driven). Labels stack on adjacent DIP pins (D0…D7 on a 245)
+  without overlapping: `SymbolDef.centered` raises a one-cell body by half a cell, so it sits
+  centered on its pin's row (body y −0.5…0.5, pin tip at the origin); the tag is ±0.4 cell.
 - Text upright at any rotation (`uprightText`); a flipped or 180°-rotated label points the other
   way but its name never reads backwards.
 - While simulating, the outline takes its net's level color (wires' `SignalStyle`).
 
 ### Placing
 
-- From the Parts panel and from **Place ▸ Net Label** (`L`) (Q4). The ghost and each placed
-  label get the next name: the last label name placed or set in Properties with its trailing
-  number incremented (`D0` → `D1`, `A7` → `A8`), the same name when it has no number (`CLK`
-  again), `NET1` for the first label of a session. Eight clicks put D0…D7 on a bus port.
-- Renamed in Properties (**Name**, validated on entry); undo records it as `Rename Net Label`.
+- From the Parts panel and from **Place ▸ Net Label** (`L`) (Q4), placed with its connection
+  point under the pointer (other parts are centered), so a click on a pin tip attaches it. The
+  ghost and each placed label get the next name: the last label name placed or set in
+  Properties with its trailing number incremented (`D0` → `D1`, `A7` → `A8`), the same name
+  when it has no number (`CLK` again), `NET1` for the first label of a session. Generic:
+  `ComponentDefinition.nextProps`, which the editor applies to the props of the last part of
+  that type placed or edited. Eight clicks put D0…D7 on a bus port.
+- Renamed in Properties (**Name**, checked against the pattern as it is typed; spaces at the
+  ends dropped); undo says `Change Name` like any prop. The free-text Label row is hidden for
+  schematic-only parts (it would never be drawn).
 
 ### Place submenu (Q4)
 
 The backlog's design, now built: right click on empty canvas ▸ **Place** ▸ Power (VCC),
 Ground (GND), Pull-up, Pull-down (the pull part with its direction preset), Wire, Net Label,
 then Part… (Search Parts); the menu bar's Place menu shows the same list. A part item arms the
-sticky place tool like a click in the Parts panel. Port arrives with R11.
+sticky place tool like a click in the Parts panel (`PlaceTool.props` carries a preset, the
+pull's direction). The items aren't checkable: a command with `checked` is a
+`menuitemcheckbox`. Port arrives with R11.
 
 ### ADR-0015
 
@@ -136,26 +147,26 @@ new document object (KiCad's model; needs schema v2 and a third selectable kind 
 
 ## Tasks
 
-- [ ] 1. `core`: `PinDef.net` (non-empty, validated), `ComponentDefinition.schematicOnly`,
+- [x] 1. `core`: `PinDef.net` (non-empty, validated), `ComponentDefinition.schematicOnly`,
   `PropDef.pattern` checked by `resolveProps`; tests.
-- [ ] 2. `circuit`: `connect` joins named pins; the compiler leaves schematic-only parts out of
+- [x] 2. `circuit`: `connect` joins named pins; the compiler leaves schematic-only parts out of
   the netlist, names nets (priority, `#2` on collision), keeps label pins apart; tests with
   `test-parts.ts` (circuit tests can't import `library`).
-- [ ] 3. `circuit`: design checks `single-net-label` (a label name no other label or rail uses)
+- [x] 3. `circuit`: design checks `single-net-label` (a label name no other label or rail uses)
   and `multiple-net-names`; tests.
-- [ ] 4. `library`: rails get `net`; the `net/label` part with the name pattern; tests; scenarios
+- [x] 4. `library`: rails get `net`; the `net/label` part with the name pattern; tests; scenarios
   (two VCC symbols are one net `VCC`, labels join distant parts and the LED follows the switch,
   renaming a label while running keeps the simulator); fix tests that expected rail net ids
   like `PWR1.Y`.
-- [ ] 5. `editor`: the `net-label` drawer (Q2), overline runs (Q3), upright text, width from the
+- [x] 5. `editor`: the `net-label` drawer (Q2), overline runs (Q3), upright text, width from the
   name, hidden designator, live outline color; hit area for 1-cell stacking; Symbol Gallery
   entries; symbol and scene tests.
-- [ ] 6. `editor`/`ui`: the place tool with props from the next name; the Nets family in the
+- [x] 6. `editor`/`ui`: the place tool with props from the next name; the Nets family in the
   Parts panel; the Properties name field with the pattern's hint; tests.
-- [ ] 7. `ui`: the Place submenu and Place menu, `L`; commands tests (Q4).
-- [ ] 8. Example **Net Labels** (`examples/net-labels.logic.json`, gallery entry); e2e: place
+- [x] 7. `ui`: the Place submenu and Place menu, `L`; commands tests (Q4).
+- [x] 8. Example **Net Labels** (`examples/net-labels.logic.json`, gallery entry); e2e: place
   labels from the Place menu, rename, see them connect (Properties shows the net name), run.
-- [ ] 9. Docs: circuit.md, components.md, editor.md, glossary, architecture, READMEs,
+- [x] 9. Docs: circuit.md, components.md, editor.md, glossary, architecture, READMEs,
   ADR-0015; roadmap (R10 split into R10a/R10b, R10a done, R10b next; backlog: Place submenu
   built); lessons.
 
@@ -197,11 +208,17 @@ new document object (KiCad's model; needs schema v2 and a third selectable kind 
   (this branch is R10a), outlined tag, `~{…}` overlines, Place submenu with `L`.
 - 2026-11-07 — plan approved; branch started. Roadmap: R10 split into R10a (in progress) and
   R10b `feat/buses` (planned).
+- 2026-11-07 — tasks 1–8 done: core fields (`PinDef.net`, `schematicOnly`, `PropDef.pattern`,
+  `SymbolDef.centered`, `nextProps`), name joining and net ids in the compiler, the two checks,
+  `net/label` and rails by name, the tag drawer (outline in the net color while running, via
+  the signal map's label points), geometric open pins, placing by the point with the next name,
+  Place menu/submenu with `L`, the Net Labels example (labels named GND tie the 74HC00's unused
+  inputs), e2e. 1699 unit tests, 54 e2e green. Looked at in both themes, stopped and running.
 
 ## Handoff
 
-- **State:** plan approved, branch started; no code yet.
-- **Next step:** task 1 (`core`: `PinDef.net`, `schematicOnly`, `PropDef.pattern`).
+- **State:** tasks 1–8 committed; docs (task 9) in progress.
+- **Next step:** task 9, then the finish-branch workflow (acceptance criteria one by one).
 - **Watch out:** the layer check covers tests: `src/circuit/*.test.ts` use `test-parts.ts`, not
   `library`. Gate commits on `pnpm check`'s exit code (lessons, R03/R09b).
 - **Verify with:** `pnpm check`.

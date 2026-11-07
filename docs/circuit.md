@@ -154,6 +154,7 @@ Everything that touches connects (Logisim-like), except wires that merely cross:
 | pin on a wire's interior (a wire running over a pin) | yes        |
 | collinear overlapping wires                          | yes        |
 | two wire interiors crossing                          | **no**     |
+| pins of one name (`PinDef.net`), anywhere            | yes        |
 
 Consequence: a wire that runs along a column of pins (say, past a rotated part) connects to each
 pin it passes over. Route around pins.
@@ -161,11 +162,17 @@ pin it passes over. Route around pins.
 - **Junction dots** are derived, never stored: a dot is drawn where three or more things meet —
   wire ends and pins count once, a wire passing through counts twice. So a T-junction and a pin on
   a wire's middle get a dot; a corner, an end-to-end joint or a wire ending on a pin don't.
-- **Dangling ends**: a wire end that touches nothing else.
+- **Dangling ends**: a wire end that touches nothing else. **Open pins**: a pin that touches
+  nothing at its point — geometric, so a lone VCC symbol or a net label away from any wire is
+  open though its name puts it on a net with others.
+- **Joining by name**: pins with the same `net` name (net labels, the VCC and GND symbols) are
+  one net wherever they are, across the whole circuit (local and global names come with R11).
+  It adds no junction dots: it isn't a connection on the drawing.
 
-`connect(pinPoints, wires)` implements this with union-find over the points where something
-ends (wire ends, pins); points inside wires are found through rows/columns of those points sorted
-by coordinate, O((P + W) log P). Nets are numbered by first appearance, pins first.
+`connect(pinPoints, wires, names?)` implements this with union-find over the points where
+something ends (wire ends, pins), plus a union of the pins of each name; points inside wires are
+found through rows/columns of those points sorted by coordinate, O((P + W) log P). Nets are
+numbered by first appearance, pins first.
 
 ## Compiler
 
@@ -180,16 +187,24 @@ interface CompileResult {
   nets: CircuitNet[]; // each net with its placed pins and wires, in netlist order
   wireNets: ReadonlyMap<string, string>; // wire id → net id (coloring wires by level)
   junctions: Point[]; // junction dots, sorted by x, then y
+  openPins: ReadonlySet<string>; // 'U1.A' for pins that touch nothing at their point
   issues: DesignIssue[]; // errors first, then warnings
   ok: boolean; // no error-severity issues
 }
 ```
 
-- **Net ids** are deterministic and readable: the net's first driver pin (`out`/`tristate`/
-  `bidir`, in component then pin order), else its first pin, else (a net made only of wires) its
-  first wire's id. Pin names contain a dot and ids don't, so they never collide. Every net is in
-  the netlist, including single unconnected pins and wire-only nets (which read `Z`), so the
-  editor can color every wire.
+- **Net ids** are deterministic and readable. A named net is called by its first name: names
+  from simulated pins (the VCC and GND symbols) before names from net labels, each group in
+  code-point order (`CircuitNet.names`). Other nets: the first driver pin (`out`/`tristate`/
+  `bidir`, in component then pin order), else the first pin, else (a net made only of wires and
+  labels) the first wire's id. Pin names contain a dot and names and ids don't, so they never
+  collide; a wire id that is also a net's name gets `#2`. Every net is in the netlist, including
+  single unconnected pins and wire-only nets (which read `Z`), so the editor can color every
+  wire.
+- **Schematic-only parts** (`schematicOnly`: net labels) connect but are left out of the
+  netlist; their pins are in `CircuitNet.schematicPins`, apart from the simulated `pins`, and no
+  design check counts them as inputs or outputs. Adding, moving or renaming a label that
+  changes no pin connections keeps the netlist's structure (`sameNetlistStructure`).
 - **Never throws on user mistakes.** Components with errors (unknown type, invalid props) are
   left out of the netlist and reported; the rest compiles. Whether to simulate with errors is the
   host's decision: it simulates anyway, without them (R05). Only library bugs throw (an inconsistent package definition).
@@ -199,13 +214,15 @@ interface CompileResult {
 `DesignIssue = { severity: 'error' | 'warning', code, message, component?, pin?, wire?, net?,
 at? }` — enough to locate the issue on the canvas.
 
-| Code              | Severity | When                                                                                                                                             |
-| ----------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `unknown-type`    | error    | the part type isn't in the registry                                                                                                              |
-| `invalid-props`   | error    | `resolveProps` rejects the props (message names the prop)                                                                                        |
-| `shorted-outputs` | error    | two or more strong push-pull (`out`, not `weak`) pins on one net; outputs tied to the same level (`constant`, e.g. two VCC symbols) count as one |
-| `undriven-input`  | warning  | an `in` pin (not `sense`) on a net with no possible driver: unconnected, or only inputs and wires                                                |
-| `dangling-wire`   | warning  | a wire end that touches nothing (often: one cell short of a pin)                                                                                 |
+| Code                 | Severity | When                                                                                                                                                                           |
+| -------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `unknown-type`       | error    | the part type isn't in the registry                                                                                                                                            |
+| `invalid-props`      | error    | `resolveProps` rejects the props (message names the prop)                                                                                                                      |
+| `shorted-outputs`    | error    | two or more strong push-pull (`out`, not `weak`) pins on one net; outputs tied to the same level (`constant`, e.g. two VCC symbols) count as one                               |
+| `undriven-input`     | warning  | an `in` pin (not `sense`) on a net with no possible driver: unconnected, or only inputs and wires                                                                              |
+| `dangling-wire`      | warning  | a wire end that touches nothing (often: one cell short of a pin)                                                                                                               |
+| `multiple-net-names` | warning  | a net with more than one name (labels `CLK` and `CLOCK` on one wire, a label on a VCC wire); it is called by its first name, the issue sits at the first pin giving the second |
+| `single-net-label`   | warning  | a net label whose name no other label or VCC/GND symbol uses: it joins nothing by name (a typo?)                                                                               |
 
 An `out` pin with a pull resistor (`weak` pin) or with tri-state outputs is legal; conflicts
 between drivers that can actually disagree at run time are the kernel's `contention` diagnostic.
@@ -265,6 +282,6 @@ validation costs nothing per instance. Recompiling on every edit is affordable.
 
 ## Planned extensions
 
-- Net labels and tunnels (named nets joining by name), buses with rippers _(R10)_.
+- Buses with rippers and bus labels (`D[0..7]`), built on net names _(R10b)_.
 - Several circuits per document with subcircuit instances _(R11)_.
 - Unconnected power-pin and fan-out checks _(backlog)_.

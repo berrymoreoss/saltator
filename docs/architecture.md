@@ -119,7 +119,7 @@ Implemented in R02. Full spec: [circuit.md](circuit.md). Rationale:
 - **Document**: `{ schemaVersion, circuits: [...] }`; a circuit has component instances
   `{ id, type, x, y, rotation, flip, props, label? }` and wires, each one straight horizontal or
   vertical segment `{ id, from, to }` in integer grid coordinates. Immutable values in memory.
-  Later: net labels/tunnels, buses (R10), subcircuit instances (R11).
+  Later: buses (R10b), subcircuit instances (R11).
 - **A component's id is its designator** (`U1`, `SW1`): readable in netlists, diagnostics and
   test benches. `label` is free display text.
 - **Pin positions are derived** from part definitions (`partLayout`: DIP drawing for packages,
@@ -128,12 +128,17 @@ Implemented in R02. Full spec: [circuit.md](circuit.md). Rationale:
 - **Connectivity is geometric; everything that touches connects** (as in Logisim): wire ends and
   pins connect to wire ends, wire interiors (T-junctions) and pins at the same point; crossing
   wire interiors do not. Junction dots are derived. Union-find over grid points produces nets.
+- **Net labels** (R10a) are schematic-only parts whose pin joins the circuit-wide net of its
+  name (`PinDef.net`); the VCC and GND symbols join `VCC` and `GND` the same way. The compiler
+  leaves schematic-only parts out of the netlist and calls a named net by its name
+  ([ADR-0015](adr/0015-net-labels.md)).
 - **Schema versioning**: every saved document carries `schemaVersion`; loading migrates older
   versions forward and rejects newer ones. Never break old files silently.
 - **Compiler** (`compileCircuit`): document → `Netlist` with deterministic, readable net ids, plus
   the net of every wire and the junction dots for the editor. It never throws on user mistakes.
 - **Design checks** (pre-simulation): unknown part types, invalid props, shorted push-pull
-  outputs, undriven inputs, dangling wires; later power-pin checks.
+  outputs, undriven inputs, dangling wires, nets with several names, lone net labels; later
+  power-pin checks.
 
 ## Editor
 

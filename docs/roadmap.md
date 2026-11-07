@@ -221,7 +221,7 @@ names, or Logisim-style rippers by bit index) is decided when it starts.
 ### R11 · Hierarchical design — `feat/subcircuits`
 
 Multiple circuits per project, subcircuit instances with generated or custom symbols, navigation
-into instances while simulating.
+into instances while simulating. A subcircuit's interface pins (ports) join the Place menu (R10a).
 
 **M2 acceptance:** Ben Eater SAP-1 modules (clock, A/B registers, ALU, program counter, output
 register) built and verified individually.
@@ -314,17 +314,13 @@ Promote to a numbered item when needed.
 - Simulation view extras (R05 follow-ups): LED colors that stay visible on the light theme's
   cream when dim (a dim yellow LED is hard to see); a "toggling" wire style for nets that change
   faster than the frame rate, which now flicker between 0 and 1 from frame to frame.
-- Place submenu (instead of a quick-place toolbar group, to keep the toolbar clean): right click
-  on empty canvas ▸ **Place** ▸ Power (VCC), Ground (GND), Pull-up, Pull-down (the pull part with
-  its direction preset), Wire, Net Label (with R10), Port (a subcircuit's interface pin, with
-  R11), then Part… (Search Parts). The menu bar's Place menu shows the same list. A part item arms
-  the sticky place tool like a click in the Parts panel (ghost under the cursor, R/F before
-  placing, Escape leaves); Wire switches to the Wire tool. Shortcuts can follow (KiCad uses `P`
-  for power and `L` for a label; both are free). Everything but Net Label and Port can land any
-  time.
 - Passive parts (R08 follow-up): resistors, capacitors and potentiometers drawn on the schematic
   but not simulated (BOM, breadboard view), a 555 reading its R and C from them, and turning a
   potentiometer with the Interact tool (Ben's clock speed knob); a read-only hint of a 555's
   resulting frequency in Properties. CMOS 555s (TLC555, ICM7555) and the 556 with the same model.
+- Net highlighting (R10a follow-up): selecting or hovering a wire or net label highlights every
+  wire and label of its net, across labels.
+- Placing VCC/GND symbols by their pin (R10a follow-up), as net labels are placed, so a click on
+  a pin tip attaches one; other one-pin parts may follow.
 - Documents (R07 follow-ups): several documents open in one window (tabs); a title, notes and
   simulation settings (speed) stored in the file (schema v2).

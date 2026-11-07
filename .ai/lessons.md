@@ -183,3 +183,13 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
 - 2026-11-07 (R09b) — The carry-over property earns its keep only with a mutation that the unit
   tests miss: a 4040 counting on the forced evaluation (power-on starts at `X`, so `X + 1 = X`
   hides it) fails only the property.
+- 2026-11-07 (R10a) — Joining nets by name breaks "the only pin on its net" as a test for an
+  unconnected pin: every lone VCC symbol is on the `VCC` net with the others. Ask what touches
+  the pin's point (`Connectivity.openPins` / `CompileResult.openPins`), never the net's size.
+- 2026-11-07 (R10a) — A `centered` symbol's bounds reach half a cell above its origin, so code
+  that turns bounds into a placement (`at = target − bounds.x/y`, the Symbol Gallery) gets
+  `.5` coordinates, which documents reject. Round onto the grid (`Math.ceil`) wherever bounds
+  become positions.
+- 2026-11-07 (R10a) — Schematic-only parts aren't in the simulator: `sim.pinLevel`/`stateOf`
+  throw for them and `PartLive` doesn't exist. Anything live about them goes through the scene
+  (the signal map's points), and test helpers that build a simulator per part must skip them.

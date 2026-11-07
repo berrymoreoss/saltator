@@ -10,7 +10,9 @@ into a flat `Netlist` for the kernel.
 
 Modules: `document.ts` (types), `schema.ts` + `migrations.ts` (loading), `serialize.ts`
 (saving), `geometry.ts`, `layout.ts` (pin positions), `connectivity.ts` (nets from wires),
-`compile.ts` + `checks.ts` (netlist, design checks), `builder.ts` (code-first documents).
+`compile.ts` + `checks.ts` (netlist, net names, design checks), `builder.ts` (code-first
+documents). Net labels are parts like any other (`schematicOnly`, a pin with a `net` name): the
+compiler joins pins by name and leaves those parts out of the netlist.
 `test-parts.ts` holds small part definitions for unit tests: this layer may not import `library`,
 not even in tests; scenarios with real parts live in `tests/scenarios/`.
 

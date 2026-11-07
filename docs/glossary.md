@@ -106,9 +106,11 @@ input behavior; the library shares the function and takes timing from the family
 
 **Netlist** — the flat list of component instances and nets the kernel simulates.
 
-**Net label** _(planned, R10)_ — a named flag on a wire end or pin tip; all labels with the same
+**Net label** — a named flag on a wire end or pin tip (`net/label`); all labels with the same
 name are one net, so distant parts connect without a wire between them (KiCad/Altium "net
-label", Logisim "tunnel"). Not to be confused with a part's `label`, which is display text only.
+label", Logisim "tunnel"). The VCC and GND symbols join the nets `VCC` and `GND` the same way.
+Drawn and connected but never simulated (schematic-only). Not to be confused with a part's
+`label`, which is display text only.
 
 **Part / component** — a simulated device: a real chip (`74xx/74hc00`), an IO element
 (`io/led`), or an abstract primitive (`prim/nand`).
