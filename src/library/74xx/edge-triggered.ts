@@ -4,7 +4,16 @@
  * templates. The timing checks themselves are `TimingChecks` in core. Spec:
  * docs/components.md#edge-triggered-chips.
  */
-import { type Edge, type EvalContext, Level, type PinRef, toInput } from '../../core';
+import {
+  and,
+  type Edge,
+  type EvalContext,
+  Level,
+  not,
+  type PinRef,
+  toInput,
+  xor,
+} from '../../core';
 
 /** What a clock did in this delta. */
 export const ClockEdge = {
@@ -71,6 +80,38 @@ export function jkNext(q: Level, j: Level, k: Level): Level {
     }
   }
   return next as Level;
+}
+
+/**
+ * The next count of a binary counter, bit 0 first, written into `out`: `q + 1` (`up`) or
+ * `q − 1`, wrapping around. A ternary ripple carry: a bit is `X` only where an unknown bit or
+ * carry reaches it (`0X01 + 1 = 0X10`).
+ */
+export function countInto(q: readonly Level[], up: boolean, out: Level[]): void {
+  let carry: Level = Level.L1;
+  for (let n = 0; n < q.length; n++) {
+    const bit = q[n]!;
+    out[n] = xor(bit, carry);
+    // Up, the carry goes on past a 1; down, the borrow goes on past a 0.
+    carry = and(carry, up ? bit : not(bit));
+  }
+}
+
+/** Whether every bit is `value` (`L1`), surely not (`L0`), or maybe (`X`). */
+export function allAt(q: readonly Level[], value: Level): Level {
+  let all: Level = Level.L1;
+  for (let n = 0; n < q.length; n++) all = and(all, value === Level.L1 ? q[n]! : not(q[n]!));
+  return all;
+}
+
+/**
+ * Merges one possible outcome into `into`, bit by bit (`either`); the first one is copied. For
+ * a part whose mode (reset, load, count, hold) depends on unknown or late inputs: every mode
+ * they allow is merged, so only the bits where the modes differ become `X`.
+ */
+export function mergeInto(into: Level[], outcome: readonly Level[], first: boolean): void {
+  for (let n = 0; n < into.length; n++)
+    into[n] = first ? outcome[n]! : either(into[n]!, outcome[n]!);
 }
 
 /** A unit's pin name or path from a template: `n` before a capital becomes the unit number. */

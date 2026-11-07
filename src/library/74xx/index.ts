@@ -5,6 +5,7 @@
 import type { AnyComponentDefinition } from '../../core';
 import { hcArithmetic } from './arithmetic';
 import { hcBuffers } from './buffers';
+import { hcCounters } from './counters';
 import { hcDecoders } from './decoders';
 import { hcEncoders } from './encoders';
 import { hcFlipFlops } from './flip-flops';
@@ -17,6 +18,14 @@ import { hc245 } from './transceiver';
 export { ADDER_SPEC, arithmeticChips, COMPARATOR_SPEC } from './arithmetic';
 export { BUFFER_SPECS, type BufferSpec, bufferChips } from './buffers';
 export type { ChipSpec, ChipTiming, LogicFamily } from './chip';
+export {
+  CNT161_SPEC,
+  CNT163_SPEC,
+  COUNTER_SPECS,
+  type CounterState,
+  counterChips,
+  type SyncCounterSpec,
+} from './counters';
 export { DECODER_SPECS, type DecoderSpec, decoderChips } from './decoders';
 export { ENCODER147_SPEC, ENCODER148_SPEC, encoderChips } from './encoders';
 export {
@@ -63,4 +72,5 @@ export const chips74xx: readonly AnyComponentDefinition[] = [
   hc4511,
   ...hcFlipFlops,
   ...hcRegisters,
+  ...hcCounters,
 ].sort((a, b) => Number(a.name.slice(4)) - Number(b.name.slice(4)));

@@ -8,7 +8,7 @@ import type { FunctionTable } from '../function-table';
 import { Level, strong, toInput } from '../logic';
 import { ns, us } from '../time';
 import { Bench } from './bench';
-import { functionTable } from './function-table';
+import { checkableRows, functionTable } from './function-table';
 
 /**
  * A negative-edge JK flip-flop with an active-low reset; J or K changing with the edge makes it
@@ -111,5 +111,20 @@ describe('functionTable on sequential tables', () => {
         states: STATES,
       }),
     ).toBe(14);
+  });
+});
+
+describe('checkableRows', () => {
+  it('keeps the rows whose outputs are letters or previous states, drops datasheet text', () => {
+    const table: FunctionTable = {
+      inputs: ['CP', 'D'],
+      outputs: ['Q', 'TC'],
+      rows: ['↑ l | L L', '↑ h | H [1]', '↑ X | count [1]', 'X X | q L', 'L X | Z Z'],
+      state: { q: 'Q' },
+    };
+    expect(checkableRows(table)).toEqual({
+      ...table,
+      rows: ['↑ l | L L', 'X X | q L', 'L X | Z Z'],
+    });
   });
 });

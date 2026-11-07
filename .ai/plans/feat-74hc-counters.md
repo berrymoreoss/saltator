@@ -206,7 +206,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   function tables land with each chip's behavior.
 - [x] 2. `core`: `TimingChecks.setupHold` edge-to-edge form (the data pin's active transition
   only; same instant allowed — Q3) and hold-only form (193), with tests on a fixture.
-- [ ] 3. Counting helpers (`increment`/`decrement`, outcome merging over controls) and the
+- [x] 3. Counting helpers (`increment`/`decrement`, outcome merging over controls) and the
   74HC161, 163, with tests (function table, counting 0–15 and wrap, load, enables, TC and its
   paths, MR̅ asynchronous vs synchronous, unknown/floating/late controls, every check).
 - [ ] 4. 74HC191, 193 with tests (up/down, asynchronous load, TC/RC̅, TC̅U/TC̅D, cascading
@@ -293,11 +293,21 @@ Checkable statements; verified one by one in the finish-branch workflow.
   `sameInstantAllowed` (a change at the same instant, in the same or an earlier delta, is no
   violation) and an optional `setup` (hold only; a check needs one of the two). Tests on a
   two-clock fixture (595- and 193-style), mutation-checked (5 mutations).
+- 2026-11-07 — task 3: `countInto` (ternary ripple carry, up/down), `allAt`, `mergeInto` in
+  `edge-triggered.ts`; `counters.ts` with `SyncCounterSpec` for the 161/163 (one behavior, the
+  reset asynchronous or synchronous; the 191/193 will get their own); `checkableRows` in
+  `core/testing` (the rows without data sheet text, for tables with `count` and footnotes).
+  Every mode a control allows is merged (reset, load, count, hold) — a late control counts as
+  unknown; hold minima are 0 (checks declared, never fire). Tests per chip
+  (`counters.test.ts`, 44): function table per bit, counting and TC, load, hold, both resets, a
+  163 modulo-10 counter, power-on, uncertain edge, unknown controls, floating CEP, every path,
+  every check at its limit; mutation-checked (17 mutations; one survivor — reset and load
+  merged under an unknown 163 MR — got its test). Started the components.md section.
 
 ## Handoff
 
-- **State:** tasks 1–2 done (timing data; `setupHold` with `dataEdge`, `sameInstantAllowed`,
-  optional `setup`).
-- **Next step:** task 3 (counting helpers, 74HC161 and 163).
+- **State:** tasks 1–3 done (timing data; `setupHold` variants; 74HC161/163 in the registry).
+- **Next step:** task 4 (74HC191, 193 in `counters.ts`; render the 193's logic diagram at high
+  resolution first; decide how the 191's usage rules are modelled).
 - **Watch out:** pinouts and names in the Parts table are from memory.
 - **Verify with:** `pnpm check`.

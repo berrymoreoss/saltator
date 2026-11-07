@@ -5,5 +5,10 @@
 
 export type { FunctionTable } from '../function-table';
 export { Bench, type BenchValue, type BenchValues, testDriver, toLevel } from './bench';
-export { type FunctionTableOptions, functionTable, truthTable } from './function-table';
+export {
+  checkableRows,
+  type FunctionTableOptions,
+  functionTable,
+  truthTable,
+} from './function-table';
 export { Trace } from './trace';

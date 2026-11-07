@@ -538,6 +538,29 @@ The clock's checks are **armed** only while the clock matters: not while a set/r
 chip, and the data's not while loading is disabled — a clock running under a held reset is no
 fault. The 74HC4511 checks its LE the same way (code set-up 12 ns, LE LOW width 16 ns).
 
+### Counters and shift registers
+
+R09b adds the counters and shift registers, from the Nexperia data sheets, on R09a's timing
+checks and `X` policy:
+
+| Type           | Function                                                | Package | Delays (ns)                         | Minima (ns)                                       |
+| -------------- | ------------------------------------------------------- | ------- | ----------------------------------- | ------------------------------------------------- |
+| `74xx/74hc161` | 4-bit binary counter, synchronous load, asynchronous MR̅ | DIP-16  | CP→Q 22, CP→TC 25, CET→TC 12, MR 23 | tsu D 16, PE̅ 20, CEP/CET 34; th 0; tW 16; trec 20 |
+| `74xx/74hc163` | 4-bit binary counter, synchronous load and MR̅           | DIP-16  | CP→Q 20, CP→TC 25, CET→TC 13        | tsu D/MR̅ 16, PE̅ 16, CEP/CET 35; th 0; tW 16       |
+
+- **Synchronous counters** (`counters.ts`, `SyncCounterSpec`): on the rising clock edge the
+  163's MR̅ clears, else PE̅ LOW loads D0–D3, else CEP · CET counts; TC = CET · (count = 15),
+  for cascading (TC → the next counter's CET). The 161's MR̅ clears at once and holds the
+  clock's checks disarmed.
+- **Unknown or late controls** merge every mode they allow (reset, load, count, hold): only the
+  bits where those outcomes differ become `X` (PE̅ unknown at 5 with D = 6: load and count agree,
+  nothing is lost). Counting from an `X` count gives `X` where the carry reaches
+  (`countInto`).
+- **Function tables** keep the data sheets' text (`count`, the footnote `[1]` of TC);
+  `checkableRows` gives the checker the rows it can run, the tests do the rest by hand. The
+  163's data sheet has TC L in rows where its own note says TC = CET at 15: written as the
+  161's.
+
 ## Timers (`timer/*`)
 
 Analog timer chips, behavioral ([ADR-0013](adr/0013-behavioral-timer.md)): the external RC
