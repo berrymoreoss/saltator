@@ -61,6 +61,20 @@ describe('CircuitBuilder', () => {
     ]);
   });
 
+  it('draws bus lines through points and bus pins', () => {
+    const circuit = builder()
+      .add('BE1', 'test/bus-entry', { at: [0, 0], props: { name: 'D1' } })
+      .bus('BE1.B', [3, 6], [8, 6])
+      .wire([0, 0], [-2, 0])
+      .build();
+    expect(circuit.wires).toEqual([
+      { id: 'w1', from: [3, 1], to: [3, 6], bus: true },
+      { id: 'w2', from: [3, 6], to: [8, 6], bus: true },
+      { id: 'w3', from: [0, 0], to: [-2, 0] },
+    ]);
+    expect(() => builder().bus([0, 0], [1, 1])).toThrow('diagonal');
+  });
+
   it('routes connections with an L-shape, horizontal first, through via points', () => {
     const b = builder()
       .add('H1', 'test/high', { at: [0, 0] }) // Y (5, 1)

@@ -31,6 +31,7 @@ const part = (id: string, type = 'test/and', x = 0, y = 0): ComponentInstance =>
 });
 
 const wire = (id: string, from: Point, to: Point): Wire => ({ id, from, to });
+const busLine = (id: string, from: Point, to: Point): Wire => ({ id, from, to, bus: true });
 
 const circuit = (components: ComponentInstance[] = [], wires: Wire[] = []): Circuit => ({
   id: 'main',
@@ -146,6 +147,27 @@ describe('component operations', () => {
         ],
       ]),
     ).toThrow('neither horizontal nor vertical');
+  });
+
+  it('adds bus lines', () => {
+    const { wires } = addWires(
+      circuit([]),
+      [
+        [
+          [0, 0],
+          [0, 4],
+        ],
+      ],
+      true,
+    );
+    expect(wires).toEqual([busLine('w1', [0, 0], [0, 4])]);
+    const plain = addWires(circuit([]), [
+      [
+        [0, 0],
+        [0, 4],
+      ],
+    ]).wires;
+    expect('bus' in plain[0]!).toBe(false);
   });
 
   it('compares circuits by value', () => {
@@ -320,26 +342,83 @@ describe('normalizeWires', () => {
         // Documents never hold zero-length wires (a point on a crossing would join both).
         const length = 1 + int(4);
         const b: Point = random() < 0.5 ? [a[0] + length, a[1]] : [a[0], a[1] + length];
-        wires.push(random() < 0.5 ? wire(`w${i + 1}`, a, b) : wire(`w${i + 1}`, b, a));
+        // A third of them bus lines: a layer of their own, never merged with wires.
+        const make = random() < 0.33 ? busLine : wire;
+        wires.push(random() < 0.5 ? make(`w${i + 1}`, a, b) : make(`w${i + 1}`, b, a));
       }
       const pins: Point[] = Array.from({ length: 10 }, () => [int(10), int(10)] as Point);
       const before = circuit([], wires);
       const after = normalizeWires(before);
-
-      const edges = (ws: readonly Wire[]) => [...new Set(ws.flatMap(unitEdges))].sort();
-      expect(edges(after.wires)).toEqual(edges(wires));
-      const keys = [...edges(wires), ...pins.map((p, i) => `pin ${i} ${p}`)];
-      expect(partition(after.wires, pins, keys)).toEqual(partition(wires, pins, keys));
-
-      // No zero-length wires, no two wires sharing a unit edge, ids unique.
-      expect(after.wires.every((w) => unitEdges(w).length > 0)).toBe(true);
-      const all = after.wires.flatMap(unitEdges);
-      expect(new Set(all).size).toBe(all.length);
       expect(new Set(after.wires.map((w) => w.id)).size).toBe(after.wires.length);
+
+      for (const bus of [false, true]) {
+        const layer = (ws: readonly Wire[]) => ws.filter((w) => (w.bus === true) === bus);
+        const input = layer(wires);
+        const output = layer(after.wires);
+        const edges = (ws: readonly Wire[]) => [...new Set(ws.flatMap(unitEdges))].sort();
+        expect(edges(output)).toEqual(edges(input));
+        const keys = [...edges(input), ...pins.map((p, i) => `pin ${i} ${p}`)];
+        expect(partition(output, pins, keys)).toEqual(partition(input, pins, keys));
+
+        // No zero-length wires, no two wires of a layer sharing a unit edge, plain wires plain.
+        expect(output.every((w) => unitEdges(w).length > 0)).toBe(true);
+        const all = output.flatMap(unitEdges);
+        expect(new Set(all).size).toBe(all.length);
+        if (!bus) expect(output.every((w) => !('bus' in w))).toBe(true);
+      }
       // Idempotent.
       expect(normalizeWires(after)).toBe(after);
     },
   );
+
+  it('keeps bus lines and wires apart', () => {
+    // A bus continuing a wire end to end, a bus over a wire, a bus through a wire corner.
+    const c = circuit(
+      [],
+      [
+        wire('w1', [0, 0], [4, 0]),
+        busLine('b1', [4, 0], [8, 0]),
+        busLine('b2', [0, 2], [6, 2]),
+        wire('w2', [0, 2], [6, 2]),
+        wire('w3', [3, 4], [3, 6]),
+        wire('w4', [3, 6], [5, 6]),
+        busLine('b3', [3, 5], [3, 9]),
+      ],
+    );
+    expect(normalizeWires(c)).toBe(c);
+  });
+
+  it('merges bus lines into bus lines', () => {
+    const c = circuit(
+      [],
+      [busLine('b1', [0, 0], [4, 0]), busLine('b2', [4, 0], [8, 0]), wire('w1', [8, 0], [9, 0])],
+    );
+    expect(normalizeWires(c).wires).toEqual([
+      busLine('b1', [0, 0], [8, 0]),
+      wire('w1', [8, 0], [9, 0]),
+    ]);
+  });
+
+  it('splits a bus line where buses pass through, not where wires do', () => {
+    const c = circuit(
+      [],
+      [
+        busLine('b1', [0, 0], [4, 0]),
+        busLine('b2', [4, 0], [8, 0]),
+        busLine('b3', [4, -2], [4, 2]), // a bus through the joint: stays split there
+        busLine('b4', [0, 5], [4, 5]),
+        busLine('b5', [4, 5], [8, 5]),
+        wire('w1', [4, 3], [4, 7]), // a wire through the joint: the bus merges across it
+      ],
+    );
+    expect(normalizeWires(c).wires).toEqual([
+      busLine('b1', [0, 0], [4, 0]),
+      busLine('b2', [4, 0], [8, 0]),
+      busLine('b3', [4, -2], [4, 2]),
+      busLine('b4', [0, 5], [8, 5]),
+      wire('w1', [4, 3], [4, 7]),
+    ]);
+  });
 });
 
 describe('fragments', () => {

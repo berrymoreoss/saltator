@@ -14,6 +14,7 @@ const registry = testRegistry();
 //   test/tie:             Y (x+1, y+2) for level 1, (x+1, y) for level 0
 //   test/lamp:            A (x, y+1), K (x+4, y+1)
 //   test/label:           N (x, y)          test/hi: Y (x+5, y+1)
+//   test/bus-label:       B (x, y)          test/bus-entry: N (x, y), B (x+3, y+1)
 
 function part(
   id: string,
@@ -334,6 +335,126 @@ describe('compileCircuit', () => {
       expect(result.issues.find((i) => i.pin === 'A')!.message).toBe(
         'input U1.A is on net "A", which nothing drives (reads as X)',
       );
+    });
+  });
+
+  describe('buses', () => {
+    const entry = (id: string, name: string, x: number, y: number) =>
+      part(id, 'test/bus-entry', x, y, { props: { name } });
+    const busLabel = (id: string, name: string, x: number, y: number) =>
+      part(id, 'test/bus-label', x, y, { props: { name } });
+    const bus = (id: string, x1: number, y1: number, x2: number, y2: number): Wire => ({
+      ...wire(id, x1, y1, x2, y2),
+      bus: true,
+    });
+    const ids = (pins: readonly { component: string; pin: string }[]) =>
+      pins.map((p) => `${p.component}.${p.pin}`);
+
+    // H1.Y (5,1) = entry D0 ─ bus b1 (8,2)…(8,10) = label D[0..3]
+    // U1.A (30,1) = entry D0 ─ bus b2 (33,2)…(33,6) = label D[0..3]
+    const twoBuses = (extra: Wire[] = []) =>
+      compile(
+        [
+          part('H1', 'test/high', 0, 0),
+          entry('BE1', 'D0', 5, 1),
+          busLabel('BL1', 'D[0..3]', 8, 10),
+          part('U1', 'test/and', 30, 0),
+          entry('BE2', 'D0', 30, 1),
+          busLabel('BL2', 'D[0..3]', 33, 6),
+        ],
+        [bus('b1', 8, 2, 8, 10), bus('b2', 33, 2, 33, 6), ...extra],
+      );
+
+    it('gather bus lines and bus pins, joined by their labels and named by them', () => {
+      const result = twoBuses();
+      expect(result.buses).toHaveLength(1);
+      const [d] = result.buses;
+      expect(d!.id).toBe('D[0..3]');
+      expect(d!.names).toEqual(['D[0..3]']);
+      expect(d!.members).toEqual(['D0', 'D1', 'D2', 'D3']);
+      expect(ids(d!.pins)).toEqual(['BE1.B', 'BL1.B', 'BE2.B', 'BL2.B']);
+      expect(d!.wires.map((w) => w.id)).toEqual(['b1', 'b2']);
+      expect(result.wireBuses).toEqual(
+        new Map([
+          ['b1', 'D[0..3]'],
+          ['b2', 'D[0..3]'],
+        ]),
+      );
+      expect(result.wireNets.size).toBe(0);
+      expect(result.busJunctions).toEqual([]);
+      expect([...result.openPins]).toEqual(['U1.B', 'U1.Y']);
+    });
+
+    it('leave the nets to the entries: members are nets joined by name', () => {
+      const result = twoBuses();
+      const d0 = result.nets.find((n) => n.id === 'D0')!;
+      expect(ids(d0.pins)).toEqual(['H1.Y', 'U1.A']);
+      expect(ids(d0.schematicPins)).toEqual(['BE1.N', 'BE2.N']);
+      expect(result.nets.every((n) => n.wires.length === 0)).toBe(true);
+      expect(result.netlist.components.map((c) => c.id)).toEqual(['H1', 'U1']);
+      expect(result.issues.map((i) => `${i.code} ${i.pin}`)).toEqual(['undriven-input B']);
+      const sim = new Simulator(result.netlist, registry);
+      sim.settle();
+      expect(sim.level('D0')).toBe(Level.L1);
+      // Bus lines never reach the netlist.
+      const more = twoBuses([bus('b3', 33, 6, 40, 6)]);
+      expect(sameNetlistStructure(result.netlist, more.netlist)).toBe(true);
+    });
+
+    it('never connect to wires, and say so where a wire ends on one', () => {
+      // H1.Y (5,1) ─w1─ (8,1) on bus b1 (8,0)…(8,4); a net label at the bus end (8,4), a bus
+      // label on w1's middle (6,1).
+      const result = compile(
+        [
+          part('H1', 'test/high', 0, 0),
+          part('NL1', 'test/label', 8, 4, { props: { name: 'A' } }),
+          busLabel('BL1', 'D[0..3]', 6, 1),
+        ],
+        [wire('w1', 5, 1, 8, 1), bus('b1', 8, 0, 8, 4)],
+      );
+      expect(result.nets.map((n) => [n.id, n.wires.map((w) => w.id)])).toEqual([
+        ['H1.Y', ['w1']],
+        ['A', []],
+      ]);
+      expect(result.buses.map((b) => [b.id, ids(b.pins), b.wires.map((w) => w.id)])).toEqual([
+        ['D[0..3]', ['BL1.B'], []],
+        ['b1', [], ['b1']],
+      ]);
+      expect(result.junctions).toEqual([]);
+      expect([...result.openPins]).toEqual(['NL1.N', 'BL1.B']);
+      expect(result.issues.filter((i) => i.code === 'dangling-wire').map((i) => i.message)).toEqual(
+        [
+          'wire w1 ends at (8, 1) on a bus without connecting to it (use a bus entry)',
+          'bus b1 ends at (8, 0) without touching anything',
+          'bus b1 ends at (8, 4) without touching anything',
+        ],
+      );
+    });
+
+    it('are called by their first pin or line when unnamed', () => {
+      const result = compile(
+        [entry('BE1', 'D0', 0, 0)],
+        [bus('b1', 3, 1, 3, 5), bus('b9', 10, 0, 10, 5)],
+      );
+      expect(result.buses.map((b) => [b.id, b.names, b.members])).toEqual([
+        ['BE1.B', [], []],
+        ['b9', [], []],
+      ]);
+    });
+
+    it('get junction dots of their own', () => {
+      const result = compile(
+        [],
+        [
+          bus('b1', 0, 0, 0, 8),
+          bus('b2', 0, 4, 4, 4),
+          wire('w1', -2, 6, 2, 6), // crosses b1's middle: nothing on either layer
+          wire('w2', 4, 0, 4, 8), // through b2's end: a plain wire passing, no dot
+        ],
+      );
+      expect(result.busJunctions).toEqual([[0, 4]]);
+      expect(result.junctions).toEqual([]);
+      expect(result.buses).toHaveLength(1);
     });
   });
 

@@ -155,6 +155,60 @@ export const testLabel = defineComponent<{ name: string }, undefined>({
   create: () => ({}),
 });
 
+/**
+ * `test/bus-label`: a schematic-only bus label; its bus pin `B` joins every bus named `name`
+ * (`D[0..3]`). At (x, y): B (x, y).
+ */
+export const testBusLabel = defineComponent<{ name: string }, undefined>({
+  type: 'test/bus-label',
+  name: 'BUS LABEL',
+  title: 'Test bus label',
+  schematicOnly: true,
+  props: [
+    {
+      key: 'name',
+      label: 'Name',
+      type: 'string',
+      default: 'D[0..3]',
+      pattern: { regex: /^[A-Z]+\[\d+\.\.\d+\]$/, hint: 'a bus name' },
+    },
+  ],
+  pins: ({ name }) => [{ name: 'B', dir: 'nc', net: name, bus: true }],
+  symbol: { kind: 'label', width: 2, height: 1, pins: { B: { side: 'left', offset: 0 } } },
+  create: () => ({}),
+});
+
+/**
+ * `test/bus-entry`: a schematic-only bus entry; its pin `N` joins the net named `name`, its bus
+ * pin `B` sits on a bus line. At (x, y): N (x, y), B (x+3, y+1).
+ */
+export const testBusEntry = defineComponent<{ name: string }, undefined>({
+  type: 'test/bus-entry',
+  name: 'BUS ENTRY',
+  title: 'Test bus entry',
+  schematicOnly: true,
+  props: [
+    {
+      key: 'name',
+      label: 'Name',
+      type: 'string',
+      default: 'D0',
+      pattern: { regex: /^[A-Z0-9]+$/, hint: 'capital letters and digits' },
+    },
+  ],
+  pins: ({ name }) => [
+    { name: 'N', dir: 'nc', net: name },
+    { name: 'B', dir: 'nc', bus: true },
+  ],
+  symbol: {
+    kind: 'bus-entry',
+    width: 1,
+    height: 1,
+    pins: { N: { side: 'left', offset: 0 }, B: { side: 'right', offset: 1 } },
+  },
+  create: () => ({}),
+});
+
 /** `test/hi`: a rail joining the net `HI` by name, output `Y` tied to 1. At (x, y): Y (x+5, y+1). */
 export const testHi = defineComponent<Record<string, never>, undefined>({
   type: 'test/hi',
@@ -174,6 +228,8 @@ export function testRegistry(): Registry {
     testTie,
     testLamp,
     testLabel,
+    testBusLabel,
+    testBusEntry,
     testHi,
   ]);
 }

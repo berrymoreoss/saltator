@@ -162,7 +162,7 @@ single entries vs a multi-bit ripper.
   levels, `PinDef.bus` (validated: `nc` only); tests.
 - [x] 2. `circuit`: `Wire.bus`, schema v2 with the migration, load/serialize; example files
   re-saved as v2; tests.
-- [ ] 3. `circuit`: the compiler's bus layer (`buses`, `wireBuses`, `busJunctions`, dangling bus
+- [x] 3. `circuit`: the compiler's bus layer (`buses`, `wireBuses`, `busJunctions`, dangling bus
   ends, open bus pins, bus ids and members), the dangling-wire hint; `addWires` and
   `normalizeWires` per layer, the builder's buses; tests (with `test-parts.ts`), the
   normalization property test with buses.

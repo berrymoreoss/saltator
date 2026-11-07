@@ -6,6 +6,7 @@
 
 export { CircuitBuilder, type PlaceOptions, type WirePoint } from './builder';
 export type {
+  CircuitBus,
   CircuitNet,
   DesignIssue,
   DesignIssueCode,

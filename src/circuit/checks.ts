@@ -58,6 +58,22 @@ export interface CircuitNet {
   readonly wires: readonly Wire[];
 }
 
+/**
+ * A bus of the compiled circuit: bus lines and the bus pins on them (bus entries' bus ends, bus
+ * labels), joined geometrically and by bus label names. It carries no level of its own: its
+ * members are ordinary nets, named `D0`…`D7` for a bus called `D[0..7]`.
+ */
+export interface CircuitBus {
+  readonly id: string;
+  /** The names its bus labels give it, in code-point order; it is called by the first. */
+  readonly names: readonly string[];
+  /** Member net names of its first name, least significant first; empty for an unnamed bus. */
+  readonly members: readonly string[];
+  /** Bus pins on it, in document order. */
+  readonly pins: readonly PlacedPin[];
+  readonly wires: readonly Wire[];
+}
+
 const pinName = (p: PlacedPin) => `${p.component}.${p.pin}`;
 
 /**
@@ -122,15 +138,25 @@ export function undrivenInputs(nets: readonly CircuitNet[]): DesignIssue[] {
   return issues;
 }
 
-/** Wire ends that touch nothing — usually a wire that stops one cell short of a pin. */
-export function danglingWires(ends: readonly WireEnd[], wires: readonly Wire[]): DesignIssue[] {
-  return ends.map(({ wire, at }) => ({
-    severity: 'warning',
-    code: 'dangling-wire',
-    message: `wire ${wires[wire]!.id} ends at (${at[0]}, ${at[1]}) without touching anything`,
-    wire: wires[wire]!.id,
-    at,
-  }));
+/**
+ * Wire and bus ends that touch nothing — usually a wire that stops one cell short of a pin. A
+ * wire ending on a bus (`onBus`) gets a hint: wires and buses connect only through bus entries.
+ */
+export function danglingWires(
+  ends: readonly WireEnd[],
+  wires: readonly Wire[],
+  onBus: (at: Point) => boolean = () => false,
+): DesignIssue[] {
+  return ends.map(({ wire, at }) => {
+    const { id, bus } = wires[wire]!;
+    const where = `ends at (${at[0]}, ${at[1]})`;
+    const message = bus
+      ? `bus ${id} ${where} without touching anything`
+      : onBus(at)
+        ? `wire ${id} ${where} on a bus without connecting to it (use a bus entry)`
+        : `wire ${id} ${where} without touching anything`;
+    return { severity: 'warning', code: 'dangling-wire', message, wire: id, at };
+  });
 }
 
 /**

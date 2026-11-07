@@ -86,10 +86,14 @@ export function addComponents(circuit: Circuit, components: readonly ComponentIn
   return { ...circuit, components: [...circuit.components, ...components] };
 }
 
-/** Adds wires (zero-length ones are skipped); ids are generated. Returns the new wires too. */
+/**
+ * Adds wires (zero-length ones are skipped), or bus lines when `bus` is set; ids are generated.
+ * Returns the new wires too.
+ */
 export function addWires(
   circuit: Circuit,
   segments: readonly (readonly [Point, Point])[],
+  bus = false,
 ): { circuit: Circuit; wires: Wire[] } {
   const ids = IdAllocator.of(circuit);
   const wires: Wire[] = [];
@@ -98,7 +102,7 @@ export function addWires(
     if (from[0] !== to[0] && from[1] !== to[1]) {
       throw new Error(`wire (${from}) → (${to}) is neither horizontal nor vertical`);
     }
-    wires.push({ id: ids.next(WIRE_PREFIX), from, to });
+    wires.push(makeWire(ids.next(WIRE_PREFIX), from, to, bus));
   }
   if (wires.length === 0) return { circuit, wires };
   return { circuit: { ...circuit, wires: [...circuit.wires, ...wires] }, wires };
@@ -242,6 +246,11 @@ interface Run {
   readonly index: number;
 }
 
+/** A wire, or a bus line when `bus` is set (plain wires carry no `bus` field). */
+function makeWire(id: string, from: Point, to: Point, bus: boolean): Wire {
+  return bus ? { id, from, to, bus } : { id, from, to };
+}
+
 /**
  * Normalizes the wires: drops zero-length ones and merges collinear wires that overlap or meet
  * end to end into one straight run — except at a point where perpendicular wires pass through
@@ -249,12 +258,15 @@ interface Run {
  * them, a run through it would cross unconnected, so the run is split there instead. Output
  * wire ends are always input wire ends and cover the same points, so connectivity never changes
  * (everything that touches connects). Wires that don't change keep their identity and order; a
- * merged run takes the id and position of its first wire in document order.
+ * merged run takes the id and position of its first wire in document order. Bus lines and wires
+ * are separate layers: each is normalized on its own, and a bus never merges with a wire.
  */
 export function normalizeWires(circuit: Circuit): Circuit {
   const { wires } = circuit;
-  const horizontal = new Map<number, Run[]>();
-  const vertical = new Map<number, Run[]>();
+  const layers = [false, true].map(() => ({
+    horizontal: new Map<number, Run[]>(),
+    vertical: new Map<number, Run[]>(),
+  }));
   let zeroLength = false;
   wires.forEach((w, index) => {
     const [x0, y0] = w.from;
@@ -264,6 +276,7 @@ export function normalizeWires(circuit: Circuit): Circuit {
       return;
     }
     const isHorizontal = y0 === y1;
+    const { horizontal, vertical } = layers[w.bus === true ? 1 : 0]!;
     const map = isHorizontal ? horizontal : vertical;
     const line = isHorizontal ? y0 : x0;
     const a = isHorizontal ? x0 : y0;
@@ -275,15 +288,25 @@ export function normalizeWires(circuit: Circuit): Circuit {
   });
 
   // Output segments per input index that gives them their id (or -1 for a fresh id).
-  type Out = { readonly from: Point; readonly to: Point; readonly source: number };
+  type Out = {
+    readonly from: Point;
+    readonly to: Point;
+    readonly source: number;
+    readonly bus: boolean;
+  };
   const out: Out[] = [];
   let changed = zeroLength;
 
-  const lineRuns = (map: Map<number, Run[]>, isHorizontal: boolean, cross: Map<number, Run[]>) => {
+  const lineRuns = (
+    map: Map<number, Run[]>,
+    isHorizontal: boolean,
+    cross: Map<number, Run[]>,
+    bus: boolean,
+  ) => {
     const point = (line: number, at: number): Point => (isHorizontal ? [at, line] : [line, at]);
     for (const [line, runs] of map) {
       if (runs.length === 1) {
-        out.push({ ...segmentOf(wires[runs[0]!.index]!), source: runs[0]!.index });
+        out.push({ ...segmentOf(wires[runs[0]!.index]!), source: runs[0]!.index, bus });
         continue;
       }
       runs.sort((a, b) => a.lo - b.lo || a.hi - b.hi || a.index - b.index);
@@ -291,7 +314,7 @@ export function normalizeWires(circuit: Circuit): Circuit {
       let groupHi = Number.NEGATIVE_INFINITY;
       const flush = () => {
         if (group.length === 0) return;
-        changed = emitGroup(group, line, point, cross, wires, out) || changed;
+        changed = emitGroup(group, line, point, cross, wires, out, bus) || changed;
         group = [];
       };
       for (const run of runs) {
@@ -302,8 +325,10 @@ export function normalizeWires(circuit: Circuit): Circuit {
       flush();
     }
   };
-  lineRuns(horizontal, true, vertical);
-  lineRuns(vertical, false, horizontal);
+  layers.forEach(({ horizontal, vertical }, layer) => {
+    lineRuns(horizontal, true, vertical, layer === 1);
+    lineRuns(vertical, false, horizontal, layer === 1);
+  });
 
   if (!changed) return circuit;
 
@@ -318,14 +343,18 @@ export function normalizeWires(circuit: Circuit): Circuit {
       used.add(segment.source);
       const original = wires[segment.source]!;
       ids.take(original.id);
-      result.push(sameSegment(original, segment) ? original : { ...segment, id: original.id });
+      result.push(
+        sameSegment(original, segment)
+          ? original
+          : makeWire(original.id, segment.from, segment.to, segment.bus),
+      );
     } else {
       pending.push(segment);
     }
   }
   for (const w of wires) ids.take(w.id);
   for (const segment of pending) {
-    result.push({ id: ids.next(WIRE_PREFIX), from: segment.from, to: segment.to });
+    result.push(makeWire(ids.next(WIRE_PREFIX), segment.from, segment.to, segment.bus));
   }
   return { ...circuit, wires: result };
 }
@@ -362,11 +391,12 @@ function emitGroup(
   point: (line: number, at: number) => Point,
   cross: Map<number, Run[]>,
   wires: readonly Wire[],
-  out: { from: Point; to: Point; source: number }[],
+  out: { from: Point; to: Point; source: number; bus: boolean }[],
+  bus: boolean,
 ): boolean {
   if (group.length === 1) {
     const run = group[0]!;
-    out.push({ ...segmentOf(wires[run.index]!), source: run.index });
+    out.push({ ...segmentOf(wires[run.index]!), source: run.index, bus });
     return false;
   }
   const lo = group[0]!.lo;
@@ -394,7 +424,7 @@ function emitGroup(
     const source = exact ?? overlapping;
     if (source) given.add(source.index);
     if (!exact) changed = true;
-    out.push({ from: point(line, a), to: point(line, b), source: source?.index ?? -1 });
+    out.push({ from: point(line, a), to: point(line, b), source: source?.index ?? -1, bus });
   }
   // Inputs that gave no piece were absorbed.
   if (given.size !== group.length) changed = true;

@@ -96,14 +96,16 @@ export class CircuitBuilder {
    * horizontal or vertical; repeated points are skipped.
    */
   wire(...points: WirePoint[]): this {
-    const path = this.resolve(points);
-    for (let i = 1; i < path.length; i++) {
-      const [a, b] = [path[i - 1]!, path[i]!];
-      if (!samePoint(a, b) && !isAxisAligned(a, b)) {
-        throw new Error(`wire segment (${a}) → (${b}) is diagonal; add a corner point`);
-      }
-    }
-    this.addPath(path);
+    this.addPath(this.straightPath(points), false);
+    return this;
+  }
+
+  /**
+   * Draws a bus line through the given points or bus pins (`BE1.B`), one segment each, like
+   * `wire`. Bus lines connect only to bus lines and bus pins.
+   */
+  bus(...points: WirePoint[]): this {
+    this.addPath(this.straightPath(points), true);
     return this;
   }
 
@@ -119,7 +121,7 @@ export class CircuitBuilder {
       if (last[0] !== p[0] && last[1] !== p[1]) path.push([p[0], last[1]]);
       path.push(p);
     }
-    this.addPath(path);
+    this.addPath(path, false);
     return this;
   }
 
@@ -138,14 +140,25 @@ export class CircuitBuilder {
     return { schemaVersion: SCHEMA_VERSION, circuits: [this.build()] };
   }
 
-  private addPath(path: readonly Point[]): void {
+  private straightPath(points: readonly WirePoint[]): Point[] {
+    const path = this.resolve(points);
+    for (let i = 1; i < path.length; i++) {
+      const [a, b] = [path[i - 1]!, path[i]!];
+      if (!samePoint(a, b) && !isAxisAligned(a, b)) {
+        throw new Error(`wire segment (${a}) → (${b}) is diagonal; add a corner point`);
+      }
+    }
+    return path;
+  }
+
+  private addPath(path: readonly Point[], bus: boolean): void {
     for (let i = 1; i < path.length; i++) {
       const [from, to] = [path[i - 1]!, path[i]!];
       if (samePoint(from, to)) continue;
       let id = `w${this.nextWire++}`;
       while (this.ids.has(id)) id = `w${this.nextWire++}`;
       this.claim(id);
-      this.wires.push({ id, from, to });
+      this.wires.push(bus ? { id, from, to, bus } : { id, from, to });
     }
   }
 
