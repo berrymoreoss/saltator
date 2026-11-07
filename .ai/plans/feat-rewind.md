@@ -213,7 +213,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 3. `core`: Recorder `seek`/confirm/`cut` and `lastChange` at the cursor (same-instant
   merges, the budget trimming with cursors), `Trigger.resync`; tests; recorder benchmark
   unchanged.
-- [ ] 4. `editor`: `Timeline` — checkpoints, action log, positions, reaching a position in a
+- [x] 4. `editor`: `Timeline` — checkpoints, action log, positions, reaching a position in a
   scratch simulator, the present, divergence, budget with thinning and the maximum gap; tests
   with a real simulator (a tiny budget).
 - [ ] 5. `editor`: host — checkpointing between kernel calls (cost measured at Max), forward runs
@@ -320,6 +320,21 @@ Checkable statements; verified one by one in the finish-branch workflow.
   cursor resets outside a replay, a `max` with an earlier present). Benchmark (branch vs `main`
   in a worktree, same session): within noise — ring oscillator 12.2–12.8M vs 12.7M events/s,
   recording 1001 nets 7.7–7.9M vs 7.7–8.0M (the replay check sits outside the per-change call).
+- 2026-11-08 — task 4: `editor/timeline.ts` — `Timeline(sim, { budget, interval, maxGap })`:
+  checkpoints (the first where the simulator is; then in `ran()` after a kernel call once
+  `interval` events passed since the newest — behind the present the newest is ahead, so none
+  is taken there), the action log (`acted`: time, payload, `afterRun`; behind the present it
+  drops the recorded future first), positions (`{ time, actions }`, `comparePositions`,
+  `asEnded`), `present`, `hasFuture`, `pending`/`applyPending` (a forward run delivers the
+  recorded actions again; consecutive ones of one frame back to back), `reach(position)` (the
+  checkpoint before it restored into the replica, re-run with the log, the result restored
+  into the live simulator), `segmentsBefore`/`replaySegment` for backward searches, the budget
+  (thin every other one of the older half within `maxGap`, then drop the oldest; the bytes of
+  the checkpoint after a dropped one recounted against the one before). Mutation-checked (17;
+  survivors removed as equivalent code: a frontier guard, a guard in `dropOldest`, a `present`
+  reset that `acted` repeats; picking an earlier checkpoint on a tie is only slower). Found by
+  the mutations: "same final levels" hid a replay that ran between two same-frame actions —
+  the tests compare the queue's head and the event count too.
 
 ## Handoff
 
