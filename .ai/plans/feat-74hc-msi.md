@@ -295,9 +295,17 @@ Checkable statements; verified one by one in the finish-branch workflow.
 
 ## Handoff
 
-- **State:** plan approved, in progress; data sheets available (Nexperia in
-  `~/Downloads/nexperia-74hc/`, TI fetched with curl from `https://www.ti.com/lit/ds/symlink/`).
-- **Next step:** task 1 (stateful chip behaviors, per-path delays).
-- **Watch out:** pin names become permanent with the chips (test benches); the 555 pin list
-  depends on the mode prop (the registry validates with the default props).
-- **Verify with:** `pnpm check`.
+- **State:** tasks 1–9 done and committed (11 chips, NE555, SI props, pin labels, carry-over
+  property, gallery); task 10 in progress: the changeover switch (Q7) is committed, the two
+  example files are next.
+- **Next step:** build `examples/bcd-7-segment.logic.json` and `examples/clock-module.logic.json`
+  with `CircuitBuilder` in a throwaway test (R07 lesson), checking nets; list them in
+  `src/app/example-files.ts`; tests in `tests/scenarios/example-circuits.test.ts`; look at them
+  in the browser (`node_modules/.bin/vite --port 5199`, Playwright script in the scratchpad).
+  Then task 11 (e2e) and task 12 (docs: components.md MSI rows, delay paths, `timer` family,
+  changeover contact; editor.md SI entry and pin labels; glossary; READMEs; lessons — Biome's
+  `usePlaywrightValidDescribeCallback` fires on any `describe(…)` call, TI's CD74HC147 pin table
+  error, ex-Harris sheets without typical 4.5 V values; backlog: passive parts, potentiometer).
+- **Watch out:** examples must compile with no design issues (pull-ups on open contacts, power
+  pins wired, no dangling wires); a wire along a row of pin tips connects to every pin it passes.
+- **Verify with:** `pnpm check`; `pnpm e2e` before finishing.
