@@ -35,6 +35,20 @@ function hc04Chain(chips: number): Simulator {
   return new Simulator(b.build(), registry);
 }
 
+/**
+ * `chips` 74HC574s in a pipeline: each chip's Q0–Q7 feed the next chip's D0–D7, one clock for all.
+ * Every edge loads every register, with the timing checks running on each.
+ */
+function hc574Pipeline(chips: number): Simulator {
+  const b = new NetlistBuilder().add('CLK', 'test/driver').add('IN', 'test/driver');
+  b.add('G', 'io/gnd');
+  for (let i = 0; i < chips; i++) {
+    b.add(`U${i}`, '74xx/74hc574').connect('CLK.Y', `U${i}.CP`).connect('G.Y', `U${i}.OE`);
+    for (let n = 0; n < 8; n++) b.connect(i === 0 ? 'IN.Y' : `U${i - 1}.Q${n}`, `U${i}.D${n}`);
+  }
+  return new Simulator(b.build(), registry);
+}
+
 function ring(stages: number): Simulator {
   const b = new NetlistBuilder().add('EN', 'test/driver').add('N0', 'prim/nand', { delay: ns(1) });
   b.connect('EN.Y', 'N0.A');
@@ -86,6 +100,28 @@ describe('kernel', () => {
     };
     toggle();
     await measure(bench, '74HC04 chain ×1002', sim, toggle);
+  });
+
+  test('74HC574 pipeline ×100 (800 flip-flops): one clock cycle', async ({ bench }) => {
+    // The input toggles every cycle, so once the pipeline is full every bit changes on every edge.
+    // 50 ns per clock phase: data settles 17 ns after an edge, well within the checks' minima.
+    const sim = hc574Pipeline(100);
+    let level: 0 | 1 = 0;
+    sim.action('CLK', strong(0));
+    sim.action('IN', strong(0));
+    sim.runFor(ns(50));
+    const cycle = () => {
+      sim.action('CLK', strong(1));
+      sim.runFor(ns(50));
+      level = level === 0 ? 1 : 0;
+      sim.action('CLK', strong(0));
+      sim.action('IN', strong(level));
+      sim.runFor(ns(50));
+    };
+    for (let i = 0; i < 120; i++) cycle(); // fill the pipeline
+    const problems = sim.diagnostics.entries.map((d) => d.kind);
+    if (problems.length > 0) throw new Error(`unexpected diagnostics: ${problems.join(', ')}`);
+    await measure(bench, '74HC574 pipeline ×100', sim, cycle);
   });
 
   test('ring oscillator ×1001: 100 µs of simulated time', async ({ bench }) => {

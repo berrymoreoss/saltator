@@ -6,7 +6,7 @@ const pinList = (d: AnyComponentDefinition) => pinsOf(d, {});
 const cases = chips74xx.map((d) => [d.name, d] as const);
 
 describe('74xx chips', () => {
-  it('are the chips of R06 and R08, in number order, and register cleanly', () => {
+  it('are the chips of R06, R08 and R09a, in number order, and register cleanly', () => {
     expect(chips74xx.map((d) => d.name.slice(4))).toEqual([
       '00',
       '02',
@@ -20,8 +20,12 @@ describe('74xx chips', () => {
       '27',
       '30',
       '32',
+      '74',
       '85',
       '86',
+      '107',
+      '109',
+      '112',
       '125',
       '126',
       '138',
@@ -32,10 +36,16 @@ describe('74xx chips', () => {
       '153',
       '157',
       '158',
+      '173',
+      '175',
       '240',
       '244',
       '245',
+      '273',
       '283',
+      '374',
+      '377',
+      '574',
       '4511',
     ]);
     expect(new Registry(chips74xx).list()).toHaveLength(chips74xx.length);
@@ -53,7 +63,9 @@ describe('74xx chips', () => {
       expect(pin.description, pin.name).toMatch(/\S/);
       if (pin.dir === 'nc') expect(pin.name).toBe(`NC${pin.number}`);
       // Inputs say so; outputs drawn with an overline (138's Yn, 151's YN) may not.
-      if (pin.activeLow && pin.dir === 'in') expect(pin.description).toContain('active LOW');
+      // A falling-edge clock is drawn overlined; its description says HIGH-to-LOW instead.
+      if (pin.activeLow && pin.dir === 'in' && !pin.clock)
+        expect(pin.description).toContain('active LOW');
     }
   });
 
@@ -69,7 +81,7 @@ describe('74xx chips', () => {
     if (nexperia) {
       expect(timing.source).toMatch(
         new RegExp(
-          `^Nexperia ${nexperia} product data sheet, rev\\. \\d+ \\(.+ 20\\d\\d\\), table 7$`,
+          `^Nexperia ${nexperia} product data sheet, rev\\. \\d+ \\(.+ 20\\d\\d\\), table [78]$`,
         ),
       );
     } else {
@@ -80,19 +92,33 @@ describe('74xx chips', () => {
         ),
       );
     }
+    const delays = Object.keys(timing.max ?? {}).sort();
+    const requirements = Object.keys(timing.min ?? {}).sort();
     expect(timing.conditions).toBe(
-      'VCC = 4.5 V, CL = 50 pF; typ at 25 °C, max at −40 °C to +85 °C',
+      `VCC = 4.5 V, CL = 50 pF; typ at 25 °C, max at −40 °C to +85 °C${
+        requirements.length === 0
+          ? ''
+          : `, min at ${d.name === '74HC74' ? '−40 °C to +85 °C' : '25 °C'}`
+      }`,
     );
-    const symbols = Object.keys(timing.typical).sort();
-    expect(Object.keys(timing.max ?? {}).sort()).toEqual(symbols);
-    for (const symbol of symbols) {
+    expect(Object.keys(timing.typical).sort()).toEqual([...delays, ...requirements].sort());
+    for (const symbol of delays) {
       // One delay (`tpd`, `ten`, `tdis`) or one per path, worded as the data sheet does.
-      expect(symbol).toMatch(/^(tpd|ten|tdis)$|^tpd\(.+ to .+\)$/);
+      expect(symbol).toMatch(/^(tpd|ten|tdis)$|^(tpd|tPHL|tPLH|ten|tdis)\(.+ to .+\)$/);
       expect(timing.typical[symbol]).toBeGreaterThan(0);
       expect(timing.typical[symbol]).toBeLessThan(timing.max![symbol]!);
     }
+    for (const symbol of requirements) {
+      // Set-up, hold, pulse width and recovery: a typical part needs less than the minimum.
+      expect(symbol).toMatch(/^(tsu|th|trec|tW)\(.+\)$/);
+      expect(timing.min![symbol]).toBeGreaterThanOrEqual(0);
+      expect(timing.typical[symbol]).toBeLessThanOrEqual(timing.min![symbol]!);
+    }
     const threeState = pinList(d).some((p) => p.dir === 'tristate' || p.dir === 'bidir');
-    if (threeState) expect(symbols).toEqual(['tdis', 'ten', 'tpd']);
+    if (threeState) {
+      expect(delays.some((s) => /^ten\b/.test(s))).toBe(true);
+      expect(delays.some((s) => /^tdis\b/.test(s))).toBe(true);
+    }
   });
 
   it.each(cases)('%s has a function table and units covering every signal pin once', (_, d) => {

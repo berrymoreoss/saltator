@@ -166,3 +166,46 @@ describe('Clock Module', () => {
     }
   });
 });
+
+describe('SAP-1 A Register', () => {
+  /** The lights of an LED bar, most significant first, as `1`, `0` or `?`. */
+  const lights = (sim: Simulator, id: string) =>
+    [...(sim.stateOf(id) as LightsState).light]
+      .reverse()
+      .map((l) => (l === Light.ON ? '1' : l === Light.OFF ? '0' : '?'))
+      .join('');
+  const register = (sim: Simulator) => lights(sim, 'D3') + lights(sim, 'D2');
+  const toggle = (sim: Simulator, id: string) => {
+    sim.action(id, { type: 'toggle' });
+    sim.runFor(ns(200));
+  };
+  const step = (sim: Simulator) => {
+    sim.action('X1', { type: 'step' }); // one 0.5 s pulse at the default 1 Hz
+    sim.runFor(ms(600));
+  };
+
+  it('clears, loads the DATA switches from the bus, and puts the register back on the bus', () => {
+    const sim = run('sap-1-register');
+    expect(register(sim)).toBe('????????'); // nothing cleared or loaded yet
+    expect(lights(sim, 'D1')).toBe('00000000'); // nobody drives the bus: pulled down
+
+    toggle(sim, 'SW2'); // CLR on, off
+    toggle(sim, 'SW2');
+    expect(register(sim)).toBe('00000000');
+
+    toggle(sim, 'SW4'); // DATA OUT low: the switches on the bus
+    expect(lights(sim, 'D1')).toBe('00101010');
+    step(sim); // LOAD is high: the clock loads nothing
+    expect(register(sim)).toBe('00000000');
+    toggle(sim, 'SW3'); // LOAD low
+    step(sim);
+    expect(register(sim)).toBe('00101010');
+    toggle(sim, 'SW3'); // LOAD high again
+    toggle(sim, 'SW4'); // DATA OUT high: the bus is free
+    expect(lights(sim, 'D1')).toBe('00000000');
+
+    toggle(sim, 'SW5'); // A OUT low: the register drives the bus
+    expect(lights(sim, 'D1')).toBe('00101010');
+    expect(sim.diagnostics.entries).toEqual([]);
+  });
+});

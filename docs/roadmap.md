@@ -13,30 +13,31 @@ How to read this file:
 
 ## Overview
 
-| ID   | Branch                       | Title                                    | Status  |
-| ---- | ---------------------------- | ---------------------------------------- | ------- |
-| R00  | — (initial commit on `main`) | Foundation                               | done    |
-| R01  | `feat/engine-core`           | Simulation kernel                        | done    |
-| R02  | `feat/circuit-model`         | Circuit document & netlist compiler      | done    |
-| R03  | `feat/io-basic`              | Basic IO parts (headless)                | done    |
-| R04a | `feat/editor-canvas`         | App shell & schematic view               | done    |
-| R04b | `feat/editor-tools`          | Schematic editing                        | done    |
-| R05  | `feat/sim-ui`                | Running simulations in the editor        | done    |
-| R06  | `feat/74hc-gates`            | 74HC gates & bus buffers                 | done    |
-| R07  | `feat/persistence`           | Save, load, examples                     | done    |
-| R08  | `feat/74hc-msi`              | 74HC combinational MSI                   | done    |
-| R09  | `feat/74hc-sequential`       | 74HC sequential parts + timing checks    | next    |
-| R10  | `feat/nets-and-buses`        | Net labels, tunnels, buses               | planned |
-| R11  | `feat/subcircuits`           | Hierarchical design                      | planned |
-| R12  | `feat/memory`                | ROM / RAM + memory inspector             | planned |
-| R13  | `feat/logic-analyzer`        | Waveforms & probes                       | planned |
-| R14  | `feat/debugger`              | Breakpoints, stepping, watches           | planned |
-| R15  | `feat/test-benches`          | Circuit test benches ("test before fab") | planned |
-| R16  | `example/sap-1`              | Ben Eater SAP-1 reference build          | planned |
-| R17  | `feat/cpu-6502`              | W65C02S CPU                              | planned |
-| R18  | `feat/peripherals`           | VIA, LCD, serial, buzzer                 | planned |
-| R19  | `feat/toolchain`             | 6502 assembler & flashing                | planned |
-| R20  | `example/be6502`             | Ben Eater 6502 reference build           | planned |
+| ID   | Branch                       | Title                                      | Status  |
+| ---- | ---------------------------- | ------------------------------------------ | ------- |
+| R00  | — (initial commit on `main`) | Foundation                                 | done    |
+| R01  | `feat/engine-core`           | Simulation kernel                          | done    |
+| R02  | `feat/circuit-model`         | Circuit document & netlist compiler        | done    |
+| R03  | `feat/io-basic`              | Basic IO parts (headless)                  | done    |
+| R04a | `feat/editor-canvas`         | App shell & schematic view                 | done    |
+| R04b | `feat/editor-tools`          | Schematic editing                          | done    |
+| R05  | `feat/sim-ui`                | Running simulations in the editor          | done    |
+| R06  | `feat/74hc-gates`            | 74HC gates & bus buffers                   | done    |
+| R07  | `feat/persistence`           | Save, load, examples                       | done    |
+| R08  | `feat/74hc-msi`              | 74HC combinational MSI                     | done    |
+| R09a | `feat/74hc-registers`        | 74HC flip-flops, registers + timing checks | done    |
+| R09b | `feat/74hc-counters`         | 74HC counters & shift registers            | next    |
+| R10  | `feat/nets-and-buses`        | Net labels, tunnels, buses                 | planned |
+| R11  | `feat/subcircuits`           | Hierarchical design                        | planned |
+| R12  | `feat/memory`                | ROM / RAM + memory inspector               | planned |
+| R13  | `feat/logic-analyzer`        | Waveforms & probes                         | planned |
+| R14  | `feat/debugger`              | Breakpoints, stepping, watches             | planned |
+| R15  | `feat/test-benches`          | Circuit test benches ("test before fab")   | planned |
+| R16  | `example/sap-1`              | Ben Eater SAP-1 reference build            | planned |
+| R17  | `feat/cpu-6502`              | W65C02S CPU                                | planned |
+| R18  | `feat/peripherals`           | VIA, LCD, serial, buzzer                   | planned |
+| R19  | `feat/toolchain`             | 6502 assembler & flashing                  | planned |
+| R20  | `example/be6502`             | Ben Eater 6502 reference build             | planned |
 
 ---
 
@@ -162,10 +163,27 @@ Examples: BCD to 7-Segment and Ben Eater's Clock Module. Spec:
 [components.md](components.md#74xx-chips-74xx), [timers](components.md#timers-timer). Decision:
 [ADR-0013](adr/0013-behavioral-timer.md). Plan: `.ai/plans/feat-74hc-msi.md`.
 
-### R09 · 74HC sequential + timing checks — `feat/74hc-sequential` — `next`
+R09 (74HC sequential parts + timing checks) was split at its start into flip-flops and
+registers with the timing checks (R09a) and counters and shift registers (R09b).
 
-74HC74, 107/109/112, 161, 163, 173, 175, 191/193, 273, 374, 377, 574, 595, 164, 165, 4040.
-Setup/hold violation diagnostics for edge-triggered parts.
+### R09a · 74HC flip-flops, registers + timing checks — `feat/74hc-registers` — `done`
+
+74HC74, 107, 109, 112 (flip-flops) and 173, 175, 273, 374, 377, 574 (registers) from the
+Nexperia data sheets, on two engines (`FlipFlopSpec`, `RegisterSpec`): `X` until reset or
+loaded, uncertain clock edges `X` only where they could change a bit, set and reset together as
+each data sheet says. Timing checks in core (`TimingChecks`: set-up, hold, pulse width,
+recovery) against the guaranteed minima at 25 °C in `timing.min`; a violation is an error in the
+Simulation tab and makes the bits the edge may have loaded `X`, armed only while the clock
+matters. The 74HC4511 checks its LE. Sequential function tables (`↑`, `h`, `q̅`); the Part tab
+shows a chip's delays and minima. Example: Ben Eater's A register (two 173s, two 245s, a bus).
+Spec: [components.md](components.md#edge-triggered-chips),
+[simulation.md](simulation.md#timing-checks). Decision:
+[ADR-0014](adr/0014-timing-checks.md). Plan: `.ai/plans/feat-74hc-registers.md`.
+
+### R09b · 74HC counters & shift registers — `feat/74hc-counters` — `next`
+
+74HC161, 163, 191, 193 (counters), 164, 165, 595 (shift registers), 4040 (ripple counter) on
+R09a's machinery and checks. Example: a 74HC595 driving eight LEDs.
 
 ### R10 · Net labels, tunnels, buses — `feat/nets-and-buses`
 
@@ -267,6 +285,11 @@ Promote to a numbered item when needed.
 - Editing extras (R04b follow-ups): editing a prop of several selected parts at once, re-annotate
   designators, align/distribute, wire auto-routing around parts, a modifier to move parts without
   dragging their wires (KiCad "move"), dragging a single wire end.
+- Worst-case timing mode (R09a follow-up): the recorded `max` delays with the −40 °C to +85 °C
+  minima (not recorded yet: add them as a third requirement column); a "report only" setting
+  that keeps bits known after a timing violation, if `X` gets in the way.
+- Overline only the letter of indexed complement pins (the 175's `Q̅0`, drawn `Q̅0̅` now): a
+  label syntax for a partial overline (R09a nit).
 - More logic families (R06 follow-up): 74HCT and 74AC as timing tables for the existing chip
   specs; 74LS/74F also need TTL inputs (a floating input reads high).
 - Kernel: mark the forced evaluation (power-on, after a recompile) so multi-section chips can
@@ -287,7 +310,5 @@ Promote to a numbered item when needed.
   but not simulated (BOM, breadboard view), a 555 reading its R and C from them, and turning a
   potentiometer with the Interact tool (Ben's clock speed knob); a read-only hint of a 555's
   resulting frequency in Properties. CMOS 555s (TLC555, ICM7555) and the 556 with the same model.
-- Setup/hold and pulse-width checks for latches (R08 follow-up, with R09): the 4511's LE (tsu 12,
-  th 0, tW 16 ns at 4.5 V) records them in its data sheet but not in `timing` yet.
 - Documents (R07 follow-ups): several documents open in one window (tabs); a title, notes and
   simulation settings (speed) stored in the file (schema v2).

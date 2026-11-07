@@ -178,6 +178,8 @@ interface EvalContext<State> {
 - **Edges are strict**: `X → 1` or `Z → 1` is not `rose`. Edge-triggered parts check
   `prev(clk)` to detect uncertain edges and should then drive `X` (pessimistic), so an
   undefined clock never hides.
+- `rose`/`fell` read the pin's current level like `read` does (a floating net is recorded as a
+  `floating-input`); `changed` and `prev` don't. Code that only observes a pin uses those.
 - The simulator reuses **one** context object for all components; never keep it after the
   callback. Closures from `create(props)` may hold only immutable configuration; all mutable
   state lives in `ctx.state`.
@@ -248,6 +250,57 @@ A **simulator host** outside core maps wall-clock to simulation time: the editor
 reporting, run/pause/step to the next event/stop/reset. Debugger conveniences (step to the next
 clock edge, run until a breakpoint) come in R14 _(planned)_.
 
+## Timing checks
+
+`TimingChecks` (`src/core/timing-checks.ts`, R09a) checks an edge-triggered part's inputs
+against the data sheet minima in its `timing.min` ([components.md](components.md#timing)):
+
+```ts
+const checks = new TimingChecks(pins, min); // in the definition's closure
+const data = checks.setupHold({
+  data: 'D0, D1',
+  clock: 'CP',
+  edge: 'rise',
+  setup: 'tsu(Dn to CP)',
+  hold: 'th(Dn to CP)',
+});
+const width = checks.pulseWidth({ pin: 'CP', level: 'both', width: 'tW(CP)' });
+const recovery = checks.recovery({
+  pin: 'MR',
+  active: 'low',
+  clock: 'CP',
+  edge: 'rise',
+  recovery: 'trec(MR to CP)',
+});
+// createState: { …, times: checks.createTimes() }
+// evaluate: const late = data.setup(ctx, times, armed); …; checks.track(ctx, times);
+```
+
+| Check              | Fires when                                                                 | Returns                   |
+| ------------------ | -------------------------------------------------------------------------- | ------------------------- |
+| `setup`            | at the active edge, a data input changed less than `tsu` before it         | bit mask of the data pins |
+| `hold`             | a data input changes less than `th` after the last active edge             | bit mask of the data pins |
+| `pulseWidth.check` | the pin ends a HIGH and/or LOW phase shorter than `tW`                     | true                      |
+| `recovery.check`   | the active edge comes less than `trec` after the pin left its active level | true                      |
+
+- Each reports a diagnostic (`TimingViolation`: `setup-violation`, `hold-violation`,
+  `pulse-width-violation`, `recovery-violation`; `isTimingViolation(kind)`) on the pin at fault
+  and returns what failed, so the part can make the bits it may have loaded `X`
+  ([ADR-0014](adr/0014-timing-checks.md)). Data and clock changing at the same instant is one
+  set-up violation.
+- The per-instance state is a `Float64Array` (`PinTimes`) of each watched pin's last change and
+  of when it last left LOW and HIGH — absolute times, so a carry-over keeps them. `track` records
+  them from `changed`/`prev` only (it observes, it doesn't read), after the checks.
+- A phase counts from the pin leaving the opposite level: one that began from `Z`/`X` only
+  (power-on) is not a pulse.
+- `armed` (`false` skips the check) lets a part ignore requirements of a clock it ignores: held
+  in reset, loading disabled.
+- The forced evaluation (power-on, recompile) changes nothing, so it neither fires a check nor
+  records a time: the carry-over property holds with the checks (the property test compares the
+  timing violations of the plain and recompiled runs too).
+- Cost: a 74HC574 pipeline runs at ≈ 5.5M events/s with the checks, ≈ 6.7M without (R09a,
+  `pnpm bench`).
+
 ## Editing while running: carry-over
 
 When the circuit is edited while it runs, the host compiles a new netlist and continues the
@@ -294,7 +347,8 @@ the net ids.
 - **Diagnostics**: `sim.diagnostics` is a `DiagnosticLog`. Each entry is
   `{ time, kind, message, net?, component?, pin?, count, lastTime }` with kinds `contention`,
   `floating-input`, `oscillation` (`KernelDiagnosticKind`) and component-reported ones
-  (`setup-violation`, `hold-violation`, …). Repeats with the same kind/net/component/pin are
+  (`setup-violation`, `hold-violation`, `pulse-width-violation`, `recovery-violation`
+  from the [timing checks](#timing-checks), …). Repeats with the same kind/net/component/pin are
   merged (`count`, `lastTime`); at most `maxDiagnostics` distinct entries are kept, the rest are
   counted in `dropped`. `subscribe(listener)` is called for each new entry.
   `contention` is reported when a net starts to conflict and again (merged) after it cleared.
@@ -317,11 +371,14 @@ the net ids.
   `levels()`, `expect({ Y: 1 })`, `mismatches(...)`, `expectNoDiagnostics()`, `action(payload)`.
   Values are `0`, `1`, `'X'`, `'Z'` (or `Level` constants).
 - `measure({ A: 1 }, 'Y')` applies a stimulus and returns the delay until `Y` changes.
-- `functionTable(bench, { inputs, outputs, rows }, pins?)` checks a datasheet function table
-  written with datasheet letters: `H`, `L`, `X` = **don't care** (expanded to both levels), `Z`
-  (outputs only; `X` in outputs is rejected). `pins` maps the columns (inputs, then outputs) to
-  the bench's pins, so a part's generic table (`nA nB | nY`) checks each unit. All failing rows
-  are reported together.
+- `functionTable(bench, { inputs, outputs, rows }, pins?, options?)` checks a datasheet function
+  table written with datasheet letters: `H`, `L`, `X` = **don't care** (expanded to both levels),
+  `Z` (outputs only; `X` in outputs is rejected). `pins` maps the columns (inputs, then outputs)
+  to the bench's pins, so a part's generic table (`nA nB | nY`) checks each unit. All failing rows
+  are reported together. Sequential tables (`↑`, `↓`, `h`, `l`, previous-state outputs `q`/`q̅`
+  through the table's `state` map) run step by step with `options.gap` (default 1 µs) between
+  data, clock pins and the transition; `options.states` lists the steps that load the states a
+  previous-state row is checked from ([components.md](components.md#function-tables)).
 - `truthTable(bench, inputs, outputs, rows)` checks rows of simulator values, where `X` means
   unknown — for X/Z propagation tests.
 - `new Trace(sim)` records every net change (`lines()`, `of(net)`, `hash()` for determinism
@@ -329,7 +386,6 @@ the net ids.
 
 ## Planned extensions
 
-- Setup/hold checking helpers for edge-triggered parts _(R09)_.
 - Snapshot/restore of full simulator state (for "rewind" in the debugger) _(R14)_.
 - Web Worker host with SharedArrayBuffer levels _(backlog)_.
 - Fast mode for large synchronous designs (levelized/cycle-based evaluation) _(backlog)_.

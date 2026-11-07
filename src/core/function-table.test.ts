@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { type FunctionTable, parseFunctionTableRow, validateFunctionTable } from './function-table';
+import {
+  type FunctionTable,
+  parseFunctionTableRow,
+  stateReference,
+  validateFunctionTable,
+} from './function-table';
 
 const nand: FunctionTable = {
   inputs: ['nA', 'nB'],
@@ -48,5 +53,23 @@ describe('validateFunctionTable', () => {
     expect(check({ rows: ['L X | H', 'H | L'] })).toThrow(
       'x/y: function table row "H | L": expected 2 inputs | 1 outputs',
     );
+    expect(check({ state: { q: 'nQ' } })).toThrow('x/y: bad function table state "q" → "nQ"');
+    expect(check({ state: { Q: 'nY' } })).toThrow('x/y: bad function table state "Q" → "nY"');
+    expect(() => validateFunctionTable({ ...nand, state: { q: 'nY' } }, 'x/y')).not.toThrow();
+  });
+});
+
+describe('stateReference', () => {
+  const jk: FunctionTable = { ...nand, outputs: ['nQ', 'nQN'], state: { q: 'nQ' } };
+
+  it('reads a previous-state letter, complemented with an overline', () => {
+    expect(stateReference(jk, 'q')).toEqual({ column: 'nQ', inverted: false });
+    expect(stateReference(jk, 'q̅')).toEqual({ column: 'nQ', inverted: true });
+  });
+
+  it('leaves other cells alone', () => {
+    expect(stateReference(jk, 'H')).toBeUndefined();
+    expect(stateReference(jk, 'input')).toBeUndefined();
+    expect(stateReference(nand, 'q')).toBeUndefined();
   });
 });

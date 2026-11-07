@@ -13,6 +13,8 @@ export interface PinRow {
   readonly activeLow?: boolean;
   /** Drawn instead of the name (one-pin rows only): see `PinDef.label`. */
   readonly label?: string;
+  /** A clock input (drawn with a clock triangle). */
+  readonly clock?: boolean;
 }
 
 /**
@@ -24,7 +26,7 @@ export function pins(
   numbers: string,
   dir: PinDir,
   description: string,
-  flags: { readonly activeLow?: boolean; readonly label?: string } = {},
+  flags: { readonly activeLow?: boolean; readonly label?: string; readonly clock?: boolean } = {},
 ): PinRow {
   const list = (text: string) => text.split(',').map((s) => s.trim());
   const nums = list(numbers).map(Number);
@@ -56,6 +58,7 @@ export function dipPins(count: number, rows: readonly PinRow[]): PinDef[] {
         dir: row.dir,
         description: row.description,
         ...(row.activeLow ? { activeLow: true } : {}),
+        ...(row.clock ? { clock: true } : {}),
         ...(row.label !== undefined ? { label: row.label } : {}),
       };
     });

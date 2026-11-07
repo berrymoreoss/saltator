@@ -6,6 +6,7 @@ import {
   type AnyComponentDefinition,
   type FunctionTable,
   type FunctionTableRow,
+  formatTime,
   type PinDef,
   type PinDir,
   type PropValue,
@@ -137,6 +138,74 @@ export function outputsHeading(definition: AnyComponentDefinition): string {
   return columnsWhere(definition, (pin) => pin.dir === 'bidir').size > 0
     ? 'Inputs/outputs'
     : 'Outputs';
+}
+
+/** A pin name as drawn: its label (`1QN` → `1Q`), overlined when the pin is active LOW. */
+export interface NameView {
+  readonly text: string;
+  readonly overline: boolean;
+}
+
+/** One timing parameter: `tpd` from `nCP` to `nQ, nQ̅`, typical 17 ns, max 44 ns. */
+export interface TimingRow {
+  /** `tpd`, `tsu`, `tW`: the letter t and its subscript. */
+  readonly symbol: string;
+  /** The path or pins in the key's parentheses, as drawn: `nCP`, `to`, `nQ`, `nQ̅`. */
+  readonly path: readonly (NameView | string)[];
+  readonly typical: string;
+  /** Delays: the maximum; requirements: the guaranteed minimum the timing checks use. */
+  readonly max?: string;
+  readonly min?: string;
+}
+
+/** A part's timing for the Part tab: delays, then the requirements its timing checks hold. */
+export interface TimingInfo {
+  readonly delays: readonly TimingRow[];
+  readonly requirements: readonly TimingRow[];
+  readonly conditions?: string;
+  readonly source?: string;
+}
+
+/**
+ * The definition's `timing` split into delays (`max` given) and requirements (`min` given);
+ * undefined without timing. Pin names in a key (`tpd(nCP to nQ, nQN)`) are shown as drawn, the
+ * datasheet's generic names (`nQN`) included.
+ */
+export function timingInfo(definition: AnyComponentDefinition): TimingInfo | undefined {
+  const timing = definition.timing;
+  if (!timing) return undefined;
+  const view = new Map<string, NameView>();
+  for (const pin of pinsOf(definition, resolveProps(definition))) {
+    const shown = { text: pin.label ?? pin.name, overline: pin.activeLow === true };
+    view.set(pin.name, shown);
+    view.set(pin.name.replace(/\d+/g, 'n'), {
+      ...shown,
+      text: shown.text.replace(/\d+/g, 'n'),
+    });
+  }
+  const row = (key: string, limit: 'max' | 'min'): TimingRow => {
+    const match = /^(\w+)(?:\((.*)\))?$/.exec(key);
+    const symbol = match?.[1] ?? key;
+    const path = (match?.[2] ?? '')
+      .split(/(,\s*| to )/)
+      .filter((part) => part !== '')
+      .map((part) => view.get(part) ?? part);
+    const value = timing[limit]?.[key];
+    return {
+      symbol,
+      path,
+      typical: formatTime(timing.typical[key] ?? 0),
+      ...(value !== undefined && { [limit]: formatTime(value) }),
+    };
+  };
+  return {
+    delays: Object.keys(timing.max ?? timing.typical)
+      .filter((key) => timing.min?.[key] === undefined)
+      .map((key) => row(key, 'max')),
+    requirements: Object.keys(timing.min ?? {}).map((key) => row(key, 'min')),
+    ...(timing.conditions !== undefined && { conditions: timing.conditions }),
+    ...(timing.source !== undefined && { source: timing.source }),
+  };
 }
 
 /** A short name for a datasheet link: the document's file name (`74HC_HCT00`), else the host. */

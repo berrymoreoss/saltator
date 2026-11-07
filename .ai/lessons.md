@@ -139,3 +139,27 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
   `tests/scenarios/` (Node can't import the extensionless `src` paths directly) and write the
   file with `node:fs`; check every net there (`compileCircuit(…).nets`), then delete the
   generator. The Clock Module's 85 wires came out right the first time this way.
+- 2026-11-07 (R09a) — `ctx.rose`/`ctx.fell` call `readPin`, so on a floating net they record a
+  `floating-input` like `ctx.read`. Code that only watches a pin (timing checks tracking every
+  data input) must use `ctx.changed` + `ctx.prev`, or it reports inputs nobody used.
+- 2026-11-07 (R09a) — Function tables with don't-care clocks or set/reset rows trip a part's own
+  timing checks if the checker sets everything at once (data and clock at one instant is a
+  set-up violation). The checker sets data, then `clock` pins, then the transition, 1 µs apart;
+  and a part's clock checks must be disarmed while set/reset holds it.
+- 2026-11-07 (R09a) — `vitest run` doesn't typecheck: tests can pass while `tsc` rejects literal
+  types (`{ R: 0 }[]` not assignable to `BenchValues[]`). Annotate stimulus arrays
+  (`BenchValues[]`, `as const`) and run `pnpm check`, not just `pnpm test`, before committing.
+- 2026-11-07 (R09a) — Nexperia data sheets differ in their dynamic table columns: most give
+  min/typ/max at 25 °C plus −40…+85 and −40…+125, the 74HC74 (rev. 9) only −40…+85 (typ at
+  25 °C inside it). And the 74HC112's table has Q = H, Q̅ = L with set and reset both LOW where
+  the 74/109 (and TI's 112) have H H — its logic diagram agrees, so it's not a typo.
+- 2026-11-07 (R09a) — The carry-over property can't compare whole diagnostic logs: a recompile
+  re-reports floating inputs (counts differ by design). Compare the kinds that must not change
+  (timing violations).
+- 2026-11-07 (R09a) — Playwright `wire()` helper: two consecutive identical points (a planned
+  corner on the same row as the pin) make a double click that ends the wire early, and the next
+  clicks start a new one. Drop the redundant corner when the points line up.
+- 2026-11-07 (R09a) — Mutation-check new tests by `sed`-patching one line of the implementation,
+  running the file, and restoring from a scratchpad copy: in this branch it caught five tests
+  that passed for the wrong reason (a clock-ordering test whose stimulus never made an edge,
+  a power-on pulse test that never had a short phase, …).

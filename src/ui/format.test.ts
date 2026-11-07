@@ -116,6 +116,8 @@ describe('runtime diagnostics', () => {
     expect(diagnosticWhen(d({ count: 40, lastTime: ns(1500) }))).toBe('12 ns … 1.5 µs ×40');
     expect(diagnosticSeverity(d({ kind: 'contention' }))).toBe('error');
     expect(diagnosticSeverity(d({ kind: 'oscillation' }))).toBe('error');
+    expect(diagnosticSeverity(d({ kind: 'setup-violation' }))).toBe('error');
+    expect(diagnosticSeverity(d({ kind: 'pulse-width-violation' }))).toBe('error');
     expect(diagnosticSeverity(d({}))).toBe('warning');
   });
 });

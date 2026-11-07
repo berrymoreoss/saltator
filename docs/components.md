@@ -8,7 +8,9 @@ How parts are described in `src/library`. Rationale for modeling chips as packag
 > Status: the definition shape is implemented (R01); `symbol`, the `sense`/`constant` pin flags
 > and the `io/*` parts landed in R03; the 74HC gates and bus buffers (R06) are the first to use
 > `package`, `units`, pin `description`s and `functionTable`; R08 added MSI chips with delays per
-> path, pin `label`s, `si` props and the `timer` family (NE555).
+> path, pin `label`s, `si` props and the `timer` family (NE555); R09a added edge-triggered chips,
+> `timing.min` with timing checks, sequential function tables and the pin `clock` flag on
+> packages.
 
 ## Families and type ids
 
@@ -184,6 +186,15 @@ changed in this delta (the output settles after its slowest cause), or the outpu
 when nothing changed (the forced evaluation; re-driving a pending value keeps it where it is).
 Delays inside a chip (path skew, glitches) are not modeled; skew between chips is.
 
+**Timing requirements** (R09a). Edge-triggered chips also record what they require of the
+circuit — set-up `tsu`, hold `th`, pulse width `tW`, recovery `trec` — keyed like delays
+(`tsu(nD to nCP)`, `tW(nSD, nRD)`): the data sheet's **guaranteed minimum** in `timing.min`,
+which the timing checks use ([below](#timing-checks)), and its typical value in `timing.typical`
+(for reference; it may be negative: the 74HC74's `th` is typ −2 ns, min 3 ns). The minima are at
+25 °C, the temperature of the typical delays (conditions: `…, min at 25 °C`); the 74HC74's data
+sheet (rev. 9) gives them only for −40 °C to +85 °C, used as given (`min at −40 °C to +85 °C`).
+The Part tab shows every delay and requirement with its source.
+
 ## Function tables
 
 A real chip carries its datasheet function table as data: Part Info shows it, and the part's test
@@ -209,6 +220,16 @@ functionTable: {
   `functionTable(bench, table, [...pins, null])`.
 - The registry rejects tables without input or output columns, with duplicate column names, no
   rows, or rows with the wrong number of cells.
+- **Sequential tables** (R09a) use the data sheets' letters too: `↑` / `↓` (inputs) is a
+  LOW-to-HIGH / HIGH-to-LOW transition; `h` / `l` the level one set-up time before it; an output
+  cell named in the table's `state` map (`state: { q: 'nQ' }`) is the state before the row — that
+  column's previous level, complemented with an overline (`q̅`, toggle). The data sheets' "no
+  change" is written `qn` (as the 173's sheet does). `functionTable` then applies a row's data
+  inputs, its clock inputs (pins marked `clock`) a microsecond later, and the transition a
+  microsecond after that, so the part's own timing checks are met; previous-state rows are
+  checked after each of `options.states` (steps that load 0 and 1). A data sheet with two tables
+  (the 74's asynchronous and clocked ones, the 173's register and output ones) gets them merged
+  into one, said in the `note`.
 
 ## Behavior guidelines
 
@@ -219,7 +240,11 @@ functionTable: {
 - Keep mutable state in `ctx.state` (from `createState()`, plain data); closures may hold only
   immutable configuration. No module-level mutable variables (multiple instances!).
 - Edge-triggered logic uses `ctx.rose(clk)` / `ctx.fell(clk)`, which are strict 0↔1. If
-  `ctx.changed(clk)` but the edge involves `X`/`Z` (`ctx.prev(clk)`), go `X` pessimistically.
+  `ctx.changed(clk)` but the edge involves `X`/`Z` (`ctx.prev(clk)`), go `X` pessimistically —
+  only where the edge could change something (`clockEdge` in `74xx/edge-triggered.ts`).
+- `ctx.rose`/`ctx.fell` **read** the pin: on a floating net they record a `floating-input`, as
+  `ctx.read` does. Code that only observes a pin (timing checks) uses `ctx.changed` and
+  `ctx.prev`.
 - `evaluate` may run when none of its inputs changed (once at power-on, once after every
   recompile while running): then it must only re-drive what its inputs imply, never count or
   toggle. Edge logic uses `rose`/`fell`, which are false then. This is what lets an edit carry a
@@ -237,6 +262,8 @@ Every part ships with `<part>.test.ts` next to it, using `src/core/testing`:
 3. **Timing**: at least one assertion that an output changes exactly `tpd` after the input
    (`bench.measure`).
 4. **Edge cases**: tri-state enable/disable, reset behavior, prop limits.
+5. **Timing checks** (edge-triggered parts): each requirement just inside its minimum (silent)
+   and just outside (the diagnostic, and `X` on what the edge may have loaded).
 
 ## Primitives (`prim/*`)
 
@@ -442,6 +469,74 @@ Delays at VCC = 4.5 V, CL = 50 pF, 25 °C ([Timing](#timing)); each chip's `timi
   numbers, unknown and floating inputs, enable timing, the 245 turning round; `chips.test.ts`
   checks every chip's package, pin descriptions, timing source and units. The carry-over
   property runs random networks of them.
+
+### Edge-triggered chips
+
+R09a adds the flip-flops and registers, from the Nexperia data sheets (typical delays at 4.5 V /
+50 pF; the guaranteed minima the timing checks use):
+
+| Type           | Function                                          | Package | Delays (ns)                     | Minima (ns)                               |
+| -------------- | ------------------------------------------------- | ------- | ------------------------------- | ----------------------------------------- |
+| `74xx/74hc74`  | dual D flip-flop, set and reset; rising edge      | DIP-14  | CP 17, SD 18, RD 19             | tsu 15, th 3, tW 20, trec 8               |
+| `74xx/74hc107` | dual JK flip-flop, reset; falling edge            | DIP-14  | CP 19, R 19                     | tsu 20, th 3, tW 16, trec 12              |
+| `74xx/74hc109` | dual JK̅ flip-flop, set and reset; rising edge     | DIP-16  | CP 18; SD 11/15, RD 15/14 (Q/Q̅) | tsu 14, th 5, tW 16, trec 14              |
+| `74xx/74hc112` | dual JK flip-flop, set and reset; falling edge    | DIP-16  | CP 20, RD 21, SD 18             | tsu 16, th 0, tW 16, trec 16              |
+| `74xx/74hc173` | quad D register, data enables, MR (HIGH), 3-state | DIP-16  | CP 20, MR 16, ten 19, tdis 19   | tsu 12 (E 20), th 1 (E 0), tW 16, trec 12 |
+| `74xx/74hc175` | quad D register, Q and Q̅, MR                      | DIP-16  | CP 20, MR 18                    | tsu 16, th 5, tW 16, trec 5               |
+| `74xx/74hc273` | octal D register, MR                              | DIP-20  | CP 15, MR 16                    | tsu 12, th 3, tW 16 (MR 12), trec 10      |
+| `74xx/74hc374` | octal D register, 3-state                         | DIP-20  | CP 18, ten 15, tdis 18          | tsu 12, th 5, tW 16                       |
+| `74xx/74hc377` | octal D register, data enable                     | DIP-20  | CP 16                           | tsu 12 (E 12), th 3 (E 4), tW 16          |
+| `74xx/74hc574` | octal D register, 3-state, flow-through pinout    | DIP-20  | CP 17, ten 16, tdis 14          | tsu 12, th 5, tW 16                       |
+
+- **Two engines** in `src/library/74xx`: `flip-flops.ts` (`FlipFlopSpec`: dual flip-flops with
+  their edge, D/JK/JK̅ next state and asynchronous inputs) and `registers.ts` (`RegisterSpec`:
+  a common clock with an optional MR of either polarity, data enables, complement outputs and
+  3-state outputs). Helpers in `edge-triggered.ts` (strict/uncertain edges, merging outcomes,
+  `jkNext`) serve R09b's counters and shift registers too.
+- **Power-on**: every stored bit is `X` until a set/reset or a clean load (like the 4511 and the
+  555: "your register has no reset").
+- **Uncertain edges** (`0 → X`, `X → 1`, `Z` on the clock) make `X` only the bits a load would
+  change; an unknown data enable loads `X` where D differs from the stored bit; an unknown
+  set/reset merges both outcomes.
+- **Set and reset together** give what the data sheet says (74, 109: Q = Q̅ = H; 112: Q = H,
+  Q̅ = L — its logic diagram derives both from one node); the stored bit is `X` meanwhile, so
+  releasing both at once leaves it unknown, as the data sheets warn.
+- **3-state registers** load while their outputs are disabled; outputs follow the enables after
+  `ten`/`tdis`, an unknown enable drives `X` (it might be driving).
+- **Pins**: complement outputs are named `…N` and drawn overlined (`1QN` shown `1Q̅`, the 151's
+  rule); falling-edge clocks are drawn overlined (`clock` + `activeLow`, their description says
+  HIGH-to-LOW); clock pins carry the `clock` flag, so the DIP drawing gives them a triangle.
+- **Function tables** are the data sheets' sequential tables (`↑`, `h`, `q̅`, …, above), checked
+  on every unit and every bit through pin numbers.
+- **Scenarios** (`tests/scenarios/sequential-74hc.test.ts`): a 74 shift chain (Q changes 17 ns
+  after the edge, so the next stage's 3 ns hold is met; at 30 MHz every clock reports its pulse
+  width), a 107 ripple counter (15 → 0 ripples through 19, 38, 57, 76 ns), a race between data
+  and clock through one 74HC08 caught by the set-up check, Ben Eater's A register on a bus.
+
+### Timing checks
+
+Edge-triggered chips check the circuit against their data sheet's minima (`TimingChecks` in
+`core`, [simulation.md](simulation.md#timing-checks)) and report `setup-violation`,
+`hold-violation`, `pulse-width-violation` and `recovery-violation` diagnostics on the pin at
+fault: `1D changed 9 ns before 1CP rose (setup time ≥ 15 ns)`. They are **errors** in the
+Simulation tab: on a board they are intermittent failures.
+
+A violation also makes the bits the edge may have loaded **`X`**, until a set/reset or a clean
+load — a chip that may go metastable, and the same rule as an uncertain edge
+([ADR-0014](adr/0014-timing-checks.md)):
+
+| Violation                             | Becomes `X`                                        |
+| ------------------------------------- | -------------------------------------------------- |
+| data set-up (changed within `tsu`)    | that bit                                           |
+| data hold (changed within `th` after) | that bit, if the new data would load another value |
+| enable set-up or hold                 | the bits where loading or not differ               |
+| short inactive clock phase, recovery  | the bits the edge would change                     |
+| short active clock phase              | the bits the edge before it changed                |
+| short set/reset pulse                 | the bits the pulse changed                         |
+
+The clock's checks are **armed** only while the clock matters: not while a set/reset holds the
+chip, and the data's not while loading is disabled — a clock running under a held reset is no
+fault. The 74HC4511 checks its LE the same way (code set-up 12 ns, LE LOW width 16 ns).
 
 ## Timers (`timer/*`)
 

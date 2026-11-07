@@ -8,9 +8,13 @@ import {
   datasheetName,
   type FunctionTableInfo,
   functionTableInfo,
+  type NameView,
   outputsHeading,
   type PartPick,
   pinInfo,
+  type TimingInfo,
+  type TimingRow,
+  timingInfo,
 } from './part-info';
 
 interface PartInfoPanelProps {
@@ -23,7 +27,9 @@ interface PartInfoPanelProps {
 
 /**
  * The Part tab of the bottom dock: what a learner needs while wiring a chip — its drawing, every
- * pin with its datasheet description, the datasheet function table and a link to the datasheet.
+ * pin with its datasheet description, the datasheet function table, its timing (delays and the
+ * set-up, hold, pulse-width and recovery minima the timing checks use) and a link to the
+ * datasheet.
  * Spec: docs/editor.md#part-info.
  */
 export function PartInfoPanel({ editor, pick, theme, gateStyle }: PartInfoPanelProps) {
@@ -42,6 +48,7 @@ export function PartInfoPanel({ editor, pick, theme, gateStyle }: PartInfoPanelP
   }
   const pins = pinInfo(definition, instance?.props);
   const table = functionTableInfo(definition.functionTable);
+  const timing = timingInfo(definition);
   const numbered = pins.some((pin) => pin.number !== undefined);
   const described = pins.some((pin) => pin.description !== undefined);
 
@@ -105,6 +112,7 @@ export function PartInfoPanel({ editor, pick, theme, gateStyle }: PartInfoPanelP
             ) : (
               <div className="empty-note">No function table for this part.</div>
             )}
+            {timing && <TimingView timing={timing} />}
           </div>
         </div>
       </div>
@@ -174,6 +182,68 @@ function FunctionTableView({
           </td>
         </tr>
       </tfoot>
+    </table>
+  );
+}
+
+/** A timing key's path: pin names as drawn (overlined when active LOW), words as text. */
+function Path({ path }: { readonly path: TimingRow['path'] }) {
+  return path.map((part, i) =>
+    typeof part === 'string' ? (
+      // biome-ignore lint/suspicious/noArrayIndexKey: parts are positional
+      <span key={i}>{part}</span>
+    ) : (
+      // biome-ignore lint/suspicious/noArrayIndexKey: parts are positional
+      <span key={i} className={(part as NameView).overline ? 'overline' : undefined}>
+        {part.text}
+      </span>
+    ),
+  );
+}
+
+function TimingView({ timing }: { readonly timing: TimingInfo }) {
+  const rows = (list: readonly TimingRow[], limit: 'max' | 'min') =>
+    list.map((row, i) => (
+      // biome-ignore lint/suspicious/noArrayIndexKey: rows are static datasheet data
+      <tr key={`${limit}${i}`}>
+        <td className="mono">
+          t<sub>{row.symbol.slice(1)}</sub>
+        </td>
+        <td className="mono">
+          <Path path={row.path} />
+        </td>
+        <td className="num">{row.typical}</td>
+        <td className="num">{row.max ?? ''}</td>
+        <td className="num">{row.min ?? ''}</td>
+      </tr>
+    ));
+  return (
+    <table className="sheet-table timing-table" aria-label="Timing">
+      <caption>Timing{timing.conditions && ` — ${timing.conditions}`}</caption>
+      <thead>
+        <tr>
+          <th>Symbol</th>
+          <th>Path</th>
+          <th className="num">Typ</th>
+          <th className="num">Max</th>
+          <th className="num">Min</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows(timing.delays, 'max')}
+        {rows(timing.requirements, 'min')}
+      </tbody>
+      {timing.source && (
+        <tfoot>
+          <tr>
+            <td colSpan={5} className="legend">
+              {timing.requirements.length > 0 &&
+                'Min: the guaranteed minimum the timing checks hold the circuit to. '}
+              Source: {timing.source}
+            </td>
+          </tr>
+        </tfoot>
+      )}
     </table>
   );
 }

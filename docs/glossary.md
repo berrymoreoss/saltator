@@ -60,6 +60,10 @@ measured. Autosaved per browser tab and restored after a reload (R07).
 **Drive / strength** — what an output contributes to a net: a level plus a strength (`none`,
 `weak`, `strong`). Pull resistors are weak; CMOS outputs are strong.
 
+**Flip-flop / register** — a circuit that stores one bit and takes a new value only on a clock
+edge (74HC74, 107, 109, 112); a register is several flip-flops on one clock (74HC173, 273, 574).
+A JK flip-flop holds, resets, sets or toggles depending on J and K.
+
 **Floating input** — an input connected to a net that nothing drives (`Z`). On CMOS parts it reads
 randomly and may oscillate; the simulator treats it as `X` and reports it.
 
@@ -82,6 +86,10 @@ not.
 
 **Level** — the resolved value of a net as seen by readers: `0`, `1`, `X` (unknown) or `Z`
 (high impedance / floating).
+
+**Metastability** — what a flip-flop may do when its data changes too close to the clock edge:
+hover between 0 and 1 for a while and then fall either way. The simulator doesn't model the
+analog behavior; it reports the timing violation and makes the bit `X` (ADR-0014).
 
 **Multiplexing (displays)** — driving several digits over shared segment lines by enabling one
 digit's common pin at a time, fast enough that the eye sees all digits lit (persistence of
@@ -117,14 +125,29 @@ path** (74HC138: `An to Yn`, `E3 to Yn`); several inputs changing at once take t
 
 **Pull-up / pull-down** — a resistor that weakly drives a net to 1 / 0 when nothing else drives it.
 
+**Recovery time (trec)** — how long an asynchronous set or reset must have been released before
+the next clock edge acts; an earlier edge may or may not load.
+
+**Ripple counter** — a counter whose flip-flops clock each other (Q of one is the clock of the
+next): cheap, but its outputs change one after another, passing through wrong values (a
+74HC107 chain going 15 → 0 shows 14, 12, 8 on the way, 19 ns apart).
+
 **Rubber-banding** — wires following a part as it is moved, rotated or flipped: they stretch,
 slide a corner or bend, so connections are kept.
 
 **Sense pin** — an input that only observes its net (LEDs, displays, probes). Reading a floating
 net through it is not a mistake, so it never raises a floating-input diagnostic.
 
-**Setup / hold time** — how long data must be stable before / after a clock edge for a flip-flop
-to capture it reliably.
+**Setup / hold time (tsu, th)** — how long data must be stable before / after a clock edge for a
+flip-flop to capture it reliably. Data sheets give a typical value and a guaranteed minimum; the
+timing checks use the minimum and report a `setup-violation` / `hold-violation`.
+
+**Pulse width (tW)** — the shortest HIGH or LOW phase a clock (or a set/reset pulse) may have;
+together the two phases bound the clock frequency (`fmax`).
+
+**Timing check** — a part checking the circuit against its data sheet's timing requirements
+(set-up, hold, pulse width, recovery) while simulating; a violation is an error in the
+Simulation tab and makes the affected bits unknown.
 
 **SPST / SPDT** — single-pole single-throw (a contact that closes onto one terminal, open
 otherwise: push buttons, DIP switches) / single-pole double-throw (a changeover between two
