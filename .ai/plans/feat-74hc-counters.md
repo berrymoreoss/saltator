@@ -1,12 +1,12 @@
 # Plan: feat/74hc-counters
 
-| Field      | Value                                                                          |
-| ---------- | ------------------------------------------------------------------------------ |
-| Branch     | `feat/74hc-counters`                                                           |
-| Roadmap    | R09b — 74HC counters & shift registers ([roadmap](../../docs/roadmap.md))      |
-| Status     | in-progress                                                                    |
+| Field      | Value                                                                         |
+| ---------- | ----------------------------------------------------------------------------- |
+| Branch     | `feat/74hc-counters`                                                          |
+| Roadmap    | R09b — 74HC counters & shift registers ([roadmap](../../docs/roadmap.md))     |
+| Status     | in-progress                                                                   |
 | Depends on | R09a (timing checks, edge-triggered helpers, sequential function tables), R08 |
-| Created    | 2026-11-07                                                                     |
+| Created    | 2026-11-07                                                                    |
 
 ## Goal
 
@@ -69,18 +69,18 @@ Read before starting:
 
 ### Parts
 
-All from the Nexperia data sheets. Names, pinouts and pin names below are from memory and get
-fixed in task 1 from the rendered pinning figures.
+All from the Nexperia data sheets; pin names checked against the rendered pinning figures in
+task 1 (the 161 and 191 are HC-only documents for SO16/TSSOP16; the DIP pinout is the same).
 
 | Part     | Function                                                         | Package | Shape                                                           |
 | -------- | ---------------------------------------------------------------- | ------- | --------------------------------------------------------------- |
 | 74HC161  | presettable synchronous 4-bit binary counter; asynchronous reset | DIP-16  | MR̅, CP, D0–D3, CEP, CET, PE̅ → Q0–Q3, TC                         |
 | 74HC163  | presettable synchronous 4-bit binary counter; synchronous reset  | DIP-16  | as the 161, MR̅ acts on the clock edge                           |
-| 74HC191  | presettable synchronous 4-bit binary up/down counter             | DIP-16  | CP, CE̅, U/D̅, PL̅ (asynchronous), D0–D3 → Q0–Q3, TC, RC̅           |
+| 74HC191  | presettable synchronous 4-bit binary up/down counter             | DIP-16  | CP, CE̅, U̅/D (LOW: up), PL̅ (asynchronous), D0–D3 → Q0–Q3, TC, RC̅ |
 | 74HC193  | presettable synchronous 4-bit binary up/down counter; two clocks | DIP-16  | CPU, CPD, PL̅ (asynchronous), MR (HIGH), D0–D3 → Q0–Q3, TC̅U, TC̅D |
 | 74HC164  | 8-bit serial-in, parallel-out shift register                     | DIP-14  | DSA, DSB (ANDed), CP, MR̅ → Q0–Q7                                |
 | 74HC165  | 8-bit parallel-in, serial-out shift register                     | DIP-16  | PL̅ (asynchronous), D0–D7, DS, CP, CE̅ → Q7, Q̅7                   |
-| 74HC595  | 8-bit shift register with output latches; 3-state                | DIP-16  | DS, SHCP, MR̅, STCP, OE̅ → Q0–Q7 (3-state), Q7S                  |
+| 74HC595  | 8-bit shift register with output latches; 3-state                | DIP-16  | DS, SHCP, MR̅, STCP, OE̅ → Q0–Q7 (3-state), Q7S                   |
 | 74HC4040 | 12-stage binary ripple counter                                   | DIP-16  | CP̅ (falling edge), MR (HIGH) → Q0–Q11                           |
 
 ### Engines
@@ -115,10 +115,18 @@ No single engine fits eight chips this different; three files on shared helpers:
   CPU/CPD).
 - **Asynchronous parallel load** (191, 193, 165): transparent while PL̅ is LOW (Q follows D,
   paths `tpd(Dn to Qn)` and `tpd(PL to Qn)`); D must meet set-up/hold to PL̅'s rising edge.
-- **193 clocks**: counts on the rising edge of one clock while the other is HIGH; what an edge
-  does while the other clock is LOW comes from the logic diagram (task 1).
-- **165 clock**: the internal clock is `CP + CE̅` (the data sheet says the two pins are
-  interchangeable); a rising edge of either while the other is LOW shifts.
+- **193 clocks**: counts on the rising edge of one clock while the other is HIGH. From the logic
+  diagram (T flip-flops clocked when both clocks are HIGH again, the chains steered by the clock
+  levels) and the text ("a clock LOW during and after a reset or load … its next LOW-to-HIGH
+  transition will be counted"): a count happens when both clocks become HIGH, in the direction
+  of the clock that rose — to be confirmed on the diagram at high resolution in task 4. The other
+  clock must stay HIGH `th(CPU to CPD, CPD to CPU)` = 16 ns after the counting edge (Fig. 14).
+- **165 clock**: the internal clock is `CP + CE̅` (the IEC symbol's ≥1; the function table
+  shifts on CE̅ ↑ with CP L); a rising edge of either while the other is LOW shifts, with set-up
+  and hold of each to the other (`tsu(CE to CP, CP to CE)` 16 ns).
+- **191 usage rules** (data sheet text, no logic diagram in the HC-only sheet): "the LOW-to-HIGH
+  CE̅ transition must occur only when the clock is HIGH" and "U̅/D should be changed only when
+  either CE̅ or CP is HIGH". How a break of them is modelled: decided in task 4.
 - **595**: two registers. SHCP shifts DS into the shift register (MR̅ clears it, asynchronous,
   not the storage register); STCP copies the shift register into the storage register; OE̅
   enables Q0–Q7 (`ten`/`tdis`, loading works while disabled); Q7S is the shift register's last
@@ -138,11 +146,14 @@ No single engine fits eight chips this different; three files on shared helpers:
 
 From the data sheets' requirement tables (task 1), against the minima at 25 °C (ADR-0014),
 armed only while the clock matters. Expected beyond R09a's kinds of checks: count enables and
-PE̅ / U/D̅ / the 163's MR̅ set-up and hold to CP; D set-up/hold to PL̅'s release; PL̅ and MR
-pulse widths and recovery to each clock (193: both clocks); 595 `tsu(SHCP to STCP)`; 165
-`tsu(CE to CP)`. `TimingChecks.setupHold` learns an edge-to-edge form for the 595 (Q3): only
-the data pin's active transition counts, and the same instant can be declared allowed. Messages and `X` follow components.md#timing-checks; the late control's
-`X` covers the bits where the outcomes it chooses between differ.
+PE̅ / U̅/D / the 163's MR̅ set-up and hold to CP; D set-up/hold to PL̅'s release; PL̅ and MR
+pulse widths and recovery to each clock (193: both clocks); 595 `tsu(SHCP to STCP)` (rising to
+rising, Fig. 7); 165 `tsu`/`th(CE to CP, CP to CE)`; the 193's clock-to-clock hold.
+`TimingChecks.setupHold` learns an edge-to-edge form for the 595 (Q3): only the data pin's
+active transition counts, and the same instant can be declared allowed; and a hold-only form
+(the 193 gives no set-up between its clocks). Messages and `X` follow
+components.md#timing-checks; the late control's `X` covers the bits where the outcomes it
+chooses between differ. Hold minima of 0 (161, 163, 191, 193 D to PL̅) never fire.
 
 ### Function tables
 
@@ -154,7 +165,8 @@ where they share columns, with a note.
 ### Partial overlines (Q4)
 
 A pin label marks the overlined letters itself with a combining overline (U+0305, as the docs
-already write them): `U/D̅`, `Q̅7`, and the 175's `Q̅0` becomes right. A label with explicit
+already write them): the 191's `U̅/D`, and the 175's `Q̅0` becomes right (the 165's `Q̅7` is
+overlined as a whole in its data sheet). A label with explicit
 overlines isn't overlined as a whole; `activeLow` keeps its meaning. The schematic's DIP
 drawing, the Part tab and pin descriptions draw it; the exact syntax is settled in task 8 after
 reading the renderer (plain-text places — Messages, search — show the combining characters).
@@ -179,7 +191,7 @@ canonically, run by scenario tests.
 ### Data sheets
 
 The user downloads from `https://assets.nexperia.com/documents/data-sheet/<name>.pdf` into
-`~/Downloads/nexperia-74hc/`: `74HC_HCT161`, `74HC_HCT163`, `74HC_HCT191`, `74HC_HCT193`,
+`~/Downloads/nexperia-74hc/`: `74HC161`, `74HC_HCT163`, `74HC191`, `74HC_HCT193`,
 `74HC_HCT164`, `74HC_HCT165`, `74HC_HCT595`, `74HC_HCT4040` (a name that 404s: the product
 page's data sheet link). Pinning figures, function tables and logic diagrams are rendered with
 `pdftoppm` and looked at (overlines, arrows, the 193's clock logic).
@@ -188,12 +200,12 @@ page's data sheet link). Pinning figures, function tables and logic diagrams are
 
 Small, ordered, each committable on its own with its tests (`pnpm check` green).
 
-- [ ] 1. Data sheets: the user downloads the PDFs; delays per path and requirements (typ and min
+- [x] 1. Data sheets: the user downloads the PDFs; delays per path and requirements (typ and min
   at 25 °C, max delays at −40…+85 °C) into `hc-timing.ts`, sources cited; findings (193 clock
   logic, 595 tied clocks, 165 clock gating, 4040 ripple) in the progress log. Pinouts and
   function tables land with each chip's behavior.
 - [ ] 2. `core`: `TimingChecks.setupHold` edge-to-edge form (the data pin's active transition
-  only; same instant allowed — Q3) and anything else task 1 finds, with tests on a fixture.
+  only; same instant allowed — Q3) and hold-only form (193), with tests on a fixture.
 - [ ] 3. Counting helpers (`increment`/`decrement`, outcome merging over controls) and the
   74HC161, 163, with tests (function table, counting 0–15 and wrap, load, enables, TC and its
   paths, MR̅ asynchronous vs synchronous, unknown/floating/late controls, every check).
@@ -262,10 +274,24 @@ Checkable statements; verified one by one in the finish-branch workflow.
 - 2026-11-07 — plan approved; branch started. The user downloaded the eight data sheets to
   `~/Downloads/nexperia-74hc/`; the 161 and 191 are HC-only documents (`74HC161`, `74HC191`),
   the rest `74HC_HCT…`.
+- 2026-11-07 — task 1: HC timing of the eight chips in `hc-timing.ts` (every 25 °C minimum
+  given). Findings: the 191's direction pin is **U̅/D** (LOW counts up; only U overlined — the
+  partial overline of Q4 is needed exactly here), while the 165's Q̅7 is overlined whole; the
+  191 sheet states two usage rules without a logic diagram (CE̅ rises only while CP is HIGH;
+  U̅/D changes only while CE̅ or CP is HIGH); the 193 counts when both clocks are HIGH again
+  (logic diagram; a clock that rose while the other was LOW is counted when the other rises —
+  confirm in task 4) and requires the other clock to stay HIGH 16 ns after the counting edge
+  (`th(CPU to CPD, CPD to CPU)`, hold-only); the 165's clock is `CP + CE̅` (IEC ≥1) with set-up
+  and hold both ways; the 595's `tsu(SHCP to STCP)` is rising edge to rising edge (Fig. 7) and
+  its function table's last row is the tied-clock mode; the 163's TC column says L in the load-H
+  and first hold rows, against its own note [1] (TC = CET at 15) — written as the 161's; the 4040
+  ripples `tpd(Qn to Qn+1)` = 10 ns per stage after `tpd(CP to Q0)` = 17 ns (Q11 at 127 ns). No
+  data sheet path for the 191's TC/RC̅ after a parallel load, nor for the 193's TC̅U after a
+  count down to 15 with CPU LOW: they borrow a given path in the spec.
 
 ## Handoff
 
-- **State:** plan approved, branch started; data sheets downloaded.
-- **Next step:** task 1 (timing from the data sheets).
+- **State:** task 1 done (timing data in `hc-timing.ts`, no chip uses it yet).
+- **Next step:** task 2 (`TimingChecks` edge-to-edge and hold-only forms).
 - **Watch out:** pinouts and names in the Parts table are from memory.
 - **Verify with:** `pnpm check`.
