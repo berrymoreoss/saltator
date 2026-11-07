@@ -2,7 +2,17 @@
  * Small part definitions for circuit unit tests (circuit may not import library, not even in
  * tests). Not part of the public API. Scenario tests with real parts live in tests/scenarios.
  */
-import { and, defineComponent, Level, ns, type PinDef, Registry, strong, weak } from '../core';
+import {
+  and,
+  createAccessStamps,
+  defineComponent,
+  Level,
+  ns,
+  type PinDef,
+  Registry,
+  strong,
+  weak,
+} from '../core';
 
 const INPUTS = ['A', 'B', 'C', 'D'];
 
@@ -218,6 +228,26 @@ export const testHi = defineComponent<Record<string, never>, undefined>({
   create: () => ({ init: (ctx) => ctx.drive(0, strong(Level.L1), 0) }),
 });
 
+/** `test/rom`: a 4-byte ROM with address inputs `A0`, `A1` and output `Y`. No behavior. */
+export const testRom = defineComponent<Record<string, never>, undefined>({
+  type: 'test/rom',
+  name: 'ROM',
+  title: 'Test ROM',
+  pins: [
+    { name: 'A0', dir: 'in' },
+    { name: 'A1', dir: 'in' },
+    { name: 'Y', dir: 'out' },
+  ],
+  memory: {
+    words: 4,
+    width: 8,
+    volatile: false,
+    addressPins: ['A0', 'A1'],
+    view: () => ({ data: new Uint8Array(4), unknown: new Uint8Array(4), ...createAccessStamps(4) }),
+  },
+  create: () => ({}),
+});
+
 export function testRegistry(): Registry {
   return new Registry([
     testAnd,
@@ -231,5 +261,6 @@ export function testRegistry(): Registry {
     testBusLabel,
     testBusEntry,
     testHi,
+    testRom,
   ]);
 }

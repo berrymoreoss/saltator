@@ -80,5 +80,11 @@ export {
   migrate,
   type RawDocument,
 } from './migrations';
+export {
+  compareDesignators,
+  type MemoryPart,
+  Resolver,
+  type Target,
+} from './resolve';
 export { DocumentError, type LoadOptions, loadDocument, parseDocument } from './schema';
 export { serializeDocument } from './serialize';

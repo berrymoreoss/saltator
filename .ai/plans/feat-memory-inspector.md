@@ -209,7 +209,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 2. `core`: image file codecs — binary and Intel HEX parse/format, file summary (range,
   bytes, checksum), placing into a memory with offset and erase; tests (record types, checksum
   and syntax errors with lines, > 64 KB addresses, round trip as a property test).
-- [ ] 3. `circuit`: the resolver — parts, pins, nets, buses, memories, error messages, `/`
+- [x] 3. `circuit`: the resolver — parts, pins, nets, buses, memories, error messages, `/`
   reserved; tests on circuit test parts and a scenario with real memories.
 - [ ] 4. `editor`: `MemoryInspector` — memories, cells (live, stopped ROM, stopped RAM),
   address, highlighting frames, edits (ROM image with coalescing, RAM poke), renames; headless
@@ -283,10 +283,15 @@ Checkable statements; verified one by one in the finish-branch workflow.
   (`at`, `eraseRest`) giving writes for a ROM image or pokes, `memoryBytes` (unknown bits 0),
   `writeIntelHex` (`base`, `omitErased`, 04 records above 64 KB); round trip as a property test;
   mutation-checked (one equivalent mutation led to a simpler `suggestedLoadAddress`).
+- 2026-11-07 — task 3: `circuit/resolve.ts` — `Resolver` over a `CompileResult`: parts, pins
+  (with their net), nets by any name or id, buses (members bit 0 first, `undefined` where no
+  net has the name), `memories()` in designator order (`compareDesignators`: `U2` before
+  `U10`); reasons for what doesn't resolve; `/` reserved for R11. Test part `test/rom`; a
+  scenario on RAM by Hand checks the net ids against the simulator. Mutation-checked.
 
 ## Handoff
 
-- **State:** tasks 1–2 done (access stamps, `addressPins`; image file codecs).
-- **Next step:** task 3 (the resolver in `circuit`).
+- **State:** tasks 1–3 done (access stamps, `addressPins`; image file codecs; resolver).
+- **Next step:** task 4 (`MemoryInspector` in the editor).
 - **Watch out:** —
 - **Verify with:** `pnpm check`.
