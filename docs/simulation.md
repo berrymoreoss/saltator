@@ -452,6 +452,50 @@ trigger.attach(sim); // armed; attach the new simulator after a carry-over
 - The editor's analyzer arms it and turns its firing into a pause ([editor.md](editor.md#waveforms));
   R14's breakpoints are the same conditions without the analyzer.
 
+## VCD export
+
+`writeVcd(recorder, signals, options)` (`src/core/vcd.ts`, R13) writes a Value Change Dump
+(IEEE 1364 §18), which GTKWave, Surfer, PulseView and HDL tools read:
+
+```ts
+writeVcd(
+  recorder,
+  [
+    { name: 'CLK', channels: [clk] }, // a 1-bit wire
+    { name: 'D[0..7]', channels: bus }, // a vector, bit 0 first
+  ],
+  { from: us(10), to: us(20), scope: 'Data Bus', date, version },
+);
+```
+
+```text
+$timescale 1ps $end
+$scope module Data_Bus $end
+$var wire 1 ! CLK $end
+$var wire 8 " D [7:0] $end
+$upscope $end
+$enddefinitions $end
+#10000000
+$dumpvars
+0!
+b00111111 "
+$end
+#10500000
+1!
+…
+#20000000
+```
+
+- Times are absolute picoseconds (`$timescale 1ps`), as the app shows them; the range defaults
+  to the whole record (`start` … `end`), its values at `from` go in `$dumpvars`, and a last `#to`
+  marks its end.
+- Names are made VCD-safe (`vcdName`): `~{RD}` → `RD_n`, a bus's `[0..7]` dropped (the vector's
+  `[7:0]` says it), `U1.Q0` → `U1_Q0` (readers take `.` for a scope), other characters → `_`;
+  repeated names get `_2`, `_3`. Identifiers count through printable ASCII (`vcdIdentifier`).
+- `0`, `1`, `x`, `z` per bit; no data is `x`; a change that writes what the dump already shows
+  (`X`, then no data) is left out.
+- `date` and `version` come from the caller: core never reads the clock.
+
 ## Test bench
 
 `src/core/testing` provides utilities used by every part test (pure: failures are thrown as plain

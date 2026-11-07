@@ -245,7 +245,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   mutation-checked; kernel benchmark with 16 probed nets.
 - [x] 3. `core`: trigger conditions (terms, AND, one edge, "becomes true", end-of-instant
   evaluation, bus values with don't-care digits) on the recorder; tests.
-- [ ] 4. `core`: VCD writer (header, vectors, `$dumpvars`, ranges, safe names and identifiers);
+- [x] 4. `core`: VCD writer (header, vectors, `$dumpvars`, ranges, safe names and identifiers);
   tests against hand-checked dumps; a scenario dumping a counter.
 - [ ] 5. `circuit`: `Circuit.probes` — schema v3 with the identity migration, parse (strict) and
   serialize (canonical, one probe a line), rename rewriting, edits that keep the netlist
@@ -334,11 +334,17 @@ Checkable statements; verified one by one in the finish-branch workflow.
   instants where its channels changed (glitches never fire it), "becomes true" without an edge,
   `attach` after a carry-over. Mutation-checked (one equivalent check removed from `#edgeAt`;
   the "any channel changed" check is kept as an optimization — equivalent by design).
+- 2026-11-07 — task 4: `core/vcd.ts` — `writeVcd` (1 ps timescale, wires and vectors bit 0
+  first, `$dumpvars` at `from`, a k-way merge over the channels' next changes, a final `#to`,
+  changes the dump can't tell apart left out), `vcdName` (`~{RD}` → `RD_n`, bus ranges dropped,
+  `.` → `_`), `vcdIdentifier`; a scenario dumping a 74HC161 (count 22 ns after each edge) and a
+  trigger on its count breaking at 622 ns. Mutation-checked (a cursor mutation hangs the merge:
+  the mutation script now has a timeout and restores the file).
 
 ## Handoff
 
-- **State:** tasks 1–3 done (kernel break request and `onInstant`, recorder, triggers).
-- **Next step:** task 4 (VCD writer in core).
+- **State:** tasks 1–4 done (core: break, `onInstant`, recorder, triggers, VCD).
+- **Next step:** task 5 (`Circuit.probes`, schema v3).
 - **Watch out:** nets have no identity across compiles — channels are references, re-resolved
   on every carry-over; the kernel's listener reports levels only.
 - **Verify with:** `pnpm check`.

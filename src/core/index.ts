@@ -172,3 +172,4 @@ export {
   type TriggerCondition,
   type TriggerTerm,
 } from './trigger';
+export { type VcdOptions, type VcdSignal, vcdIdentifier, vcdName, writeVcd } from './vcd';
