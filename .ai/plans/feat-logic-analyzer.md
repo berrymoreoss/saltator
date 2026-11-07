@@ -143,7 +143,7 @@ simulation is deterministic (user actions at other instants aside).
 
 ### Break request (core)
 
-`sim.requestBreak()` — callable from a listener or a component callback — makes the current
+`sim.requestBreak()` — called from a net-change listener (or between runs) — makes the current
 `runUntil`/`settle` return after the instant being processed has finished its delta cycles,
 with the new run status `break` (`now` = that instant; the next run goes on normally). The host
 pauses on it. R13's trigger uses it to stop exactly at its instant; R14's breakpoints and step
@@ -236,7 +236,7 @@ export format (vs CSV, vs a JSON capture).
 
 Small, ordered, each committable on its own with its tests (`pnpm check` green).
 
-- [ ] 1. `core`: `requestBreak()` and run status `break` (from a listener, from a component;
+- [x] 1. `core`: `requestBreak()` and run status `break` (from a listener, from a component;
   honored after the instant's delta cycles; the next run goes on; `settle` too); tests;
   benchmark unchanged.
 - [ ] 2. `core`: `Recorder` — channels, attach/detach across simulators, instant collapsing,
@@ -314,11 +314,16 @@ Checkable statements; verified one by one in the finish-branch workflow.
   the document (schema v3), only probed signals recorded, a trigger pauses the simulation after
   the post-trigger time, a Probe tool `P`.
 - 2026-11-07 — plan approved; branch started.
+- 2026-11-07 — task 1: `Simulator.requestBreak()` and run status `break` (honored after the
+  instant's delta cycles, from a listener or between runs; `settle` too); the host pauses on it
+  at any speed. Mutation-checked. Kernel benchmark unchanged (inverter chain 14.07M events/s vs
+  13.55M on `main`, ring oscillator 13.38M vs 13.76M: noise). Component callbacks don't get a
+  break of their own (nothing needs one yet).
 
 ## Handoff
 
-- **State:** plan approved, branch started; no code yet.
-- **Next step:** task 1 (`requestBreak()` and run status `break` in the kernel).
+- **State:** task 1 done (kernel break request).
+- **Next step:** task 2 (`Recorder` in core).
 - **Watch out:** nets have no identity across compiles — channels are references, re-resolved
   on every carry-over; the kernel's listener reports levels only.
 - **Verify with:** `pnpm check`.

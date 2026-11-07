@@ -612,6 +612,11 @@ export class Simulation {
       this.#setState('halted');
       return;
     }
+    if (result === 'break') {
+      // A trigger or breakpoint asked the kernel to stop at its instant.
+      this.pause();
+      return;
+    }
     let changed = this.#sampleLights(true);
     changed ||= sim.stats.events !== this.#events;
     this.#events = sim.stats.events;

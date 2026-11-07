@@ -464,6 +464,55 @@ describe('running', () => {
   });
 });
 
+describe('breaking a run', () => {
+  /** The clock, and a zero-delay inverter after it: its output changes one delta later. */
+  const clocked = () =>
+    sim((b) => b.add('C', 'test/clock').add('I', 'test/inv', { delay: 0 }).connect('C.Y', 'I.A'));
+  const breakOnHigh = (s: Simulator) => {
+    const net = s.netIndex('C.Y');
+    return s.onNetChange((_, n, level) => {
+      if (n === net && level === Level.L1) s.requestBreak();
+    });
+  };
+
+  it('stops at the instant a listener asks, and goes on with the next run', () => {
+    const s = clocked();
+    const off = breakOnHigh(s);
+    expect(s.runUntil(ns(100))).toBe('break');
+    expect(s.now).toBe(ns(10));
+    expect(s.runUntil(ns(100))).toBe('break');
+    expect(s.now).toBe(ns(30));
+    off();
+    expect(s.runUntil(ns(100))).toBe('reached');
+    expect(s.now).toBe(ns(100));
+  });
+
+  it('lets the instant finish its delta cycles first', () => {
+    const s = clocked();
+    breakOnHigh(s);
+    expect(s.runUntil(ns(100))).toBe('break');
+    expect(levels(s, 'C.Y', 'I.Y')).toBe('10');
+  });
+
+  it('stops settle too', () => {
+    const s = clocked();
+    breakOnHigh(s);
+    expect(s.settle({ maxTime: ns(100) })).toBe('break');
+    expect(s.now).toBe(ns(10));
+  });
+
+  it('asked between runs, stops after the first instant the next run processes', () => {
+    const s = clocked();
+    s.requestBreak();
+    expect(s.runUntil(ns(100))).toBe('break');
+    expect(s.now).toBe(0); // power-on
+    s.requestBreak();
+    expect(s.runUntil(ns(100))).toBe('break');
+    expect(s.now).toBe(ns(10));
+    expect(s.runUntil(ns(15))).toBe('reached');
+  });
+});
+
 describe('queries and errors', () => {
   it('looks up nets, components and pins', () => {
     const s = sim((b) => b.add('S', 'test/source').add('I', 'test/inv').net('in', 'S.Y', 'I.A'));

@@ -80,9 +80,11 @@ export type CarriedEvent =
  * - `idle`: no events left (nothing will happen without external input);
  * - `reached`: the time limit was reached with events still pending;
  * - `budget`: stopped early because the event budget was used up;
+ * - `break`: stopped after an instant because `requestBreak()` was called (a trigger, a
+ *   breakpoint); `now` is that instant and the next run goes on from there;
  * - `halted`: the simulation stopped for good (oscillation).
  */
-export type RunStatus = 'idle' | 'reached' | 'budget' | 'halted';
+export type RunStatus = 'idle' | 'reached' | 'budget' | 'break' | 'halted';
 
 export interface RunOptions {
   /** Stop (status `budget`) once this many events were processed; checked between timestamps. */
@@ -187,6 +189,7 @@ export class Simulator {
   private deltaId = 0;
   private started = false;
   private isHalted = false;
+  private breakRequested = false;
 
   constructor(netlist: Netlist, registry: ComponentRegistry, options: SimulatorOptions = {}) {
     this.maxDeltaCycles = options.maxDeltaCycles ?? 1000;
@@ -474,6 +477,17 @@ export class Simulator {
 
   // --- Control ------------------------------------------------------------------------------
 
+  /**
+   * Stops the run in progress once the instant it is processing has finished all its delta
+   * cycles: `runUntil`/`settle` return `break`, with `now` at that instant. Meant for listeners
+   * (a trigger, a breakpoint), so a condition seen in the middle of an instant still lets the
+   * instant settle. Asked between runs, the next run stops after the first instant it
+   * processes.
+   */
+  requestBreak(): void {
+    this.breakRequested = true;
+  }
+
   /** Delivers an external action (button press, switch flip) to a component, at `now`. */
   action(component: string, payload: unknown): void {
     const c = this.componentIndex(component);
@@ -515,6 +529,7 @@ export class Simulator {
       // Power-on: t = 0, or the time a carried simulation had reached.
       this.processTimestamp(this.currentTime, true);
       if (this.isHalted) return 'halted';
+      if (this.breakRequested) return this.takeBreak();
     }
     const queue = this.queue;
     for (;;) {
@@ -530,7 +545,13 @@ export class Simulator {
       if (this.stats.events - startEvents >= maxEvents) return 'budget';
       this.processTimestamp(next, false);
       if (this.isHalted) return 'halted';
+      if (this.breakRequested) return this.takeBreak();
     }
+  }
+
+  private takeBreak(): RunStatus {
+    this.breakRequested = false;
+    return 'break';
   }
 
   // --- Event loop ---------------------------------------------------------------------------

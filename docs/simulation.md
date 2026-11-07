@@ -240,10 +240,17 @@ const sim = new Simulator(netlist, registry, { maxDeltaCycles: 1000, maxDiagnost
   next event; it may be a cancelled change, after which `stats.events` hasn't moved.
 - `carryOver({ renames? })` — hand the simulation over to a recompiled netlist
   ([below](#editing-while-running-carry-over)).
+- `requestBreak()` (R13) — stop the run in progress once the instant it is processing has
+  finished all its delta cycles (status `break`, `now` at that instant; the next run goes on
+  from there). Called from a net-change listener — a trigger (R13), a breakpoint (R14) — so a
+  condition seen in the middle of an instant still lets the instant settle; asked between
+  runs, the next run stops after the first instant it processes. The hot loop checks one flag
+  per timestamp.
 
 Run status (`RunStatus`): `idle` (nothing left to do), `reached` (time limit reached, events
 still pending — e.g. a clock), `budget` (event budget used up; checked between timestamps),
-`halted` (oscillation; final for this simulator, every later run returns `halted`).
+`break` (`requestBreak()` was called; the editor's host pauses on it), `halted` (oscillation;
+final for this simulator, every later run returns `halted`).
 
 A **simulator host** outside core maps wall-clock to simulation time: the editor's `Simulation`
 (R05, [editor.md](editor.md#simulation)) with speed presets, a frame budget and "can't keep up"

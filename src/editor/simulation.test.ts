@@ -150,6 +150,24 @@ describe('Simulation: run control', () => {
     expect(idle.simulation.simulator!.now).toBe(0);
   });
 
+  it('pauses at the instant the kernel was asked to break, at any speed', () => {
+    for (const speed of [REAL_TIME, MAX_SPEED]) {
+      const { clock, simulation } = setup(hello(1e6)); // first rising edge at 500 ns
+      simulation.setSpeed(speed);
+      simulation.run();
+      const sim = simulation.simulator!;
+      const net = sim.pinNet('X1', 'Y');
+      sim.onNetChange((_, n, level) => {
+        if (n === net && levelChar(level) === '1') sim.requestBreak();
+      });
+      clock.frame(16);
+      expect(simulation.state).toBe('paused');
+      expect(sim.now).toBe(ns(500));
+      expect(simulation.status.get().time).toBe(ns(500));
+      expect(clock.pending).toBe(0);
+    }
+  });
+
   it('lists the speeds slowest first, real time and Max last', () => {
     expect(ALL_SPEEDS.map((s) => s.label)).toEqual([
       '1 ns/s',
