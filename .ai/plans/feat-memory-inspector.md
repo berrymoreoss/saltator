@@ -219,7 +219,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   menu, View); unit tests for the pure pieces (rows per width, cell text, key handling).
 - [x] 6. `ui`: binary `FileAccess`; Load Image (programmer) and Save Image dialogs, Erase; tests
   of the dialog models.
-- [ ] 7. e2e: EEPROM 7-Segment Decoder — the image in the Memory tab, a byte edited changes the
+- [x] 7. e2e: EEPROM 7-Segment Decoder — the image in the Memory tab, a byte edited changes the
   digit while running, undo; a `.hex` and a `.bin` loaded; RAM by Hand — a write by the
   switches highlighted, a poke read back on the LEDs, Save Image's file checked; looked at in
   both themes, stopped and running.
@@ -312,11 +312,17 @@ Checkable statements; verified one by one in the finish-branch workflow.
   the suggested address and where the file ends, Fill the rest with FF, Program), Save…
   (binary or Intel HEX with the address of byte 0 and Leave out lines of FF; unknown bytes
   counted), Erase (ROMs). Looked at with a stubbed picker: a hex file at 0x8000 loads at 0.
+- 2026-11-07 — task 7: four browser tests in `tests/e2e/memory.spec.ts` — an EEPROM byte typed
+  while running changes the data pins and Undo restores it (Undo also restores the selection
+  from before the edit, so the test selects U1 again), the read at a new address lit and
+  followed; a hex file assembled for 0x8000 and a 2-byte `.bin` loaded (offset, fill, a load
+  past the end refused), Erase; RAM by Hand's write lit orange, a poke read back on the pins,
+  Save writing 2048 bytes with unknown bits as 0; a 62256 rendering fewer than 40 rows, the
+  last cell reached by scrolling, which turns Follow off. Both themes looked at. `pnpm e2e`: 63.
 
 ## Handoff
 
-- **State:** tasks 1–6 done (stamps, image codecs, resolver, `MemoryInspector`, Memory tab,
-  image files and dialogs).
-- **Next step:** task 7 (e2e on EEPROM 7-Segment Decoder and RAM by Hand).
+- **State:** tasks 1–7 done; code complete, docs to write.
+- **Next step:** task 8 (docs, ADR-0018, roadmap, lessons).
 - **Watch out:** —
 - **Verify with:** `pnpm check`.
