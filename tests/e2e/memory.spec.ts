@@ -259,3 +259,24 @@ test('Memory tab: a 62256 shows only the rows in view', async ({ page }) => {
   await expect(memoryTab(page).getByRole('checkbox', { name: 'Follow' })).not.toBeChecked();
   expect(await view.locator('.memory-row').count()).toBeLessThan(40);
 });
+
+test('Memory tab: follows the memory picked on the canvas; Inspect Memory opens it', async ({
+  page,
+}) => {
+  const errors = watchErrors(page);
+  const grid = await newCircuit(page);
+  await place(page, grid, 'mem/6116', [-20, 0]);
+  await place(page, grid, 'mem/at28c16', [20, 0]);
+  await page.getByRole('tab', { name: 'Messages' }).click();
+  await clickAt(page, grid([20, 0]));
+  await expect(summary(page)).toHaveText('U2 · AT28C16');
+  await menu(page, 'Edit', 'Inspect Memory');
+  await expect(memoryTab(page).getByLabel('Memory')).toHaveValue('U2');
+  await expect(cell(page, 0)).toHaveText('FF'); // erased
+  await clickAt(page, grid([-20, 0]));
+  await expect(memoryTab(page).getByLabel('Memory')).toHaveValue('U1');
+  await expect(memoryTab(page).getByTestId('memory-none')).toBeVisible(); // a stopped RAM
+  await memoryTab(page).getByLabel('Memory').selectOption('U2');
+  await expect(cell(page, 0)).toHaveText('FF');
+  expect(errors).toEqual([]);
+});

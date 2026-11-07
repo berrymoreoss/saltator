@@ -832,7 +832,8 @@ edit, and save over the file.
   (`examples.spec.ts`); **M1** (`m1.spec.ts`): switch → 74HC00 → LED and clock → LED built,
   run, saved, reloaded, run again; memories (`memory.spec.ts`, R12a–R12b): the EEPROM decoder
   and RAM by Hand run, a byte edited in the Memory tab and undone, Intel HEX and `.bin` files
-  loaded, a write lit, a poke read back, Save, a 62256 virtualized. The File System Access pickers are stubbed with handles from
+  loaded, a write lit, a poke read back, Save, a 62256 virtualized, the tab following the memory
+  picked on the canvas and Edit ▸ Inspect Memory. The File System Access pickers are stubbed with handles from
   the origin private file system (`tests/e2e/file-system.ts`); specs load the app with
   `openApp`, which waits for the start-up restore. Not part of `pnpm check` (it needs a
   browser); CI runs it after the build.
