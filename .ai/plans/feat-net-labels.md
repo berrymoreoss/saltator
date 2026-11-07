@@ -4,7 +4,7 @@
 | ---------- | ------------------------------------------------------------------------------- |
 | Branch     | `feat/net-labels`                                                               |
 | Roadmap    | R10a — Net labels ([roadmap](../../docs/roadmap.md)), first half of R10 (Q1)    |
-| Status     | in-progress                                                                     |
+| Status     | done                                                                            |
 | Depends on | R02 (connectivity, compiler), R03 (rails), R04b (place tool, menus), R05 (live) |
 | Created    | 2026-11-07                                                                      |
 
@@ -172,21 +172,21 @@ new document object (KiCad's model; needs schema v2 and a third selectable kind 
 
 ## Acceptance criteria
 
-- [ ] `pnpm check`, `pnpm build` and `pnpm e2e` are green.
-- [ ] Two labels with the same name in different places are one net: switch → label `A`, label
+- [x] `pnpm check`, `pnpm build` and `pnpm e2e` are green.
+- [x] Two labels with the same name in different places are one net: switch → label `A`, label
   `A` → a 74HC00 input; running, the LED follows the switch (scenario test and e2e).
-- [ ] All VCC symbols are one net called `VCC`, all GND symbols `GND`; every example still
+- [x] All VCC symbols are one net called `VCC`, all GND symbols `GND`; every example still
   compiles without design issues and runs as before.
-- [ ] A net with a label is called by it in Properties, Messages and the Simulation tab.
-- [ ] A label name used once gives `single-net-label`; two names on one net give
+- [x] A net with a label is called by it in Properties, Messages and the Simulation tab.
+- [x] A label name used once gives `single-net-label`; two names on one net give
   `multiple-net-names`; an invalid name is refused in Properties with the hint.
-- [ ] Labels are placed from the Parts panel and from Place ▸ Net Label (`L`, context menu and
+- [x] Labels are placed from the Parts panel and from Place ▸ Net Label (`L`, context menu and
   menu bar); after `D0` the next label is `D1`.
-- [ ] Placing, moving or renaming a label that changes no pin connections while running keeps
+- [x] Placing, moving or renaming a label that changes no pin connections while running keeps
   the simulator (no carry-over).
-- [ ] Labels rotate, flip, move with their wires, copy/paste and undo like parts; their text
+- [x] Labels rotate, flip, move with their wires, copy/paste and undo like parts; their text
   never reads upside down or mirrored; eight labels on adjacent DIP pins don't overlap.
-- [ ] Looked at in the browser in both themes, stopped and running.
+- [x] Looked at in the browser in both themes, stopped and running.
 
 ## Open questions
 
@@ -214,11 +214,21 @@ new document object (KiCad's model; needs schema v2 and a third selectable kind 
   the signal map's label points), geometric open pins, placing by the point with the next name,
   Place menu/submenu with `L`, the Net Labels example (labels named GND tie the 74HC00's unused
   inputs), e2e. 1699 unit tests, 54 e2e green. Looked at in both themes, stopped and running.
+- 2026-11-07 — finished: docs (circuit, components, editor, glossary, architecture, READMEs),
+  ADR-0015, lessons; a host test that a label joining nothing new keeps the running simulator.
+  Acceptance criteria checked: `pnpm check` (1700 tests), `pnpm build`, `pnpm e2e` (54) green;
+  labels join distant pins (scenario + e2e); every VCC/GND symbol on `VCC`/`GND` and the examples
+  compile clean and run; named nets in Properties, Messages and netlist ids (the Simulation
+  tab's); both checks and the name hint (unit + e2e); Parts panel, Place menu, context submenu
+  and `L`, `D0` → `D1`; no carry-over for labels that join nothing; rotations and stacking seen in
+  the browser, both themes, stopped and running. Roadmap: R10a done, R10b next; follow-ups in the
+  backlog (net highlighting, rails placed by their pin).
 
 ## Handoff
 
-- **State:** tasks 1–8 committed; docs (task 9) in progress.
-- **Next step:** task 9, then the finish-branch workflow (acceptance criteria one by one).
+- **State:** done; waiting for the user's approval to merge into `main`.
+- **Next step:** merge (`git merge --no-ff`), then R10b `feat/buses` (its bus model is asked at
+  its start: KiCad-style member names or Logisim-style rippers).
 - **Watch out:** the layer check covers tests: `src/circuit/*.test.ts` use `test-parts.ts`, not
   `library`. Gate commits on `pnpm check`'s exit code (lessons, R03/R09b).
 - **Verify with:** `pnpm check`.
