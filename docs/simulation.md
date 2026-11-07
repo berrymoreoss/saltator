@@ -263,8 +263,8 @@ run returns `halted`).
 
 A **simulator host** outside core maps wall-clock to simulation time: the editor's `Simulation`
 (R05, [editor.md](editor.md#simulation)) with speed presets, a frame budget and "can't keep up"
-reporting, run/pause/step to the next event/stop/reset. Debugger conveniences (step to the next
-clock edge, run until a breakpoint) come in R14 _(planned)_.
+reporting, run/pause/step to the next event/stop/reset, and the debugger's steps (Step Clock by
+`stopBefore`, Run For, Run To) and breakpoints (R14, [editor.md](editor.md#debugger)).
 
 ## Timing checks
 
@@ -540,6 +540,6 @@ $end
 
 ## Planned extensions
 
-- Snapshot/restore of full simulator state (for "rewind" in the debugger) _(R14)_.
+- Snapshot/restore of full simulator state (for "rewind" in the debugger) _(R14b)_.
 - Web Worker host with SharedArrayBuffer levels _(backlog)_.
 - Fast mode for large synchronous designs (levelized/cycle-based evaluation) _(backlog)_.

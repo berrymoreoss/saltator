@@ -26,5 +26,8 @@ pure layout and keys in `memory-view.ts`), `ImageDialogs` (Load…, Save…, Era
 `image-dialogs.ts`), `ImageFileAccess` in `files` (image files as bytes, pickers of their own).
 R13: `WaveformsPanel` (the Waveforms tab, the Trigger and Export VCD dialogs; pure pieces in
 `waveforms-view.ts` and `vcd-export.ts`), the Probe tool and Add to Waveforms commands.
+R14: `DebugPanel` (the Debug tab and the breakpoint dialog; pure pieces in `debug-view.ts`;
+conditions shared with the Trigger dialog in `condition-terms.ts`), run statistics in
+`SimulationPanel`, the debug commands, the debug setup in `autosave`.
 
 Spec: [docs/editor.md](../../docs/editor.md#shell).

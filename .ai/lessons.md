@@ -276,3 +276,11 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
   last step ended is "at the same time" for the chips (a clock press right after releasing
   CLR is a recovery violation; a second manual pulse at the end of the first is a 0 ps LOW).
   Let simulated time pass between actions, as a hand on the real board does.
+- 2026-11-08 (R14) — A carry-over at an instant processes that instant again in the new
+  simulator (its forced evaluation runs `onInstant` at the carried time): anything evaluated
+  per instant — a trigger rebuilt for the new simulator — fires there a second time. Keep such
+  objects across a carry-over (re-attach them) and guard per-instant actions by the instant.
+- 2026-11-08 (R14) — Actions while paused happen at the instant the run paused at, so the
+  recorder merges them into that instant: a channel attached then saw no edge (fixed: its
+  first level goes 1 ps early). Test what a tool sees of a change made while paused, not only
+  of changes made while running.

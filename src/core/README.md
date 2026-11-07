@@ -20,8 +20,10 @@ recovery against `timing.min`, R09a; edge-to-edge and hold-only set-up/hold, R09
 stamps and address pins, R12b), `image-files` (`.bin` and Intel HEX read, written and placed
 into a memory, R12b), `random` (`SeededRandom`, `hashString`: reproducible randomness, R12a),
 `recorder` (`Recorder`: probed nets' levels over time, bounded, R13), `trigger` (`Trigger`:
-conditions on recorded channels that fire at an instant, R13), `vcd` (`writeVcd`, R13); the
-simulator's `requestBreak` and `onInstant` (R13). Test
+conditions on recorded channels that fire at an instant, R13; `repeat` for breakpoints, R14),
+`vcd` (`writeVcd`, R13); the simulator's `requestBreak` and `onInstant` (R13) and the run
+option `stopBefore` (a lookahead to a net's next change, R14); `diagnosticSeverity` and
+`DiagnosticLog.onOccurrence` (R14). Test
 utilities (`Bench`, `functionTable`, `checkableRows`, `truthTable`, `Trace`) live in `testing/`
 and are imported from
 `src/core/testing`, not from the main index.

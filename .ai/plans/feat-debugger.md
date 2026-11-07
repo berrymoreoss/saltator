@@ -226,7 +226,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 10. e2e: SAP-1 Program Counter — Step Clock advances the count by one per press, a
   breakpoint on the count stops a run there, Run For moves time by exactly Δt; RAM by Hand —
   a watched cell changes after a write; break on an error; the setup survives a reload.
-- [ ] 11. Docs: simulation.md, editor.md (Debugger), circuit.md (memory references),
+- [x] 11. Docs: simulation.md, editor.md (Debugger), circuit.md (memory references),
   components.md (`io/clock` edges ahead), architecture.md, glossary, READMEs, ADR-0020;
   roadmap (R14 split into R14a done and R14b next; backlog: memory-access breakpoints, log
   points, canvas marks); lessons.
@@ -373,11 +373,16 @@ Checkable statements; verified one by one in the finish-branch workflow.
   channel's first level and the change merged (one instant). A fresh channel now records its
   first level 1 ps before the instant it is attached at (R13's test updated: a late probe
   starts at 14.999 ns, not 15 ns); mutation-checked.
+- 2026-11-08 — task 11: editor.md (shell, shortcuts, the Debugger section: tab, breakpoints,
+  steps, watches, setup, model; autosave; Editor API), simulation.md (host steps, the recorder's
+  first level, R14b), ADR-0020 and its index row, architecture.md, glossary (breakpoint, debug
+  setup, Step Clock, watch, run statistics), the layers' READMEs, the roadmap's R14a entry and a
+  backlog item "Debugger follow-ups (R14a)", lessons.
 
 ## Handoff
 
-- **State:** in progress; tasks 1–10 done; docs left.
-- **Next step:** task 11 (docs: editor.md Debugger section, ADR-0020, architecture, glossary, READMEs, roadmap, lessons).
+- **State:** all tasks done; finishing (acceptance criteria, build).
+- **Next step:** finish-branch: verify the acceptance criteria, `pnpm build`, close the plan.
 - **Watch out:** `io/clock` drives at its wake with zero delay — the lookahead can't see it
   until task 2; a breakpoint during a trigger's post-trigger time must win over `pauseAt`.
 - **Verify with:** `pnpm check`, `pnpm bench`.

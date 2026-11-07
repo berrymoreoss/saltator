@@ -24,6 +24,7 @@ the alternatives we rejected. Format: [ADR-0001](0001-record-architecture-decisi
 | [0017](0017-memories.md)                          | Memories: guaranteed limits with an X window; ROM images in the document                        | accepted |
 | [0018](0018-memory-inspector.md)                  | Memory inspector: access stamps, edits through the document or pokes                            | accepted |
 | [0019](0019-waveforms.md)                         | Waveforms: probes by reference in the document, a bounded recorder, triggers that break the run | accepted |
+| [0020](0020-debugger.md)                          | Debugger: repeating trigger conditions that pause, Step Clock before the edge, setup in session | accepted |
 
 New ADR: copy [template.md](template.md) to `NNNN-short-title.md` (next free number), fill it in,
 add a row here. Superseding: set the old one's status to `superseded by NNNN`; never delete ADRs.

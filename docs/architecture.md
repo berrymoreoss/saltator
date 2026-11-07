@@ -37,7 +37,7 @@ flowchart BT
 | library | `src/library`             | Part definitions: pins, package, props, timing, symbol geometry, behavior; registry       | core                   | yes   |
 | circuit | `src/circuit`             | Circuit document, JSON schema + migrations, connectivity, netlist compiler, design checks | core                   | yes   |
 | editor  | `src/editor`              | Canvas2D rendering, camera, hit-testing, tools, commands + undo/redo, live signal overlay | core, library, circuit | no    |
-| ui      | `src/ui`                  | React panels: toolbar, palette, inspector, docks (diagnostics, memory, analyzer)          | all but app            | no    |
+| ui      | `src/ui`                  | React panels: toolbar, palette, inspector, docks (diagnostics, memory, analyzer, debug)   | all but app            | no    |
 | app     | `src/app`, `src/main.tsx` | Composition root: registry, simulator host, editor, React tree                            | all                    | no    |
 
 \* **Pure** = no DOM, no React, no Node APIs, no npm packages (unless allowlisted in
@@ -61,7 +61,7 @@ flowchart LR
   reg["Component registry"] --> sim
   nl --> sim["Simulator<br/>(event-driven)"]
   sim -- "net levels (typed array)" --> view["Editor overlay<br/>wire colors, LEDs"]
-  sim -- "changes, diagnostics" --> panels["UI panels<br/>analyzer, memory, diagnostics"]
+  sim -- "changes, diagnostics" --> panels["UI panels<br/>analyzer, debugger, memory, diagnostics"]
   user["User input<br/>buttons, switches"] -- interact --> sim
   edits["Editor commands"] -- "mutate + undo" --> doc
 ```
@@ -73,7 +73,9 @@ flowchart LR
    the netlist.
 4. The **editor** reads net levels every frame to color wires and draw indicators. UI panels
    subscribe to change streams (memory accesses, diagnostics); the waveform analyzer records
-   the probed nets through a core `Recorder` on the kernel's change listener (R13).
+   the probed nets through a core `Recorder` on the kernel's change listener (R13); the
+   debugger's breakpoints are repeating core triggers on a recorder of their own, its error
+   breaks a diagnostic listener (R14).
 5. User interaction with parts (pressing a button) goes to the simulator as an external event at
    the current simulation time.
 6. On edit, the document is recompiled. A running simulation goes on: an edit that keeps the
@@ -90,7 +92,9 @@ delays, delta cycles for zero-delay elements, deterministic ordering. Full spec:
 Run control (real-time pacing, speed factor, frame budget) is **not** in core: core exposes
 `runUntil(time, budget)`, and the _simulator host_ in the editor layer (`Simulation`, R05)
 drives it from `requestAnimationFrame` with an injected clock; a listener can break a run at an
-instant (`requestBreak`, R13), which the host turns into a pause. This keeps core pure and makes
+instant (`requestBreak`, R13), which the host turns into a pause, and a run can stop right
+before a net's pending change (`stopBefore`, R14: the debugger's Step Clock); the host runs
+steps (`runTo`) and pauses on requests with a reason (`requestPause`). This keeps core pure and makes
 moving the kernel into a Web Worker a host-only change _(planned, backlog)_.
 
 ## Component library
@@ -147,7 +151,8 @@ Implemented in R02. Full spec: [circuit.md](circuit.md). Rationale:
 - **Compiler** (`compileCircuit`): document → `Netlist` with deterministic, readable net ids, plus
   the net of every wire and the junction dots for the editor. It never throws on user mistakes.
 - **Resolver** (R12b): references (`U5`, `U5.A0`, `CLK`, `D[0..7]`) to the compiled parts and
-  nets, for the memory inspector, probes (R13) and later watches, breakpoints and test benches;
+  nets, for the memory inspector, probes (R13), watches and breakpoints (R14; memory cells
+  `U5[1F]`) and later test benches;
   R11 adds instance paths there ([circuit.md](circuit.md#resolver)).
 - **Probes** (R13): the Waveforms tab's signals as resolver references in the circuit
   (`Circuit.probes`, schema v3), never compiled ([ADR-0019](adr/0019-waveforms.md)).
@@ -202,14 +207,17 @@ with data sheet descriptions and the function table of the part picked last), R0
 memory with reads and writes lit, edits, `.bin` and Intel HEX through a programmer-style Load
 dialog, [editor.md](editor.md#memory-inspector)); R13 the Waveforms tab (the probes over
 simulated time with zoom, cursors, bus values, a trigger and VCD export) and the Probe tool
-([editor.md](editor.md#waveforms), [ADR-0019](adr/0019-waveforms.md)).
+([editor.md](editor.md#waveforms), [ADR-0019](adr/0019-waveforms.md)); R14 the Debug tab
+(Step Clock, Run For, Run To, breakpoints, breaks on errors, watches; the setup kept with the
+session) and run statistics ([editor.md](editor.md#debugger),
+[ADR-0020](adr/0020-debugger.md)).
 
 ```
 ┌───────────────────────── menu bar · toolbar (tools, zoom, grid, gate style) ─────────────────────────┐
 │ Parts    │                                canvas                                    │ Properties    │
 │ (search, │                                                                          │ (of the       │
 │ preview) │                                                                          │ selection)    │
-├──────────┴──── bottom dock: Messages · Simulation · Part · Memory · Waveforms ┴──────────────────────┤
+├──────────┴─── bottom dock: Messages · Simulation · Part · Memory · Waveforms · Debug ┴───────────────┤
 │ status bar: cursor · zoom · selection · simulation · counts · issues                                  │
 ```
 
