@@ -29,10 +29,10 @@ How to read this file:
 | R09b | `feat/74hc-counters`         | 74HC counters & shift registers            | done    |
 | R10a | `feat/net-labels`            | Net labels                                 | done    |
 | R10b | `feat/buses`                 | Buses, rippers, bus values                 | done    |
-| R11  | `feat/subcircuits`           | Hierarchical design                        | next    |
-| R12  | `feat/memory`                | ROM / RAM + memory inspector               | planned |
+| R12  | `feat/memory`                | ROM / RAM + memory inspector               | next    |
 | R13  | `feat/logic-analyzer`        | Waveforms & probes                         | planned |
 | R14  | `feat/debugger`              | Breakpoints, stepping, watches             | planned |
+| R11  | `feat/subcircuits`           | Hierarchical design                        | planned |
 | R15  | `feat/test-benches`          | Circuit test benches ("test before fab")   | planned |
 | R16  | `example/sap-1`              | Ben Eater SAP-1 reference build            | planned |
 | R17  | `feat/cpu-6502`              | W65C02S CPU                                | planned |
@@ -233,21 +233,24 @@ layer. Example: Data Bus (74HC245 → bus → 74HC574 → LEDs). Spec:
 [circuit.md](circuit.md#buses), [components.md](components.md#net-labels-net). Decision:
 [ADR-0016](adr/0016-buses.md). Plan: `.ai/plans/feat-buses.md`.
 
-### R11 · Hierarchical design — `feat/subcircuits` — `next`
+R11 (hierarchical design) was moved after R14 on 2026-11-07, keeping its id: memory, waveforms
+and the debugger are useful on the flat circuits that net labels and buses already make
+workable, and the SAP-1 modules need R12's chips anyway; hierarchy lands right before the test
+benches and the full SAP-1 build, which need it most.
 
-Multiple circuits per project, subcircuit instances with generated or custom symbols, navigation
-into instances while simulating. A subcircuit's interface pins (ports) join the Place menu (R10a).
-
-**M2 acceptance:** Ben Eater SAP-1 modules (clock, A/B registers, ALU, program counter, output
-register) built and verified individually.
-
-## Phase 3 — Memory, debugging, verification → **M3 "SAP-1 runs"**
-
-### R12 · ROM / RAM + memory inspector — `feat/memory`
+### R12 · ROM / RAM + memory inspector — `feat/memory` — `next`
 
 AT28C16, AT28C64, AT28C256 (EEPROM), 6116, 62256 (SRAM), 74LS189; memory inspector (hex view,
 edit, live read/write highlighting, follow address), import/export `.bin` and Intel HEX, "programmer"
-dialog, power-on contents option (zeros / random / X).
+dialog, power-on contents option (zeros / random / X). The inspector, and later R13's probes and
+R14's watches and breakpoints, refer to parts and nets through one resolver over the compiled
+netlist, so R11 adds paths into subcircuit instances (`U5/D0`) in one place.
+
+**M2 acceptance:** Ben Eater SAP-1 modules (clock, A/B registers, ALU, program counter, RAM and
+memory address register, output register with its EEPROM decoder) built and verified
+individually.
+
+## Phase 3 — Debugging, hierarchy, verification → **M3 "SAP-1 runs"**
 
 ### R13 · Waveforms & probes — `feat/logic-analyzer`
 
@@ -258,6 +261,14 @@ conditions, export (VCD).
 
 Step by clock edge / by time / by event, breakpoints on signal or bus conditions, watch panel,
 run statistics, snapshot & rewind.
+
+### R11 · Hierarchical design — `feat/subcircuits`
+
+Multiple circuits per project, subcircuit instances with generated or custom symbols, navigation
+into instances while simulating. A subcircuit's interface pins (ports) join the Place menu (R10a).
+Extends the part and net resolver (R12) with instance paths, so the memory inspector, probes,
+watches and breakpoints reach into instances, and test benches (R15) can test a subcircuit as a
+unit.
 
 ### R15 · Circuit test benches — `feat/test-benches`
 
