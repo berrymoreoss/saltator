@@ -136,6 +136,7 @@ export {
   type SimulatorCarry,
   type SimulatorOptions,
   type SimulatorStats,
+  type StopBefore,
 } from './simulator';
 export {
   COMBINING_OVERLINE,

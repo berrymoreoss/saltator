@@ -246,11 +246,20 @@ const sim = new Simulator(netlist, registry, { maxDeltaCycles: 1000, maxDiagnost
   condition seen in the middle of an instant still lets the instant settle; asked between
   runs, the next run stops after the first instant it processes. The hot loop checks one flag
   per timestamp.
+- `stopBefore: { net, level }` (R14, a `runUntil`/`settle` option) — stop **before** the
+  instant at which the changes pending on the net's drivers make it change to `level`
+  (status `before`, `now` at the last instant processed): a lookahead to a clock's next edge,
+  for the debugger's Step Clock. The kernel keeps each driver's pending change time; the
+  drives due then are resolved with the others, so a change that keeps the level is none. Only
+  changes queued before the instant count — one a part makes with zero delay during the
+  instant itself can't be seen ahead (a gate's output is seen one delay ahead). The power-on
+  instant is always processed. Without the option the loop checks nothing.
 
 Run status (`RunStatus`): `idle` (nothing left to do), `reached` (time limit reached, events
 still pending — e.g. a clock), `budget` (event budget used up; checked between timestamps),
-`break` (`requestBreak()` was called; the editor's host pauses on it), `halted` (oscillation;
-final for this simulator, every later run returns `halted`).
+`break` (`requestBreak()` was called; the editor's host pauses on it), `before` (stopped
+before the `stopBefore` change), `halted` (oscillation; final for this simulator, every later
+run returns `halted`).
 
 A **simulator host** outside core maps wall-clock to simulation time: the editor's `Simulation`
 (R05, [editor.md](editor.md#simulation)) with speed presets, a frame budget and "can't keep up"

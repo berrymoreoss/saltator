@@ -536,6 +536,116 @@ describe('breaking a run', () => {
   });
 });
 
+describe('stopping before a change', () => {
+  const at = (s: Simulator, id: string) => s.netIndex(id);
+
+  it('stops before the instant a pending change makes the net reach the level', () => {
+    const s = sim((b) =>
+      b
+        .add('S', 'test/source', { delay: ns(5) })
+        .add('T', 'test/source', { delay: ns(2) })
+        .net('N', 'S.Y')
+        .net('M', 'T.Y'),
+    );
+    s.action('S', Drive.STRONG_1);
+    s.action('T', Drive.STRONG_1);
+    const stop = { net: at(s, 'N'), level: Level.L1 };
+    expect(s.runUntil(ns(100), { stopBefore: stop })).toBe('before');
+    expect(s.now).toBe(ns(2)); // the instants before it were processed
+    expect(levels(s, 'N', 'M')).toBe('Z1');
+    // Asked again it stops there again; a run without it goes on.
+    expect(s.runUntil(ns(100), { stopBefore: stop })).toBe('before');
+    expect(s.runUntil(ns(5))).toBe('idle'); // nothing pending after it
+    expect(levels(s, 'N')).toBe('1');
+    expect(s.runUntil(ns(100), { stopBefore: stop })).toBe('idle');
+  });
+
+  it('sees a gate output one delay ahead of its edge', () => {
+    // C.Y: 0, rises at 10 ns, falls at 20 ns, …; I.Y follows inverted 1 ns later.
+    const s = sim((b) => b.add('C', 'test/clock').add('I', 'test/inv').connect('C.Y', 'I.A'));
+    const stop = { net: at(s, 'I.Y'), level: Level.L1 };
+    expect(s.runUntil(ns(100), { stopBefore: stop })).toBe('before'); // X → 1 at 1 ns
+    expect(s.now).toBe(0);
+    s.runUntil(ns(1));
+    expect(s.runUntil(ns(100), { stopBefore: stop })).toBe('before');
+    expect(s.now).toBe(ns(20));
+    expect(levels(s, 'C.Y', 'I.Y')).toBe('00');
+    expect(s.settle({ maxTime: ns(100), stopBefore: stop })).toBe('before');
+    expect(s.runUntil(ns(21))).toBe('reached');
+    expect(s.settle({ maxTime: ns(100), stopBefore: stop })).toBe('before');
+    expect(s.now).toBe(ns(40));
+  });
+
+  it('resolves the net with every driver: a change that keeps the level is none', () => {
+    const s = sim((b) =>
+      b
+        .add('A', 'test/source')
+        .add('B', 'test/source', { delay: ns(5) })
+        .net('N', 'A.Y')
+        .net('N', 'B.Y'),
+    );
+    s.action('A', Drive.STRONG_1);
+    s.action('B', Drive.STRONG_1);
+    expect(s.runUntil(ns(100), { stopBefore: { net: at(s, 'N'), level: Level.L1 } })).toBe('idle');
+    s.action('B', Drive.STRONG_0); // a fight: X
+    expect(s.runUntil(ns(200), { stopBefore: { net: at(s, 'N'), level: Level.L0 } })).toBe('idle');
+    expect(levels(s, 'N')).toBe('X');
+  });
+
+  it('ignores a cancelled change', () => {
+    const s = sim((b) => b.add('S', 'test/source', { delay: ns(5) }).net('N', 'S.Y'));
+    s.action('S', Drive.STRONG_1); // due at 5 ns
+    s.runUntil(ns(2));
+    s.action('S', Drive.STRONG_0); // cancels it: due at 7 ns
+    const net = at(s, 'N');
+    expect(s.runUntil(ns(100), { stopBefore: { net, level: Level.L1 } })).toBe('idle');
+    expect(levels(s, 'N')).toBe('0');
+    s.action('S', Drive.STRONG_1);
+    s.runUntil(ns(102));
+    s.action('S', Drive.STRONG_0); // the pending 1 is cancelled, nothing else is due
+    expect(s.runUntil(ns(200), { stopBefore: { net, level: Level.L1 } })).toBe('idle');
+    expect(levels(s, 'N')).toBe('0');
+  });
+
+  it("can't see a change a part makes with zero delay during the instant", () => {
+    const s = sim((b) => b.add('C', 'test/clock'));
+    expect(s.runUntil(ns(15), { stopBefore: { net: at(s, 'C.Y'), level: Level.L1 } })).toBe(
+      'reached',
+    );
+    expect(levels(s, 'C.Y')).toBe('1');
+  });
+
+  it('always processes the power-on instant', () => {
+    const s = sim((b) => b.add('S', 'test/source').net('N', 'S.Y'));
+    s.action('S', Drive.STRONG_1); // lands at t = 0
+    expect(s.runUntil(ns(10), { stopBefore: { net: at(s, 'N'), level: Level.L1 } })).toBe('idle');
+    expect(levels(s, 'N')).toBe('1');
+  });
+
+  it('sees changes carried over into a recompiled netlist', () => {
+    const build = () =>
+      new NetlistBuilder()
+        .add('S', 'test/source', { delay: ns(5) })
+        .net('N', 'S.Y')
+        .build();
+    const old = new Simulator(build(), registry);
+    old.runUntil(ns(1));
+    old.action('S', Drive.STRONG_1); // due at 6 ns
+    const s = new Simulator(build(), registry, { carry: old.carryOver() });
+    expect(s.runUntil(ns(100), { stopBefore: { net: at(s, 'N'), level: Level.L1 } })).toBe(
+      'before',
+    );
+    expect(s.now).toBe(ns(1));
+  });
+
+  it('refuses a net it does not have', () => {
+    const s = sim((b) => b.add('S', 'test/source'));
+    expect(() => s.runUntil(ns(1), { stopBefore: { net: 7, level: Level.L1 } })).toThrow(
+      /no net #7/,
+    );
+  });
+});
+
 describe('queries and errors', () => {
   it('looks up nets, components and pins', () => {
     const s = sim((b) => b.add('S', 'test/source').add('I', 'test/inv').net('in', 'S.Y', 'I.A'));

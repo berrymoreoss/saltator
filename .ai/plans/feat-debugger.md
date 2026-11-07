@@ -200,7 +200,7 @@ winning over `pauseAt`; R14 split into R14a/R14b (Q1).
 
 Small, ordered, each committable on its own with its tests (`pnpm check` green).
 
-- [ ] 1. `core`: `stopBefore` run option and status `before` (pending change times per driver
+- [x] 1. `core`: `stopBefore` run option and status `before` (pending change times per driver
   slot; resolved with the pending drives due; a cancelled change, several drivers resolving to
   the same level, a zero-delay change not seen); tests; kernel benchmark unchanged.
 - [ ] 2. `library`: `io/clock` schedules its edges ahead (auto and manual mode); a trace test
@@ -279,11 +279,16 @@ Checkable statements; verified one by one in the finish-branch workflow.
   (R14b `feat/rewind`), the debug setup in the session, Step Clock pauses before the next edge,
   watches as a list of their own.
 - 2026-11-07 — plan approved; branch started; roadmap: R14 split into R14a and R14b.
+- 2026-11-07 — task 1: `RunOptions.stopBefore` and run status `before` (`slotPendingTime` per
+  driver slot, set where drives are scheduled and carried; `dueLevel` resolves the net with the
+  drives due at the next instant). Mutation-checked (5 mutations; a `due` flag turned out
+  equivalent and was removed). Benchmark unchanged (ring oscillator 13.23M events/s vs 13.22M
+  on `main`, the 74HC574 pipeline 5.25M vs 5.52M, the others within ±1 %).
 
 ## Handoff
 
-- **State:** plan approved, in progress; nothing implemented yet.
-- **Next step:** task 1 (`stopBefore` in the kernel).
+- **State:** in progress; task 1 done.
+- **Next step:** task 2 (`io/clock` edges scheduled ahead).
 - **Watch out:** `io/clock` drives at its wake with zero delay — the lookahead can't see it
   until task 2; a breakpoint during a trigger's post-trigger time must win over `pauseAt`.
 - **Verify with:** `pnpm check`, `pnpm bench`.
