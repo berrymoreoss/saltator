@@ -483,6 +483,71 @@ describe.each(JK_CASES)('74HC$number', (c) => {
     expect(timing(pulse(16))).toEqual([]);
     expect(timing(pulse(15)).map((x) => x.kind)).toEqual([TimingViolation.PULSE_WIDTH]);
   });
+
+  it('checks the reset pulse width (16 ns): a short LOW pulse leaves the bit unknown', () => {
+    const reset = c.reset === 'nR' ? '1R' : '1RD';
+    const pulse = (width: number) => {
+      const b = bench();
+      b.set({ '1J': 1 }).run(us(1));
+      clock(b); // Q = 1
+      b.set({ '1J': 0 }).run(us(1));
+      b.set({ [reset]: 0 }).run(ns(width));
+      b.set({ [reset]: 1 }).run(us(1));
+      return b;
+    };
+    expect(timing(pulse(16))).toEqual([]);
+    pulse(16).expect({ '1Q': 0 });
+    const short = pulse(15);
+    expect(timing(short).map((x) => `${x.kind} ${x.pin}: ${x.message}`)).toEqual([
+      `pulse-width-violation ${reset}: ${reset} was LOW for only 15 ns (pulse width ≥ 16 ns)`,
+    ]);
+    short.expect({ '1Q': 'X' });
+  });
+
+  it('checks the set/reset HIGH phase only where the data sheet says HIGH or LOW', () => {
+    const reset = c.reset === 'nR' ? '1R' : '1RD';
+    const b = bench();
+    b.set({ [reset]: 0 }).run(us(1));
+    b.set({ [reset]: 1 }).run(ns(15)); // released for 15 ns between two resets
+    b.set({ [reset]: 0 }).run(us(1));
+    // 107 and 109: "HIGH or LOW"; 112: "LOW" only.
+    expect(timing(b).map((x) => x.kind)).toEqual(
+      c.number === '112' ? [] : [TimingViolation.PULSE_WIDTH],
+    );
+  });
+
+  it('reports floating inputs: the clock always, J and K when an edge reads them', () => {
+    const b = new Bench(d);
+    b.set({ ...async(1, 1), ...async(2, 1), ...of(2, { nCP: idle, nJ: 0, nK: kOff }) });
+    b.run(us(1));
+    const floating = () =>
+      b.diagnostics
+        .filter((x) => x.kind === KernelDiagnosticKind.FLOATING_INPUT)
+        .map((x) => x.net)
+        .sort();
+    expect(floating()).toEqual(['1CP']);
+    b.set({ '1CP': idle }).run(us(1));
+    b.set({ '1CP': active }).run(us(1));
+    expect(floating()).toEqual(['1CP', '1J', '1K']);
+    b.expect({ '1Q': 'X' });
+  });
+
+  if (c.number === '112') {
+    it('checks the recovery time after set separately (16 ns)', () => {
+      const recover = (after: number) => {
+        const b = bench(); // Q = 0, J = K inactive
+        b.set({ '1SD': 0, '1J': 0, '1K': 1 }).run(us(1)); // J, K: reset on the edge
+        b.set({ '1SD': 1 }).run(ns(after));
+        b.set({ '1CP': active }).run(us(1));
+        return b;
+      };
+      expect(timing(recover(16))).toEqual([]);
+      recover(16).expect({ '1Q': 0 });
+      const early = recover(15);
+      expect(timing(early).map((x) => `${x.kind} ${x.pin}`)).toEqual(['recovery-violation 1SD']);
+      early.expect({ '1Q': 'X' });
+    });
+  }
 });
 
 describe('74HC112 set and reset together', () => {

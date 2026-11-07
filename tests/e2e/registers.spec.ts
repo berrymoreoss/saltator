@@ -54,6 +54,10 @@ test('a 74HC74 clocked at 30 MHz reports a pulse-width violation as an error', a
     .locator('.sim-message.error', { hasText: '1CP was' });
   await expect(violation.first()).toContainText('(pulse width ≥ 20 ns)');
   await expect(violation.first()).toContainText('U1.1CP');
+  // Click-to-locate: the message selects the chip.
+  await page.keyboard.press('Escape');
+  await violation.first().click();
+  await expect(summary(page)).toHaveText('U1 · 74HC74');
   expect(errors).toEqual([]);
 });
 
