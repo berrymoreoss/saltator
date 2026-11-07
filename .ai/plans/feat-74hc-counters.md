@@ -225,7 +225,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   Q7S, 165 → 595), counter benchmark.
 - [x] 10. Examples: Shift Register LEDs and SAP-1 Program Counter (Q1, Q2) from a throwaway
   generator checking every net, run by scenario tests, looked at in the browser in both themes.
-- [ ] 11. e2e: the examples open with no design issues and run with no diagnostics; a counter's
+- [x] 11. e2e: the examples open with no design issues and run with no diagnostics; a counter's
   Part tab.
 - [ ] 12. Docs: components.md (counters and shift registers table and rules), simulation.md (if
   `TimingChecks` grew), glossary (synchronous counter, terminal count, shift register, storage
@@ -373,11 +373,15 @@ Checkable statements; verified one by one in the finish-branch workflow.
   themes and run (no diagnostics). Scenario tests: the Johnson sequence for 18 edges with the
   storage register one behind, OUTPUTS off and on; the PC clears, counts, goes on the bus,
   jumps to the switches.
+- 2026-11-07 — task 11: `tests/e2e/counters.spec.ts` — both examples open with no design
+  issues and run with no diagnostics; the 74HC191's Part tab overlines only the U of `U̅/D` and
+  shows `tsu(U̅/D to CP)` min 41 ns. `pnpm e2e`: 51 passed.
 
 ## Handoff
 
-- **State:** tasks 1–10 done (timing data; `setupHold` variants; all eight chips in the
+- **State:** tasks 1–11 done (timing data; `setupHold` variants; all eight chips in the
   registry; overlines as the data sheets draw them).
-- **Next step:** task 11 (e2e: both examples open clean and run; a counter's Part tab).
+- **Next step:** task 12 (docs: glossary, READMEs, add-component recipe, lessons, roadmap
+  text), then finish-branch.
 - **Watch out:** pinouts and names in the Parts table are from memory.
 - **Verify with:** `pnpm check`.
