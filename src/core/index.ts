@@ -89,11 +89,15 @@ export {
   type SimulatorStats,
 } from './simulator';
 export {
+  COMBINING_OVERLINE,
   PIN_SIDES,
   type PinSide,
+  pinTextRuns,
+  runsText,
   type SymbolDef,
   type SymbolPin,
   symbolOf,
+  type TextRun,
   validateSymbol,
 } from './symbol';
 export { formatTime, ms, ns, parseTime, ps, TIME_MAX, type Time, us } from './time';

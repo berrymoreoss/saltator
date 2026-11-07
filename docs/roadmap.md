@@ -288,8 +288,6 @@ Promote to a numbered item when needed.
 - Worst-case timing mode (R09a follow-up): the recorded `max` delays with the −40 °C to +85 °C
   minima (not recorded yet: add them as a third requirement column); a "report only" setting
   that keeps bits known after a timing violation, if `X` gets in the way.
-- Overline only the letter of indexed complement pins (the 175's `Q̅0`, drawn `Q̅0̅` now): a
-  label syntax for a partial overline (R09a nit).
 - More logic families (R06 follow-up): 74HCT and 74AC as timing tables for the existing chip
   specs; 74LS/74F also need TTL inputs (a floating input reads high).
 - Kernel: mark the forced evaluation (power-on, after a recompile) so multi-section chips can

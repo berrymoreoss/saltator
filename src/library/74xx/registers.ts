@@ -227,9 +227,10 @@ export const REG175_SPEC: RegisterSpec = {
     pins('MR', '1', 'in', 'asynchronous master reset input (active LOW)', { activeLow: true }),
     pins('Q0, Q1, Q2, Q3', '2, 7, 10, 15', 'out', 'flip-flop output'),
     ...[3, 6, 11, 14].map((number, n) =>
+      // The data sheet overlines the whole Q̅n̅, digit included (most overline letters only).
       pins(`Q${n}N`, String(number), 'out', 'complementary flip-flop output', {
         activeLow: true,
-        label: `Q${n}`,
+        label: `Q\u0305${n}\u0305`,
       }),
     ),
     pins('D0, D1, D2, D3', '4, 5, 12, 13', 'in', 'data input'),

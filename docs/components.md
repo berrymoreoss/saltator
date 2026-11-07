@@ -111,9 +111,14 @@ short.
 - The editor draws DIP parts generically from `package` + `pins`, so a 74xx definition needs no
   drawing code. Pin positions come from `partLayout` in `src/circuit`
   ([circuit.md](circuit.md#part-layouts)): vertical, notch up, pin pitch one cell, body 4 cells
-  wide up to 20 pins and 6 above. The drawing — notch, pin numbers outside, pin names inside
-  (overlined when `activeLow`, a clock triangle for `clock`), part name down the middle — is in
+  wide up to 20 pins and 6 above. The drawing — notch, pin numbers outside, pin names inside,
+  a clock triangle for `clock`, part name down the middle — is in
   [editor.md](editor.md#symbol-drawing).
+- **Overlines** (`pinTextRuns` in core): an active-low pin's letters are overlined, not its
+  digits — `1R̅D̅`, `1Q̅`, `E̅1`, `Y̅0`, as the Nexperia data sheets draw them. A `label` that
+  marks its overlined characters itself (U+0305 after each) is drawn as marked: the 191's
+  `U̅/D` (bar over U only), the 175's `Q̅0̅` and the 165's `Q̅7̅` (their sheets overline the
+  digit too).
 - `VCC` and `GND` are present in the definition and drawn, but the MVP treats every chip as
   powered. A later design check will flag unconnected power pins.
 

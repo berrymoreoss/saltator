@@ -69,13 +69,13 @@ in the header, its props for prop-dependent pins) or a part clicked in the Parts
 - the part drawn by the canvas drawers (DIP for chips), name, title, type and a link to the
   datasheet named after its document (`Datasheet 74HC_HCT00`);
 - the pins in pin-number order: number, name (the pin's `label` where it has one, with the
-  name after it: `Y̅ (YN)` on the 74HC151; overlined when active-low; `NC` for n.c. pins), type
+  name after it: `Y̅ (YN)` on the 74HC151; overlined as on the canvas; `NC` for n.c. pins), type
   (`input`, `output`, `3-state output`, `input/output`, `power`, `not connected`, and `not
   simulated` for `nc` pins that are not n.c., such as a 555's timing pins in astable mode) and
   the datasheet's description;
 - the definition's `functionTable` (docs/components.md#function-tables) with its note
-  (`each gate (n = 1 to 4)`), columns of active-low pins overlined (a column named like a pin or
-  like its generic name), labelled pins' columns under their label, text cells spaced out
+  (`each gate (n = 1 to 4)`), a column named like a pin, or like its generic name (`nO̅E̅`,
+  `nY̅0`), drawn as the pin is (its label, its overlines), text cells spaced out
   (`A3 > B3`), the output group headed `Inputs/outputs` for bus ports (245), and the letters'
   legend; sequential tables as the data sheets write them (`↑`, `h`, `q̅`);
 - the definition's **timing** (R09a, under the function table): every delay with its typical and
@@ -228,7 +228,9 @@ editor doesn't know.
   (power-on switch positions, unlit lights); while simulating they get `DrawContext.live`
   ([Simulation](#live-drawing)).
 - **DIP**: body with the notch at the top, pin numbers outside next to each stub, pin names
-  inside (the pin's `label` where it has one; overlined when `activeLow`, after a clock triangle
+  inside (the pin's `label` where it has one; an active-low pin's letters overlined but not its
+  digits, `1R̅D̅`, `E̅1`, as the data sheets draw them, or the characters a label marks with
+  U+0305, `U̅/D`, `Q̅0̅` — `pinTextRuns` in core; after a clock triangle
   when `clock`, `NC` for n.c. pins named `NC<number>`, other `nc` pins under their names), the
   part name down the middle. A body is two cells wider when a row's names would crowd the name
   ([circuit.md](circuit.md#part-layouts)).

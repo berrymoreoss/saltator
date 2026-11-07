@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import type { TextRun } from '../core';
 import { createDefaultRegistry } from '../library';
 import {
-  activeLowColumns,
-  columnLabels,
+  columnRuns,
   datasheetName,
   functionTableInfo,
   outputsHeading,
@@ -12,6 +12,9 @@ import {
 
 const registry = createDefaultRegistry();
 const part = (type: string) => registry.get(type)!;
+/** Runs as text, overlined pieces marked with a leading ‾: `1‾RD`. */
+const shown = (runs: readonly TextRun[]) =>
+  runs.map((r) => `${r.overline ? '‾' : ''}${r.text}`).join('');
 
 describe('pinInfo', () => {
   it('lists a chip’s pins in pin-number order with type and datasheet description', () => {
@@ -20,6 +23,7 @@ describe('pinInfo', () => {
     expect(pins[0]).toEqual({
       number: 1,
       name: '1Y',
+      runs: [{ text: '1Y', overline: false }],
       activeLow: false,
       type: 'output',
       description: 'data output',
@@ -48,8 +52,8 @@ describe('pinInfo', () => {
     expect(pinInfo(part('prim/nand'), { inputs: 99 })).toHaveLength(3);
     // No numbers, no descriptions: definition order, nothing invented.
     expect(pinInfo(part('io/led'))).toEqual([
-      { name: 'A', activeLow: false, type: 'input' },
-      { name: 'K', activeLow: false, type: 'input' },
+      { name: 'A', runs: [{ text: 'A', overline: false }], activeLow: false, type: 'input' },
+      { name: 'K', runs: [{ text: 'K', overline: false }], activeLow: false, type: 'input' },
     ]);
   });
 });
@@ -81,10 +85,21 @@ describe('pin labels', () => {
   });
 
   it('heads the function table column of a labelled pin with its label, overlined', () => {
-    const hc151 = part('74xx/74hc151');
-    expect([...columnLabels(hc151)]).toEqual([['YN', 'Y']]);
-    expect(activeLowColumns(hc151)).toEqual(new Set(['E', 'YN']));
-    expect(columnLabels(part('74xx/74hc00')).size).toBe(0);
+    const columns = columnRuns(part('74xx/74hc151'));
+    expect(shown(columns.get('YN')!)).toBe('‾Y');
+    expect(shown(columns.get('E')!)).toBe('‾E');
+    expect(shown(columns.get('Y')!)).toBe('Y');
+  });
+
+  it("overlines an active-LOW pin's letters, not its digits, as the data sheets do", () => {
+    const rows = pinInfo(part('74xx/74hc74'));
+    expect(shown(rows.find((r) => r.number === 1)!.runs)).toBe('1‾RD');
+    expect(shown(rows.find((r) => r.number === 6)!.runs)).toBe('1‾Q');
+    expect(shown(pinInfo(part('74xx/74hc138')).find((r) => r.number === 4)!.runs)).toBe('‾E1');
+    // Marked labels: the 175 overlines Q̅0̅ whole, the 191 only the U of U̅/D.
+    expect(shown(pinInfo(part('74xx/74hc175')).find((r) => r.number === 3)!.runs)).toBe('‾Q0');
+    const ud = pinInfo(part('74xx/74hc191')).find((r) => r.number === 5)!;
+    expect([ud.name, shown(ud.runs), ud.id]).toEqual(['U/D', '‾U/D', 'UD']);
   });
 });
 
@@ -109,13 +124,17 @@ describe('functionTableInfo', () => {
   });
 });
 
-describe('activeLowColumns', () => {
-  it('finds the columns that name active-low pins', () => {
-    expect([...activeLowColumns(part('74xx/74hc125'))]).toEqual(['nOE']);
-    expect([...activeLowColumns(part('74xx/74hc244'))]).toEqual(['nOE']);
-    expect([...activeLowColumns(part('74xx/74hc245'))]).toEqual(['OE']);
-    expect([...activeLowColumns(part('74xx/74hc126'))]).toEqual([]); // active high
-    expect([...activeLowColumns(part('prim/nand'))]).toEqual([]);
+describe('columnRuns', () => {
+  it('draws the columns that name pins as the pins are drawn, generic numbers as n', () => {
+    const of = (type: string) =>
+      Object.fromEntries(
+        [...columnRuns(part(type))].map(([column, runs]) => [column, shown(runs)]),
+      );
+    expect(of('74xx/74hc125')).toEqual({ nA: 'nA', nOE: 'n‾OE', nY: 'nY' });
+    expect(of('74xx/74hc245')).toMatchObject({ OE: '‾OE', DIR: 'DIR' });
+    expect(of('74xx/74hc126')).toMatchObject({ nOE: 'nOE' }); // active high
+    expect(of('74xx/74hc139')).toMatchObject({ nE: 'n‾E', nY0: 'n‾Y0' });
+    expect(of('prim/nand')).toEqual({});
   });
 
   it('heads bus port columns as inputs/outputs, as the 245 data sheet does', () => {
@@ -142,11 +161,17 @@ describe('timingInfo', () => {
     expect(t.delays[0]).toEqual({
       symbol: 'tpd',
       path: [
-        { text: 'nCP', overline: false },
+        { runs: [{ text: 'nCP', overline: false }] },
         ' to ',
-        { text: 'nQ', overline: false },
+        { runs: [{ text: 'nQ', overline: false }] },
         ', ',
-        { text: 'nQ', overline: true }, // 1QN, drawn 1Q̅
+        // 1QN, drawn 1Q̅
+        {
+          runs: [
+            { text: 'n', overline: false },
+            { text: 'Q', overline: true },
+          ],
+        },
       ],
       typical: '17 ns',
       max: '44 ns',
@@ -167,7 +192,12 @@ describe('timingInfo', () => {
   });
 
   it('overlines a falling-edge clock, and leaves single delays without a path', () => {
-    expect(of('74xx/74hc107').delays[0]!.path[0]).toEqual({ text: 'nCP', overline: true });
+    expect(of('74xx/74hc107').delays[0]!.path[0]).toEqual({
+      runs: [
+        { text: 'n', overline: false },
+        { text: 'CP', overline: true },
+      ],
+    });
     expect(of('74xx/74hc00')).toMatchObject({
       delays: [{ symbol: 'tpd', path: [], typical: '9 ns', max: '23 ns' }],
       requirements: [],

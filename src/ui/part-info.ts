@@ -12,7 +12,10 @@ import {
   type PropValue,
   parseFunctionTableRow,
   pinsOf,
+  pinTextRuns,
   resolveProps,
+  runsText,
+  type TextRun,
 } from '../core';
 
 /** The part the Part tab shows: the last one picked on the canvas (`id`) or in the Parts panel. */
@@ -34,6 +37,8 @@ export interface PinInfo {
   readonly number?: number;
   /** What the drawing shows: the pin's label, else its name (`NC` for n.c. pins). */
   readonly name: string;
+  /** `name` with its overlines, as drawn (`1R̅D̅`, `U̅/D`). */
+  readonly runs: readonly TextRun[];
   /** The pin's name when it is drawn with a different label (151's `YN`, drawn `Y`). */
   readonly id?: string;
   readonly activeLow: boolean;
@@ -55,19 +60,21 @@ export function pinInfo(
   } catch {
     resolved = resolveProps(definition);
   }
-  const rows = pinsOf(definition, resolved).map(
-    (pin): PinInfo => ({
+  const rows = pinsOf(definition, resolved).map((pin): PinInfo => {
+    // n.c. pins (`NC3`) show as NC; other `nc` pins are drawn but not simulated (a 555's timing
+    // pins in astable mode).
+    const runs = /^NC\d+$/.test(pin.name) ? [{ text: 'NC', overline: false }] : pinTextRuns(pin);
+    return {
       ...(pin.number !== undefined && { number: pin.number }),
-      // n.c. pins (`NC3`) show as NC; other `nc` pins are drawn but not simulated (a 555's
-      // timing pins in astable mode).
-      name: /^NC\d+$/.test(pin.name) ? 'NC' : (pin.label ?? pin.name),
+      name: runsText(runs),
+      runs,
       ...(pin.label !== undefined && { id: pin.name }),
       activeLow: pin.activeLow === true,
       type:
         pin.dir === 'nc' && !/^NC\d+$/.test(pin.name) ? 'not simulated' : PIN_TYPE_LABEL[pin.dir],
       ...(pin.description !== undefined && { description: pin.description }),
-    }),
-  );
+    };
+  });
   return rows.every((row) => row.number !== undefined)
     ? rows.sort((a, b) => a.number! - b.number!)
     : rows;
@@ -96,54 +103,59 @@ export function functionTableInfo(table: FunctionTable | undefined): FunctionTab
 }
 
 /**
- * Function table columns naming pins that match `test`: a column is a pin's name (`Y7`, `EI`) or
- * the datasheet's generic name of a pin, its numbers replaced by `n` (`1OE` → `nOE`, `1A0` →
- * `nAn`).
+ * Runs with their numbers as the datasheet's generic `n`: every number (`1A0` → `nAn`), or only
+ * the leading unit number (`1Y0` → `nY0`, the 139's columns).
  */
-function columnsWhere(
+function generic(runs: readonly TextRun[], unitOnly: boolean): TextRun[] {
+  return runs.map((run, i) => ({
+    ...run,
+    text: unitOnly
+      ? i === 0
+        ? run.text.replace(/^\d+/, 'n')
+        : run.text
+      : run.text.replace(/\d+/g, 'n'),
+  }));
+}
+
+/**
+ * Function table columns that name a pin, as that pin is drawn: a column is a pin's name (`Y7`,
+ * `EI`) or the datasheet's generic name of a pin, its numbers replaced by `n` (`1OE` → `nO̅E̅`,
+ * `1A0` → `nAn`) or only its unit number (`1Y0` → `nY̅0`); the 151's `YN` is drawn `Y̅`, the
+ * 191's `UD` `U̅/D`.
+ */
+export function columnRuns(definition: AnyComponentDefinition): Map<string, readonly TextRun[]> {
+  return columnsOf(definition, () => true);
+}
+
+function columnsOf(
   definition: AnyComponentDefinition,
   test: (pin: PinDef) => boolean,
-): Set<string> {
-  const named = pinsOf(definition, resolveProps(definition))
-    .filter(test)
-    .flatMap((pin) => [pin.name, pin.name.replace(/\d+/g, 'n')]);
+): Map<string, readonly TextRun[]> {
   const table = definition.functionTable;
-  const columns = table ? [...table.inputs, ...table.outputs] : [];
-  return new Set(columns.filter((column) => named.includes(column)));
-}
-
-/** Function table columns of pins drawn with a label, and that label (151: `YN` → `Y`). */
-export function columnLabels(definition: AnyComponentDefinition): Map<string, string> {
-  const labels = new Map<string, string>();
-  for (const pin of pinsOf(definition, resolveProps(definition))) {
-    if (pin.label === undefined) continue;
-    const column = pin.name.replace(/\d+/g, 'n');
-    if (
-      definition.functionTable &&
-      [...definition.functionTable.inputs, ...definition.functionTable.outputs].includes(column)
-    ) {
-      labels.set(column, pin.label.replace(/\d+/g, 'n'));
-    }
+  const columns = new Set(table ? [...table.inputs, ...table.outputs] : []);
+  const shown = new Map<string, readonly TextRun[]>();
+  const add = (column: string, runs: () => readonly TextRun[]) => {
+    if (columns.has(column) && !shown.has(column)) shown.set(column, runs());
+  };
+  for (const pin of pinsOf(definition, resolveProps(definition)).filter(test)) {
+    const runs = pinTextRuns(pin);
+    add(pin.name, () => runs);
+    add(pin.name.replace(/\d+/g, 'n'), () => generic(runs, false));
+    add(pin.name.replace(/^\d+/, 'n'), () => generic(runs, true));
   }
-  return labels;
-}
-
-/** Function table columns of active-low pins, drawn overlined. */
-export function activeLowColumns(definition: AnyComponentDefinition): Set<string> {
-  return columnsWhere(definition, (pin) => pin.activeLow === true);
+  return shown;
 }
 
 /** The heading over a function table's output columns: `Inputs/outputs` for bus ports (245). */
 export function outputsHeading(definition: AnyComponentDefinition): string {
-  return columnsWhere(definition, (pin) => pin.dir === 'bidir').size > 0
+  return columnsOf(definition, (pin) => pin.dir === 'bidir').size > 0
     ? 'Inputs/outputs'
     : 'Outputs';
 }
 
-/** A pin name as drawn: its label (`1QN` → `1Q`), overlined when the pin is active LOW. */
+/** A pin name as drawn: its label (`1QN` → `1Q̅`), with its overlines (`pinTextRuns`). */
 export interface NameView {
-  readonly text: string;
-  readonly overline: boolean;
+  readonly runs: readonly TextRun[];
 }
 
 /** One timing parameter: `tpd` from `nCP` to `nQ, nQ̅`, typical 17 ns, max 44 ns. */
@@ -176,12 +188,9 @@ export function timingInfo(definition: AnyComponentDefinition): TimingInfo | und
   if (!timing) return undefined;
   const view = new Map<string, NameView>();
   for (const pin of pinsOf(definition, resolveProps(definition))) {
-    const shown = { text: pin.label ?? pin.name, overline: pin.activeLow === true };
-    view.set(pin.name, shown);
-    view.set(pin.name.replace(/\d+/g, 'n'), {
-      ...shown,
-      text: shown.text.replace(/\d+/g, 'n'),
-    });
+    const runs = pinTextRuns(pin);
+    view.set(pin.name, { runs });
+    view.set(pin.name.replace(/\d+/g, 'n'), { runs: generic(runs, false) });
   }
   const row = (key: string, limit: 'max' | 'min'): TimingRow => {
     const match = /^(\w+)(?:\((.*)\))?$/.exec(key);

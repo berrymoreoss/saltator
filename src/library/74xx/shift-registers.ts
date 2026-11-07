@@ -450,9 +450,10 @@ export const SR165_SPEC: ShiftRegisterSpec = {
     pins('PL', '1', 'in', 'asynchronous parallel load input (active LOW)', { activeLow: true }),
     pins('CP', '2', 'in', 'clock input (LOW-to-HIGH edge-triggered)', { clock: true }),
     pins('D4, D5, D6, D7', '3, 4, 5, 6', 'in', 'parallel data input'),
+    // The data sheet overlines the whole Q̅7̅, digit included (most overline letters only).
     pins('Q7N', '7', 'out', 'complementary output from the last stage', {
       activeLow: true,
-      label: 'Q7',
+      label: 'Q\u03057\u0305',
     }),
     pins('GND', '8', 'power', 'ground (0 V)'),
     pins('Q7', '9', 'out', 'serial output from the last stage'),

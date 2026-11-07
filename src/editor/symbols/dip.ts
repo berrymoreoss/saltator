@@ -1,12 +1,13 @@
 /**
  * The generic DIP package drawing (ADR-0004): a vertical body with the notch at the top, pin
- * numbers outside next to each stub, pin names inside (overlined when active-low, after a clock
+ * numbers outside next to each stub, pin names inside (an active-low pin's letters overlined,
+ * or the characters its label marks (`pinTextRuns`), after a clock
  * triangle for clock inputs; `NC` for not-connected pins, whose names are `NC<number>`) and the
  * part name down the middle, as in a datasheet drawing.
  */
 import type { PartLayout } from '../../circuit';
-import type { PinDef } from '../../core';
-import type { SymbolGraphics } from '../graphics';
+import { type PinDef, pinTextRuns } from '../../core';
+import { overlinedText, type SymbolGraphics } from '../graphics';
 
 const NAME_SIZE = 0.5;
 const NUMBER_SIZE = 0.4;
@@ -56,20 +57,18 @@ export function drawDip(
       g.stroke();
       inset = 0.55;
     }
-    g.text(
-      // n.c. pins (`NC3`) as NC; other `nc` pins keep their names (a 555's timing pins).
-      /^NC\d+$/.test(pin.name) ? 'NC' : (def?.label ?? pin.name),
-      onLeft ? left + inset : right - inset,
-      y,
-      {
-        size: NAME_SIZE,
-        align: onLeft ? 'left' : 'right',
-        baseline: 'middle',
-        paint: 'pinText',
-        overline: def?.activeLow === true,
-        minPx: 6,
-      },
-    );
+    // n.c. pins (`NC3`) as NC; other `nc` pins keep their names (a 555's timing pins).
+    const { text, overline } = /^NC\d+$/.test(pin.name)
+      ? { text: 'NC', overline: false }
+      : overlinedText(pinTextRuns(def ?? pin));
+    g.text(text, onLeft ? left + inset : right - inset, y, {
+      size: NAME_SIZE,
+      align: onLeft ? 'left' : 'right',
+      baseline: 'middle',
+      paint: 'pinText',
+      overline,
+      minPx: 6,
+    });
   }
 
   g.text(name, cx, body.y + body.height / 2, {

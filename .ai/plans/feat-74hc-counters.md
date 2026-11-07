@@ -217,8 +217,9 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   interchangeable, Q̅7, checks).
 - [x] 7. 74HC595 with tests (shift and storage registers, MR̅ clears only the shift register,
   tied clocks one pulse behind, `ten`/`tdis`, loading while disabled, Q7S, checks).
-- [ ] 8. Partial overline labels (Q4): label syntax, DIP drawing, Part tab; the 175's `Q̅0`,
-  the 165's `Q̅7`, the 191's `U/D̅`; looked at in both themes.
+- [x] 8. Overlines (Q4, Q5): letters overlined by default, digits not; explicit U+0305 marks
+  for the exceptions (175 `Q̅0̅`, 165 `Q̅7̅`, 191 `U̅/D`); DIP drawing, Part tab; looked at in
+  both themes.
 - [ ] 9. Across parts: registry, carry-over property with the new chips (mutation-checked),
   symbol-drawing scenario, scenarios (8-bit 161 cascade, 4040 decoding glitch, two 595s via
   Q7S, 165 → 595), counter benchmark.
@@ -242,8 +243,8 @@ Checkable statements; verified one by one in the finish-branch workflow.
   sequence, unknown and floating inputs (uncertain clock edges included), a timing assertion for
   each distinct path, and each timing check just inside (silent) and just outside (diagnostic +
   `X`) its limit.
-- [ ] Pin labels overline only the letters they mark (`U/D̅`, `Q̅7`, `Q̅0`) on the schematic
-  and in the Part tab.
+- [ ] Pin labels are overlined as the data sheets draw them (letters, not digits: `1R̅D̅`, `E̅1`;
+  marked exceptions `U̅/D`, `Q̅0̅`) on the schematic and in the Part tab.
 - [ ] The 4040's outputs ripple stage by stage; a 595 with tied clocks shows the storage
   register one pulse behind.
 - [ ] The carry-over invariance property passes on random networks including the new chips.
@@ -265,7 +266,13 @@ Checkable statements; verified one by one in the finish-branch workflow.
   alternatives: any Δ < tsu is a violation, no check. — **answer:** as proposed.
 - [x] Q4. Partial overline labels (backlog: the 175's `Q̅0` is drawn `Q̅0̅`); this branch adds
   `U/D̅` (191), `Q̅7` (165) — _proposed:_ do it here; alternative: whole-label overlines, the
-  191's pin plain `U/D`. — **answer:** do it here.
+  191's pin plain `U/D`. — **answer:** do it here. (The 191's pin turned out to be `U̅/D`, and
+  the 165's `Q̅7̅` is overlined whole.)
+- [x] Q5. (Asked in task 8.) Nexperia overlines an active-LOW signal's letters, not its digits
+  (`1O̅E̅`, `E̅1`, `Y̅0`, `1R̅D̅`, `1Q̅`), while we overlined whole labels; exceptions: the 175's
+  and 165's `Q̅0̅`/`Q̅7̅` (whole) and the 191's `U̅/D` — _proposed:_ letters by default, U+0305
+  marks for the exceptions; alternatives: whole by default with marks on every unit pin, or only
+  the 191. — **answer:** letters by default.
 
 ## Progress log
 
@@ -335,11 +342,20 @@ Checkable statements; verified one by one in the finish-branch workflow.
   `sameInstantAllowed` (task 2), armed only while MR̅ lets the shift register shift. A keyword
   `led` made the Parts search for "led" list the 595 (a UI test caught it): dropped. 17 tests,
   mutation-checked (11 mutations).
+- 2026-11-07 — task 8: the pinning figures showed the backlog nit was wrong (the 175's sheet
+  overlines `Q̅0̅` whole) and the real gap was elsewhere: Nexperia overlines letters, not digits
+  (125, 138, 139, 173, 74, 109, 112), so Q5 was asked. `pinTextRuns` in core (marks, else
+  letters of active-low pins), `overline` ranges in `TextStyle` (canvas bars per range),
+  `columnRuns`/`NameView.runs`/`PinInfo.runs` in the Part tab. Found on the way: the 139's
+  function table columns are `nY0` (unit number only), so they were never overlined — columns
+  now also match unit-only generic names. Looked at in Chromium (Symbol Gallery: 74, 138, 175,
+  191, 165 in both themes; the 191's Part tab). Mutation-checked (3 mutations). Backlog item
+  removed.
 
 ## Handoff
 
-- **State:** tasks 1–5 done (timing data; `setupHold` variants; all eight chips in the
-  registry).
-- **Next step:** task 8 (partial overline labels: `U̅/D`, the 175's `Q̅0`).
+- **State:** tasks 1–8 done (timing data; `setupHold` variants; all eight chips in the
+  registry; overlines as the data sheets draw them).
+- **Next step:** task 9 (across parts: carry-over property, scenarios, counter benchmark).
 - **Watch out:** pinouts and names in the Parts table are from memory.
 - **Verify with:** `pnpm check`.
