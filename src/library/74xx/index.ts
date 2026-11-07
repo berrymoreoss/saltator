@@ -20,6 +20,9 @@ export { DECODER_SPECS, type DecoderSpec, decoderChips } from './decoders';
 export { ENCODER147_SPEC, ENCODER148_SPEC, encoderChips } from './encoders';
 export {
   FF74_SPEC,
+  FF107_SPEC,
+  FF109_SPEC,
+  FF112_SPEC,
   FLIP_FLOP_SPECS,
   type FlipFlopSpec,
   type FlipFlopState,

@@ -193,7 +193,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 4. Shared edge-triggered machinery in `library/74xx` (uncertain edges, async controls,
   checks, the `X` policy) and the 74HC74, with tests (function table per unit, set+reset, each
   path, each check inside/outside its limit, unknown and floating inputs).
-- [ ] 5. JK flip-flops 74HC107, 109, 112 with tests (toggle, hold, negative/positive edges,
+- [x] 5. JK flip-flops 74HC107, 109, 112 with tests (toggle, hold, negative/positive edges,
   set/reset, checks).
 - [ ] 6. Registers 74HC175, 273, 377 with tests (377's enable setup/hold, Q̅ of the 175).
 - [ ] 7. 3-state registers 74HC173, 374, 574 with tests (`ten`/`tdis`, loading while
@@ -282,6 +282,10 @@ Checkable statements; verified one by one in the finish-branch workflow.
   clock pins (`clock` flag) after the data, a gap later, so a don't-care clock's edges see
   stable data. Mutation-checked (7 mutations of the violation handling, the clock ordering,
   `armed`).
+- 2026-11-07 — task 5: 74HC107, 109, 112 as `FlipFlopSpec`s (no engine change); one
+  parametrized suite (function table per unit, toggling, uncertain edges, unknown J/K, every
+  path, set-up/hold/recovery/clock width at their limits). The 109's K̅ pin description adds
+  "(K̅: active LOW)" — the data sheet says only "synchronous input", its overline says the rest.
 
 ## Handoff
 

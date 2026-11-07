@@ -291,12 +291,167 @@ export const FF74_SPEC: FlipFlopSpec = {
   ],
 };
 
-export const FLIP_FLOP_SPECS: readonly FlipFlopSpec[] = [FF74_SPEC];
+export const FF107_SPEC: FlipFlopSpec = {
+  number: '107',
+  title: 'Dual JK flip-flop with reset; negative-edge trigger',
+  keywords: ['flip-flop', 'flipflop', 'jk', 'toggle', 'counter', 'divider', 'reset', 'clear'],
+  pinCount: 14,
+  pins: [
+    pins('1J, 2J', '1, 8', 'in', 'synchronous J input'),
+    pins('1QN', '2', 'out', 'complement output', { activeLow: true, label: '1Q' }),
+    pins('1Q, 2Q', '3, 5', 'out', 'true output'),
+    pins('1K, 2K', '4, 11', 'in', 'synchronous K input'),
+    pins('2QN', '6', 'out', 'complement output', { activeLow: true, label: '2Q' }),
+    pins('GND', '7', 'power', 'ground (0 V)'),
+    pins('1CP, 2CP', '12, 9', 'in', 'clock input (HIGH-to-LOW edge-triggered)', {
+      clock: true,
+      activeLow: true,
+    }),
+    pins('1R, 2R', '13, 10', 'in', 'asynchronous reset input (active LOW)', { activeLow: true }),
+    pins('VCC', '14', 'power', 'supply voltage'),
+  ],
+  units: flipFlopUnits(['nR', 'nCP', 'nJ', 'nK', 'nQ', 'nQN']),
+  functionTable: {
+    inputs: ['nR', 'nCP', 'nJ', 'nK'],
+    outputs: ['nQ', 'nQN'],
+    rows: ['L X X X | L H', 'H ↓ h h | q̅ q', 'H ↓ l h | L H', 'H ↓ h l | H L', 'H ↓ l l | q q̅'],
+    note: 'each flip-flop (n = 1, 2): reset, toggle, load 0, load 1, hold',
+    state: { q: 'nQ' },
+  },
+  edge: 'fall',
+  kind: 'JK',
+  data: 'nJ, nK',
+  setup: 'tsu(nJ, nK to nCP)',
+  hold: 'th(nJ, nK to nCP)',
+  clockWidth: 'tW(nCP)',
+  reset: { pin: 'nR', width: 'tW(nR)', widthLevel: 'both', recovery: 'trec(nR to nCP)' },
+  paths: [
+    { from: 'nCP', to: 'nQ, nQN', delay: 'tpd(nCP to nQ, nQN)' },
+    { from: 'nR', to: 'nQ, nQN', delay: 'tpd(nR to nQ, nQN)' },
+  ],
+};
+
+export const FF109_SPEC: FlipFlopSpec = {
+  number: '109',
+  title: 'Dual JK flip-flop with set and reset; positive-edge-trigger',
+  keywords: ['flip-flop', 'flipflop', 'jk', 'toggle', 'counter', 'set', 'reset', 'preset', 'clear'],
+  pinCount: 16,
+  pins: [
+    pins('1RD, 2RD', '1, 15', 'in', 'asynchronous reset input (active LOW)', { activeLow: true }),
+    pins('1J, 2J', '2, 14', 'in', 'synchronous input'),
+    // The data sheet's K̅: its description doesn't say active LOW, the overline does.
+    pins('1K, 2K', '3, 13', 'in', 'synchronous input (K̅: active LOW)', { activeLow: true }),
+    pins('1CP, 2CP', '4, 12', 'in', 'clock input (LOW-to-HIGH; edge-triggered)', { clock: true }),
+    pins('1SD, 2SD', '5, 11', 'in', 'asynchronous set input (active LOW)', { activeLow: true }),
+    pins('1Q, 2Q', '6, 10', 'out', 'true flip-flop output'),
+    pins('1QN', '7', 'out', 'complement flip-flop output', { activeLow: true, label: '1Q' }),
+    pins('GND', '8', 'power', 'ground (0 V)'),
+    pins('2QN', '9', 'out', 'complement flip-flop output', { activeLow: true, label: '2Q' }),
+    pins('VCC', '16', 'power', 'supply voltage'),
+  ],
+  units: flipFlopUnits(['nSD', 'nRD', 'nCP', 'nJ', 'nK', 'nQ', 'nQN']),
+  functionTable: {
+    inputs: ['nSD', 'nRD', 'nCP', 'nJ', 'nK'],
+    outputs: ['nQ', 'nQN'],
+    rows: [
+      'L H X X X | H L',
+      'H L X X X | L H',
+      'L L X X X | H H',
+      'H H ↑ h l | q̅ q',
+      'H H ↑ l l | L H',
+      'H H ↑ h h | H L',
+      'H H ↑ l h | q q̅',
+    ],
+    note: 'each flip-flop (n = 1, 2): set, reset, undetermined, toggle, load 0, load 1, hold',
+    state: { q: 'nQ' },
+  },
+  edge: 'rise',
+  kind: 'JKN',
+  data: 'nJ, nK',
+  setup: 'tsu(nJ, nK to nCP)',
+  hold: 'th(nJ, nK to nCP)',
+  clockWidth: 'tW(nCP)',
+  set: { pin: 'nSD', width: 'tW(nSD, nRD)', widthLevel: 'both', recovery: 'trec(nSD, nRD to nCP)' },
+  reset: {
+    pin: 'nRD',
+    width: 'tW(nSD, nRD)',
+    widthLevel: 'both',
+    recovery: 'trec(nSD, nRD to nCP)',
+  },
+  bothActive: [Level.L1, Level.L1],
+  paths: [
+    { from: 'nCP', to: 'nQ, nQN', delay: 'tpd(nCP to nQ, nQN)' },
+    { from: 'nSD', to: 'nQ', delay: 'tPLH(nSD to nQ)' },
+    { from: 'nSD', to: 'nQN', delay: 'tPHL(nSD to nQN)' },
+    { from: 'nRD', to: 'nQ', delay: 'tPHL(nRD to nQ)' },
+    { from: 'nRD', to: 'nQN', delay: 'tPLH(nRD to nQN)' },
+  ],
+};
+
+export const FF112_SPEC: FlipFlopSpec = {
+  number: '112',
+  title: 'Dual JK flip-flop with set and reset; negative-edge trigger',
+  keywords: ['flip-flop', 'flipflop', 'jk', 'toggle', 'counter', 'set', 'reset', 'preset', 'clear'],
+  pinCount: 16,
+  pins: [
+    pins('1CP, 2CP', '1, 13', 'in', 'clock input (HIGH-to-LOW; edge-triggered)', {
+      clock: true,
+      activeLow: true,
+    }),
+    pins('1K, 2K', '2, 12', 'in', 'data input'),
+    pins('1J, 2J', '3, 11', 'in', 'data input'),
+    pins('1SD, 2SD', '4, 10', 'in', 'set input (active LOW)', { activeLow: true }),
+    pins('1Q, 2Q', '5, 9', 'out', 'true flip-flop output'),
+    pins('1QN', '6', 'out', 'complement flip-flop output', { activeLow: true, label: '1Q' }),
+    pins('2QN', '7', 'out', 'complement flip-flop output', { activeLow: true, label: '2Q' }),
+    pins('GND', '8', 'power', 'ground (0 V)'),
+    pins('1RD, 2RD', '15, 14', 'in', 'reset input (active LOW)', { activeLow: true }),
+    pins('VCC', '16', 'power', 'supply voltage'),
+  ],
+  units: flipFlopUnits(['nSD', 'nRD', 'nCP', 'nJ', 'nK', 'nQ', 'nQN']),
+  functionTable: {
+    inputs: ['nSD', 'nRD', 'nCP', 'nJ', 'nK'],
+    outputs: ['nQ', 'nQN'],
+    // "Undetermined" with set and reset both LOW is H L in this data sheet (the 74 and 109: H H).
+    rows: [
+      'L H X X X | H L',
+      'H L X X X | L H',
+      'L L X X X | H L',
+      'H H ↓ h h | q̅ q',
+      'H H ↓ l h | L H',
+      'H H ↓ h l | H L',
+      'H H ↓ l l | q q̅',
+    ],
+    note: 'each flip-flop (n = 1, 2); nSD and nRD going HIGH together leave the state unpredictable',
+    state: { q: 'nQ' },
+  },
+  edge: 'fall',
+  kind: 'JK',
+  data: 'nJ, nK',
+  setup: 'tsu(nJ, nK to nCP)',
+  hold: 'th(nJ, nK to nCP)',
+  clockWidth: 'tW(nCP)',
+  set: { pin: 'nSD', width: 'tW(nSD, nRD)', widthLevel: 'low', recovery: 'trec(nSD to nCP)' },
+  reset: { pin: 'nRD', width: 'tW(nSD, nRD)', widthLevel: 'low', recovery: 'trec(nRD to nCP)' },
+  bothActive: [Level.L1, Level.L0],
+  paths: [
+    { from: 'nCP', to: 'nQ, nQN', delay: 'tpd(nCP to nQ, nQN)' },
+    { from: 'nRD', to: 'nQ, nQN', delay: 'tpd(nRD to nQ, nQN)' },
+    { from: 'nSD', to: 'nQ, nQN', delay: 'tpd(nSD to nQ, nQN)' },
+  ],
+};
+
+export const FLIP_FLOP_SPECS: readonly FlipFlopSpec[] = [
+  FF74_SPEC,
+  FF107_SPEC,
+  FF109_SPEC,
+  FF112_SPEC,
+];
 
 /** The dual flip-flops of a family. */
 export function flipFlopChips(family: LogicFamily): AnyComponentDefinition[] {
   return FLIP_FLOP_SPECS.map((spec) => chipDefinition(spec, family, flipFlopBehavior(spec)));
 }
 
-/** 74HC74. */
+/** 74HC74, 107, 109, 112. */
 export const hcFlipFlops = flipFlopChips(HC);

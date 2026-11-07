@@ -3,6 +3,7 @@ import {
   type AnyComponentDefinition,
   isTimingViolation,
   KernelDiagnosticKind,
+  levelChar,
   ns,
   pinsOf,
   TimingViolation,
@@ -245,5 +246,263 @@ describe('74HC74', () => {
       ]);
       b.expect({ '1Q': 'X' });
     });
+  });
+});
+
+interface JkCase {
+  readonly number: string;
+  readonly edge: 'rise' | 'fall';
+  /** Per flip-flop, pin numbers in the unit's order (the function table's columns). */
+  readonly unitPins: readonly (readonly number[])[];
+  /** Function table combinations checked per flip-flop. */
+  readonly rows: number;
+  /** K̅ (109): the K level that means "K active". */
+  readonly kOn: 0 | 1;
+  readonly set: boolean;
+  /** Generic pin name of the reset input. */
+  readonly reset: 'nR' | 'nRD';
+  readonly tsu: number;
+  readonly th: number;
+  readonly trec: number;
+}
+
+const JK_CASES: readonly JkCase[] = [
+  {
+    number: '107',
+    edge: 'fall',
+    // R, CP, J, K, Q, Q̅ from the pinning figure.
+    unitPins: [
+      [13, 12, 1, 4, 3, 2],
+      [10, 9, 8, 11, 5, 6],
+    ],
+    rows: 14, // reset 8 + toggle and hold from two states 4 + loads 2
+    kOn: 1,
+    set: false,
+    reset: 'nR',
+    tsu: 20,
+    th: 3,
+    trec: 12,
+  },
+  {
+    number: '109',
+    edge: 'rise',
+    // SD, RD, CP, J, K̅, Q, Q̅.
+    unitPins: [
+      [5, 1, 4, 2, 3, 6, 7],
+      [11, 15, 12, 14, 13, 10, 9],
+    ],
+    rows: 30, // 3 asynchronous rows × 8 + toggle and hold 4 + loads 2
+    kOn: 0,
+    set: true,
+    reset: 'nRD',
+    tsu: 14,
+    th: 5,
+    trec: 14,
+  },
+  {
+    number: '112',
+    edge: 'fall',
+    unitPins: [
+      [4, 15, 1, 3, 2, 5, 6],
+      [10, 14, 13, 11, 12, 9, 7],
+    ],
+    rows: 30,
+    kOn: 1,
+    set: true,
+    reset: 'nRD',
+    tsu: 16,
+    th: 0,
+    trec: 16,
+  },
+];
+
+describe.each(JK_CASES)('74HC$number', (c) => {
+  const d = chip(c.number);
+  const idle = c.edge === 'rise' ? 0 : 1;
+  const active = c.edge === 'rise' ? 1 : 0;
+  const kOff = c.kOn === 1 ? 0 : 1;
+  const async = (n: 1 | 2, value: 0 | 1) =>
+    of(n, c.set ? { nSD: 1, [c.reset]: value } : { [c.reset]: value });
+
+  /** Both flip-flops idle and reset to 0 long ago; J = K inactive (hold). */
+  function bench(): Bench {
+    const b = new Bench(d);
+    for (const n of [1, 2] as const) {
+      b.set({ ...async(n, 0), ...of(n, { nCP: idle, nJ: 0, nK: kOff }) });
+    }
+    b.run(us(1));
+    for (const n of [1, 2] as const) b.set(async(n, 1));
+    b.run(us(1));
+    return b;
+  }
+  /** One clean active edge (and back), with the inputs stable for a microsecond. */
+  const clock = (b: Bench, n: 1 | 2 = 1) => {
+    b.set(of(n, { nCP: active })).run(us(1));
+    b.set(of(n, { nCP: idle })).run(us(1));
+  };
+
+  it.each([1, 2] as const)('follows its function table, by pin number (flip-flop %s)', (n) => {
+    const b = bench();
+    const unit = names(d, c.unitPins[n - 1]!);
+    expect(unit).toEqual(d.units![n - 1]!.pins);
+    const load1 = c.set
+      ? [of(n, { nSD: 0, nRD: 1 }), of(n, { nSD: 1 })]
+      : [of(n, { nR: 1, nJ: 1, nK: 0, nCP: idle }), of(n, { nCP: active }), of(n, { nCP: idle })];
+    const states = [[async(n, 0), async(n, 1)], load1];
+    expect(functionTable(b, d.functionTable!, unit, { states })).toBe(c.rows);
+    expect(b.diagnostics).toEqual([]);
+  });
+
+  it('toggles with J and K both active, on the active edge only', () => {
+    const b = bench();
+    b.set({ '1J': 1, '1K': c.kOn }).run(us(1));
+    const seen: string[] = [];
+    for (let i = 0; i < 4; i++) {
+      b.set({ '1CP': active }).run(us(1));
+      seen.push(levelChar(b.get('1Q')));
+      b.set({ '1CP': idle }).run(us(1)); // the other edge does nothing
+      seen.push(levelChar(b.get('1Q')));
+    }
+    expect(seen.join('')).toBe('11001100');
+    b.expect({ '2Q': 0 });
+    expect(b.diagnostics).toEqual([]);
+  });
+
+  it('makes X only what an uncertain clock edge could change', () => {
+    const b = bench();
+    b.set({ '1CP': 'X' }).run(us(1)); // J = K inactive: holding, nothing could change
+    b.expect({ '1Q': 0 });
+    b.set({ '1CP': idle }).run(us(1));
+    b.set({ '1J': 1, '1K': c.kOn }).run(us(1)); // toggle
+    b.set({ '1CP': 'X' }).run(us(1));
+    b.expect({ '1Q': 'X', '1QN': 'X' });
+  });
+
+  it('merges toggling from an unknown state and unknown J or K', () => {
+    const b = bench();
+    b.set({ '1J': 'X', '1K': kOff }).run(us(1)); // set or hold: from 0 unknown
+    clock(b);
+    b.expect({ '1Q': 'X' });
+    b.set({ '1J': 1 }).run(us(1)); // set
+    clock(b);
+    b.expect({ '1Q': 1 });
+    b.set({ '1J': 0, '1K': 'X' }).run(us(1)); // reset or hold: from 1 unknown
+    clock(b);
+    b.expect({ '1Q': 'X' });
+  });
+
+  it('switches after the delay of each path', () => {
+    const t = d.timing!.typical;
+    const b = bench();
+    b.set({ '1J': 1, '1K': kOff }).run(us(1));
+    expect(b.measure({ '1CP': active }, '1Q')).toBe(t['tpd(nCP to nQ, nQN)']);
+    b.set({ '1CP': idle, '1J': 0, '1K': c.kOn }).run(us(1));
+    expect(b.measure({ '1CP': active }, '1QN')).toBe(t['tpd(nCP to nQ, nQN)']);
+    b.set({ '1CP': idle }).run(us(1));
+    if (c.number === '109') {
+      expect(b.measure({ '1SD': 0 }, '1Q')).toBe(ns(11)); // tPLH(nSD to nQ)
+      b.set({ '1SD': 1 }).run(us(1));
+      b.set({ '1SD': 0 }).run(us(1));
+      b.set({ '1SD': 1, '1RD': 1 }).run(us(1));
+      expect(b.measure({ '1RD': 0 }, '1Q')).toBe(ns(15)); // tPHL(nRD to nQ)
+      b.set({ '1RD': 1 }).run(us(1));
+      b.set({ '1SD': 0 }).run(us(1));
+      b.set({ '1SD': 1 }).run(us(1));
+      expect(b.measure({ '1RD': 0 }, '1QN')).toBe(ns(14)); // tPLH(nRD to nQ̅)
+      b.set({ '1RD': 1 }).run(us(1));
+      expect(b.measure({ '1SD': 0 }, '1QN')).toBe(ns(15)); // tPHL(nSD to nQ̅)
+    } else {
+      const reset = c.reset === 'nR' ? '1R' : '1RD';
+      b.set({ '1J': 1, '1K': kOff }).run(us(1));
+      clock(b);
+      expect(b.measure({ [reset]: 0 }, '1Q')).toBe(t[`tpd(${c.reset} to nQ, nQN)`]);
+      if (c.set) {
+        b.set({ [reset]: 1 }).run(us(1));
+        expect(b.measure({ '1SD': 0 }, '1Q')).toBe(t['tpd(nSD to nQ, nQN)']);
+      }
+    }
+  });
+
+  it('checks set-up time against its minimum', () => {
+    const setup = (before: number) => {
+      const b = bench();
+      b.set({ '1J': 1 }).run(ns(before));
+      b.set({ '1CP': active }).run(us(1));
+      return b;
+    };
+    setup(c.tsu).expect({ '1Q': 1 });
+    expect(timing(setup(c.tsu))).toEqual([]);
+    const b = setup(c.tsu - 1);
+    expect(timing(b).map((x) => x.message)).toEqual([
+      `1J changed ${c.tsu - 1} ns before 1CP ${c.edge === 'rise' ? 'rose' : 'fell'} (setup time ≥ ${c.tsu} ns)`,
+    ]);
+    b.expect({ '1Q': 'X' });
+  });
+
+  it('checks hold time against its minimum (none when it is 0)', () => {
+    const hold = (after: number) => {
+      const b = bench();
+      b.set({ '1J': 1 }).run(us(1));
+      b.set({ '1CP': active }).run(ns(after));
+      b.set({ '1J': 0 }).run(us(1));
+      return b;
+    };
+    expect(timing(hold(c.th))).toEqual([]);
+    hold(c.th).expect({ '1Q': 1 });
+    if (c.th === 0) return;
+    const b = hold(c.th - 1);
+    expect(timing(b).map((x) => x.kind)).toEqual([TimingViolation.HOLD]);
+    b.expect({ '1Q': 'X' });
+  });
+
+  it('checks the recovery time after reset', () => {
+    const reset = c.reset === 'nR' ? '1R' : '1RD';
+    const recover = (after: number) => {
+      const b = bench();
+      b.set({ '1J': 1, [reset]: 0 }).run(us(1));
+      b.set({ [reset]: 1 }).run(ns(after));
+      b.set({ '1CP': active }).run(us(1));
+      return b;
+    };
+    expect(timing(recover(c.trec))).toEqual([]);
+    recover(c.trec).expect({ '1Q': 1 });
+    const b = recover(c.trec - 1);
+    expect(timing(b).map((x) => `${x.kind} ${x.pin}`)).toEqual([`recovery-violation ${reset}`]);
+    b.expect({ '1Q': 'X' });
+  });
+
+  it('checks the clock pulse width (16 ns)', () => {
+    const pulse = (width: number) => {
+      const b = bench();
+      b.set({ '1J': 1 }).run(us(1));
+      b.set({ '1CP': active }).run(us(1));
+      b.set({ '1CP': idle }).run(ns(width));
+      b.set({ '1CP': active }).run(us(1));
+      return b;
+    };
+    expect(timing(pulse(16))).toEqual([]);
+    expect(timing(pulse(15)).map((x) => x.kind)).toEqual([TimingViolation.PULSE_WIDTH]);
+  });
+});
+
+describe('74HC112 set and reset together', () => {
+  it('gives Q = H, Q̅ = L as its data sheet says, and X when both are released at once', () => {
+    const b = new Bench(chip('112'));
+    b.set({ '1CP': 1, '1J': 0, '1K': 0, '1SD': 0, '1RD': 0 }).run(us(1));
+    b.expect({ '1Q': 1, '1QN': 0 });
+    b.set({ '1SD': 1, '1RD': 1 }).run(us(1));
+    b.expect({ '1Q': 'X', '1QN': 'X' });
+  });
+});
+
+describe('74HC109 K̅ input', () => {
+  it('loads 1 with J = H, K̅ = H and 0 with J = L, K̅ = L (the data sheet rows)', () => {
+    const b = new Bench(chip('109'));
+    b.set({ '1SD': 1, '1RD': 1, '1CP': 0, '1J': 1, '1K': 1 }).run(us(1));
+    b.set({ '1CP': 1 }).run(us(1));
+    b.expect({ '1Q': 1 });
+    b.set({ '1CP': 0, '1J': 0, '1K': 0 }).run(us(1));
+    b.set({ '1CP': 1 }).run(us(1));
+    b.expect({ '1Q': 0 });
   });
 });
