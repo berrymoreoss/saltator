@@ -201,7 +201,7 @@ fresh future (Q1); the history at edits (Q2).
 
 Small, ordered, each committable on its own with its tests (`pnpm check` green).
 
-- [ ] 1. `core`: frozen state copies (plain data; typed arrays ≥ 4 KiB in pages shared with a
+- [x] 1. `core`: frozen state copies (plain data; typed arrays ≥ 4 KiB in pages shared with a
   base; thaw into existing objects, replace on another shape; unsupported values throw);
   tests.
 - [ ] 2. `core`: `Simulator.snapshot`/`restore` (with `EventQueue` and `DiagnosticLog`), into
@@ -283,6 +283,13 @@ Checkable statements; verified one by one in the finish-branch workflow.
   runs replay the recording until the user acts, the history starts at every structural edit,
   bookmarks to the backlog, Alt + the forward key.
 - 2026-11-08 — plan approved; branch started.
+- 2026-11-08 — task 1: `core/state-copy.ts` — `freezeState(value, base?)`, `thawState(frozen,
+  target)`, `stateBytes(frozen, relativeTo?)`. Every typed array in 4 KiB pages (not only large
+  ones: one rule), a page equal byte for byte to the base's page at the same index shared
+  whatever the base array's type or length was (two such checks were equivalent code, found by
+  mutation). Thaw writes into the live objects of the same shape, replaces the rest, drops
+  keys the copy didn't have; anything not plain data (a `Map`, a class, an object reached
+  twice) throws with its path. Mutation-checked (10 mutations).
 
 ## Handoff
 
