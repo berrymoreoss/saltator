@@ -234,6 +234,24 @@ describe('Debugger: steps', () => {
     );
   });
 
+  it('Step Clock on a manual clock stops at the press when the press breaks the run', () => {
+    const s = setup(
+      new CircuitBuilder(registry)
+        .add('X1', 'io/clock', { at: [0, 0], props: { frequency: 1e6, mode: 'manual' } })
+        .build(),
+    );
+    s.debug.stepClock(); // power-on and the low time: 500 ns
+    s.debug.addBreakpoint([{ signal: 'X1.Y', kind: 'rise' }]);
+    const breaks = s.simulation.breaks;
+    s.debug.stepClock();
+    expect(s.simulation.breaks).toBe(breaks + 1);
+    expect(s.simulation.simulator!.now).toBe(ns(500));
+    expect(s.simulation.status.get()).toMatchObject({
+      state: 'paused',
+      reason: 'Breakpoint 1: X1.Y ↑',
+    });
+  });
+
   it('says why there is no clock to step by', () => {
     const s = setup(new CircuitBuilder(registry).add('SW1', 'io/switch', { at: [0, 0] }).build());
     expect(s.debug.defaultClock()).toBeUndefined();

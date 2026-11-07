@@ -235,13 +235,26 @@ describe('Recorder', () => {
     const late = recorder.addChannel();
     recorder.attachChannel(late, sim.netIndex('CLK'));
     sim.runUntil(ns(25));
-    expect(changes(recorder, late)).toBe('15:1 20:0');
+    // Its first level goes 1 ps before the instant: what goes into the rest of the instant.
+    expect(changes(recorder, late)).toBe('14.999:1 20:0');
     recorder.removeChannel(clk);
     sim.runUntil(ns(35));
-    expect(changes(recorder, late)).toBe('15:1 20:0 30:1');
+    expect(changes(recorder, late)).toBe('14.999:1 20:0 30:1');
     expect(recorder.channels).toEqual([late]);
     expect(recorder.size).toBe(3);
     expect(() => recorder.changeTime(clk, 0)).toThrow('recorder: no channel 0');
+  });
+
+  it('keeps a change made at the instant a channel was added apart from its first level', () => {
+    const sim = new Simulator(circuit(), registry);
+    sim.runUntil(ns(5)); // paused at 5 ns, the source floating
+    const recorder = new Recorder();
+    const src = recorder.addChannel();
+    recorder.attach(sim, new Map([[src, sim.pinNet('S', 'Y')]]));
+    sim.action('S', Drive.STRONG_1); // at the same instant, as a click while paused
+    sim.runUntil(sim.now);
+    expect(changes(recorder, src)).toBe('4.999:Z 5:1');
+    expect(recorder.level(src, ns(5) - 1)).toBe(Level.Z);
   });
 
   it('listens to one simulator at a time', () => {

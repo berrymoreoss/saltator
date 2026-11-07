@@ -223,7 +223,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 8. `ui`: run statistics in the Simulation tab; looked at on Ring Oscillator.
 - [x] 9. `ui`: the debug setup in the session (autosave, restore after reload, cleared by
   New/Open); tests.
-- [ ] 10. e2e: SAP-1 Program Counter — Step Clock advances the count by one per press, a
+- [x] 10. e2e: SAP-1 Program Counter — Step Clock advances the count by one per press, a
   breakpoint on the count stops a run there, Run For moves time by exactly Δt; RAM by Hand —
   a watched cell changes after a write; break on an error; the setup survives a reload.
 - [ ] 11. Docs: simulation.md, editor.md (Debugger), circuit.md (memory references),
@@ -360,11 +360,24 @@ Checkable statements; verified one by one in the finish-branch workflow.
   `setCircuit` clears it, then `debug.load`); `parseDebugSetup` keeps only well-formed
   entries, so a stored setup from another version never breaks a restore. New and Open
   start without one.
+- 2026-11-08 — task 10: `tests/e2e/debugger.spec.ts` — SAP-1 Program Counter: Step Clock (F8)
+  powers on, CLR pulsed with Run For (Shift+F8, 250 ms), three presses count 1, 2, 3 (the
+  watch of `U1.Q0 … U1.Q3` marked changed, unmarked after a Run For), a breakpoint `= 5` from
+  the dialog stops the press that makes it 5, the setup survives a reload; Break on errors
+  stops at the recovery violation of a clock press at the instant CLR is released; RAM by Hand:
+  a watched cell shows the byte written. `pnpm e2e`: 70 passed.
+  Found by the error test: the violation happened in the press's own instant (the `step`
+  action runs it at once while paused), its pause was taken there and then overwritten by the
+  step's run — the host now counts taken pauses (`breaks`) and Step Clock stops at the press.
+  And a breakpoint added while paused never saw an edge at that same instant: its new recorder
+  channel's first level and the change merged (one instant). A fresh channel now records its
+  first level 1 ps before the instant it is attached at (R13's test updated: a late probe
+  starts at 14.999 ns, not 15 ns); mutation-checked.
 
 ## Handoff
 
-- **State:** in progress; tasks 1–9 done (core, circuit, host, model, UI, session).
-- **Next step:** task 10 (browser tests on SAP-1 Program Counter and RAM by Hand).
+- **State:** in progress; tasks 1–10 done; docs left.
+- **Next step:** task 11 (docs: editor.md Debugger section, ADR-0020, architecture, glossary, READMEs, roadmap, lessons).
 - **Watch out:** `io/clock` drives at its wake with zero delay — the lookahead can't see it
   until task 2; a breakpoint during a trigger's post-trigger time must win over `pauseAt`.
 - **Verify with:** `pnpm check`, `pnpm bench`.

@@ -413,7 +413,10 @@ recorder.nextChange(clk, us(500)); // time of the next edge
   caller re-resolves what each channel shows and attaches the new simulator; the record goes
   on. A channel left out of an `attach` gets no data from that instant (`NO_DATA`), one given a
   net again resumes; `attachChannel` adds one while running; `detach` ends the record at `now`
-  (Stop); `clear` forgets it (power-on). Several channels may show one net.
+  (Stop); `clear` forgets it (power-on). Several channels may show one net. A fresh channel
+  attached at an instant after 0 records its first level 1 ps before it (R14): the level going
+  into the rest of the instant, so a change still made then — an action while paused — is an
+  edge a trigger sees, not merged into the first level.
 - **One instant, one level**: changes at the same instant (delta cycles) collapse into its last
   level, and a change back to the level before the instant leaves nothing — a zero-delay delta
   is not a pulse a real circuit makes.

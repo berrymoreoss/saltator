@@ -503,7 +503,12 @@ export class Debugger {
       const { high, low } = manual.phases;
       const now = host.simulator?.now ?? 0;
       const stopped = host.state === 'stopped';
-      if (!stopped) host.action(manual.id, { type: 'step' });
+      if (!stopped) {
+        const breaks = host.breaks;
+        host.action(manual.id, { type: 'step' });
+        // The press itself broke the run (a timing violation at the edge): stop right there.
+        if (host.breaks !== breaks) return undefined;
+      }
       const until = now + (stopped ? low : high + low);
       host.runTo({ kind: 'time', until, label: `Step Clock (${manual.id} pulse)` });
       return undefined;

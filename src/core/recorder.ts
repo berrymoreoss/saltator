@@ -168,7 +168,7 @@ export class Recorder {
         if (track.live) this.#append(track, now, NO_DATA);
         track.live = false;
       } else {
-        this.#append(track, now, sim.levels[net]!);
+        this.#append(track, firstAt(track, now), sim.levels[net]!);
         track.live = true;
       }
     });
@@ -189,7 +189,7 @@ export class Recorder {
     if (!sim || !track) return;
     const nets = this.#links();
     nets.set(channel, net);
-    this.#append(track, sim.now, sim.levels[net]!);
+    this.#append(track, firstAt(track, sim.now), sim.levels[net]!);
     track.live = true;
     this.#link(sim, nets);
   }
@@ -398,4 +398,14 @@ export class Recorder {
     }
     this.#start = Math.max(this.#start, lo);
   }
+}
+
+/**
+ * When a channel's first level goes: a fresh channel attached at instant `now` > 0 (a probe or
+ * a breakpoint added while paused) records the level as of 1 ps before, the level going into
+ * the rest of the instant — so a change still made at `now` (an action while paused, the
+ * power-on of a carried-over simulator) is an edge after it, not merged into it.
+ */
+function firstAt(track: Track, now: Time): Time {
+  return track.count === 0 && now > 0 ? now - 1 : now;
 }

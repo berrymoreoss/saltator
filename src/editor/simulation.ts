@@ -301,6 +301,7 @@ export class Simulation {
   #pauseAtReason: string | undefined;
   /** A pause asked for at the end of the current instant (a breakpoint), and why. */
   #pauseRequest: string | undefined;
+  #breaks = 0;
   #step: Step | undefined;
   /** Brightness samples of the indicators, by component id. */
   readonly #lights = new Map<string, LightSample>();
@@ -546,6 +547,14 @@ export class Simulation {
   }
 
   /**
+   * How many pauses asked for with `requestPause` were taken: a caller that runs an action
+   * before a step (Step Clock's pulse) sees whether the action's instant stopped it already.
+   */
+  get breaks(): number {
+    return this.#breaks;
+  }
+
+  /**
    * While running, pause once simulated time reaches `time` (a trigger's post-trigger end),
    * saying `reason`; `undefined` cancels. Cleared when it pauses there, by Pause, Stop and every
    * power-on.
@@ -741,8 +750,10 @@ export class Simulation {
       if (result === 'halted') break;
       // Why it pauses here, if it does: a breakpoint, a step reached, a trigger's post-trigger
       // time over (or nothing left to happen before it), a plain break.
-      if (result === 'break' && this.#pauseRequest !== undefined) reason = this.#pauseRequest;
-      else if (step?.done !== undefined) reason = step.done;
+      if (result === 'break' && this.#pauseRequest !== undefined) {
+        reason = this.#pauseRequest;
+        this.#breaks++;
+      } else if (step?.done !== undefined) reason = step.done;
       else if (
         this.#pauseAt !== undefined &&
         (sim.now >= this.#pauseAt || (result === 'idle' && (step || target > sim.now)))
@@ -851,6 +862,7 @@ export class Simulation {
     if (this.#pauseRequest !== undefined && this.state !== 'running') {
       this.#setReason(this.#pauseRequest);
       this.#pauseRequest = undefined;
+      this.#breaks++;
     }
     this.#events = sim?.stats.events ?? 0;
     this.#sampleLights(false);
