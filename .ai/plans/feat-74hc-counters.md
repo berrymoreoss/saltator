@@ -211,7 +211,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   paths, MR̅ asynchronous vs synchronous, unknown/floating/late controls, every check).
 - [x] 4. 74HC191, 193 with tests (up/down, asynchronous load, TC/RC̅, TC̅U/TC̅D, cascading
   signals, the 193's clock rule, every check).
-- [ ] 5. 74HC4040 with tests (counting, MR, the ripple delay of every stage, transient states,
+- [x] 5. 74HC4040 with tests (counting, MR, the ripple delay of every stage, transient states,
   uncertain edges, checks).
 - [ ] 6. 74HC164, 165 with tests (shifting, AND of DSA·DSB, asynchronous load, CP/CE̅
   interchangeable, Q̅7, checks).
@@ -315,11 +315,17 @@ Checkable statements; verified one by one in the finish-branch workflow.
   (found by its function table, run without gaps). Delays the sheets lack borrow a Qn path.
   37 tests, mutation-checked (19 mutations; two survivors — the 191's direction never forgotten,
   the 193 reading D during MR — got tests).
+- 2026-11-07 — task 5: `ripple-counter.ts` (`RippleCounterSpec`, ready for 4020/4024/4060)
+  with the 4040: Qn driven `17 + 10·n` ns after the falling edge; tests record every output's
+  change time (2047 → 2048) and the intermediate counts `0110, 0100, 0000, 1000` seen by
+  decoding gates; 4096 counts at the 32 ns minimum period without a diagnostic. The function
+  table's ↑ row needs states that end with CP LOW (setting the level before ↑ is a falling edge,
+  a count). 12 tests, mutation-checked (10 mutations).
 
 ## Handoff
 
-- **State:** tasks 1–4 done (timing data; `setupHold` variants; 161, 163, 191, 193 in the
-  registry).
-- **Next step:** task 5 (74HC4040, `ripple-counter.ts`).
+- **State:** tasks 1–5 done (timing data; `setupHold` variants; 161, 163, 191, 193, 4040 in
+  the registry).
+- **Next step:** task 6 (74HC164, 165 in `shift-registers.ts`).
 - **Watch out:** pinouts and names in the Parts table are from memory.
 - **Verify with:** `pnpm check`.

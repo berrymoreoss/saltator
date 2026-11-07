@@ -12,6 +12,7 @@ import { hcFlipFlops } from './flip-flops';
 import { hcGates } from './gates';
 import { hcMultiplexers } from './multiplexers';
 import { hcRegisters } from './registers';
+import { hcRippleCounters } from './ripple-counter';
 import { hc4511 } from './seven-segment-decoder';
 import { hc245 } from './transceiver';
 import { hcUpDownCounters } from './up-down-counters';
@@ -55,6 +56,12 @@ export {
   registerChips,
 } from './registers';
 export {
+  CNT4040_SPEC,
+  type RippleCounterSpec,
+  type RippleCounterState,
+  rippleCounterChips,
+} from './ripple-counter';
+export {
   BCD_DECODER_SPEC,
   type BcdDecoderState,
   bcdDecoderChip,
@@ -82,4 +89,5 @@ export const chips74xx: readonly AnyComponentDefinition[] = [
   ...hcRegisters,
   ...hcCounters,
   ...hcUpDownCounters,
+  ...hcRippleCounters,
 ].sort((a, b) => Number(a.name.slice(4)) - Number(b.name.slice(4)));
