@@ -7,6 +7,10 @@ bubble.
 a data sheet gives only its guaranteed maximum. Before it, the simulator shows the outputs as
 `X` (after a short hold time `tOH` of the old data): sampling a memory sooner is a bug.
 
+**Address counter (AC)** — the HD44780's pointer into its display or character RAM: an
+address set loads it, each data read or write moves it one up or down (the cursor follows it).
+A busy-flag read gives it out with the busy flag.
+
 **Astable / monostable / bistable** — the three ways to wire a 555 timer: a free-running
 oscillator (the clock of a breadboard computer), one pulse of a fixed width per trigger (a
 debounced step button), or a set/reset latch (a debounced switch). The RC network sets the times:
@@ -27,6 +31,11 @@ The bus line itself carries no level, only the value of its members (`0x3F`).
 (`net/bus-entry`); it carries its member's name (`D3`) and joins that net like a net label.
 Logisim's splitter and other tools' "bus ripper" do the same for several bits at once.
 
+**Busy flag (BF)** — the HD44780's "still executing" bit, read on DB7 with RS = 0 and R/W̅ = 1:
+1 for 37 µs after most instructions, 1.52 ms after Clear display and Return home. An instruction
+sent while it is 1 is not accepted; programs either poll it or wait longer than the execution
+time.
+
 **Bus contention** — two or more strong drivers forcing different levels on one net. On real
 hardware it causes excess current and undefined levels; the simulator reports a `contention`
 diagnostic and resolves the net to `X`.
@@ -35,6 +44,10 @@ diagnostic and resolves the net to `X`.
 pauses the run at every instant it holds anew, as a debugger stops a program on a line; a hit
 count makes it stop from its n-th hit on (R14). **Break on errors** pauses at every contention
 or timing violation instead.
+
+**CGROM / CGRAM** — the HD44780's character generator: the ROM holds the 5 × 8 (and 5 × 10)
+dot patterns of character codes 0x10–0xFF (ROM code A00: ASCII and katakana; A02: European), the
+RAM eight user-defined patterns for codes 0x00–0x07.
 
 **Carry-over** — continuing a running simulation in a recompiled netlist after an edit: unchanged
 parts keep their state, outputs, pending changes and timers (matched by designator, through
@@ -46,6 +59,10 @@ and COM is 0; common anode: when its pin is 0 and COM is 1.
 
 **Dangling wire** — a wire end that touches nothing (no pin, no other wire); usually a wire that
 stops one grid cell short of a pin. Reported as a design-check warning.
+
+**DDRAM** — the HD44780's display data RAM: 80 character codes, two lines of 40 at addresses
+0x00 and 0x40 (one line of 80 in 1-line mode); the glass shows a window of it, which the
+display shift moves.
 
 **Datasheet function table** — the truth table in a chip's datasheet; the basis of every part test.
 Real chips carry it as data (`functionTable`, columns with the data sheet's generic names such as
@@ -102,6 +119,10 @@ randomly and may oscillate; the simulator treats it as `X` and reports it.
 the curved OR) or IEC 60617 rectangles with a qualifying symbol (`&`, `≥1`, `=1`). A view setting
 in the editor; the pins are the same either way.
 
+**HD44780** — Hitachi's character LCD controller (HD44780U; clones: ST7066U, KS0066, SPLC780):
+on nearly every 16 × 2 and 20 × 4 text display module, driven over RS, R/W̅, E and an 8- or
+4-bit data bus (`periph/hd44780`).
+
 **Interact tool** — the tool that operates parts while simulating: flip a switch or DIP switch,
 hold a push button, step a manual clock (`I`; Run selects it).
 
@@ -139,6 +160,11 @@ vision), each at the fraction of time it is enabled.
 **Logic family** — chips with the same numbers but a different technology: 74HC (CMOS), 74HCT
 (CMOS with TTL input levels), 74LS (TTL), 74AC. Same pinout and function, different timing and
 input behavior; the library shares the function and takes timing from the family.
+
+**Nibble / 4-bit interface** — half a byte. An HD44780 in 4-bit mode takes each byte as two
+transfers on DB7–DB4, high nibble first, saving four wires; the module keeps the phase, so a
+CPU reset between the two leaves it out of step until the data sheet's 0x3, 0x3, 0x3, 0x2
+sequence brings it back.
 
 **n.c. (not connected)** — a package pin with no function (74HC20 pins 3 and 11), named
 `NC<number>` in a definition and drawn `NC`.

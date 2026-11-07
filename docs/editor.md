@@ -90,7 +90,9 @@ in the header, its props for prop-dependent pins) or a part clicked in the Parts
   (`nCP to nQ, nQ̅`), the conditions and the source. A key with both a minimum and a maximum
   shows both (a memory's `tOE`); for a data sheet with limits only (memories, R12a) the Typ
   column stays empty and the legend says how the limits are used. A picked instance shows the
-  timing of its props (a 6116's speed grade).
+  timing of its props (a 6116's speed grade, an LCD's oscillator). Symbols are set as the data
+  sheets set them — `t` or `PW` and a subscript (`tpd`, `PWEH`); keys that name what they time
+  (`Clear display`) as they are (`symbolParts`).
 
 Parts without descriptions, a function table or timing (`prim/*`, `io/*`) show what they have. Edit ▸ Part Info and the part context menu open the tab. The pure model is
 `src/ui/part-info.ts` (unit-tested); the selection-following lives in `Workbench`.
@@ -244,7 +246,10 @@ editor doesn't know.
   color), `seven-segment`, `hex-display`, `probe`, `net-label` (an outlined tag pointing at its
   connection point, the name inside in a monospaced font, overlined where it says `~{…}`; a bus
   label outlined in the bus color), `bus-entry` (a diagonal between its bit stub and its heavy
-  bus stub, its name above the bus stub).
+  bus stub, its name above the bus stub), `lcd` (a character LCD module: the board, a dark
+  bezel, the glass in its backlight's colors with every 5 × 8 dot of every character, unlit dots
+  faintly visible as on real glass, the pin names along the bottom edge as Proteus draws its
+  LM016L; stopped: dark glass, no characters).
   Stopped, drawers show the idle look
   (power-on switch positions, unlit lights); while simulating they get `DrawContext.live`
   ([Simulation](#live-drawing)).
@@ -480,7 +485,9 @@ the toolbar group (Run/Pause, Step Back, Step, Step Clock, Stop, Reset, speed se
   per second while running), `diagnostics`, `ticks` (panels showing live values refresh on it),
   `revision` (the canvas redraws on it, synchronously inside the host's frame). The canvas
   redraws only when events were processed, a light's brightness changed by a visible step
-  (1/32), or a contention flash phase is due.
+  (1/32), a contention flash phase is due, or a part whose look changes with time alone moved
+  into its next look (`ComponentDefinition.animation`: an LCD's blinking cursor in an idle
+  circuit).
 
 ### Editing while running
 
@@ -526,11 +533,14 @@ time to move.
   (`sim.contended`) flashing red twice a second while running. Wires the simulation doesn't know
   (new ones during a gesture) keep the plain color; ghosts the selection color; a selected wire
   keeps its level color over a selection halo. Pin stubs keep the part color.
-- **Parts** get `DrawContext.live` (`PartLive`: `state`, `level(pin)`, `light(i)`) and
+- **Parts** get `DrawContext.live` (`PartLive`: `state`, `level(pin)`, `light(i)`, `time`) and
   `levelColor`: switches, buttons and DIP switches show their positions; LEDs, LED bars and
   7-segment segments their brightness, with a glow; an unknown light is drawn in the `X` color;
   the clock's wave takes its output's level color; the hex display shows its digit (unknown: a
-  dash in the `X` color); the probe its level letter in the level color.
+  dash in the `X` color); the probe its level letter in the level color; an LCD module its glass
+  (`hd44780Frame` of its controller: characters, cursor, the blink by simulated time), lit while
+  its backlight LED (A, K) is forward biased, its characters visible only with V0 LOW (an open
+  contrast pin shows nothing, as on the bench), unknown characters filled in the `X` color.
 - **Net labels**, which the simulator doesn't have (schematic-only), get `DrawContext.pinColor`
   instead: the wire color of the net at their point (the signal map includes label points), so
   the tag's outline shows its net's level like the wires do.
@@ -1088,6 +1098,16 @@ title and a description, in gallery order):
   74HC245 that puts the DATA switches on the bus and turns the RAM's outputs off 10 ns before
   the 245 drives; WRITE (a button with a pull-up) stores the byte at ADDRESS; out of PROGRAM the
   RAM drives the bus and the LEDs show what it holds (`X` where nothing was written).
+- **LCD by Hand** — an HD44780 16 × 2 in 8-bit mode, as in Ben Eater's first LCD video: a DATA
+  DIP switch bank straight into DB0–DB7 (starting at 0x38, function set), an RS switch and an E
+  button (a write when it is released); R/W̅ tied LOW.
+- **LCD Hello, World** — no CPU: a 1 kHz clock steps a 74HC4040 through an AT28C16 whose bytes a
+  74HC574 latches, half a step later, onto a 4-bit LCD (DB4–DB7, RS, E; DB0–DB3 open on the
+  pull-ups). The program (`tests/scenarios/lcd-program.ts`) runs the data sheet's initialization
+  by instruction with its waits and prints two lines with a blinking cursor; Q11 stops the
+  counter at 2048 through a 74HC32. RESET first (the counter powers on unknown). Its waits are
+  counted for 10 kHz: clocked faster, the LCD reports instructions sent while busy. Probes on
+  CLK, E, RS and DB4–DB7.
 - **SAP-1 Program Counter** — Ben Eater's program counter: a 74HC161 (CLR, CE, J) loading from a
   4-bit bus, a 74HC245 putting it on the bus (CO); the bus has pull-downs, a BUS bar and a
   DATA switch stand-in through another 74HC245. Unknown until CLR.

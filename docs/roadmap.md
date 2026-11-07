@@ -39,7 +39,7 @@ How to read this file:
 | R16a | `example/sap-1-modules`      | SAP-1 modules as tested subcircuits        | planned |
 | R16b | `example/sap-1`              | Ben Eater SAP-1 reference build            | planned |
 | R17  | `feat/cpu-6502`              | W65C02S CPU                                | planned |
-| R18  | `feat/peripherals`           | VIA, LCD, serial, buzzer                   | planned |
+| R18  | `feat/peripherals`           | VIA, serial, buzzer, keypad                | planned |
 | R19  | `feat/toolchain`             | 6502 assembler & flashing                  | planned |
 | R20  | `example/be6502`             | Ben Eater 6502 reference build             | planned |
 
@@ -391,8 +391,9 @@ panel, disassembly in the memory inspector.
 
 ### R18 · Peripherals — `feat/peripherals`
 
-W65C22 VIA (ports, timers, interrupts), HD44780 16×2 LCD, 6551 ACIA + serial terminal panel,
-buzzer (Web Audio), keypad/matrix keyboard.
+W65C22 VIA (ports, timers, interrupts), 6551 ACIA + serial terminal panel, buzzer (Web Audio),
+keypad/matrix keyboard. The HD44780 LCD came early, off the roadmap
+([below](#off-the-roadmap)); the VIA drives it in R20.
 
 ### R19 · 6502 assembler & flashing — `feat/toolchain`
 
@@ -409,6 +410,26 @@ ROM", symbols in debugger.
 
 Not a branch: the goal. The author's own 8-bit computer with a 16-bit address bus, designed and
 verified in the simulator, then built. Items needed along the way get added to this roadmap.
+
+## Off the roadmap
+
+Branches the author asked for between items, to try the engine on something new. Not numbered;
+listed here so the roadmap stays the map of what exists.
+
+### Character LCD (HD44780) — `feat/lcd-hd44780` — `done`
+
+`periph/hd44780`: a character LCD module with the HD44780U controller, 8 × 1 to 40 × 2 (13
+sizes), six backlight colors, ROM codes A00 and A02 read off the data sheet's Table 4 by a
+script, the oscillator as a prop. The controller at instruction level — 8- and 4-bit transfers
+with the nibble phase, busy flag and execution times, `tADD`, reads with their `X` window,
+internal pull-ups, the internal reset or (`powerOn: unknown`) an unknown state that only the
+data sheet's initialization by instruction resolves — and the 5 V bus timing as timing checks;
+writes while busy and before 15 ms are errors (every `*-violation` is, now); uncertain transfers
+run every outcome and merge them. Drawn as the module with its glass and dots, backlight on
+A/K, contrast on V0, the blink redrawn by a new `animation` hook; the Part tab sets non-`t`
+symbols right. Examples: LCD by Hand, LCD Hello, World (74HC4040, AT28C16, 74HC574). Spec:
+[components.md](components.md#hd44780), [editor.md](editor.md#symbol-drawing). Decision:
+[ADR-0022](adr/0022-character-lcd.md). Plan: `.ai/plans/feat-lcd-hd44780.md`.
 
 ## Backlog — `idea`
 
@@ -456,6 +477,12 @@ Promote to a numbered item when needed.
   wire and label of its net, across labels.
 - Placing VCC/GND symbols by their pin (R10a follow-up), as net labels are placed, so a click on
   a pin tip attaches one; other one-pin parts may follow.
+- LCD follow-ups (the LCD branch): 40 × 4 modules (two controllers, `E1`/`E2`); 5 × 10 dot
+  glass; compatible controllers and their ROMs (ST7066U, KS0066, Winstar's Cyrillic font), the
+  I²C backpack (PCF8574); graphic LCDs (KS0108, ST7920); DDRAM/CGRAM in the Memory tab (a
+  `MemoryDef` without address pins, several memories per part); a PWM-dimmed backlight at its
+  average brightness; an input-pull-up pin flag, so the design check doesn't say an unconnected
+  RS "reads as X" (it reads HIGH — still a mistake for R/W̅).
 - Image generators (R12b follow-up): a memory's contents computed by a short script in the app
   (Ben Eater's Arduino sketch for the decoder EEPROM, microcode tables), kept with the document.
 - Waveform follow-ups (R13): serial protocol decoders (UART, SPI, I²C) on probed signals;

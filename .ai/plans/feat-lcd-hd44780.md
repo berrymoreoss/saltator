@@ -262,7 +262,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 7. Examples (Q2) with generators (every net checked), gallery entries; scenario: each
   example runs headless and shows its text with no diagnostics; browser test: open, run, see
   the module; place one, change `size` and `backlight` in Properties.
-- [ ] 8. Docs: components.md (`periph` family, the HD44780 section), editor.md (drawing),
+- [x] 8. Docs: components.md (`periph` family, the HD44780 section), editor.md (drawing),
   simulation.md (severity rule), glossary (DDRAM, CGRAM, CGROM, BF, AC), READMEs, ADR-0022;
   roadmap (R18 says the LCD came early here; backlog: 40×4, 5 × 10 glass, compatible
   controllers, I²C backpack, graphic LCDs, LCD RAM in the Memory tab if not done); lessons.
@@ -406,6 +406,12 @@ mode), 15 `LED+` (anode, +5 V via an on-board resistor), 16 `LED−` (cathode); 
   when it changes now (an unconnected E is the design check's). `tests/e2e/lcd.spec.ts` counts
   dark pixels in the glass: text after RESET, the cursor after 0x0E; two UI actions in one
   frame are one simulated instant (data changing as E falls) — the test waits between them.
+- 2026-11-08 — task 8: ADR-0022 (index), components.md (status, families, `animation`, the
+  severity rule, the Peripherals/HD44780 section), simulation.md (cycle check, severity),
+  editor.md (`lcd` drawer, redraw on `animation`, `PartLive.time`, Part tab symbols, examples),
+  architecture.md, glossary (address counter, busy flag, CGROM/CGRAM, DDRAM, HD44780, nibble),
+  READMEs (core, library, editor), roadmap (R18 without the LCD, "Off the roadmap" section,
+  LCD follow-ups in the backlog), add-component.md (parts with a controller), lessons.
 
 ## Handoff
 

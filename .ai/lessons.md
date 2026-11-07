@@ -323,3 +323,13 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
 - 2026-11-08 (LCD) — The canvas redraws on events and light changes only: anything whose look
   changes with time alone (a blinking cursor) needs `ComponentDefinition.animation`. A page
   script that edits a part's state in place doesn't redraw either — move the camera.
+- 2026-11-08 (LCD) — Generating an example with net labels: point each label away from its
+  chip's middle, per pin — a 28C16's right side has A8–A10 besides data. A label pointed into a
+  body is connected and passes every check; only looking in the browser found it.
+- 2026-11-08 (LCD) — Driving a clocked example from a test: release a reset or press a button
+  off the clock's edges (odd picoseconds). Releasing a 74HC4040's MR on a clock edge is a real
+  recovery violation and the counter goes `X` — the test's timing, not the circuit's.
+- 2026-11-08 (LCD) — Browser tests can read the canvas: `canvas.evaluate` with `getImageData`
+  over a part's area, counting pixels by luminance rather than exact color (fitted to the
+  window a dot is about a pixel and anti-aliasing blends it). And two UI actions in one frame
+  are one simulated instant: wait between them as a hand would.

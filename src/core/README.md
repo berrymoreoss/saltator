@@ -15,7 +15,8 @@ Modules: `time`, `logic` (levels, drives, resolution, 4-state operators), `event
 (`NetlistBuilder`, `resolveNetlist`, `sameNetlistStructure`), `diagnostics`, `simulator`
 (including `carryOver` for editing while running), `function-table` (the datasheet table format,
 sequential letters included), `timing-checks` (`TimingChecks`: set-up, hold, pulse width and
-recovery against `timing.min`, R09a; edge-to-edge and hold-only set-up/hold, R09b), `memory`
+recovery against `timing.min`, R09a; edge-to-edge and hold-only set-up/hold, R09b; cycle time,
+the LCD branch), `memory`
 (ROM images as sparse hex runs, `MemoryDef`/`MemoryView`, the `poke` debug write, R12a; access
 stamps and address pins, R12b), `image-files` (`.bin` and Intel HEX read, written and placed
 into a memory, R12b), `random` (`SeededRandom`, `hashString`: reproducible randomness, R12a),
@@ -23,7 +24,8 @@ into a memory, R12b), `random` (`SeededRandom`, `hashString`: reproducible rando
 conditions on recorded channels that fire at an instant, R13; `repeat` for breakpoints, R14),
 `vcd` (`writeVcd`, R13); the simulator's `requestBreak` and `onInstant` (R13) and the run
 option `stopBefore` (a lookahead to a net's next change, R14); `diagnosticSeverity` and
-`DiagnosticLog.onOccurrence` (R14); `Simulator.snapshot`/`restore`/`replica` with
+`DiagnosticLog.onOccurrence` (R14; every `*-violation` an error since the LCD branch);
+`ComponentDefinition.animation` (a part whose look changes with time alone, the LCD branch); `Simulator.snapshot`/`restore`/`replica` with
 `state-copy` (frozen component states in shared pages), `Recorder.seek`/`cut` and
 `Trigger.resync` for rewinding (R14b). Test
 utilities (`Bench`, `functionTable`, `checkableRows`, `truthTable`, `Trace`) live in `testing/`
