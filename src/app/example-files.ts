@@ -85,6 +85,18 @@ export const EXAMPLE_FILES: readonly ExampleFile[] = [
       'A 6116 written from switches: PROGRAM puts the DATA switches on the bus through a 74HC245, WRITE stores them at ADDRESS; the LEDs show the bus.',
   },
   {
+    id: 'lcd-by-hand',
+    title: 'LCD by Hand',
+    description:
+      'An HD44780 16×2 written from switches, 8-bit: DATA starts at 0x38 (function set) — press E, then 0x0E, 0x06; RS on for letters.',
+  },
+  {
+    id: 'lcd-hello-world',
+    title: 'LCD Hello, World',
+    description:
+      'A 74HC4040 steps an AT28C16 whose bytes a 74HC574 latches onto a 4-bit LCD: the data sheet’s initialization, then text. RESET first.',
+  },
+  {
     id: 'sap-1-program-counter',
     title: 'SAP-1 Program Counter',
     description:

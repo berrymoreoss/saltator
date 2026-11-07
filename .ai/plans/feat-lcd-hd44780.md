@@ -259,7 +259,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   and "Hello, world!" from a test driver; a 74HC574 driving the bus too early (`tDSW`); a read
   with a driver still on the bus (contention); the carry-over and rewind properties with the
   LCD.
-- [ ] 7. Examples (Q2) with generators (every net checked), gallery entries; scenario: each
+- [x] 7. Examples (Q2) with generators (every net checked), gallery entries; scenario: each
   example runs headless and shows its text with no diagnostics; browser test: open, run, see
   the module; place one, change `size` and `backlight` in Properties.
 - [ ] 8. Docs: components.md (`periph` family, the HD44780 section), editor.md (drawing),
@@ -391,13 +391,29 @@ mode), 15 `LED+` (anode, +5 V via an on-board resistor), 16 `LED−` (cathode); 
   read ringing every tDHR when its data pin sat on E's net (an uncertain E now keeps the
   transfer open until E is known LOW). No carry-over divergence was found; the file runs in
   1.2 s. Lessons recorded.
+- 2026-11-08 — task 7: examples LCD by Hand (8-bit: a DIP switch bank straight up into
+  DB0–DB7, starting at 0x38; RS switch, E button, both `spdt`) and LCD Hello, World (1 kHz
+  clock, 74HC32 OR-ing Q11 into the 74HC4040's clock to stop at 2048, AT28C16 program, 74HC574
+  latching each byte on CLK rising onto DB4–DB7, RS, E; the program in
+  `tests/scenarios/lcd-program.ts`, waits counted for 10 kHz). Generated with a throwaway
+  vitest file (nets checked, deleted), looked at in the browser (labels now point away from
+  the chip's middle; A8–A10 of the 28C16 had pointed into it). `lcd-examples.test.ts`: the
+  image is the program, both lines after RESET and again after a second RESET, clean at
+  10 kHz, a lost entry mode at 20 kHz (the text looks right — only the diagnostic tells),
+  Ben Eater's by-hand sequence. Found on the way: releasing RESET on a clock edge is a real
+  74HC4040 recovery violation (tests act off the edges now); the LCD read E on every
+  evaluation, so a 3-state output still off at t = 0 reported a floating E — E is read only
+  when it changes now (an unconnected E is the design check's). `tests/e2e/lcd.spec.ts` counts
+  dark pixels in the glass: text after RESET, the cursor after 0x0E; two UI actions in one
+  frame are one simulated instant (data changing as E falls) — the test waits between them.
 
 ## Handoff
 
-- **State:** tasks 1–6 done: the part, both power-on modes, the drawer, scenarios with real
-  chips, the carry-over property with LCDs.
-- **Next step:** task 7 — examples LCD Hello, World (sequencer) and LCD by Hand, generators,
-  gallery entries, scenario and browser tests.
+- **State:** tasks 1–7 done: the part, both power-on modes, the drawer, scenarios, carry-over
+  property, both examples with scenario and browser tests.
+- **Next step:** task 8 — docs: components.md (periph family, HD44780 section), editor.md
+  (drawing, animation redraw), simulation.md (severity rule, `animation`), glossary, READMEs,
+  ADR-0022, roadmap note and backlog; then the finish-branch workflow.
 - **Watch out:** the data sheet copy is in the session scratchpad only; download it again if
   the scratchpad is gone.
 - **Verify with:** `pnpm check`.

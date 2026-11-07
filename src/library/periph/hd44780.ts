@@ -446,19 +446,22 @@ export const hd44780 = defineComponent<Hd44780Props, Hd44780State>({
       evaluate(ctx) {
         const st = ctx.state;
         const { times } = st;
-        const e = ctx.read(E);
-        const rose = ctx.rose(E);
-        const fell = ctx.fell(E);
+        // E is read only when it changed: a net a 3-state output drives a moment after power-on
+        // is no floating input (an E nothing drives is the design check's business).
+        const eChanged = ctx.changed(E);
+        const e = eChanged ? ctx.read(E) : Level.Z;
+        const rose = eChanged && ctx.rose(E);
+        const fell = eChanged && ctx.fell(E);
         const writing = st.rw !== Level.L1;
         const eightBit = (st.ctl.iface & 1) !== 0;
 
         // The checks look at the times before this delta; `track` records it last.
-        const lateAddress = address.setup(ctx, times);
-        if (cycle.check(ctx, times)) st.bad = 1;
+        const lateAddress = address.setup(ctx, times, eChanged);
+        if (cycle.check(ctx, times, eChanged)) st.bad = 1;
         const shortPulse = pulse.check(ctx, times);
         const lateData =
-          dataLow.setup(ctx, times, writing && eightBit) |
-          (dataHigh.setup(ctx, times, writing) << 4);
+          dataLow.setup(ctx, times, eChanged && writing && eightBit) |
+          (dataHigh.setup(ctx, times, eChanged && writing) << 4);
         const doneWrite = st.doneRw !== Level.L1;
         const earlyData =
           dataLow.hold(ctx, times, doneWrite && eightBit) |
@@ -472,16 +475,18 @@ export const hd44780 = defineComponent<Hd44780Props, Hd44780State>({
           if (earlyAddress & 2) st.doneRw = Level.X;
         }
 
-        if (e === Level.L0 || e === Level.L1) {
+        if (!eChanged) {
+          // Nothing to do with E.
+        } else if (e === Level.L0 || e === Level.L1) {
           if (rose) begin(ctx, lateAddress, true);
           else if (fell) end(ctx, shortPulse ? 0xff : lateData, true);
-          else if (ctx.changed(E) && st.eKnown) {
+          else if (st.eKnown) {
             // From X or Z to a level: a possible edge.
             if (e === Level.L1 && !st.open) begin(ctx, 0, false);
             if (e === Level.L0 && st.open) end(ctx, 0xff, false);
           }
           st.eKnown = 1;
-        } else if (ctx.changed(E) && st.eKnown) {
+        } else if (st.eKnown) {
           ctx.report({
             kind: Hd44780Diagnostic.UNCERTAIN_ENABLE,
             message: `E is ${e === Level.X ? 'unknown' : 'floating'}: a transfer may or may not happen`,

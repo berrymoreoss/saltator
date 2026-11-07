@@ -316,6 +316,15 @@ describe('unknowns', () => {
     b.expectNoDiagnostics();
   });
 
+  it('reads E only when it changes: a 3-state driver enabled after power-on is no floating E', () => {
+    const b = new Bench(hd44780);
+    b.set({ RS: 0, RW: 0, V0: 0, A: 1, K: 0 });
+    b.run(ns(20)); // E floats until the driver turns on
+    b.set({ E: 0 });
+    b.run(ms(20));
+    b.expectNoDiagnostics();
+  });
+
   it('drives X during a read whose R/W̅ is uncertain', () => {
     const lcd = ready();
     lcd.bench.set({ RS: 0, ...busValues('Z') });
