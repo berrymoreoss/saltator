@@ -4,7 +4,7 @@
 | ---------- | ---------------------------------------------------------------------------------------------- |
 | Branch     | `feat/lcd-hd44780`                                                                             |
 | Roadmap    | — (off the roadmap; takes the HD44780 LCD out of R18 early) ([roadmap](../../docs/roadmap.md)) |
-| Status     | in-progress                                                                                    |
+| Status     | done                                                                                           |
 | Depends on | R03 (IO parts, lights), R09a (timing checks), R12a (limits-only timing, `X` windows)           |
 | Created    | 2026-11-08                                                                                     |
 
@@ -198,9 +198,11 @@ and cell starts unknown, and the interface is one of 8-bit, 4-bit awaiting the h
 4-bit awaiting the low one (a small set of hypotheses, each with its pending nibble). Every
 transfer advances each hypothesis; the data sheet's sequence — `0x3` three times, then (4-bit)
 `0x2` — collapses them to one known interface, and the instructions after it make the
-registers known one by one. The waits between the three function sets (> 4.1 ms, > 100 µs) are
-checked while the interface is unknown (`init-violation`): an unknown instruction may be a
-Clear display still running. A program without the sequence keeps an unknown display.
+registers known one by one. The waits between the three function sets follow from the
+execution times (built: no `init-violation` kind — a write while an unknown instruction may
+still run, a Clear display or Return home, is a "may be busy" `busy-violation`, merged as maybe
+accepted; the data sheet's 4.1 ms and 100 µs cover slower clocks). A program without the
+sequence keeps an unknown display.
 
 ### The frame (library) and the drawer (editor)
 
@@ -271,21 +273,21 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 
 Checkable statements; verified one by one in the finish-branch workflow.
 
-- [ ] `pnpm check` and `pnpm build` are green.
-- [ ] The data sheet's 8-bit and 4-bit initializations (Figures 23, 24) followed by text show
+- [x] `pnpm check` and `pnpm build` are green (2353 unit tests, 76 browser tests).
+- [x] The data sheet's 8-bit and 4-bit initializations (Figures 23, 24) followed by text show
   the text on a 16×2 headless (`hd44780Text`), with no diagnostics.
-- [ ] Every bus requirement just inside its limit is silent and just outside is reported as an
+- [x] Every bus requirement just inside its limit is silent and just outside is reported as an
   error, with the `X` effects of the design; a write while busy is reported and ignored; a
   write before 15 ms is reported.
-- [ ] Reads: BF/AC and data in 8- and 4-bit mode, `X` until `tDDR`, held `tDHR`, released to
+- [x] Reads: BF/AC and data in 8- and 4-bit mode, `X` until `tDDR`, held `tDHR`, released to
   the pull-ups; a driver left on the bus during a read is a contention.
-- [ ] Every size shows the right DDRAM addresses, with display shift; a 2-line module in 1-line
+- [x] Every size shows the right DDRAM addresses, with display shift; a 2-line module in 1-line
   mode shows only its top line.
-- [ ] A00 and A02 come from the data sheet's Table 4 by the script; spot checks pass.
-- [ ] The examples run headless and in the browser and show their text; changing `size` and
+- [x] A00 and A02 come from the data sheet's Table 4 by the script; spot checks pass.
+- [x] The examples run headless and in the browser and show their text; changing `size` and
   `backlight` redraws the module without moving its pins.
-- [ ] The carry-over and rewind properties pass with the LCD in their circuits.
-- [ ] Docs, ADR-0022, roadmap note, lessons updated.
+- [x] The carry-over and rewind properties pass with the LCD in their circuits.
+- [x] Docs, ADR-0022, roadmap note, lessons updated.
 
 ## Open questions
 
@@ -421,11 +423,11 @@ mode), 15 `LED+` (anode, +5 V via an on-board resistor), 16 `LED−` (cathode); 
 
 ## Handoff
 
-- **State:** tasks 1–7 done: the part, both power-on modes, the drawer, scenarios, carry-over
-  property, both examples with scenario and browser tests.
-- **Next step:** task 8 — docs: components.md (periph family, HD44780 section), editor.md
-  (drawing, animation redraw), simulation.md (severity rule, `animation`), glossary, READMEs,
-  ADR-0022, roadmap note and backlog; then the finish-branch workflow.
-- **Watch out:** the data sheet copy is in the session scratchpad only; download it again if
-  the scratchpad is gone.
-- **Verify with:** `pnpm check`.
+- **State:** done — all tasks and acceptance criteria verified (2026-11-08): `pnpm check`,
+  `pnpm build`, `pnpm e2e` green; the examples looked at in the browser. Waiting for the user's
+  approval to merge into `main` (no remote: `git merge --no-ff`).
+- **Next step:** merge; the roadmap's next item is still R11 (`feat/subcircuits`).
+- **Follow-ups:** in the roadmap backlog ("LCD follow-ups"): 40 × 4, 5 × 10 glass, compatible
+  controllers and ROMs, I²C backpack, graphic LCDs, LCD RAM in the Memory tab, PWM backlight,
+  an input-pull-up pin flag for the design check.
+- **Verify with:** `pnpm check && pnpm build && pnpm e2e`.
