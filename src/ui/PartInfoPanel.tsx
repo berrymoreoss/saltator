@@ -205,17 +205,17 @@ function Path({ path }: { readonly path: TimingRow['path'] }) {
 }
 
 function TimingView({ timing }: { readonly timing: TimingInfo }) {
-  const rows = (list: readonly TimingRow[], limit: 'max' | 'min') =>
+  const rows = (list: readonly TimingRow[], kind: 'delay' | 'requirement') =>
     list.map((row, i) => (
       // biome-ignore lint/suspicious/noArrayIndexKey: rows are static datasheet data
-      <tr key={`${limit}${i}`}>
+      <tr key={`${kind}${i}`}>
         <td className="mono">
           t<sub>{row.symbol.slice(1)}</sub>
         </td>
         <td className="mono">
           <Path path={row.path} />
         </td>
-        <td className="num">{row.typical}</td>
+        <td className="num">{row.typical ?? ''}</td>
         <td className="num">{row.max ?? ''}</td>
         <td className="num">{row.min ?? ''}</td>
       </tr>
@@ -233,15 +233,17 @@ function TimingView({ timing }: { readonly timing: TimingInfo }) {
         </tr>
       </thead>
       <tbody>
-        {rows(timing.delays, 'max')}
-        {rows(timing.requirements, 'min')}
+        {rows(timing.delays, 'delay')}
+        {rows(timing.requirements, 'requirement')}
       </tbody>
       {timing.source && (
         <tfoot>
           <tr>
             <td colSpan={5} className="legend">
-              {timing.requirements.length > 0 &&
-                'Min: the guaranteed minimum the timing checks hold the circuit to. '}
+              {timing.limitsOnly
+                ? 'The data sheet gives limits only: outputs change at their max, hold their data for their min, and the timing checks hold the circuit to the requirements’ min. '
+                : timing.requirements.length > 0 &&
+                  'Min: the guaranteed minimum the timing checks hold the circuit to. '}
               Source: {timing.source}
             </td>
           </tr>

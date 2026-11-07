@@ -55,8 +55,7 @@ const dataPins = (numbers: string) =>
 const IDT_6116 =
   'Renesas (IDT) 6116SA/LA data sheet, Jul.17.20, AC electrical characteristics (read and write cycles)';
 const CONDITIONS_6116 =
-  'VCC = 5 V ± 10%, CL = 30 pF (tCLZ, tOLZ, tCHZ, tOHZ, tWHZ, tOW at 5 pF), over the operating ' +
-  'temperature range; the data sheet gives limits only, no typical values';
+  'VCC = 5 V ± 10%, CL = 30 pF (5 pF for the low-Z and high-Z times); limits only, no typical values';
 
 /** One 6116SA/LA speed grade: read limits (max), output and write minima, from the tables. */
 function grade6116(

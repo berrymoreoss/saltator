@@ -172,9 +172,11 @@ export interface TimingRow {
   readonly symbol: string;
   /** The path or pins in the key's parentheses, as drawn: `nCP`, `to`, `nQ`, `nQ̅`. */
   readonly path: readonly (NameView | string)[];
-  readonly typical: string;
+  /** Absent for parts whose data sheets give limits only (memories). */
+  readonly typical?: string;
   /** Delays: the maximum; requirements: the guaranteed minimum the timing checks use. */
   readonly max?: string;
+  /** Requirements, and the minima of a limits-only part's outputs (`tOH`, `tOE` 10/70 ns). */
   readonly min?: string;
 }
 
@@ -182,14 +184,17 @@ export interface TimingRow {
 export interface TimingInfo {
   readonly delays: readonly TimingRow[];
   readonly requirements: readonly TimingRow[];
+  /** The data sheet gives limits only (no typical values): the simulation uses them. */
+  readonly limitsOnly: boolean;
   readonly conditions?: string;
   readonly source?: string;
 }
 
 /**
- * The timing of an instance with `props` (the defaults without), split into delays (`max`
- * given) and requirements (`min` given); undefined without timing. Pin names in a key (`tpd(nCP to nQ, nQN)`) are shown as drawn, the
- * datasheet's generic names (`nQN`) included.
+ * The timing of an instance with `props` (the defaults without), split into delays (a maximum,
+ * or no minimum) and requirements (a minimum only); undefined without timing. Pin names in a
+ * key (`tpd(nCP to nQ, nQN)`) are shown as drawn, the datasheet's generic names (`nQN`)
+ * included.
  */
 export function timingInfo(
   definition: AnyComponentDefinition,
@@ -204,26 +209,39 @@ export function timingInfo(
     view.set(pin.name, { runs });
     view.set(pin.name.replace(/\d+/g, 'n'), { runs: generic(runs, false) });
   }
-  const row = (key: string, limit: 'max' | 'min'): TimingRow => {
+  const row = (key: string): TimingRow => {
     const match = /^(\w+)(?:\((.*)\))?$/.exec(key);
     const symbol = match?.[1] ?? key;
     const path = (match?.[2] ?? '')
       .split(/(,\s*| to )/)
       .filter((part) => part !== '')
       .map((part) => view.get(part) ?? part);
-    const value = timing[limit]?.[key];
+    const typical = timing.typical[key];
+    const max = timing.max?.[key];
+    const min = timing.min?.[key];
     return {
       symbol,
       path,
-      typical: formatTime(timing.typical[key] ?? 0),
-      ...(value !== undefined && { [limit]: formatTime(value) }),
+      ...(typical !== undefined && { typical: formatTime(typical) }),
+      ...(max !== undefined && { max: formatTime(max) }),
+      ...(min !== undefined && { min: formatTime(min) }),
     };
   };
+  // Every key once, in the order the timing lists them: a key with a maximum, or without a
+  // minimum, is a delay; one with a minimum only is a requirement (or an output's minimum).
+  const keys = [
+    ...new Set([
+      ...Object.keys(timing.typical),
+      ...Object.keys(timing.max ?? {}),
+      ...Object.keys(timing.min ?? {}),
+    ]),
+  ];
+  const isDelay = (key: string) =>
+    timing.max?.[key] !== undefined || timing.min?.[key] === undefined;
   return {
-    delays: Object.keys(timing.max ?? timing.typical)
-      .filter((key) => timing.min?.[key] === undefined)
-      .map((key) => row(key, 'max')),
-    requirements: Object.keys(timing.min ?? {}).map((key) => row(key, 'min')),
+    delays: keys.filter(isDelay).map(row),
+    requirements: keys.filter((key) => !isDelay(key)).map(row),
+    limitsOnly: Object.keys(timing.typical).length === 0,
     ...(timing.conditions !== undefined && { conditions: timing.conditions }),
     ...(timing.source !== undefined && { source: timing.source }),
   };

@@ -204,4 +204,27 @@ describe('timingInfo', () => {
     });
     expect(timingInfo(registry.get('io/led')!)).toBeUndefined();
   });
+
+  it('shows a memory’s limits: max and min of a delay, minima of outputs and requirements', () => {
+    const rom = of('mem/at28c16');
+    expect(rom.limitsOnly).toBe(true);
+    expect(rom.delays.map((r) => [r.symbol, r.typical, r.max, r.min])).toEqual([
+      ['tACC', undefined, '150 ns', undefined],
+      ['tCE', undefined, '150 ns', undefined],
+      ['tOE', undefined, '70 ns', '10 ns'],
+      ['tDF', undefined, '50 ns', '0 ps'],
+    ]);
+    expect(rom.requirements.map((r) => [r.symbol, r.min])).toEqual([['tOH', '0 ps']]);
+    expect(of('74xx/74hc74').limitsOnly).toBe(false);
+  });
+
+  it('shows the timing of an instance’s speed grade', () => {
+    const tAA = (speed?: string) =>
+      timingInfo(registry.get('mem/6116')!, speed ? { speed } : {})!.delays.find(
+        (r) => r.symbol === 'tAA',
+      )!.max;
+    expect(tAA()).toBe('25 ns');
+    expect(tAA('15')).toBe('15 ns');
+    expect(tAA('nonsense')).toBe('25 ns');
+  });
 });

@@ -29,6 +29,13 @@ describe('formatProp', () => {
     expect(formatProp(def('number', { unit: 'Hz' }), 10)).toBe('10 Hz');
     expect(formatProp(def('integer'), undefined)).toBe('—');
   });
+
+  it('summarizes memory images', () => {
+    const image = def('image', { max: 2048, default: '' });
+    expect(formatProp(image, '')).toBe('Erased (2048 bytes)');
+    expect(formatProp(image, '0000:A9FF8D 07FC:0080')).toBe('4 of 2048 bytes programmed');
+    expect(formatProp(image, '0800:00')).toBe('Invalid contents');
+  });
 });
 
 describe('issueLocation', () => {

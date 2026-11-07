@@ -313,7 +313,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   AT28C16 driving a 7-segment display, a register latching a RAM's output before `tAA` (gets
   `X`), the carry-over property with random networks including memories and images; benchmark
   (a 74HC4040 sweeping sixteen 6116s' addresses: ≈ 7.5M events/s).
-- [ ] 6. `ui`: Properties' read-only summary for `image` props; the Part tab for parts with only
+- [x] 6. `ui`: Properties' read-only summary for `image` props; the Part tab for parts with only
   limits; tests.
 - [ ] 7. Examples EEPROM 7-Segment Decoder and RAM by Hand (generators, every net checked,
   looked at in the browser), gallery entries; e2e: open each, run, see the digit follow the

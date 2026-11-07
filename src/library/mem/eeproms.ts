@@ -51,9 +51,7 @@ const controls = (ce: number, oe: number, we: number): PinRow[] => [
 const ns_ = (values: Record<string, number>): Record<string, Time> =>
   Object.fromEntries(Object.entries(values).map(([k, v]) => [k, ns(v)]));
 
-const CONDITIONS =
-  'VCC = 5 V ± 10%, CL = 100 pF (tDF at 5 pF), over the operating temperature range; the data ' +
-  'sheet gives limits only, no typical values';
+const CONDITIONS = 'VCC = 5 V ± 10%, CL = 100 pF (5 pF for tDF); limits only, no typical values';
 
 /** The read limits of an EEPROM's `-15` grade (150 ns), the only one sold outside military. */
 const readTiming = (oeMin: number, source: string): TimingDef => ({
