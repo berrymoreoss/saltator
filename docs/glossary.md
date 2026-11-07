@@ -14,6 +14,15 @@ it for a 7-segment display and blanks the six codes above 9.
 **Bidirectional pin (bidir)** — a pin that can read or drive the net depending on the part's state
 (RAM data pins, 74HC245 A/B ports, CPU data bus).
 
+**Bus** — several signals that belong together, drawn as one heavy bus line (a data bus
+`D[0..7]`, an address bus `A[0..15]`). Here, as in KiCad, a bus is a group of ordinary nets named
+by its members (`D0`…`D7`): a bus label names the bus line, bus entries lead single bits off it.
+The bus line itself carries no level, only the value of its members (`0x3F`).
+
+**Bus entry** — the short 45° stub where one bit leaves a bus line towards a pin
+(`net/bus-entry`); it carries its member's name (`D3`) and joins that net like a net label.
+Logisim's splitter and other tools' "bus ripper" do the same for several bits at once.
+
 **Bus contention** — two or more strong drivers forcing different levels on one net. On real
 hardware it causes excess current and undefined levels; the simulator reports a `contention`
 diagnostic and resolves the net to `X`.
@@ -110,7 +119,8 @@ input behavior; the library shares the function and takes timing from the family
 name are one net, so distant parts connect without a wire between them (KiCad/Altium "net
 label", Logisim "tunnel"). The VCC and GND symbols join the nets `VCC` and `GND` the same way.
 Drawn and connected but never simulated (schematic-only). Not to be confused with a part's
-`label`, which is display text only.
+`label`, which is display text only. Named like a bus (`D[0..7]`) it is a **bus label**: it sits
+on a bus line and names that bus.
 
 **Part / component** — a simulated device: a real chip (`74xx/74hc00`), an IO element
 (`io/led`), or an abstract primitive (`prim/nand`).

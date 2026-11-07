@@ -180,7 +180,7 @@ single entries vs a multi-bit ripper.
   levels, value), the label name hint with bus names; tests.
 - [x] 9. Example **Data Bus** (Q5), gallery entry; e2e: draw a bus, place entries `D0`…`D7` on a
   chip, label the bus, run, see the value.
-- [ ] 10. Docs: circuit.md, components.md, editor.md, glossary, architecture, READMEs,
+- [x] 10. Docs: circuit.md, components.md, editor.md, glossary, architecture, READMEs,
   ADR-0016; roadmap (R10b done, R11 next; backlog: multi-bit ripper, radix); lessons.
 
 ## Acceptance criteria
@@ -238,13 +238,19 @@ single entries vs a multi-bit ripper.
   Place ▸ Bus, Bus Entry (`Z`), toolbar icon; Properties' Bus section (value hex/binary/decimal,
   bits MSB first) for bus lines, bus labels and entries. Looked at in the browser, both themes,
   stopped and running. 1774 tests.
+- 2026-11-07 — tasks 9–10 done: the Data Bus example (generated with `CircuitBuilder`, every
+  net checked, laid out in the browser: the LOAD button and a GND label moved clear of the LED
+  bar and the D7 entry), e2e `tests/e2e/buses.spec.ts` (entries with `Z`, Place ▸ Bus, a bus
+  label renamed `D[0..1]`, the value following the switches; a wire never finishes on a bus;
+  the example runs clean). Docs: circuit.md (buses, layers, schema v2, checks), components.md,
+  editor.md, glossary, architecture, READMEs, ADR-0016; roadmap (R10b done, R11 next, bus
+  follow-ups in the backlog); lessons. `pnpm check` (1777), `pnpm build`, `pnpm e2e` (57) green.
 
 ## Handoff
 
-- **State:** tasks 1–8 done. Example, e2e and docs left.
-- **Next step:** task 9 — the Data Bus example (generate with `CircuitBuilder` in a throwaway
-  vitest file, check nets, look at it in the browser) and an e2e spec (Place ▸ Bus, Bus Entry
-  `Z`, run, `bus-value` in Properties).
+- **State:** all tasks done; acceptance criteria not yet verified one by one.
+- **Next step:** `/finish-branch`: verify the acceptance criteria, set the plan to `done`, ask
+  the user to approve the merge.
 - **Watch out:** the layer check covers tests (`src/circuit/*.test.ts` use `test-parts.ts`,
   library tests can't import `circuit`). 74HC245 pins are 0-based (A0…A7). Gate commits on
   `pnpm check`'s exit code.

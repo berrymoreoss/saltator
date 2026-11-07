@@ -173,8 +173,9 @@ pixels (`src/editor/camera.ts`, immutable values).
 `buildScene(circuit, registry)` (`src/editor/scene.ts`, pure) precomputes everything drawing and
 hit-testing need, once per document change: per part its definition, resolved props, drawing kind
 (`symbol` · `dip` · `box` · `broken`), local layout and bounds, placement, world bounds and body,
-placed pins (tip, stub base, side, net, open?) and text; per wire its segment and net; junction
-dots, dangling wire ends and the design issues from `compileCircuit`. Layouts are cached per type
+placed pins (tip, stub base, side, net — the bus for a bus pin —, bus?, open?) and text; per wire
+its segment, net (the bus for a bus line) and whether it is a bus line; junction dots and bus
+junction dots, dangling wire ends and the design issues from `compileCircuit`. Layouts are cached per type
 and props across rebuilds (`LayoutCache`). A part whose type is unknown or whose props don't
 resolve is `broken`: a red dashed placeholder, reported in Messages.
 
@@ -191,7 +192,9 @@ one `requestAnimationFrame`), never in a loop.
   stronger dots every 10 steps.
 - **Culling and level of detail**: parts and wires outside the view are skipped; text smaller
   than 4 px on screen (pin names: 6 px) is skipped; all wires of one style are one path.
-- **Lines**: outlines 0.1 cell, wires 0.125 cell, never thinner than 1 CSS px. Junction dots,
+- **Lines**: outlines 0.1 cell, wires 0.125 cell, never thinner than 1 CSS px. Bus lines and
+  bus pins' stubs 0.3 cell in the theme's bus color (`theme.bus`, violet), their junction dots
+  larger. Junction dots,
   open-pin circles and dangling-end squares keep a minimum screen size.
 - **Overlays**: the item under the pointer gets a soft outline; selected parts are drawn in the
   selection color over a tinted box, selected wires in the selection color.
@@ -227,7 +230,9 @@ editor doesn't know.
   pins; switches show their power-on position, buttons a plunger), `dip-switch`, `clock`
   (square wave, or a single pulse in manual mode), `led` and `led-bar` (diodes tinted with the LED
   color), `seven-segment`, `hex-display`, `probe`, `net-label` (an outlined tag pointing at its
-  connection point, the name inside in a monospaced font, overlined where it says `~{…}`).
+  connection point, the name inside in a monospaced font, overlined where it says `~{…}`; a bus
+  label outlined in the bus color), `bus-entry` (a diagonal between its bit stub and its heavy
+  bus stub, its name above the bus stub).
   Stopped, drawers show the idle look
   (power-on switch positions, unlit lights); while simulating they get `DrawContext.live`
   ([Simulation](#live-drawing)).
@@ -247,7 +252,7 @@ Text never reads upside down or mirrored.
   the part's bounding box (pins included) on the first side without pins, in the order top,
   bottom, right, left; designator first, then the label. Power symbols show their rail name
   (VCC, GND) at the end away from the pin instead of a designator; net labels show only the
-  name inside their tag.
+  name inside their tag, bus entries only their name.
 - **Text inside a symbol** rotates with the part only by 0° or 90° and reads left-to-right or
   bottom-to-top (`uprightText`): a part rotated 180° draws its text at 0°, 270° at 90°, and a
   flipped part moves the anchors, not the glyphs.
@@ -277,8 +282,8 @@ a gesture is in progress the canvas draws a **preview** circuit instead of the d
 
 ### Tools
 
-`Tool = 'select' | 'pan' | 'wire' | 'interact' | { kind: 'place', type }`, in the toolbar and
-View menu (`V`, `H`, `W`, `I`; the place tool is armed from the Parts panel; the Interact tool
+`Tool = 'select' | 'pan' | 'wire' | 'bus' | 'interact' | { kind: 'place', type }`, in the
+toolbar and View menu (`V`, `H`, `W`, `B`, `I`; the place tool is armed from the Parts panel; the Interact tool
 operates parts while simulating, [below](#interacting-with-parts)). Tools are sticky: they stay until
 another tool is chosen or Escape. The editor's `mode` store says what is going on (`idle`,
 `moving`, `boxing`, `panning`, `wiring`, `floating`) for the status-bar hint.
@@ -294,11 +299,13 @@ another tool is chosen or Escape. The editor's `mode` store says what is going o
 - A placed part gets its designator from its definition's prefix — the lowest free number
   (`U1`, `U2`, `SW1`, … filling gaps) — and **every resolved prop** written into the document.
 - **Place menu** (the menu bar's Place, and right click on empty canvas ▸ Place): Power (VCC),
-  Ground (GND), Pull-up, Pull-down, Wire, Net Label (`L`), Find Part…. A part item arms the place
+  Ground (GND), Pull-up, Pull-down, Wire (`W`), Bus (`B`), Net Label (`L`), Bus Entry (`Z`,
+  KiCad's key), Find Part…. A part item arms the place
   tool like a click in the Parts panel, with preset props where it needs them (`PlaceTool.props`:
   the pull's direction).
-- **Net labels** are placed with their connection point under the pointer (other parts are
-  centered), so a click on a pin tip or a wire end attaches one. Each gets the next name — the
+- **Net labels** are placed with their connection point under the pointer (schematic-only parts
+  by their first pin; other parts are centered), so a click on a pin tip or a wire end attaches
+  one. Bus entries likewise by their bit end, continuing `D0` → `D1`. Each gets the next name — the
   last label name placed or set in Properties with its trailing number incremented (`D0` →
   `D1`), the same name without one, `NET1` first — so clicking down a chip's data pins names
   them D0…D7. Generic: a part's `nextProps` applied to the props of the last part of its type
@@ -322,6 +329,10 @@ each moving point that touched something fixed:
    of the pin before turning — a wire running along a part's column of pin tips would connect to
    each of them.
 
+Bus lines and bus pins rubber-band on their own layer (`transformLayer`): a wire follows only
+moving points of its own layer, and new segments take the layer of what they continue (a bus
+entry dragged off a bus line gets a bus stub, off a pin a wire).
+
 A move can create new contacts where moved parts or bends land on other pins (everything that
 touches connects); the design checks report what came loose or got shorted.
 
@@ -343,7 +354,10 @@ touches connects); the design checks report what came loose or got shorted.
   Each click fixes the corner(s) up to it; clicking a pin, a wire end or a wire finishes the wire,
   a second click on the same point (a double-click) finishes it anywhere. Escape cancels the wire
   being drawn (the tool stays), right click too.
-- **Select tool**: press on a pin tip or a dangling wire end, drag, release — one L-shaped wire.
+- **Bus tool** (`B`, Place ▸ Bus): the same for bus lines; a bus line finishes on bus things
+  only (bus lines, bus pins), a wire on wires and pins only (`ConnectionIndex` per layer).
+- **Select tool**: press on a pin tip or a dangling wire end, drag, release — one L-shaped wire;
+  out of a bus pin or a dangling bus end, a bus line.
 - The preview rings every point where the new path will connect — including pins it merely runs
   over, which connect too ([circuit.md](circuit.md#connectivity)).
 - The wire is committed as segments (`addWires`) and normalized: collinear pieces merge into
@@ -470,6 +484,11 @@ time to move.
 
 ### Live drawing
 
+- **Bus lines** have no level: drawn in the bus color when every member is 0 or 1 (`BUS`), in
+  the `X` color when a member is unknown, in contention or only some float, in the `Z` color
+  when all float; members are found by name in the signal map (`SignalMap.buses`; a member
+  nothing is named after reads `Z`). Bus labels show the bus value (`0x3F`) in a tag after
+  them (`DrawContext.busValue`).
 - **Wires and junctions** take the color of their net's `SignalStyle`: `L1` bright green, `L0`
   dark green, `Z` blue, `X` red, `WEAK_1`/`WEAK_0` (only a pull resistor) paler, `CONTENTION`
   (`sim.contended`) flashing red twice a second while running. Wires the simulation doesn't know
@@ -501,7 +520,10 @@ time to move.
   net (`Editor.locateNet`); double-click zooms. **Clear** hides the current entries until they
   happen again. The tab shows the counts; so does the status bar's simulation cell.
 - **Properties** shows a live level badge (`0`, `1`, `Z`, `X`; weak levels paler, contention red)
-  next to each pin of the selected part, the net of a selected wire and the pins on it.
+  next to each pin of the selected part, the net of a selected wire and the pins on it. A
+  selected bus line, bus label or bus entry shows its bus: names, members, the value in hex,
+  binary and decimal (when every bit is known; `Simulation.busLive`) and each bit's level, most
+  significant first.
 
 ## Editor API
 
@@ -627,6 +649,9 @@ title and a description, in gallery order):
 - **Net Labels** — switches A and B reach a 74HC00's first gate through net labels instead of
   wires, its output Y reaches an LED the same way; labels named GND, stacked on the chip's
   pins, tie its unused inputs to the GND symbol by name, and the VCC pin has a VCC symbol.
+- **Data Bus** — DATA switches through a 74HC245 onto bus `D[0..7]`; bus entries carry each bit
+  to a 74HC574 that LOAD latches into an LED bar. Bus labels at both ends show `0x2A` while
+  running.
 - **SR Latch** — two cross-coupled 74HC00 NANDs; SET and RESET push buttons pull their line low
   against a pull-up; Q and /Q LEDs. It starts unknown until set or reset (the missing-reset
   lesson of 4-state logic).

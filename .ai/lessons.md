@@ -193,3 +193,13 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
 - 2026-11-07 (R10a) — Schematic-only parts aren't in the simulator: `sim.pinLevel`/`stateOf`
   throw for them and `PartLive` doesn't exist. Anything live about them goes through the scene
   (the signal map's points), and test helpers that build a simulator per part must skip them.
+- 2026-11-07 (R10b) — Screenshot scripts: `Camera.x/y` are world cells at the canvas's top-left,
+  not pixels (`setCamera({ x: 10, y: 4, scale: 28 })`). In the dev build, `page.evaluate` can
+  `await import('/src/circuit/index.ts')` and build a circuit with `CircuitBuilder`, then
+  `logicEditor.setCircuit(circuit, { fit: true })` — no example file needed to look at a part.
+- 2026-11-07 (R10b) — Port 5199 may still be held by a dev server from an earlier session; start
+  Vite on another port with `--strictPort` rather than killing a process you didn't start.
+- 2026-11-07 (R10b) — A grammar that a prop must match has to be a regex (`PropDef.pattern`):
+  bus names cap the indices at two digits and the whole name at 32 characters, which bounds the
+  members without counting them. The library layer may not import `circuit` either, not even in
+  tests: pin positions of a library part are checked in `tests/scenarios/`.

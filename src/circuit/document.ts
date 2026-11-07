@@ -20,7 +20,7 @@ export const ID_PATTERN = /^[A-Za-z_][A-Za-z0-9_-]*$/;
 
 export interface CircuitDocument {
   readonly schemaVersion: typeof SCHEMA_VERSION;
-  /** At least one. Schema v1 uses the first; subcircuits (R11) give the others a meaning. */
+  /** At least one. The first is used; subcircuits (R11) give the others a meaning. */
   readonly circuits: readonly Circuit[];
 }
 
