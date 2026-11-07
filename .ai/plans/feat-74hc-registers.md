@@ -343,14 +343,14 @@ Checkable statements; verified one by one in the finish-branch workflow.
 
 ## Handoff
 
-- **State:** tasks 1–9 done and committed (core checks, sequential function tables, timing data,
-  ten chips, 4511 LE checks, property/scenarios/benchmark). `pnpm check` green.
-- **Next step:** task 10 — UI: Part tab timing section (`src/ui/part-info.ts` +
-  `PartInfoPanel.tsx`: delays typ/max, requirements min/typ, conditions, source), timing
-  violations as errors in `diagnosticSeverity` (`SimulationPanel.tsx`, use `isTimingViolation`);
-  look at DIP drawings of the new chips (overlined falling-edge CP, `1Q̅` labels, clock flag) in
-  both themes. Then task 11 (SAP-1 register example), 12 (e2e), 13 (docs).
-- **Watch out:** `ctx.rose`/`ctx.fell` read the pin (floating report) — observe with `prev`;
-  timing checks take `armed`; the function table checker sets `clock` pins after the data;
-  vitest doesn't typecheck — run `pnpm check` before committing.
-- **Verify with:** `pnpm check`; `pnpm bench` (574 pipeline ≈ 5.5M events/s).
+- **State:** all 13 tasks done and committed; `pnpm check` (≈ 1400 tests), `pnpm build` and
+  `pnpm e2e` (48) green. Plan status still `in-progress`, roadmap R09a `in-progress`.
+- **Next step:** `/finish-branch` — walk the acceptance criteria (each was exercised by a task:
+  chips and tables → tasks 4–7 suites and `chips.test.ts`; 4511 → task 8; carry-over → task 9;
+  Part tab and errors → tasks 10, 12; example → tasks 11, 12), close the plan and roadmap (R09a
+  done, R09b `feat/74hc-counters` next), then ask the user to merge (no remote: local `--no-ff`).
+- **Watch out:** `ctx.rose`/`ctx.fell` read the pin — observe with `prev`; timing checks take
+  `armed`; the function table checker sets `clock` pins after the data; vitest doesn't
+  typecheck — `pnpm check` before committing.
+- **Verify with:** `pnpm check && pnpm build && pnpm e2e`; `pnpm bench` (574 pipeline ≈ 5.5M
+  events/s).
