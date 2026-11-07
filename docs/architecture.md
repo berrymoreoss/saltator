@@ -177,7 +177,8 @@ Properties edits the selected part, a context menu and the Edit/Place menus carr
 commands, and the clipboard goes through the browser's clipboard events; R05 made it run — a
 Simulate menu and toolbar group with a speed select, the simulation in the status bar, a
 Simulation tab with runtime diagnostics, live levels in Properties; R06 added the Part tab (pins
-with data sheet descriptions and the function table of the part picked last).
+with data sheet descriptions and the function table of the part picked last), R09a its timing
+(delays and the minima the timing checks use).
 
 ```
 ┌───────────────────────── menu bar · toolbar (tools, zoom, grid, gate style) ─────────────────────────┐

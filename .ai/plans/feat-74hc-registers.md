@@ -209,7 +209,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   File ▸ New from Example lists it.
 - [x] 12. e2e: the SAP-1 register loads a value from the bus and drives it back; the Part tab
   of the 74HC74 shows its timing; a too-fast clock on a 74HC74 shows a timing violation.
-- [ ] 13. Docs: components.md (sequential chips, timing checks, `timing.min`), simulation.md
+- [x] 13. Docs: components.md (sequential chips, timing checks, `timing.min`), simulation.md
   (timing checks replace "planned"), editor.md (Part tab timing, error severity), ADR-0014,
   ADR index, glossary (recovery time, metastability), `src/core/README.md`,
   `src/library/README.md`, add-component recipe, lessons, roadmap (R09a done, R09b next).
@@ -333,6 +333,13 @@ Checkable statements; verified one by one in the finish-branch workflow.
   opens with no design issues and runs with no diagnostics (clicking its switches would need
   canvas coordinates of a fitted view; its behavior is the scenario test's). `pnpm e2e`: 48
   passed.
+- 2026-11-07 — task 13: components.md (timing requirements, sequential tables, behavior rules,
+  Edge-triggered chips, Timing checks), simulation.md (Timing checks section, test bench,
+  `rose`/`fell` read pins), editor.md (Part tab timing, error severity), ADR-0014 + index,
+  glossary (flip-flop, metastability, recovery, ripple counter, pulse width, timing check),
+  core/library READMEs, architecture, root README status (stale since R01), add-component
+  recipe (sequential parts), seven lessons, roadmap text and backlog (worst-case mode, partial
+  overlines). The roadmap status flip is left to finish-branch.
 
 ## Handoff
 

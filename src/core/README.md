@@ -13,7 +13,9 @@ Modules: `time`, `logic` (levels, drives, resolution, 4-state operators), `event
 `component` (definition types, `defineComponent`, `resolveProps`), `symbol` (symbol geometry,
 `validateSymbol`), `registry`, `netlist`
 (`NetlistBuilder`, `resolveNetlist`, `sameNetlistStructure`), `diagnostics`, `simulator`
-(including `carryOver` for editing while running). Test utilities (`Bench`,
+(including `carryOver` for editing while running), `function-table` (the datasheet table format,
+sequential letters included), `timing-checks` (`TimingChecks`: set-up, hold, pulse width and
+recovery against `timing.min`, R09a). Test utilities (`Bench`,
 `functionTable`, `truthTable`, `Trace`) live in `testing/` and are imported from
 `src/core/testing`, not from the main index.
 

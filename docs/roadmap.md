@@ -168,11 +168,17 @@ registers with the timing checks (R09a) and counters and shift registers (R09b).
 
 ### R09a · 74HC flip-flops, registers + timing checks — `feat/74hc-registers` — `in-progress`
 
-74HC74, 107, 109, 112, 173, 175, 273, 374, 377, 574 from the Nexperia data sheets. Timing checks
-for edge-triggered parts (setup, hold, pulse width, recovery) against the data sheets'
-guaranteed minima at 25 °C; a violation is reported and makes the bits it may have loaded `X`.
-LE checks on the 74HC4511. The Part tab shows a chip's timing. Example: Ben Eater's A register
-(two 173s and a 245 on a bus). Plan: `.ai/plans/feat-74hc-registers.md`.
+74HC74, 107, 109, 112 (flip-flops) and 173, 175, 273, 374, 377, 574 (registers) from the
+Nexperia data sheets, on two engines (`FlipFlopSpec`, `RegisterSpec`): `X` until reset or
+loaded, uncertain clock edges `X` only where they could change a bit, set and reset together as
+each data sheet says. Timing checks in core (`TimingChecks`: set-up, hold, pulse width,
+recovery) against the guaranteed minima at 25 °C in `timing.min`; a violation is an error in the
+Simulation tab and makes the bits the edge may have loaded `X`, armed only while the clock
+matters. The 74HC4511 checks its LE. Sequential function tables (`↑`, `h`, `q̅`); the Part tab
+shows a chip's delays and minima. Example: Ben Eater's A register (two 173s, two 245s, a bus).
+Spec: [components.md](components.md#edge-triggered-chips),
+[simulation.md](simulation.md#timing-checks). Decision:
+[ADR-0014](adr/0014-timing-checks.md). Plan: `.ai/plans/feat-74hc-registers.md`.
 
 ### R09b · 74HC counters & shift registers — `feat/74hc-counters`
 
@@ -279,6 +285,11 @@ Promote to a numbered item when needed.
 - Editing extras (R04b follow-ups): editing a prop of several selected parts at once, re-annotate
   designators, align/distribute, wire auto-routing around parts, a modifier to move parts without
   dragging their wires (KiCad "move"), dragging a single wire end.
+- Worst-case timing mode (R09a follow-up): the recorded `max` delays with the −40 °C to +85 °C
+  minima (not recorded yet: add them as a third requirement column); a "report only" setting
+  that keeps bits known after a timing violation, if `X` gets in the way.
+- Overline only the letter of indexed complement pins (the 175's `Q̅0`, drawn `Q̅0̅` now): a
+  label syntax for a partial overline (R09a nit).
 - More logic families (R06 follow-up): 74HCT and 74AC as timing tables for the existing chip
   specs; 74LS/74F also need TTL inputs (a floating input reads high).
 - Kernel: mark the forced evaluation (power-on, after a recompile) so multi-section chips can

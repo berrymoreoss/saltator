@@ -19,8 +19,9 @@ Somewhere between Logisim and Proteus, built for learning and for building real 
 
 ## Status
 
-Early development. The foundation (tooling, architecture, docs, workflow) is in place; the
-simulation kernel is next. See the [roadmap](docs/roadmap.md).
+Early development, phase 2 (building blocks): the kernel, a schematic editor that runs circuits
+live, files and examples, 74HC gates, MSI chips, flip-flops and registers with data sheet timing
+checks, and a behavioral 555 are in. See the [roadmap](docs/roadmap.md).
 
 ## Quick start
 

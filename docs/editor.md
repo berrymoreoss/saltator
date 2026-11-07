@@ -77,10 +77,13 @@ in the header, its props for prop-dependent pins) or a part clicked in the Parts
   (`each gate (n = 1 to 4)`), columns of active-low pins overlined (a column named like a pin or
   like its generic name), labelled pins' columns under their label, text cells spaced out
   (`A3 > B3`), the output group headed `Inputs/outputs` for bus ports (245), and the letters'
-  legend.
+  legend; sequential tables as the data sheets write them (`↑`, `h`, `q̅`);
+- the definition's **timing** (R09a, under the function table): every delay with its typical and
+  maximum value, every timing requirement (set-up, hold, pulse width, recovery) with its typical
+  value and the guaranteed minimum the timing checks use, the path's pin names as drawn
+  (`nCP to nQ, nQ̅`), the conditions and the source.
 
-Parts without descriptions or a function table (`prim/*`, `io/*`) show what they have. Timing is
-not shown (R06, Q3). Edit ▸ Part Info and the part context menu open the tab. The pure model is
+Parts without descriptions, a function table or timing (`prim/*`, `io/*`) show what they have. Edit ▸ Part Info and the part context menu open the tab. The pure model is
 `src/ui/part-info.ts` (unit-tested); the selection-following lives in `Workbench`.
 
 ## Commands and shortcuts
@@ -470,8 +473,9 @@ time to move.
 
 - The **Simulation** tab lists the kernel's and parts' diagnostics (`contention`,
   `floating-input`, `oscillation`, part-reported kinds) in order of first occurrence: kind,
-  message, first time, last time and count, where (`U1.A`, `net U1.Y`). Contention and
-  oscillation are errors, the rest warnings. Click locates the part, or selects the wires of the
+  message, first time, last time and count, where (`U1.A`, `net U1.Y`). Contention,
+  oscillation and timing violations (set-up, hold, pulse width, recovery — R09a) are errors, the
+  rest warnings. Click locates the part, or selects the wires of the
   net (`Editor.locateNet`); double-click zooms. **Clear** hides the current entries until they
   happen again. The tab shows the counts; so does the status bar's simulation cell.
 - **Properties** shows a live level badge (`0`, `1`, `Z`, `X`; weak levels paler, contention red)
