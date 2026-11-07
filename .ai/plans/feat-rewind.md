@@ -216,7 +216,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 4. `editor`: `Timeline` — checkpoints, action log, positions, reaching a position in a
   scratch simulator, the present, divergence, budget with thinning and the maximum gap; tests
   with a real simulator (a tiny budget).
-- [ ] 5. `editor`: host — checkpointing between kernel calls (cost measured at Max), forward runs
+- [x] 5. `editor`: host — checkpointing between kernel calls (cost measured at Max), forward runs
   that replay logged actions, `rewindTo`, Step Back, backward searches over frames (Pause
   cancels), divergence on actions, resets on power-on/Stop/edits, `timeline` store and
   reasons; fake-clock tests.
@@ -335,6 +335,24 @@ Checkable statements; verified one by one in the finish-branch workflow.
   reset that `acted` repeats; picking an earlier checkpoint on a tie is only slower). Found by
   the mutations: "same final levels" hid a replay that ran between two same-frame actions —
   the tests compare the queue's head and the event count too.
+- 2026-11-08 — task 5: the host keeps a `Timeline` per simulator (`#build`: power-on and every
+  carry-over; dropped on Stop; `SimulationOptions.history` for tests). Every forward kernel
+  call goes through `#advance(sim, limit, run)`: the recorded actions due now are delivered
+  first, the call is capped at the next one's instant (`'action'`: go on, no lag reported), an
+  `idle` before it jumps there (Max, where nothing happens between actions). `action` logs the
+  user's action (`acted`) and, behind the present, tells the tools first (`onDiverge`), as an
+  edit continuing from a rewound instant does. `rewindTo(time, reason?)` (back, or forward within
+  the record), `toPresent`, Run To a past time rewinds, `stepBack` (`previousInstantSearch`: the
+  instants with events, distinct times, stale-only ones skipped), `searchBack(BackSearch)` — the
+  history's segments replayed in the replica newest first, the first at once and the rest over
+  frames (`status.goal` "Step Back…"; Pause cancels and stays put), the found position reached,
+  else the history's start. `#reach`: the lights resampled, diagnostics refreshed, `onRewind`
+  listeners told (`{ time, present }`) before the status says paused. `history` store (start,
+  present, behind). Found by mutation: Step Clock behind the present with a recorded action
+  before the next edge — the action is delivered, then the edge passed. Mutation-checked (22;
+  two equivalent: a separate "already at the start" case, a remembered first-instant time).
+  Benchmark (host chunks of 20K events, a checkpoint every 200K): ring oscillator 12.45–12.76M
+  vs 12.57–12.89M events/s without; 16 × 6116 swept 7.42–7.52M vs 7.56–7.61M.
 
 ## Handoff
 

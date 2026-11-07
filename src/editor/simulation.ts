@@ -30,6 +30,12 @@ import type { Scene } from './scene';
 import { Store } from './store';
 import { type PartLive, UNKNOWN_LIGHT } from './symbols';
 import { SignalStyle } from './theme';
+import {
+  Timeline,
+  type TimelineOptions,
+  type TimelinePosition,
+  type TimelineSegment,
+} from './timeline';
 
 /**
  * - `stopped`: no simulator; the canvas shows the plain drawing;
@@ -99,6 +105,51 @@ export type StepGoal =
   | { readonly kind: 'edge'; readonly net: string; readonly level: Level; readonly label: string }
   | { readonly kind: 'settle'; readonly label: string };
 
+/** Where the run stands in its history (R14b), for the UI. */
+export interface HistoryStatus {
+  /** The earliest time a rewind reaches (0 while stopped). */
+  readonly start: Time;
+  /** The furthest the run has reached. */
+  readonly present: Time;
+  /** Behind the present: forward runs replay the recording. */
+  readonly behind: boolean;
+}
+
+/** Told to the tools after a rewind: where the live simulator is, how far its record reaches. */
+export interface RewindEvent {
+  readonly time: Time;
+  readonly present: Time;
+}
+
+/**
+ * A backward search (Step Back, Step Back Clock, Reverse Continue): it watches the replica
+ * while the history's segments replay, newest first, until it knows where to go.
+ */
+export interface BackSearch {
+  /** The reason it stops with (`Step Back`), and, with `…`, what the status says meanwhile. */
+  readonly label: string;
+  /** Why it went to the history's start: nothing found (`no earlier hit`). */
+  readonly notFound: string;
+  /**
+   * Watches one segment's replay in `sim` (the replica; `at` gives the position of an instant)
+   * up to `before`, where the search began. Returns its detach function.
+   */
+  watch(sim: Simulator, at: (time: Time) => TimelinePosition, before: TimelinePosition): () => void;
+  /** Where to go, once known: a position, or a time as it ended. */
+  target(): TimelinePosition | Time | undefined;
+}
+
+/** A search under way: the segments left. */
+interface Search {
+  readonly search: BackSearch;
+  readonly segments: readonly TimelineSegment[];
+  readonly before: TimelinePosition;
+  next: number;
+}
+
+/** A kernel call's status, or: it stopped at the instant of a recorded action (go on). */
+type HostRun = RunStatus | 'action';
+
 /** A step under way: its goal, whether the first instant is behind it, why it ended. */
 interface Step {
   readonly goal: StepGoal;
@@ -130,6 +181,8 @@ export interface SimulationOptions {
   readonly clock?: SimClock;
   /** Wall-clock milliseconds the kernel may use per frame. Default 8. */
   readonly frameBudget?: number;
+  /** The history's checkpoints and budget (tests make them small). */
+  readonly history?: TimelineOptions;
 }
 
 /** A bus as it is in the simulation (Properties). */
@@ -280,6 +333,8 @@ export class Simulation {
    * after every step, action and state change. (The canvas follows `revision` instead.)
    */
   readonly ticks = new Store(0);
+  /** Where the run stands in its history (start, present, behind it). */
+  readonly history = new Store<HistoryStatus>({ start: 0, present: 0, behind: false });
   readonly #registry: ComponentRegistry;
   readonly #clock: SimClock;
   readonly #budget: number;
@@ -303,6 +358,11 @@ export class Simulation {
   #pauseRequest: string | undefined;
   #breaks = 0;
   #step: Step | undefined;
+  #timeline: Timeline | undefined;
+  readonly #historyOptions: TimelineOptions;
+  #search: Search | undefined;
+  readonly #rewindListeners = new Set<(event: RewindEvent) => void>();
+  readonly #divergeListeners = new Set<(time: Time) => void>();
   /** Brightness samples of the indicators, by component id. */
   readonly #lights = new Map<string, LightSample>();
   /** Live views of the parts in the simulator, by component id (rebuilt with the simulator). */
@@ -312,6 +372,7 @@ export class Simulation {
     this.#registry = registry;
     this.#clock = options.clock ?? BROWSER_CLOCK;
     this.#budget = options.frameBudget ?? 8;
+    this.#historyOptions = options.history ?? {};
     this.#scene = scene;
     this.#netlist = scene.compiled.netlist;
     this.status = new Store<SimStatus>({
@@ -330,6 +391,34 @@ export class Simulation {
   /** The kernel running the circuit (undefined when stopped). Read-only use. */
   get simulator(): Simulator | undefined {
     return this.#sim;
+  }
+
+  /** The live simulator's history (undefined when stopped). Read-only use. */
+  get timeline(): Timeline | undefined {
+    return this.#timeline;
+  }
+
+  /**
+   * Calls `listener` after every rewind — the live simulator was restored to an earlier (or
+   * later) position, and no net listener heard it: a tool catches up (`Recorder.seek`).
+   */
+  onRewind(listener: (event: RewindEvent) => void): () => void {
+    this.#rewindListeners.add(listener);
+    return () => {
+      this.#rewindListeners.delete(listener);
+    };
+  }
+
+  /**
+   * Calls `listener` when the run leaves its recorded future at `time` — the user acted behind
+   * the present, or an edit continues the run from there — before anything new happens: a
+   * tool drops what it kept of that future (`Recorder.cut`).
+   */
+  onDiverge(listener: (time: Time) => void): () => void {
+    this.#divergeListeners.add(listener);
+    return () => {
+      this.#divergeListeners.delete(listener);
+    };
   }
 
   /** Wire and point → net index for the current scene (empty when stopped). */
@@ -488,16 +577,21 @@ export class Simulation {
       if (!this.#powerOn()) return false;
       this.#setState('paused');
       this.#sim!.runUntil(0);
+      this.#timeline?.ran();
       this.#afterRun();
       return true;
     }
     this.#setReason(undefined);
     const sim = this.#sim!;
     const before = sim.stats.events;
-    // Cancelled changes leave stale events behind: skip them until something real happens.
-    while (sim.nextEventTime !== Number.POSITIVE_INFINITY && sim.stats.events === before) {
-      sim.runUntil(sim.nextEventTime);
-      if (sim.halted) break;
+    // Cancelled changes leave stale events behind: skip them until something real happens. A
+    // recorded action on the way (behind the present) is delivered at its instant.
+    for (;;) {
+      const next = sim.nextEventTime;
+      const cap = this.#timeline?.pending?.time ?? Number.POSITIVE_INFINITY;
+      if (next === Number.POSITIVE_INFINITY && cap === Number.POSITIVE_INFINITY) break;
+      this.#advance(sim, Math.min(next, cap), (limit) => sim.runUntil(limit));
+      if (sim.halted || sim.stats.events !== before) break;
     }
     this.#afterRun();
     return sim.stats.events !== before;
@@ -513,11 +607,15 @@ export class Simulation {
     const state = this.state;
     if (state === 'halted') return false;
     if (goal.kind === 'time' && !Number.isFinite(goal.until)) return false;
+    if (goal.kind === 'time' && this.#sim && goal.until < this.#sim.now) {
+      return this.rewindTo(goal.until, goal.label);
+    }
     let passed = goal.kind === 'time';
     if (state === 'stopped') {
       if (!this.#powerOn()) return false;
       this.#setState('paused');
       this.#sim!.runUntil(0);
+      this.#timeline?.ran();
       passed = true;
       if (this.#pauseRequest !== undefined || this.#sim!.halted) {
         this.#afterRun();
@@ -569,11 +667,141 @@ export class Simulation {
     return this.#pauseAt;
   }
 
+  // ── Rewinding (R14b) ────────────────────────────────────────────────────────────────────
+
+  /**
+   * Puts the simulation at `time` as it ended — every action taken at it delivered — paused,
+   * with `reason` (default `Rewound to 1.5 µs`): back, or forward within the recorded future.
+   * False when stopped or the time lies outside the history (before its start, after the
+   * present).
+   */
+  rewindTo(time: Time, reason?: string): boolean {
+    const timeline = this.#timeline;
+    if (!timeline || !Number.isFinite(time)) return false;
+    const target = timeline.asEnded(time);
+    if (!timeline.reachable(target)) return false;
+    this.#reach(target, reason ?? `Rewound to ${formatTime(time)}`);
+    return true;
+  }
+
+  /** Back to the present, paused (`Go to Present`). False when not behind it. */
+  toPresent(): boolean {
+    const timeline = this.#timeline;
+    if (!timeline?.hasFuture) return false;
+    this.#reach(timeline.present, 'Present');
+    return true;
+  }
+
+  /**
+   * Step Back: to the instant with events before the last one at or before now, as it ended —
+   * Step then comes back. At the history's start it stays there.
+   */
+  stepBack(): boolean {
+    return this.searchBack(previousInstantSearch());
+  }
+
+  /**
+   * Searches the history backwards from where the run is (`BackSearch`), one segment at a time
+   * in the replica — the first at once, the rest over frames, `status.goal` saying so — then
+   * goes where it found, paused with its label as the reason, or to the history's start. Pause
+   * cancels it (the run stays where it was). False when stopped.
+   */
+  searchBack(search: BackSearch): boolean {
+    const timeline = this.#timeline;
+    if (!timeline) return false;
+    this.#unschedule();
+    if (this.state === 'running') this.#sampleLights(false);
+    const before = timeline.position;
+    this.#search = { search, segments: timeline.segmentsBefore(before), before, next: 0 };
+    this.#step = undefined;
+    this.#setState('running');
+    this.#searchFrame();
+    return true;
+  }
+
+  /** Replays segments of the search under way until it finds, or the frame's budget is used. */
+  #searchFrame(): void {
+    const timeline = this.#timeline;
+    const current = this.#search;
+    if (!timeline || !current) return;
+    const { search, segments, before } = current;
+    const deadline = this.#clock.now() + this.#budget;
+    while (current.next < segments.length) {
+      const segment = segments[current.next++]!;
+      timeline.replaySegment(segment, (sim, at) => search.watch(sim, at, before));
+      const found = search.target();
+      if (found !== undefined) {
+        const target = typeof found === 'number' ? timeline.asEnded(found) : found;
+        if (timeline.reachable(target)) {
+          this.#reach(target, search.label);
+          return;
+        }
+      }
+      if (this.#clock.now() >= deadline && current.next < segments.length) {
+        this.#schedule();
+        return;
+      }
+    }
+    this.#reach(timeline.asEnded(timeline.start), `${search.label}: ${search.notFound}`);
+  }
+
+  /** Restores the live simulator at `target` (paused), and lets the tools catch up. */
+  #reach(target: TimelinePosition, reason: string): void {
+    const sim = this.#sim;
+    const timeline = this.#timeline;
+    if (!sim || !timeline) return;
+    this.#unschedule();
+    this.#search = undefined;
+    this.#step = undefined;
+    timeline.reach(target);
+    this.#pauseAt = undefined;
+    this.#pauseRequest = undefined;
+    this.#collectLights(sim);
+    this.#sampleLights(false);
+    this.#events = sim.stats.events;
+    this.#diagnosticsKey = '';
+    const event: RewindEvent = { time: sim.now, present: timeline.present.time };
+    for (const listener of [...this.#rewindListeners]) listener(event);
+    this.#setState('paused', reason);
+  }
+
+  #diverged(time: Time): void {
+    for (const listener of [...this.#divergeListeners]) listener(time);
+  }
+
+  /**
+   * One kernel call toward `limit` (absolute), through the recorded future: the logged actions
+   * due now are delivered first, and the call stops at the next one's instant (`action`: go
+   * on). Every forward run goes through here, so the timeline sees each one.
+   */
+  #advance(sim: Simulator, limit: Time, run: (limit: Time) => RunStatus): HostRun {
+    const timeline = this.#timeline;
+    if (!timeline) return run(limit);
+    while (timeline.applyPending()) {
+      // every action logged at this instant, in order
+    }
+    const cap = timeline.pending?.time;
+    if (cap === undefined || cap > limit) {
+      const result = run(limit);
+      timeline.ran();
+      return result;
+    }
+    const result = run(cap);
+    timeline.ran();
+    if (result !== 'reached' && result !== 'idle') return result;
+    if (sim.now < cap) {
+      sim.runUntil(cap); // nothing happens before it: on to the action's instant
+      timeline.ran();
+    }
+    return 'action';
+  }
+
   /** Discards the simulator: back to the plain drawing. */
   stop(): void {
     if (this.state === 'stopped') return;
     this.#unschedule();
     this.#sim = undefined;
+    this.#timeline = undefined;
     this.#signals = EMPTY_SIGNALS;
     this.#parts = new Map();
     this.#lights.clear();
@@ -614,8 +842,16 @@ export class Simulation {
     } catch {
       return false; // not in the netlist (a broken part) or not interactive
     }
+    const timeline = this.#timeline;
+    if (timeline) {
+      // Behind the present, acting starts a new future: the tools drop the old one first.
+      const behind = timeline.hasFuture;
+      timeline.acted(component, payload);
+      if (behind) this.#diverged(sim.now);
+    }
     if (this.state !== 'running') {
       sim.runUntil(sim.now);
+      timeline?.ran();
       this.#afterRun();
     } else {
       this.#bump();
@@ -638,6 +874,8 @@ export class Simulation {
     const sim = this.#sim;
     if (!sim) return;
     if (!sameNetlistStructure(previous, netlist)) {
+      // The run goes on from here in another circuit: its recorded future is gone.
+      if (this.#timeline?.hasFuture) this.#diverged(sim.now);
       const carry = sim.carryOver(renames ? { renames } : {});
       if (!this.#build(carry)) return;
       if (this.state === 'halted') this.#setState('paused');
@@ -663,6 +901,7 @@ export class Simulation {
     try {
       const sim = new Simulator(this.#netlist, this.#registry, carry ? { carry } : {});
       this.#sim = sim;
+      this.#timeline = new Timeline(sim, this.#historyOptions);
       this.#parts = new Map(
         this.#netlist.components.map((c) => [c.id, new LivePart(sim, c.id, this.#lights)]),
       );
@@ -672,6 +911,7 @@ export class Simulation {
       // The compiler leaves broken parts out, so this is a library bug: say so, don't crash.
       this.#unschedule();
       this.#sim = undefined;
+      this.#timeline = undefined;
       this.#signals = EMPTY_SIGNALS;
       this.#parts = new Map();
       const message = error instanceof Error ? error.message : String(error);
@@ -686,9 +926,13 @@ export class Simulation {
       this.#pauseAt = undefined;
       this.#pauseAtReason = undefined;
       this.#step = undefined;
+      this.#search = undefined;
     }
     const sim = this.#sim;
-    const goal = state === 'running' ? this.#step?.goal.label : undefined;
+    const goal =
+      state === 'running'
+        ? (this.#step?.goal.label ?? (this.#search && `${this.#search.search.label}…`))
+        : undefined;
     this.status.update(({ error: _error, reason: _reason, goal: _goal, ...status }) => ({
       ...status,
       state,
@@ -700,6 +944,7 @@ export class Simulation {
     }));
     this.#lastStatus = this.#clock.now();
     this.#refreshDiagnostics();
+    this.#refreshHistory();
     this.ticks.update((n) => n + 1);
     this.#bump();
   }
@@ -720,6 +965,10 @@ export class Simulation {
   #frame(): void {
     const sim = this.#sim;
     if (!sim || this.state !== 'running') return;
+    if (this.#search) {
+      this.#searchFrame();
+      return;
+    }
     const clock = this.#clock;
     const wall = clock.now();
     const elapsed = Math.min(Math.max(wall - this.#lastWall, 0), MAX_FRAME_MS);
@@ -734,7 +983,7 @@ export class Simulation {
       perSecond === undefined
         ? Number.POSITIVE_INFINITY
         : start + Math.round((elapsed / 1000) * perSecond);
-    let result: RunStatus;
+    let result: HostRun;
     let stop = false;
     let reason: string | undefined;
     for (;;) {
@@ -742,11 +991,16 @@ export class Simulation {
       // A step runs at Max whatever the speed: it is a jump, not something to watch.
       if (step) result = this.#stepChunk(sim, step, pauseAt);
       else if (perSecond === undefined) {
-        result = sim.settle({
-          maxTime: Math.max(0, Math.min(MAX_SETTLE, pauseAt - sim.now)),
-          maxEvents: CHUNK_EVENTS,
-        });
-      } else result = sim.runUntil(Math.min(target, pauseAt), { maxEvents: CHUNK_EVENTS });
+        result = this.#advance(
+          sim,
+          sim.now + Math.max(0, Math.min(MAX_SETTLE, pauseAt - sim.now)),
+          (limit) => sim.settle({ maxTime: Math.max(0, limit - sim.now), maxEvents: CHUNK_EVENTS }),
+        );
+      } else {
+        result = this.#advance(sim, Math.min(target, pauseAt), (limit) =>
+          sim.runUntil(limit, { maxEvents: CHUNK_EVENTS }),
+        );
+      }
       if (result === 'halted') break;
       // Why it pauses here, if it does: a breakpoint, a step reached, a trigger's post-trigger
       // time over (or nothing left to happen before it), a plain break.
@@ -765,7 +1019,8 @@ export class Simulation {
       if (stop || clock.now() >= deadline) break;
       // A trigger that fired asks to run on to its post-trigger end (`pauseAt`): go on there.
       const runOn = result === 'break' && this.#pauseAt !== undefined && sim.now < this.#pauseAt;
-      if (result !== 'budget' && !runOn) break;
+      // At a recorded action's instant (replaying the recording): deliver it and go on.
+      if (result !== 'budget' && result !== 'action' && !runOn) break;
     }
     if (elapsed > 0) {
       const rate = ((sim.now - start) * 1000) / elapsed;
@@ -798,21 +1053,21 @@ export class Simulation {
    * One piece of a step, at Max: `budget` while there is more to do; otherwise what the kernel
    * returned, with `step.done` set once the goal is reached (or can't be).
    */
-  #stepChunk(sim: Simulator, step: Step, pauseAt: Time): RunStatus {
+  #stepChunk(sim: Simulator, step: Step, pauseAt: Time): HostRun {
     const { goal } = step;
     if (goal.kind === 'time') {
-      const limit = Math.min(goal.until, pauseAt);
-      const result = sim.runUntil(Math.max(sim.now, limit), { maxEvents: CHUNK_EVENTS });
+      const limit = Math.max(sim.now, Math.min(goal.until, pauseAt));
+      const result = this.#advance(sim, limit, (l) => sim.runUntil(l, { maxEvents: CHUNK_EVENTS }));
       if ((result === 'reached' || result === 'idle') && sim.now >= goal.until) {
         step.done = goal.label;
       }
       return result;
     }
     if (goal.kind === 'settle') {
-      const result = sim.settle({
-        maxTime: Math.max(0, Math.min(MAX_SETTLE, pauseAt - sim.now)),
-        maxEvents: CHUNK_EVENTS,
-      });
+      const limit = sim.now + Math.max(0, Math.min(MAX_SETTLE, pauseAt - sim.now));
+      const result = this.#advance(sim, limit, (l) =>
+        sim.settle({ maxTime: Math.max(0, l - sim.now), maxEvents: CHUNK_EVENTS }),
+      );
       if (result === 'idle') step.done = goal.label;
       return result;
     }
@@ -822,21 +1077,26 @@ export class Simulation {
       return 'idle';
     }
     if (!step.passed) {
-      // Through the next instant first: right before an edge, that is the edge itself.
+      // Through the next instant first: right before an edge, that is the edge itself (a
+      // recorded action on the way is delivered first, then the edge passed).
       const next = sim.nextEventTime;
       if (next === Number.POSITIVE_INFINITY) {
         step.done = `${goal.label}: nothing left to happen`;
         return 'idle';
       }
+      const result = this.#advance(sim, next, (l) => sim.runUntil(l));
+      if (result === 'action') return result;
       step.passed = true; // (no `pauseAt` yet: pausing forgets it)
-      const result = sim.runUntil(next);
       return result === 'reached' || result === 'idle' ? 'budget' : result;
     }
-    const result = sim.settle({
-      maxTime: Math.max(0, Math.min(MAX_SETTLE, pauseAt - sim.now)),
-      maxEvents: CHUNK_EVENTS,
-      stopBefore: { net, level: goal.level },
-    });
+    const limit = sim.now + Math.max(0, Math.min(MAX_SETTLE, pauseAt - sim.now));
+    const result = this.#advance(sim, limit, (l) =>
+      sim.settle({
+        maxTime: Math.max(0, l - sim.now),
+        maxEvents: CHUNK_EVENTS,
+        stopBefore: { net, level: goal.level },
+      }),
+    );
     if (result === 'before') step.done = goal.label;
     else if (result === 'idle') step.done = `${goal.label}: nothing left to happen`;
     return result; // `reached` after an hour without the edge: the next frame goes on
@@ -943,7 +1203,19 @@ export class Simulation {
       this.status.set({ ...status, time, actual, lagging });
     }
     this.#refreshDiagnostics();
+    this.#refreshHistory();
     this.ticks.update((n) => n + 1);
+  }
+
+  #refreshHistory(): void {
+    const timeline = this.#timeline;
+    const next: HistoryStatus = timeline
+      ? { start: timeline.start, present: timeline.present.time, behind: timeline.hasFuture }
+      : { start: 0, present: 0, behind: false };
+    const old = this.history.get();
+    if (old.start !== next.start || old.present !== next.present || old.behind !== next.behind) {
+      this.history.set(next);
+    }
   }
 
   #refreshDiagnostics(): void {
@@ -1009,4 +1281,31 @@ export function signalMap(scene: Scene, sim: Simulator): SignalMap {
     for (const pin of bus.pins) busPoints.set(pointKey(pin.at), bus.id);
   }
   return { nets, wires, points, buses, busWires, busPoints };
+}
+
+/**
+ * Step Back's search: the instants with events, newest first, until two are known — the last
+ * one at or before where the search began, and the one before it, the target.
+ */
+export function previousInstantSearch(): BackSearch {
+  let times: Time[] = [];
+  return {
+    label: 'Step Back',
+    notFound: 'the start of the history',
+    watch(sim) {
+      const found: Time[] = [];
+      let events = sim.stats.events;
+      const off = sim.onInstant((time) => {
+        if (sim.stats.events === events) return; // only stale events: nothing happened
+        events = sim.stats.events;
+        if (found.at(-1) !== time) found.push(time);
+      });
+      return () => {
+        off();
+        if (found.at(-1) === times[0]) found.pop();
+        times = [...found, ...times];
+      };
+    },
+    target: () => (times.length >= 2 ? times.at(-2) : undefined),
+  };
 }
