@@ -23,4 +23,5 @@ export * from './store';
 export * from './symbols';
 export * from './text-placement';
 export * from './theme';
+export * from './timeline';
 export * from './waveforms';

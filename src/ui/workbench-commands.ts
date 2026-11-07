@@ -2,6 +2,7 @@
 import {
   Activity,
   BookOpen,
+  ChevronsLeft,
   ChevronsRight,
   CircleDot,
   ClipboardPaste,
@@ -29,12 +30,15 @@ import {
   Pointer,
   Redo2,
   RefreshCcw,
+  Rewind,
   RotateCcw,
   RotateCw,
   Scissors,
   Search,
+  SkipForward,
   SlidersHorizontal,
   Square,
+  StepBack,
   StepForward,
   Sun,
   Trash2,
@@ -464,6 +468,52 @@ export function createCommands({
       },
     },
     {
+      id: 'sim.stepBack',
+      label: 'Step Back',
+      title: 'Step Back to the moment before the last one something happened',
+      icon: StepBack,
+      shortcuts: ['Alt+F10'],
+      global: true,
+      enabled: () => simState() !== 'stopped',
+      run: () => {
+        simulation.stepBack();
+      },
+    },
+    {
+      id: 'debug.stepBackClock',
+      label: 'Step Back Clock',
+      title: 'Step Back Clock: to right before the last active edge of the step clock',
+      icon: ChevronsLeft,
+      shortcuts: ['Alt+F8'],
+      global: true,
+      enabled: () => simState() !== 'stopped',
+      run: () => {
+        if (editor.debug.stepBackClock() !== undefined) showDebug();
+      },
+    },
+    {
+      id: 'debug.reverseContinue',
+      label: 'Reverse Continue',
+      title: 'Reverse Continue: back to the previous breakpoint hit',
+      icon: Rewind,
+      shortcuts: ['Alt+F5'],
+      global: true,
+      enabled: () => simState() !== 'stopped',
+      run: () => {
+        editor.debug.reverseContinue();
+      },
+    },
+    {
+      id: 'sim.toPresent',
+      label: 'Go to Present',
+      title: 'Go to the present: the end of the recorded run',
+      icon: SkipForward,
+      enabled: () => simulation.history.get().behind,
+      run: () => {
+        simulation.toPresent();
+      },
+    },
+    {
       id: 'debug.stepClock',
       label: 'Step Clock',
       title: 'Step Clock: to right before the next active edge of the step clock but one',
@@ -813,6 +863,12 @@ export function workbenchMenus(examples: readonly Example[], recentCount?: numbe
         'debug.stepClock',
         'debug.runFor',
         'debug.runTo',
+        SEPARATOR,
+        'sim.stepBack',
+        'debug.stepBackClock',
+        'debug.reverseContinue',
+        'sim.toPresent',
+        SEPARATOR,
         'sim.stop',
         'sim.reset',
         SEPARATOR,
@@ -900,7 +956,15 @@ export const TOOLBAR: readonly (readonly string[])[] = [
   ['tool.select', 'tool.pan', 'tool.wire', 'tool.bus', 'tool.interact', 'tool.probe'],
   ['edit.undo', 'edit.redo'],
   ['edit.rotate', 'edit.flipH', 'edit.delete'],
-  ['sim.toggle', 'sim.step', 'debug.stepClock', 'sim.stop', 'sim.reset', 'widget:speed'],
+  [
+    'sim.toggle',
+    'sim.stepBack',
+    'sim.step',
+    'debug.stepClock',
+    'sim.stop',
+    'sim.reset',
+    'widget:speed',
+  ],
   ['view.zoomIn', 'view.zoomOut', 'view.zoomFit'],
   ['view.grid', 'view.gates.toggle'],
 ];

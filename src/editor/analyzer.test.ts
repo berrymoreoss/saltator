@@ -374,3 +374,97 @@ describe('Analyzer: trigger', () => {
     expect(s.simulation.simulator!.now).toBe(us(1) + ns(900));
   });
 });
+
+describe('Analyzer: after a rewind', () => {
+  it('keeps the record past now as the future, and confirms it on the replay', () => {
+    const s = setup();
+    runTo(s, us(4));
+    s.simulation.pause();
+    const x1 = channel(s.editor, 'X1.Y').bits[0]!;
+    const changes = s.analyzer.recorder.changeCount(x1);
+    s.simulation.rewindTo(us(1.2));
+    expect(s.analyzer.now).toBe(us(1.2));
+    expect(s.analyzer.end).toBe(us(4));
+    expect(s.analyzer.recorder.level(x1, us(3.7))).toBe(Level.L1);
+    expect(s.analyzer.recorder.lastChange(x1)).toBe(us(1));
+    s.simulation.run();
+    runTo(s, us(4));
+    expect(s.analyzer.recorder.changeCount(x1)).toBe(changes);
+    expect(s.analyzer.recorder.replaying).toBe(false);
+  });
+
+  it('drops the future where the run leaves it', () => {
+    const s = setup(
+      new CircuitBuilder(registry)
+        .add('X1', 'io/clock', { at: [0, 0], props: { frequency: 1e6 } })
+        .add('SW1', 'io/switch', { at: [0, 10] })
+        .probe({ ref: 'X1.Y' })
+        .probe({ ref: 'SW1.Y' })
+        .build(),
+    );
+    runTo(s, us(3));
+    s.simulation.pause();
+    s.simulation.rewindTo(us(1.25));
+    s.simulation.action('SW1', { type: 'toggle' });
+    expect(s.analyzer.end).toBe(us(1.25));
+    const x1 = channel(s.editor, 'X1.Y').bits[0]!;
+    expect(s.analyzer.recorder.level(x1, us(2.5))).toBeUndefined();
+    s.simulation.run();
+    runTo(s, us(2));
+    const sw = channel(s.editor, 'SW1.Y').bits[0]!;
+    expect(s.analyzer.recorder.lastChange(sw)).toBe(us(1.25));
+  });
+
+  it('an armed trigger takes its condition as it was at the rewound instant', () => {
+    const s = setup();
+    runTo(s, us(1.6)); // X1 high 1.5–2 µs, X2 high 1–2 µs: both high
+    s.simulation.pause();
+    s.analyzer.arm({
+      terms: [
+        { probe: 'X1.Y', kind: 'level', level: Level.L1 },
+        { probe: 'X2.Y', kind: 'level', level: Level.L1 },
+      ],
+      window: us(1),
+    });
+    s.simulation.run();
+    runTo(s, us(1.8)); // still both high: it waits for them to become true anew
+    s.simulation.pause();
+    s.simulation.rewindTo(us(1.2)); // X1 low there: high at 1.5 µs is anew
+    s.simulation.run();
+    for (let i = 0; s.simulation.state === 'running' && i < 1000; i++) s.clock.frame(16);
+    expect(s.analyzer.trigger.get()).toMatchObject({ status: 'triggered', time: us(1.5) });
+  });
+
+  it('an armed trigger fires on the replay where its condition holds anew', () => {
+    const s = setup();
+    runTo(s, us(3.2));
+    s.simulation.pause();
+    s.simulation.rewindTo(us(1.2)); // X1 is low from 1 µs: high at 1.5 µs is anew
+    s.analyzer.arm({ terms: [{ probe: 'X1.Y', kind: 'level', level: Level.L1 }], window: us(1) });
+    s.simulation.run();
+    for (let i = 0; s.simulation.state === 'running' && i < 1000; i++) s.clock.frame(16);
+    expect(s.analyzer.trigger.get()).toMatchObject({ status: 'triggered', time: us(1.5) });
+  });
+});
+
+describe('Analyzer: going to a time from the ruler', () => {
+  it('goes back, forward within the record, on past its end, never before the start', () => {
+    const s = setup();
+    expect(s.analyzer.goTo(us(1))).toBe('Nothing to go to: run the simulation first.');
+    runTo(s, us(3));
+    s.simulation.pause();
+    expect(s.analyzer.goTo(us(1.25))).toBeUndefined();
+    expect(s.simulation.simulator!.now).toBe(us(1.25));
+    expect(s.simulation.status.get().reason).toBe('Rewound to 1.25 µs');
+    s.analyzer.goTo(us(2.5)); // forward, still within the record
+    expect(s.simulation.simulator!.now).toBe(us(2.5));
+    expect(s.analyzer.end).toBe(us(3));
+    s.analyzer.goTo(-us(1)); // before the start: the start
+    expect(s.simulation.simulator!.now).toBe(0);
+    s.analyzer.goTo(us(3.5)); // past the end: a run to it
+    s.clock.cost = 1;
+    for (let i = 0; s.simulation.state === 'running' && i < 100; i++) s.clock.frame(16);
+    expect(s.simulation.simulator!.now).toBe(us(3.5));
+    expect(s.simulation.status.get().reason).toBe('Run To 3.5 µs');
+  });
+});

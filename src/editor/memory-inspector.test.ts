@@ -155,6 +155,30 @@ describe('MemoryInspector: access highlighting', () => {
   });
 });
 
+describe('MemoryInspector: after a rewind', () => {
+  it('shows the cells as they were and lights none of them until something runs', () => {
+    const { clock, inspector, simulation } = setup();
+    simulation.step(); // power-on
+    simulation.runTo({ kind: 'time', until: ns(500), label: 'Run To' });
+    simulation.action('U2', { type: 'poke', address: 0, data: [0x11] });
+    simulation.runTo({ kind: 'time', until: ns(1000), label: 'Run To' });
+    simulation.action('U2', { type: 'poke', address: 0, data: [0x22] });
+    simulation.runTo({ kind: 'time', until: ns(1500), label: 'Run To' });
+    const view = () =>
+      (inspector.cells('U2') as { view: { data: Uint8Array; writtenAt: Float64Array } }).view;
+    expect(view().data[0]).toBe(0x22);
+    clock.frame(16);
+    simulation.rewindTo(ns(800));
+    expect(view().data[0]).toBe(0x11);
+    expect(view().writtenAt[0]).toBe(ns(500));
+    expect(inspector.intensity(view().writtenAt[0]!)).toBe(0);
+    // The replay writes 0x22 again at 1 µs: news once it happens.
+    simulation.runTo({ kind: 'time', until: ns(1200), label: 'Run To' });
+    expect(view().data[0]).toBe(0x22);
+    expect(inspector.intensity(view().writtenAt[0]!)).toBe(1);
+  });
+});
+
 describe('MemoryInspector: edits', () => {
   it('writes a ROM’s image as one undo step per run of edits, stopped or running', () => {
     const { clock, editor, inspector, simulation } = setup();

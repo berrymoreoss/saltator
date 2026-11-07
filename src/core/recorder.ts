@@ -34,6 +34,10 @@ class Track {
   live = false;
   /** Next channel on the same net in the attached simulator (−1: none). */
   next = -1;
+  /** While a rewound run goes through the record again: changes at or before `now` (a cursor). */
+  past = 0;
+  /** The record is complete up to here: a change at or before it is confirmed, not appended. */
+  until = Number.NEGATIVE_INFINITY;
 
   time(i: number): Time {
     return this.times[this.head + i]!;
@@ -114,6 +118,12 @@ export class Recorder {
   #sim: Simulator | undefined;
   #off: (() => void) | undefined;
   #end: Time = 0;
+  /**
+   * After a rewind (`seek`), how far the record reaches (the present); while the run is behind
+   * it, the record is confirmed (`Track.past` moves), not written.
+   */
+  #replaying = false;
+  #present: Time = 0;
   /** First channel on each net of the attached simulator (−1: none). */
   #netFirst = new Int32Array(0);
 
@@ -165,18 +175,20 @@ export class Recorder {
       if (!track) return;
       const net = nets.get(id);
       if (net === undefined || net < 0 || net >= sim.netCount) {
-        if (track.live) this.#append(track, now, NO_DATA);
+        if (track.live) this.#record(track, now, NO_DATA);
         track.live = false;
       } else {
-        this.#append(track, firstAt(track, now), sim.levels[net]!);
+        this.#record(track, firstAt(track, now), sim.levels[net]!);
         track.live = true;
       }
     });
     this.#link(sim, nets);
     this.#off = sim.onNetChange((time, net, level) => {
+      const replaying = this.#replaying;
       for (let c = this.#netFirst[net]!; c >= 0; ) {
         const track = this.#tracks[c]!;
-        this.#append(track, time, level);
+        if (replaying) this.#record(track, time, level);
+        else this.#append(track, time, level);
         c = track.next;
       }
     });
@@ -189,7 +201,7 @@ export class Recorder {
     if (!sim || !track) return;
     const nets = this.#links();
     nets.set(channel, net);
-    this.#append(track, firstAt(track, sim.now), sim.levels[net]!);
+    this.#record(track, firstAt(track, sim.now), sim.levels[net]!);
     track.live = true;
     this.#link(sim, nets);
   }
@@ -197,7 +209,8 @@ export class Recorder {
   /** Stops recording (Stop): the record ends at the simulator's current instant. */
   detach(): void {
     if (!this.#sim) return;
-    this.#end = this.#sim.now;
+    this.#end = this.end;
+    this.#endReplay();
     this.#off?.();
     this.#off = undefined;
     this.#sim = undefined;
@@ -211,7 +224,11 @@ export class Recorder {
       if (!track) continue;
       track.head = 0;
       track.count = 0;
+      track.past = 0;
+      track.until = Number.NEGATIVE_INFINITY;
     }
+    this.#replaying = false;
+    this.#present = 0;
     this.#total = 0;
     this.#dropped = 0;
     this.#start = 0;
@@ -223,9 +240,58 @@ export class Recorder {
     return this.#start;
   }
 
-  /** Where the record ends: the attached simulator's current instant, or where it was detached. */
+  /**
+   * Where the record ends: the attached simulator's current instant, or where it was detached —
+   * or, after a rewind (`seek`), the present the record reaches while the run is behind it.
+   */
   get end(): Time {
-    return this.#sim?.now ?? this.#end;
+    const now = this.#sim?.now ?? this.#end;
+    return this.#replaying ? Math.max(now, this.#present) : now;
+  }
+
+  /** A rewound run is behind the record's end: the record after `now` is its future. */
+  get replaying(): boolean {
+    return this.#replaying && (this.#sim?.now ?? this.#present) < this.#present;
+  }
+
+  // ── Rewinding ────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * The attached simulator was rewound to `t` (`Simulator.restore`) from `present`, the furthest
+   * instant it had run to: the record after `t` stays — it is the future, and a run going on
+   * deterministically from `t` repeats it, so its changes are confirmed rather than recorded
+   * again until it reaches the present. `lastChange` answers as of `t`. A channel added later
+   * records as usual.
+   */
+  seek(t: Time, present: Time): void {
+    const end = present;
+    for (const track of this.#tracks) {
+      if (!track) continue;
+      track.until = end;
+      track.past = track.indexAt(t) + 1;
+    }
+    this.#present = end;
+    this.#replaying = t < end;
+  }
+
+  /**
+   * The run leaves the recorded future at `t` (the user acted at a rewound instant): every
+   * change after `t` goes, and recording goes on from there.
+   */
+  cut(t: Time): void {
+    for (const track of this.#tracks) {
+      if (!track) continue;
+      const keep = track.indexAt(t) + 1;
+      this.#total -= track.count - keep;
+      track.count = keep;
+    }
+    this.#replaying = false;
+    if (!this.#sim) this.#end = Math.min(this.#end, t);
+  }
+
+  /** Cursors and `until` mean something only while replaying: nothing else to reset. */
+  #endReplay(): void {
+    this.#replaying = false;
   }
 
   /** Recording a simulator now. */
@@ -260,10 +326,15 @@ export class Recorder {
     return this.#track(channel).level(i);
   }
 
-  /** Time of the channel's last recorded change (O(1): did it change at this instant?). */
+  /**
+   * Time of the channel's last change up to now (O(1): did it change at this instant?) — after
+   * a rewind, up to the rewound run's instant, not the end of the record.
+   */
   lastChange(channel: number): Time | undefined {
     const track = this.#tracks[channel];
-    return track && track.count > 0 ? track.time(track.count - 1) : undefined;
+    if (!track) return undefined;
+    const n = this.#replaying ? track.past : track.count;
+    return n > 0 ? track.time(n - 1) : undefined;
   }
 
   /** Index of the channel's last change at or before `t`; −1 if none. */
@@ -352,6 +423,23 @@ export class Recorder {
   }
 
   /**
+   * A change the attached simulator made: while replaying, confirmed where the record has it
+   * already, else appended (the cursors matter only while replaying).
+   */
+  #record(track: Track, time: Time, level: number): void {
+    if (this.#replaying) {
+      if (time > this.#present) this.#endReplay();
+      else if (time <= track.until) {
+        // The record has this instant already (collapsed as `#append` would): move past it.
+        while (track.past < track.count && track.time(track.past) <= time) track.past++;
+        return;
+      }
+    }
+    this.#append(track, time, level);
+    track.past = track.count;
+  }
+
+  /**
    * Appends a change. Changes at one instant (delta cycles) collapse into its last level, and
    * one that returns to the level before the instant leaves nothing: a zero-delay delta is no
    * pulse a real circuit makes.
@@ -383,7 +471,7 @@ export class Recorder {
     // The earliest cut that drops enough, by bisection over time.
     // Changes are never later than the attached simulator's now: cutting there keeps one each.
     let lo = this.#start;
-    let hi = this.end;
+    let hi = this.#sim?.now ?? this.end; // not into a rewound run's future
     while (lo < hi) {
       const mid = Math.floor((lo + hi) / 2);
       if (droppable(mid) >= target) hi = mid;
@@ -393,6 +481,7 @@ export class Recorder {
       const k = track.droppableBefore(lo);
       track.head += k;
       track.count -= k;
+      track.past = Math.max(0, track.past - k);
       this.#total -= k;
       this.#dropped += k;
     }

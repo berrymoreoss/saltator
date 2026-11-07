@@ -253,6 +253,19 @@ clock's next active edge and pauses right before the one after, the cycle settle
 sees the edge coming: `stopBefore`); a manual clock gets one pulse instead (R14). **Run For** and
 **Run To** step by time.
 
+**Rewind** — going back to an earlier instant of a run and seeing the circuit as it was then
+(R14b): the simulator restores the **checkpoint** (a **snapshot** of its whole state, taken
+every so often while it runs) before that instant and re-runs from it with the user's actions,
+deterministically, in a **replica** the tools don't watch. The **timeline** is that history —
+checkpoints and the action log — since power-on or the last edit; the **present** is the
+furthest the run got. Behind the present, running forward **replays** the recording (the same
+actions again, to the same present); acting there starts a new future.
+
+**Step Back / Step Back Clock / Reverse Continue** — the debugger's steps backwards (R14b): to
+the instant something happened before the last one; to right before the step clock's last
+active edge (undoing Step Clock); to the previous breakpoint hit or error. Alt + the forward
+key: Alt+F10, Alt+F8, Alt+F5.
+
 **Simulator host** — what runs the kernel against the wall clock in the app (`Simulation` in the
 editor): run, pause, step, stop, reset, speed, frame budget, following edits.
 

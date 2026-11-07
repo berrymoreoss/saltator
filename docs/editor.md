@@ -129,6 +129,8 @@ the shortcuts dialog all read the same `CommandRegistry`, which rejects duplicat
 | Open…               | `Mod+O`                    | Save (As…)                 | `Mod+S` (`Mod+Shift+S`)   |
 | Net Label           | `L`                        | Probe tool                 | `P`                       |
 | Step Clock          | `F8`                       | Run For                    | `Shift+F8`                |
+| Step Back           | `Alt+F10`                  | Step Back Clock            | `Alt+F8`                  |
+| Reverse Continue    | `Alt+F5`                   |                            |                           |
 
 Commands marked `global` run while typing in a text field and keep their key from the browser
 even while disabled: F5 never reloads the page, `Mod+S` and `Mod+O` never show the browser's own
@@ -426,8 +428,8 @@ dropped file) loads it with `setCircuit`, which clears the history ([Files](#fil
 
 The simulator host (`src/editor/simulation.ts`, `editor.simulation`) runs the kernel for the
 circuit in the editor ([ADR-0010](adr/0010-running-simulations.md)). Commands: Simulate menu,
-the toolbar group (Run/Pause, Step, Stop, Reset, speed select) and `F5`, `F10`, `Shift+F5`,
-`Mod+Shift+F5`.
+the toolbar group (Run/Pause, Step Back, Step, Step Clock, Stop, Reset, speed select) and `F5`,
+`Alt+F10`, `F10`, `Shift+F5`, `Mod+Shift+F5`.
 
 ### Run control
 
@@ -555,6 +557,52 @@ time to move.
   binary and decimal (when every bit is known; `Simulation.busLive`) and each bit's level, most
   significant first.
 
+### Rewinding
+
+R14b ([ADR-0021](adr/0021-rewind.md)): any instant since the run powered on — or since the
+last edit that recompiled it — can be gone back to, and the canvas, Properties, the Memory tab,
+the waveforms, watches and breakpoint hits show the circuit as it was then.
+
+- **History** (`Timeline`, `src/editor/timeline.ts`, one per simulator, `Simulation.timeline`):
+  a **checkpoint** (a kernel [snapshot](simulation.md#snapshots)) where the simulator starts,
+  then after a kernel call once 200 000 events ran since the last one; the **action log** — every
+  action the host delivers (the Interact tool, Step Clock's manual pulse, pokes from the
+  Memory tab) with its time and whether the kernel ran since the previous one, so a replay
+  delivers two clicks of one frame back to back, as they were. A **position** is a time and the
+  number of logged actions delivered by then: a breakpoint's pause at 1.5 µs comes before a
+  switch flipped while paused there. Reaching a position: the checkpoint before it is restored
+  into a **replica** of the simulator, re-run with the logged actions in between, and the
+  result restored into the live simulator — whose listeners never see the replay.
+- **Budget**: 64 MiB of checkpoints (shared pages counted once). Past it, every other
+  checkpoint of the older half goes while the gap stays under 8 intervals (1.6M events), then
+  the oldest go and the history's **start** moves forward. A rewind replays at most one gap.
+- **The present** is the furthest position the run reached; behind it the record is the
+  **future**. Every forward run behind the present — Run, Step, Step Clock, Run For, Run To —
+  **replays** the recording: logged actions are delivered again at their positions (a run that
+  pauses at a breakpoint at an instant does so before the actions taken there; a step ending
+  at an action's instant stops before it, as the original did), and the waveforms' future is
+  confirmed. Step Clock on a manual clock replays its next recorded press. The user's own
+  action behind the present starts a **new future**: the rest of the recording goes, and the
+  tools hear it first (`onDiverge`).
+- **Going back** (`Simulation`): `rewindTo(time)` — "time as it ended", back or forward within
+  the record; **Step Back** (`Alt+F10`, toolbar): the instant with events before the last one
+  at or before now (Step then comes back); Run To a past time; **Go to Present**
+  (`toPresent`); the debugger's Step Back Clock and Reverse Continue ([below](#steps-back)). A
+  **backward search** (`searchBack(BackSearch)`) replays the history's segments in the replica,
+  newest first — the first at once, the others over frames while the status says
+  `Running · … · Reverse Continue…`; Pause cancels and stays put — then reaches what it found,
+  else the history's start ("Reverse Continue: no earlier hit").
+- **Edits** that recompile the circuit start the history anew at their instant; after a rewind
+  that is "go back, fix the wire, run again". Power-on and Stop start or drop it.
+- **The tools catch up** on `onRewind({ time, present })`: the waveform recorder and the
+  debugger's `seek` (the record after `time` stays as the future), triggers `resync`,
+  breakpoint hits are counted to `time`, activity counting restarts, the Memory tab's
+  highlights restart (restored stamps light nothing); the lights resample and the diagnostics
+  list shows the log as it was.
+- **Status**: the reason (`Step Back`, `Rewound to 9 µs`, `Reverse Continue: Breakpoint 1: …`)
+  and how far behind the present the run is (`Paused · 9 µs · Rewound to 9 µs · 11 µs behind
+  the present`); `history` store: start, present, behind.
+
 ## Memory inspector
 
 R12b ([ADR-0018](adr/0018-memory-inspector.md)): the **Memory** tab of the bottom dock shows one
@@ -583,7 +631,7 @@ way a programmer's buffer or a debugger's memory window does.
   around them) are rendered: a 62256 is 1024 rows of 32.
 - **Live**: cells read since the last frame light up green (level 1), cells written orange
   (warning), fading over ½ s of wall time (`ACCESS_FADE_MS`); paused, the fade stops, so a Step
-  shows what it touched. The cell at the address on the chip's pins is outlined; the toolbar
+  shows what it touched. After a rewind nothing is lit until the run moves on (R14b). The cell at the address on the chip's pins is outlined; the toolbar
   shows that address (`0x01F`, `X`/`Z` nibbles). **Follow** (on by default, a setting) scrolls to
   keep it in view; scrolling by hand or Go to turns it off.
 - **Editing**: click a cell (or move with the arrows, Home/End, Page Up/Down), type hex digits —
@@ -679,7 +727,10 @@ shows how many signals are probed and `T` while a trigger is armed.
   swipe pans). Keys (`waveKey`, kept from the shortcuts): `+`/`-` zoom, ←/→ pan (Shift: a
   window), `[`/`]` cursor A to the previous/next edge of the picked channel (`{`/`}` cursor B), Home
   fit, End follow, ↑/↓ pick,
-  Delete remove, Escape clears the cursors.
+  Delete remove, Escape clears the cursors. While simulating, a click or drag in the **ruler**
+  goes to that time (R14b, `Analyzer.goTo`): back, or forward within the record, paused there
+  ([Rewinding](#rewinding)); past the record's end the run goes on to it; never before the
+  history's start. Dragging goes once per animation frame; the pointer is `ew-resize` there.
 - **Export VCD…** (`vcd-export.ts`): the whole record or the span between cursors A and B (the
   default when both are placed), every probe that resolves — 1-bit signals as wires, buses and
   groups as vectors — through core's `writeVcd` (1 ps timescale, the document's name as the
@@ -747,8 +798,9 @@ shows how many signals are probed and `T` while a trigger is armed.
   value in its radix where it fits, in the bus color, red where a bit is unknown, a blue mid
   line where every bit floats. Where the record has no data (before its start, after its end,
   a probe that lost its net) the row is hatched.
-- **Marks**: `now` (dotted, while simulating), the trigger `T`, cursors `A` and `B`, each with a
-  tag in the ruler.
+- **Marks**: `now` (dotted, while simulating — after a rewind where the simulation is, with
+  the recorded future after it veiled, `WaveformScene.now`), the trigger `T`, cursors `A` and
+  `B`, each with a tag in the ruler.
 
 ## Debugger
 
@@ -758,7 +810,7 @@ through it, as a debugger does with a program.
 ### Debug tab
 
 ```text
- Step Clock [X1.Y] ↑ rising │ Run For [1 µs] │ Run To [1.5 ms] │ ☐ Break on errors ☐ warnings   Breakpoint 1: … = 5
+ Reverse Continue  Step Back Clock  Step Clock [X1.Y] ↑ rising │ Run For [1 µs] │ Run To [1.5 ms] │ ☐ Break on errors ☐ warnings   Breakpoint 1: … = 5
  Breakpoints                       Disable all  + Add…  │ Watches                [Watch: CLK, U5[1F]] Add
  ☑ 1 U1.Q0 U1.Q1 U1.Q2 U1.Q3 = 5          1 hit  ✎ ×   │ U1.Q0 U1.Q1 U1.Q2 U1.Q3          0x5  hex ×
  ☑ 2 X1.Y ↑ · U1.TC = 1                  0 of 2  ✎ ×   │ U2[0x00..0x03]          A5 5A 3C XX  hex ×
@@ -779,7 +831,9 @@ the enabled breakpoints):
   it differs from its value at the last stop, the radix of a value, remove; added by typing a
   signal or memory cells. The Memory tab's **Watch `U1[0x05]`** adds the cell at its cursor.
 - **Commands**: Simulate ▸ Step Clock (`F8`, also on the toolbar), Run For (`Shift+F8`), Run To…
-  (focuses the box), Add Breakpoint…, Disable All Breakpoints, Break on Errors. The item context
+  (focuses the box); Step Back (`Alt+F10`, also on the toolbar), Step Back Clock (`Alt+F8`),
+  Reverse Continue (`Alt+F5`), Go to Present (R14b); Add Breakpoint…, Disable All Breakpoints,
+  Break on Errors. The item context
   menu over a wire, pin, net label or bus (the Probe tool's hit rules) has **Break When `ref`
   Rises** (single signals), **Add Breakpoint on `ref`…** and **Watch `ref`**.
 - The **status bar** says why it paused (`Paused · 500 ns · Breakpoint 1: CLK ↑`) or what a step
@@ -800,7 +854,8 @@ the enabled breakpoints):
   glitch) and never twice at one instant (a carry-over at its instant processes it again; a
   breakpoint whose condition didn't change keeps its trigger across rebuilds). At its hit
   count it asks the host to pause (`requestPause`, "Breakpoint 2: D[0..7] = 2B"). A disabled
-  breakpoint neither stops nor counts; hits count from power-on.
+  breakpoint neither stops nor counts; hits count from power-on, up to the instant the run is
+  at (R14b: kept as hit times, a rewind forgets the later ones and a replay counts them again).
 - **Break on errors / warnings** (off by default): every report of an error (contention,
   oscillation, timing violations: `diagnosticSeverity`) or a warning (floating input, …), repeats
   of a merged entry included (`DiagnosticLog.onOccurrence`), pauses at the end of its instant
@@ -823,7 +878,24 @@ error break, and are cancelled by Pause; Run turns one into a normal run.
   one pulse (its `step` action) and runs one period of its props — high, then low, as a hand
   pressing the button again later; from stopped, power-on and the low time. A pause asked for
   in the press's own instant (a timing violation at that edge) stops it there.
-- **Run For** (`Shift+F8`) the setup's duration, **Run To** a time: pause exactly then.
+- **Run For** (`Shift+F8`) the setup's duration, **Run To** a time: pause exactly then. Run To
+  a past time goes back to it (R14b).
+
+### Steps back
+
+R14b, through the host's backward searches ([Rewinding](#rewinding)):
+
+- **Step Back** (`Alt+F10`): the instant with events before the last one; Step comes back.
+- **Step Back Clock** (`Alt+F8`): right before the step clock's last active edge at or before
+  now — the instant with events before that edge, as it ended: from a Step Clock stop, the stop
+  one cycle earlier (`edgeSearch`). On a manual clock it undoes a press; Step Clock then
+  replays the recorded press rather than pressing again.
+- **Reverse Continue** (`Alt+F5`, Debug tab): back to the last instant before now at which an
+  enabled breakpoint held anew — hit counts aside — or, with Break on errors or warnings, such a
+  report was made: fresh repeating triggers for the breakpoints on a recorder of the replica's
+  own, and `onOccurrence`, in each segment replayed. Nothing found: the history's start
+  ("Reverse Continue: no earlier hit"). The reason names what it found (`Reverse Continue:
+  Breakpoint 1: CLK ↑`); Run from there stops at the same hit it came back from.
 
 ### Watches
 
@@ -849,7 +921,9 @@ stores, refreshed on the host's `ticks` and on every scene; stops noted on `stat
 (the state before the power-on instant is no stop); statistics from the kernel's counters and
 the wall time spent running; activity from an `onNetChange` counter while measured (carried
 over by net id). It maps the scene's nets to the simulator's through `Simulation.netOf` (a
-simulator kept across a same-structure edit may call its nets otherwise).
+simulator kept across a same-structure edit may call its nets otherwise). On a rewind its
+recorder seeks, its triggers resync, its hits are counted to the rewound instant, activity
+counting and the "last run" counters restart; on a divergence its recorder cuts (R14b).
 
 ## Editor API
 
@@ -875,13 +949,15 @@ focus Properties).
 - View and selection: `setSettings`, `setSelection`, `selectAll`, `clearSelection`, `zoomIn`,
   `zoomOut`, `zoomActual`, `zoomToFit`, `locate(item, { zoom? })`, `locateNet(net, { zoom? })`.
 - Simulation (`editor.simulation`): `run`, `pause`, `toggle`, `step`, `stop`, `reset`,
-  `setSpeed`, `action(component, payload)`, `clearDiagnostics`; `state`, `simulator`,
-  `signalView()`, `pinStyle`, `wireStyle`, `wiresOfNet`; stores `status`, `diagnostics`,
-  `ticks`, `revision`.
+  `setSpeed`, `action(component, payload)`, `clearDiagnostics`; `rewindTo`, `stepBack`,
+  `searchBack`, `toPresent`, `onRewind`, `onDiverge` ([Rewinding](#rewinding)); `state`,
+  `simulator`, `timeline`, `signalView()`, `pinStyle`, `wireStyle`, `wiresOfNet`; stores
+  `status`, `diagnostics`, `history`, `ticks`, `revision`.
 - Debugger (`editor.debug`, a `Debugger`): `setup`, `breakpoints`, `watches` stores; `load`,
   `addBreakpoint`, `updateBreakpoint`, `removeBreakpoint`, `enableAll`, `setBreakOn`,
   `addWatch`, `updateWatch`, `removeWatch`, `setClock`, `setRunFor`, `stepClock`, `runFor`,
-  `runToTime`, `stats`, `measureActivity`, `activity` ([Debugger](#debugger)).
+  `runToTime`, `stepBackClock`, `reverseContinue`, `stats`, `measureActivity`, `activity`
+  ([Debugger](#debugger)).
 - Memories (`editor.memory`, a `MemoryInspector`): `memories`, `entry`, `cells`, `address`,
   `intensity`, `fading`, `write`, `load`, `erase`, `contents`
   ([Memory inspector](#memory-inspector)).

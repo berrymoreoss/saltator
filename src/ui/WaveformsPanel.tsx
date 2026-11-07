@@ -436,7 +436,11 @@ function Plot({ editor, theme, rows, scroll }: PlotProps) {
   const sim = useStore(editor.simulation.status);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [height, setHeight] = useState(0);
-  const drag = useRef<{ x: number; moved: boolean } | undefined>(undefined);
+  /** A drag: panning the plot, or (from the ruler) moving the simulation through time. */
+  const drag = useRef<{ x: number; moved: boolean; ruler: boolean } | undefined>(undefined);
+  // Ruler drags go to one time per animation frame: each is a rewind (a replay).
+  const scrub = useRef<{ x: number; frame: number }>({ x: 0, frame: 0 });
+  useEffect(() => () => cancelAnimationFrame(scrub.current.frame), []);
 
   useLayoutEffect(() => {
     const canvas = canvasRef.current;
@@ -467,6 +471,7 @@ function Plot({ editor, theme, rows, scroll }: PlotProps) {
         rows: rows.map((row) => ({ ...row, y: row.y - scroll })),
         height,
         live: sim.state !== 'stopped',
+        ...(analyzer.now !== undefined && { now: analyzer.now }),
         ...(trigger.status === 'triggered' && { trigger: trigger.time }),
       },
       waveformTheme(theme),
@@ -478,15 +483,35 @@ function Plot({ editor, theme, rows, scroll }: PlotProps) {
   const yOf = (e: { clientY: number }) =>
     e.clientY - canvasRef.current!.getBoundingClientRect().top - WAVE_RULER_HEIGHT;
 
+  /** Goes to the time under plot x `x` — on the next animation frame, the latest x winning. */
+  const scrubTo = (x: number) => {
+    scrub.current.x = x;
+    if (scrub.current.frame !== 0) return;
+    scrub.current.frame = requestAnimationFrame(() => {
+      scrub.current.frame = 0;
+      analyzer.goTo(analyzer.timeAt(scrub.current.x));
+    });
+  };
+  const simulating = sim.state !== 'stopped';
   const onPointerDown = (e: PointerEvent<HTMLCanvasElement>) => {
     if (e.button !== 0) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     e.currentTarget.focus();
-    drag.current = { x: xOf(e), moved: false };
+    const ruler = simulating && yOf(e) < 0;
+    drag.current = { x: xOf(e), moved: false, ruler };
+    if (ruler) scrubTo(xOf(e));
   };
   const onPointerMove = (e: PointerEvent<HTMLCanvasElement>) => {
     const d = drag.current;
-    if (!d) return;
+    if (!d) {
+      // Over the ruler while simulating: a click or drag moves the simulation in time.
+      e.currentTarget.style.cursor = simulating && yOf(e) < 0 ? 'ew-resize' : '';
+      return;
+    }
+    if (d.ruler) {
+      scrubTo(xOf(e));
+      return;
+    }
     const x = xOf(e);
     if (!d.moved && Math.abs(x - d.x) < 3) return;
     d.moved = true;
@@ -496,7 +521,7 @@ function Plot({ editor, theme, rows, scroll }: PlotProps) {
   const onPointerUp = (e: PointerEvent<HTMLCanvasElement>) => {
     const d = drag.current;
     drag.current = undefined;
-    if (!d || d.moved) return;
+    if (!d || d.moved || d.ruler) return;
     const row = rowAt(rows, yOf(e), scroll);
     const t = analyzer.snap(analyzer.timeAt(xOf(e)), row?.channel);
     analyzer.setCursor(e.shiftKey ? 'B' : 'A', t);

@@ -200,6 +200,17 @@ export class Analyzer {
       this.#follow();
       if (this.#sim) this.revision.update((n) => n + 1);
     });
+    // A rewind: the record after `now` is the future a run repeats; acting there cuts it.
+    editor.simulation.onRewind(({ time, present }) => {
+      if (!this.#sim) return;
+      this.recorder.seek(time, present);
+      this.#core?.resync(time);
+      this.revision.update((n) => n + 1);
+    });
+    editor.simulation.onDiverge((time) => {
+      this.recorder.cut(time);
+      this.revision.update((n) => n + 1);
+    });
     this.#sync();
   }
 
@@ -342,6 +353,30 @@ export class Analyzer {
   /** The end of the record: now while simulating, where it stopped after. */
   get end(): Time {
     return this.recorder.end;
+  }
+
+  /**
+   * Goes to simulated time `t` picked on the ruler (R14b): back, or forward within the record,
+   * paused there (`Simulation.rewindTo`); past the record's end the run goes on to it (Run To).
+   * Not before the history's start. Why not instead.
+   */
+  goTo(t: Time): string | undefined {
+    const host = this.#editor.simulation;
+    const timeline = host.timeline;
+    if (!timeline) return 'Nothing to go to: run the simulation first.';
+    const time = Math.max(timeline.start, Math.round(t));
+    if (time === host.simulator?.now) return undefined;
+    if (time <= timeline.present.time) {
+      host.rewindTo(time);
+      return undefined;
+    }
+    host.runTo({ kind: 'time', until: time, label: `Run To ${formatTime(time)}` });
+    return undefined;
+  }
+
+  /** Where the simulation is while simulating; behind `end` after a rewind (the future). */
+  get now(): Time | undefined {
+    return this.#sim?.now;
   }
 
   /** Time at a plot x (pixels from the left). */

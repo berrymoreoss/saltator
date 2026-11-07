@@ -929,3 +929,371 @@ describe('Simulation: panels', () => {
     expect(simulation.wireStyle(wire.id)).toBe(SignalStyle.L1);
   });
 });
+
+/** The scene's net id of X1's output (what the resolver gives a step goal). */
+function editor_net(simulation: {
+  signals: { nets: ReadonlyMap<string, number> };
+  simulator: unknown;
+}) {
+  const sim = simulation.simulator as { pinNet(c: string, p: string): number };
+  const index = sim.pinNet('X1', 'Y');
+  for (const [id, n] of simulation.signals.nets) if (n === index) return id;
+  throw new Error('no net for X1.Y');
+}
+
+describe('Simulation: rewinding', () => {
+  /** A host with a short checkpoint interval, so the history has several. */
+  function rewinding(circuit = hello(), options: { frameBudget?: number; interval?: number } = {}) {
+    const clock = new FakeClock();
+    const { interval = 30, ...rest } = options;
+    const editor = new Editor(
+      registry,
+      circuit,
+      {},
+      { simulation: { clock, history: { interval }, ...rest } },
+    );
+    return { clock, editor, simulation: editor.simulation };
+  }
+  const now = (simulation: { simulator: { now: number } | undefined }) => simulation.simulator!.now;
+  /** The levels of every net, as text. */
+  const all = (simulation: { simulator: { levels: Uint8Array } | undefined }) =>
+    Array.from(simulation.simulator!.levels, (l) => levelChar(l as Level)).join('');
+
+  it('Step Back goes to the instant with events before the last one; Step comes back', () => {
+    const { clock, simulation } = rewinding();
+    simulation.run();
+    clock.frames(5);
+    simulation.pause();
+    simulation.step();
+    const at = { time: now(simulation), levels: all(simulation) };
+    expect(simulation.stepBack()).toBe(true);
+    expect(simulation.state).toBe('paused');
+    expect(simulation.status.get().reason).toBe('Step Back');
+    expect(now(simulation)).toBeLessThan(at.time);
+    expect(now(simulation) % ns(500)).toBe(0); // the clock's half periods: 0.5 ms
+    simulation.step();
+    expect({ time: now(simulation), levels: all(simulation) }).toEqual(at);
+    expect(simulation.history.get().behind).toBe(false);
+  });
+
+  it('rewinds to a time, as a straight run had it, and tells the tools', () => {
+    const { clock, simulation } = rewinding();
+    const heard: { time: number; present: number }[] = [];
+    simulation.onRewind((event) => heard.push(event));
+    simulation.run();
+    clock.frames(10);
+    simulation.pause();
+    const present = now(simulation);
+    const lit = () => simulation.signalView()!.part('D2')!.light(0);
+    const litAtEnd = lit();
+    expect(simulation.rewindTo(ms(37.2))).toBe(true);
+    expect(now(simulation)).toBe(ms(37.2));
+    expect(simulation.status.get()).toMatchObject({
+      state: 'paused',
+      reason: 'Rewound to 37.2 ms',
+    });
+    expect(heard).toEqual([{ time: ms(37.2), present }]);
+    expect(simulation.history.get()).toEqual({ start: 0, present, behind: true });
+    const plain = rewinding();
+    plain.simulation.runTo({ kind: 'time', until: ms(37.2), label: 'Run To' });
+    clock.frames(1);
+    expect(all(simulation)).toBe(all(plain.simulation));
+    // The LED shows what it showed then, whatever it showed at the end.
+    const clockHigh = () => levelChar(simulation.simulator!.pinLevel('X1', 'Y')) === '1';
+    expect(lit()).toBe(clockHigh() ? 1 : 0);
+    const before = lit();
+    simulation.rewindTo(ms(37.7));
+    expect(lit()).toBe(clockHigh() ? 1 : 0);
+    expect(lit()).not.toBe(before);
+    expect([0, 1]).toContain(litAtEnd);
+    expect(simulation.rewindTo(present + 1)).toBe(false); // the future isn't recorded
+    expect(simulation.rewindTo(-1)).toBe(false);
+  });
+
+  it('replays the recording forward: the actions happen again at their instants', () => {
+    const { clock, simulation } = rewinding();
+    simulation.run();
+    clock.frames(3);
+    simulation.action('SW1', { type: 'toggle' }); // at 48 ms
+    const toggled = now(simulation);
+    clock.frames(3);
+    simulation.action('SW1', { type: 'toggle' }); // and back at 96 ms
+    clock.frames(3);
+    simulation.pause();
+    const end = { time: now(simulation), levels: all(simulation) };
+    simulation.rewindTo(ms(10));
+    const switchBefore = levelChar(simulation.simulator!.pinLevel('U1', 'A'));
+    expect(simulation.timeline!.pending).toMatchObject({ time: toggled, component: 'SW1' });
+    // Forward at the chosen speed (real time): the same run.
+    simulation.run();
+    clock.frames(3);
+    expect(now(simulation)).toBe(ms(58));
+    expect(levelChar(simulation.simulator!.pinLevel('U1', 'A'))).not.toBe(switchBefore);
+    simulation.runTo({ kind: 'time', until: end.time, label: 'Run To' });
+    expect({ time: now(simulation), levels: all(simulation) }).toEqual(end);
+    expect(simulation.history.get().behind).toBe(false);
+  });
+
+  it('replays at Max too, where nothing happens between the actions', () => {
+    // No clock: at Max the kernel goes idle, and time jumps to the next recorded action.
+    const quiet = new CircuitBuilder(registry)
+      .add('SW1', 'io/switch', { at: [0, 0] })
+      .add('U1', 'prim/nand', { at: [10, 0] })
+      .add('PWR1', 'io/vcc', { at: [7, -4] })
+      .connect('SW1.Y', 'U1.A')
+      .connect('PWR1.Y', 'U1.B', [8, 3])
+      .build();
+    const { clock, simulation } = rewinding(quiet);
+    simulation.run();
+    clock.frames(2);
+    simulation.pause();
+    simulation.runTo({ kind: 'time', until: ms(5), label: 'Run To' });
+    simulation.action('SW1', { type: 'toggle' }); // at 5 ms
+    simulation.runTo({ kind: 'time', until: ms(9), label: 'Run To' });
+    simulation.action('SW1', { type: 'toggle' }); // at 9 ms
+    simulation.runTo({ kind: 'time', until: ms(12), label: 'Run To' });
+    const y = () => levelChar(simulation.simulator!.pinLevel('U1', 'Y'));
+    const end = { y: y(), events: simulation.simulator!.stats.events };
+    simulation.rewindTo(ms(1));
+    simulation.setSpeed(MAX_SPEED);
+    simulation.run();
+    clock.frame(16);
+    expect(simulation.timeline!.pending).toBeUndefined();
+    expect(simulation.timeline!.actions.map((a) => a.time)).toEqual([ms(5), ms(9)]);
+    expect({ y: y(), events: simulation.simulator!.stats.events }).toEqual(end);
+  });
+
+  it('Step delivers a recorded action at its instant', () => {
+    const quiet = new CircuitBuilder(registry)
+      .add('SW1', 'io/switch', { at: [0, 0] })
+      .add('U1', 'prim/nand', { at: [10, 0] })
+      .add('PWR1', 'io/vcc', { at: [7, -4] })
+      .connect('SW1.Y', 'U1.A')
+      .connect('PWR1.Y', 'U1.B', [8, 3])
+      .build();
+    const { simulation } = rewinding(quiet);
+    simulation.step();
+    simulation.runTo({ kind: 'time', until: ms(5), label: 'Run To' });
+    simulation.action('SW1', { type: 'toggle' });
+    simulation.runTo({ kind: 'time', until: ms(6), label: 'Run To' });
+    simulation.rewindTo(ms(1));
+    expect(simulation.step()).toBe(true); // nothing before 5 ms but the toggle
+    expect(now(simulation)).toBe(ms(5));
+    expect(levelChar(simulation.simulator!.pinLevel('U1', 'A'))).toBe('1');
+    expect(simulation.timeline!.pending).toBeUndefined();
+  });
+
+  it('acting behind the present starts a new future, and the tools hear of it first', () => {
+    const { clock, simulation } = rewinding();
+    const diverged: number[] = [];
+    simulation.onDiverge((time) => diverged.push(time));
+    simulation.run();
+    clock.frames(3);
+    simulation.action('SW1', { type: 'toggle' });
+    clock.frames(3);
+    simulation.pause();
+    simulation.rewindTo(ms(20));
+    expect(simulation.action('SW1', { type: 'toggle' })).toBe(true);
+    expect(diverged).toEqual([ms(20)]);
+    expect(simulation.history.get()).toMatchObject({ present: ms(20), behind: false });
+    expect(simulation.timeline!.actions.map((a) => a.time)).toEqual([ms(20)]);
+    simulation.action('SW1', { type: 'toggle' }); // at the present: nothing to drop
+    expect(diverged).toEqual([ms(20)]);
+  });
+
+  it('Go to Present comes back to the end of the recording', () => {
+    const { clock, simulation } = rewinding();
+    simulation.run();
+    clock.frames(4);
+    simulation.pause();
+    const end = { time: now(simulation), levels: all(simulation) };
+    expect(simulation.toPresent()).toBe(false);
+    simulation.rewindTo(ms(3));
+    expect(simulation.toPresent()).toBe(true);
+    expect({ time: now(simulation), levels: all(simulation) }).toEqual(end);
+    expect(simulation.status.get().reason).toBe('Present');
+  });
+
+  it('Run To a past time rewinds', () => {
+    const { clock, simulation } = rewinding();
+    simulation.run();
+    clock.frames(4);
+    simulation.pause();
+    expect(simulation.runTo({ kind: 'time', until: ms(5), label: 'Run To 5 ms' })).toBe(true);
+    expect(now(simulation)).toBe(ms(5));
+    expect(simulation.status.get().reason).toBe('Run To 5 ms');
+  });
+
+  it('searches over frames when the budget runs out, saying so; Pause cancels it', () => {
+    const { clock, simulation } = rewinding(hello(), { frameBudget: 1 });
+    simulation.run();
+    clock.frames(10);
+    simulation.pause();
+    const at = now(simulation);
+    let segments = 0;
+    clock.cost = 2; // every look at the clock takes 2 ms: one segment a frame
+    simulation.searchBack({
+      label: 'Find',
+      notFound: 'nothing',
+      watch: () => {
+        segments++;
+        return () => {};
+      },
+      target: () => undefined,
+    });
+    expect(segments).toBe(1);
+    expect(simulation.status.get()).toMatchObject({ state: 'running', goal: 'Find' });
+    clock.frame(16);
+    expect(segments).toBe(2);
+    simulation.pause();
+    expect(simulation.state).toBe('paused');
+    expect(now(simulation)).toBe(at);
+    clock.frames(3);
+    expect(segments).toBe(2);
+    clock.cost = 0;
+    simulation.run(); // a plain run again, no search
+    clock.frame(16);
+    expect(segments).toBe(2);
+    expect(now(simulation)).toBeGreaterThan(at);
+  });
+
+  it('Step Back skips instants where only cancelled changes were due', () => {
+    // SW1 into a slow inverter: toggled twice 2 ns apart, its change 10 ns later is cancelled.
+    const slow = new CircuitBuilder(registry)
+      .add('SW1', 'io/switch', { at: [0, 0] })
+      .add('U1', 'prim/not', { at: [10, 0], props: { delay: ns(10) } })
+      .connect('SW1.Y', 'U1.A')
+      .build();
+    const { simulation } = rewinding(slow);
+    simulation.runTo({ kind: 'time', until: ms(1), label: 'Run To' });
+    simulation.action('SW1', { type: 'toggle' });
+    simulation.runTo({ kind: 'time', until: ms(1) + ns(2), label: 'Run To' });
+    simulation.action('SW1', { type: 'toggle' });
+    simulation.runTo({ kind: 'time', until: ms(2), label: 'Run To' });
+    expect(simulation.stepBack()).toBe(true);
+    expect(now(simulation)).toBe(ms(1)); // not 1 ms + 2 ns: the stale instant at +10 ns is none
+  });
+
+  it('Step Back counts an instant processed again after an action at it once', () => {
+    // A checkpoint after every run: one right before the action, one right after it.
+    const { clock, simulation } = rewinding(hello(), { interval: 1 });
+    simulation.run();
+    clock.frames(2);
+    simulation.pause();
+    simulation.step(); // onto a clock edge
+    const edge = now(simulation);
+    simulation.action('SW1', { type: 'toggle' }); // processed again at the same instant
+    expect(simulation.stepBack()).toBe(true);
+    expect(now(simulation)).toBeLessThan(edge);
+  });
+
+  it('Step Clock behind the present passes the edge even with a recorded action before it', () => {
+    const { simulation } = rewinding();
+    simulation.runTo({ kind: 'time', until: ms(10.1), label: 'Run To' });
+    simulation.runTo({ kind: 'time', until: ms(10.3), label: 'Run To' });
+    simulation.action('SW1', { type: 'toggle' }); // between the stop and the edge at 10.5 ms
+    simulation.runTo({ kind: 'time', until: ms(14), label: 'Run To' });
+    simulation.rewindTo(ms(10.1));
+    const net = editor_net(simulation);
+    simulation.runTo({ kind: 'edge', net, level: Level.L1, label: 'Step Clock' });
+    expect(simulation.status.get().reason).toBe('Step Clock');
+    expect(now(simulation)).toBeGreaterThan(ms(10.5));
+    expect(now(simulation)).toBeLessThan(ms(11.5));
+  });
+
+  it('goes to the start of the history when a search finds nothing', () => {
+    const { clock, simulation } = rewinding();
+    simulation.run();
+    clock.frames(4);
+    simulation.pause();
+    simulation.searchBack({
+      label: 'Find',
+      notFound: 'nothing earlier',
+      watch: () => () => {},
+      target: () => undefined,
+    });
+    expect(simulation.status.get()).toMatchObject({
+      state: 'paused',
+      reason: 'Find: nothing earlier',
+    });
+    expect(now(simulation)).toBe(0);
+    expect(simulation.stepBack()).toBe(true); // nothing before the power-on instant
+    expect(simulation.status.get().reason).toBe('Step Back: the start of the history');
+    expect(now(simulation)).toBe(0);
+  });
+
+  it('a search sees the instants in order, with positions, and goes where it says', () => {
+    const { clock, simulation } = rewinding();
+    simulation.run();
+    clock.frames(2);
+    simulation.action('SW1', { type: 'toggle' });
+    clock.frames(2);
+    simulation.pause();
+    // The last time D1's anode net went low (SW1 toggled on: the NAND's output falls).
+    const net = simulation.simulator!.pinNet('U1', 'Y');
+    let last: number | undefined;
+    simulation.searchBack({
+      label: 'Last fall',
+      notFound: 'none',
+      watch: (sim, at) =>
+        sim.onNetChange((time, n, level) => {
+          if (n === net && level === Level.L0) last = at(time).time;
+        }),
+      target: () => last,
+    });
+    expect(simulation.status.get().reason).toBe('Last fall');
+    expect(levelChar(simulation.simulator!.pinLevel('U1', 'Y'))).toBe('0');
+    expect(now(simulation)).toBe(last);
+    expect(last).toBeGreaterThan(ms(32));
+  });
+
+  it('rewinds out of an oscillation halt, which comes back at the same instant', () => {
+    const { clock, simulation } = rewinding(ring());
+    simulation.run();
+    clock.frames(2);
+    simulation.action('SW1', { type: 'toggle' });
+    clock.frames(2);
+    expect(simulation.state).toBe('halted');
+    const at = now(simulation);
+    expect(simulation.rewindTo(ms(10))).toBe(true);
+    expect(simulation.state).toBe('paused');
+    expect(simulation.simulator!.halted).toBe(false);
+    simulation.run();
+    clock.frames(3);
+    expect(simulation.state).toBe('halted');
+    expect(now(simulation)).toBe(at);
+  });
+
+  it('an edit behind the present continues from there; the history starts anew', () => {
+    const { clock, editor, simulation } = rewinding();
+    const diverged: number[] = [];
+    simulation.onDiverge((time) => diverged.push(time));
+    simulation.run();
+    clock.frames(4);
+    simulation.pause();
+    simulation.rewindTo(ms(30));
+    editor.edit(
+      'Speed',
+      updateComponent(editor.state.get().circuit, 'X1', { props: { frequency: 2000 } }),
+    );
+    expect(diverged).toEqual([ms(30)]);
+    expect(now(simulation)).toBe(ms(30));
+    expect(simulation.history.get()).toEqual({ start: ms(30), present: ms(30), behind: false });
+    expect(simulation.rewindTo(ms(20))).toBe(false);
+  });
+
+  it('forgets the history on Stop and starts a new one at every power-on', () => {
+    const { clock, simulation } = rewinding();
+    simulation.run();
+    clock.frames(3);
+    simulation.stop();
+    expect(simulation.timeline).toBeUndefined();
+    expect(simulation.history.get()).toEqual({ start: 0, present: 0, behind: false });
+    expect(simulation.rewindTo(0)).toBe(false);
+    expect(simulation.stepBack()).toBe(false);
+    simulation.run();
+    clock.frames(2);
+    simulation.reset();
+    expect(simulation.timeline!.present.time).toBe(0);
+  });
+});

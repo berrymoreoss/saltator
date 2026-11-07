@@ -23,7 +23,9 @@ into a memory, R12b), `random` (`SeededRandom`, `hashString`: reproducible rando
 conditions on recorded channels that fire at an instant, R13; `repeat` for breakpoints, R14),
 `vcd` (`writeVcd`, R13); the simulator's `requestBreak` and `onInstant` (R13) and the run
 option `stopBefore` (a lookahead to a net's next change, R14); `diagnosticSeverity` and
-`DiagnosticLog.onOccurrence` (R14). Test
+`DiagnosticLog.onOccurrence` (R14); `Simulator.snapshot`/`restore`/`replica` with
+`state-copy` (frozen component states in shared pages), `Recorder.seek`/`cut` and
+`Trigger.resync` for rewinding (R14b). Test
 utilities (`Bench`, `functionTable`, `checkableRows`, `truthTable`, `Trace`) live in `testing/`
 and are imported from
 `src/core/testing`, not from the main index.

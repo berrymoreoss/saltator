@@ -75,7 +75,9 @@ flowchart LR
    subscribe to change streams (memory accesses, diagnostics); the waveform analyzer records
    the probed nets through a core `Recorder` on the kernel's change listener (R13); the
    debugger's breakpoints are repeating core triggers on a recorder of their own, its error
-   breaks a diagnostic listener (R14).
+   breaks a diagnostic listener (R14). The host keeps a history of kernel snapshots and the
+   user's actions, so a rewind restores the snapshot before an instant and re-runs it in a
+   replica the tools don't watch; the tools then catch up by time (R14b).
 5. User interaction with parts (pressing a button) goes to the simulator as an external event at
    the current simulation time.
 6. On edit, the document is recompiled. A running simulation goes on: an edit that keeps the
@@ -94,7 +96,10 @@ Run control (real-time pacing, speed factor, frame budget) is **not** in core: c
 drives it from `requestAnimationFrame` with an injected clock; a listener can break a run at an
 instant (`requestBreak`, R13), which the host turns into a pause, and a run can stop right
 before a net's pending change (`stopBefore`, R14: the debugger's Step Clock); the host runs
-steps (`runTo`) and pauses on requests with a reason (`requestPause`). This keeps core pure and makes
+steps (`runTo`) and pauses on requests with a reason (`requestPause`). Core can snapshot and
+restore a whole simulation and replay it in a replica (R14b); the history of checkpoints and
+user actions and the rewinds built on it are the host's (`Timeline`,
+[ADR-0021](adr/0021-rewind.md)). This keeps core pure and makes
 moving the kernel into a Web Worker a host-only change _(planned, backlog)_.
 
 ## Component library
@@ -210,7 +215,9 @@ simulated time with zoom, cursors, bus values, a trigger and VCD export) and the
 ([editor.md](editor.md#waveforms), [ADR-0019](adr/0019-waveforms.md)); R14 the Debug tab
 (Step Clock, Run For, Run To, breakpoints, breaks on errors, watches; the setup kept with the
 session) and run statistics ([editor.md](editor.md#debugger),
-[ADR-0020](adr/0020-debugger.md)).
+[ADR-0020](adr/0020-debugger.md)); R14b stepping back — Step Back, Step Back Clock, Reverse
+Continue, the waveforms' ruler, the status behind the present ([editor.md](editor.md#rewinding),
+[ADR-0021](adr/0021-rewind.md)).
 
 ```
 ┌───────────────────────── menu bar · toolbar (tools, zoom, grid, gate style) ─────────────────────────┐

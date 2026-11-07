@@ -5,6 +5,7 @@ import { createDefaultRegistry } from '../library';
 import {
   cellsReference,
   EMPTY_DEBUG_SETUP,
+  edgeSearch,
   formatCells,
   parseDebugSetup,
   signalMembers,
@@ -266,7 +267,10 @@ describe('Debugger: steps', () => {
     expect(s.debug.runFor()).toBeUndefined();
     expect(s.simulation.simulator!.now).toBe(ns(700));
     expect(s.simulation.status.get().reason).toBe('Run For 700 ns');
-    expect(s.debug.runToTime(ns(100))).toBe('The simulation is at 700 ns already.');
+    expect(s.debug.runToTime(ns(700))).toBe('The simulation is at 700 ns already.');
+    expect(s.debug.runToTime(ns(100))).toBeUndefined(); // the past: back to it (R14b)
+    expect(s.simulation.simulator!.now).toBe(ns(100));
+    expect(s.simulation.status.get().reason).toBe('Run To 100 ns');
     s.debug.addBreakpoint([{ signal: 'X2.Y', kind: 'rise' }]);
     s.debug.runToTime(us(5));
     expect(s.simulation.simulator!.now).toBe(us(1));
@@ -433,5 +437,324 @@ describe('debugger text', () => {
     expect(formatCells(data, [0, 0], 8, 'ascii')).toBe('A?');
     expect(formatCells(data, [0, 1], 8, 'dec')).toBe('65 X');
     expect(formatCells([5], [0], 4, 'bin')).toBe('0101');
+  });
+});
+
+describe('Debugger: going back (R14b)', () => {
+  /**
+   * A manual clock (1 MHz props: 500 ns high, 500 ns low) into a 74HC161 counting, cleared
+   * while SW1 (on MR, active low) is off.
+   */
+  function counter(): Circuit {
+    // Joined by net labels at the pin tips: wires along the chip's pins would touch them all.
+    const b = new CircuitBuilder(registry)
+      .add('X1', 'io/clock', { at: [0, 0], props: { frequency: 1e6, mode: 'manual' } })
+      .add('U1', '74xx/74hc161', { at: [20, 0] })
+      .add('V1', 'io/vcc', { at: [0, -10] })
+      .add('SW1', 'io/switch', { at: [0, 20] });
+    const labels = [
+      ['X1.Y', 'CLK'],
+      ['U1.CP', 'CLK'],
+      ['SW1.Y', 'CLR'],
+      ['U1.MR', 'CLR'],
+      ['U1.CEP', 'VCC'],
+      ['U1.CET', 'VCC'],
+      ['U1.PE', 'VCC'],
+    ] as const;
+    labels.forEach(([pin, name], i) => {
+      const [x, y] = b.pin(pin);
+      b.add(`NL${i + 1}`, 'net/label', { at: [x, y], props: { name } });
+    });
+    return b.build();
+  }
+  /** Powers on, clears the counter and lets go of MR. */
+  const cleared = (s: ReturnType<typeof setup>) => {
+    s.debug.stepClock(); // power-on and the low time
+    s.simulation.action('SW1', { type: 'toggle' });
+    s.debug.runFor(us(1));
+  };
+  const count = (s: ReturnType<typeof setup>) =>
+    [0, 1, 2, 3].reduce(
+      (n, i) => n + (s.simulation.simulator!.pinLevel('U1', `Q${i}`) === Level.L1 ? 2 ** i : 0),
+      0,
+    );
+
+  it('Reverse Continue goes to the previous hit; Continue comes back to the same one', () => {
+    const s = setup();
+    s.debug.addBreakpoint([{ signal: 'X1.Y', kind: 'rise' }]);
+    untilPaused(s);
+    untilPaused(s);
+    expect(untilPaused(s)).toBe(ns(2500));
+    expect(s.debug.breakpoints.get()[0]!.hits).toBe(3);
+    expect(s.debug.reverseContinue()).toBeUndefined();
+    expect(s.simulation.simulator!.now).toBe(ns(1500));
+    expect(s.simulation.status.get()).toMatchObject({
+      state: 'paused',
+      reason: 'Reverse Continue: Breakpoint 1: X1.Y ↑',
+    });
+    expect(s.debug.breakpoints.get()[0]!.hits).toBe(2); // hits follow the run back
+    s.debug.reverseContinue();
+    expect(s.simulation.simulator!.now).toBe(ns(500));
+    expect(untilPaused(s)).toBe(ns(1500));
+    expect(s.debug.breakpoints.get()[0]!.hits).toBe(2);
+    expect(untilPaused(s)).toBe(ns(2500));
+    expect(s.debug.breakpoints.get()[0]!.hits).toBe(3);
+  });
+
+  it('Reverse Continue finds a breakpoint added afterwards, and stops at the start without one', () => {
+    const s = setup();
+    s.simulation.run();
+    s.clock.frames(200); // 3.2 µs
+    s.simulation.pause();
+    s.debug.addBreakpoint([{ signal: 'X2.Y', kind: 'fall' }]); // falls at 2 µs
+    s.debug.reverseContinue();
+    expect(s.simulation.simulator!.now).toBe(us(2));
+    s.debug.reverseContinue();
+    expect(s.simulation.simulator!.now).toBe(0);
+    expect(s.simulation.status.get().reason).toBe('Reverse Continue: no earlier hit');
+  });
+
+  it('Reverse Continue stops at an earlier error when breaking on errors', () => {
+    const s = setup(
+      new CircuitBuilder(registry)
+        .add('SW1', 'io/switch', { at: [0, 0] })
+        .add('SW2', 'io/switch', { at: [0, 10] })
+        .connect('SW1.Y', 'SW2.Y', [8, 1], [8, 11])
+        .build(),
+    );
+    s.simulation.run();
+    s.clock.frames(2);
+    s.simulation.action('SW1', { type: 'toggle' }); // a fight
+    const at = s.simulation.simulator!.now;
+    s.clock.frames(2);
+    s.simulation.action('SW2', { type: 'toggle' }); // it ends
+    s.clock.frames(2);
+    s.simulation.pause();
+    s.debug.setBreakOn({ errors: true });
+    s.debug.reverseContinue();
+    expect(s.simulation.simulator!.now).toBe(at);
+    expect(s.simulation.status.get().reason).toMatch(/^Reverse Continue: Error: bus contention/);
+  });
+
+  it('Step Back Clock undoes Step Clock, by a free-running clock', () => {
+    const s = setup();
+    s.debug.stepClock();
+    s.debug.stepClock();
+    const second = s.simulation.simulator!.now;
+    s.debug.stepClock();
+    expect(s.debug.stepBackClock()).toBeUndefined();
+    expect(s.simulation.simulator!.now).toBe(second);
+    expect(s.simulation.simulator!.nextEventTime).toBe(ns(1500));
+    expect(s.simulation.status.get().reason).toBe('Step Back Clock (X1.Y ↑)');
+    s.debug.stepClock();
+    expect(s.simulation.simulator!.nextEventTime).toBe(ns(2500));
+  });
+
+  it('Step Back Clock undoes Step Clock on a gated clock (CLK behind an AND gate)', () => {
+    const b = new CircuitBuilder(registry)
+      .add('X1', 'io/clock', { at: [0, 0], props: { frequency: 1e6 } })
+      .add('U1', 'prim/and', { at: [10, 0] })
+      .add('V1', 'io/vcc', { at: [0, -10] });
+    for (const [i, [pin, name]] of (
+      [
+        ['X1.Y', 'OSC'],
+        ['U1.A', 'OSC'],
+        ['U1.B', 'VCC'],
+        ['U1.Y', 'CLK'],
+      ] as const
+    ).entries()) {
+      const [x, y] = b.pin(pin);
+      b.add(`NL${i + 1}`, 'net/label', { at: [x, y], props: { name } });
+    }
+    const s = setup(b.build());
+    expect(s.debug.clock().signal).toBe('CLK');
+    const levels = () => Array.from(s.simulation.simulator!.levels).join('');
+    const stops: { time: number; levels: string }[] = [];
+    for (let i = 0; i < 3; i++) {
+      s.debug.stepClock();
+      stops.push({ time: s.simulation.simulator!.now, levels: levels() });
+    }
+    expect(new Set(stops.map((t) => t.time)).size).toBe(3);
+    s.debug.stepBackClock();
+    expect({ time: s.simulation.simulator!.now, levels: levels() }).toEqual(stops[1]);
+    s.debug.stepBackClock();
+    expect({ time: s.simulation.simulator!.now, levels: levels() }).toEqual(stops[0]);
+    s.debug.stepClock();
+    expect({ time: s.simulation.simulator!.now, levels: levels() }).toEqual(stops[1]);
+  });
+
+  it('Step Back Clock undoes a manual clock press; Step Clock then replays it', () => {
+    const s = setup(counter());
+    cleared(s);
+    s.debug.stepClock();
+    s.debug.stepClock();
+    s.debug.stepClock();
+    expect(count(s)).toBe(3);
+    const presses = s.simulation.timeline!.actions.length;
+    s.debug.stepBackClock();
+    expect(count(s)).toBe(2);
+    s.debug.stepBackClock();
+    expect(count(s)).toBe(1);
+    s.debug.stepClock(); // the recorded press, not a new one
+    expect(count(s)).toBe(2);
+    expect(s.simulation.timeline!.actions).toHaveLength(presses);
+    expect(s.simulation.history.get().behind).toBe(true);
+    s.debug.stepClock();
+    expect(count(s)).toBe(3);
+    expect(s.simulation.history.get().behind).toBe(false);
+    s.debug.stepClock(); // at the present: a new press
+    expect(count(s)).toBe(4);
+    expect(s.simulation.timeline!.actions).toHaveLength(presses + 1);
+  });
+
+  it('after a rewind, a breakpoint stops at its next hit, the condition as it was then', () => {
+    const s = setup();
+    s.debug.addBreakpoint([{ signal: 'X1.Y', kind: 'level', level: Level.L1 }]);
+    untilPaused(s);
+    untilPaused(s);
+    expect(untilPaused(s)).toBe(ns(2500));
+    s.simulation.rewindTo(ns(2200)); // X1 low since 2 µs: high at 2.5 µs is anew
+    expect(untilPaused(s)).toBe(ns(2500));
+    s.simulation.rewindTo(ns(1200)); // far back: the record is replayed, not written again
+    expect(s.debug.breakpoints.get()[0]!.hits).toBe(1);
+    expect(untilPaused(s)).toBe(ns(1500));
+    expect(untilPaused(s)).toBe(ns(2500));
+    expect(s.debug.breakpoints.get()[0]!.hits).toBe(3);
+  });
+
+  it('acting at a rewound instant records anew: a breakpoint on the action stops there', () => {
+    const s = setup(
+      new CircuitBuilder(registry)
+        .add('X1', 'io/clock', { at: [0, 0], props: { frequency: 1e6 } })
+        .add('SW1', 'io/switch', { at: [0, 10] })
+        .build(),
+    );
+    s.debug.addBreakpoint([{ signal: 'SW1.Y', kind: 'rise' }]);
+    s.simulation.run();
+    s.clock.frames(100); // 1.6 µs
+    s.simulation.action('SW1', { type: 'toggle' });
+    expect(s.simulation.status.get().reason).toBeUndefined(); // (running: it pauses next frame)
+    untilPaused(s);
+    const first = s.simulation.simulator!.now;
+    s.simulation.run();
+    s.clock.frames(100);
+    s.simulation.pause();
+    s.simulation.rewindTo(ns(700));
+    s.simulation.action('SW1', { type: 'toggle' }); // paused: applied at once
+    expect(s.simulation.status.get().reason).toBe('Breakpoint 1: SW1.Y ↑');
+    expect(s.simulation.simulator!.now).toBe(ns(700));
+    expect(first).toBeGreaterThan(ns(700));
+  });
+
+  it('Step Clock replays the next recorded press, whatever other actions come first', () => {
+    const s = setup(counter());
+    cleared(s);
+    s.debug.stepClock(); // a press at 1.5 µs; paused at 2.5 µs
+    s.debug.runFor(ns(100));
+    s.simulation.action('SW1', { type: 'set', on: true }); // as it is: changes nothing
+    s.debug.runFor(ns(100));
+    s.debug.stepClock(); // a press at 2.7 µs
+    const second = s.simulation.simulator!.now;
+    s.debug.stepClock();
+    s.debug.stepBackClock();
+    s.debug.stepBackClock();
+    expect(count(s)).toBe(1);
+    s.debug.stepClock();
+    expect(s.simulation.simulator!.now).toBe(second);
+    expect(count(s)).toBe(2);
+  });
+
+  it('watches compare with where the run came from; activity counts afresh', () => {
+    const s = setup(counter());
+    s.debug.addWatch('U1.Q0 U1.Q1 U1.Q2 U1.Q3');
+    s.debug.measureActivity(true);
+    cleared(s);
+    s.debug.stepClock();
+    s.debug.stepClock();
+    expect(s.debug.watches.get()[0]).toMatchObject({ value: '0x2', changed: true });
+    s.debug.stepBackClock();
+    expect(s.debug.watches.get()[0]).toMatchObject({ value: '0x1', changed: true });
+    expect(s.debug.activityFrom).toBe(s.simulation.simulator!.now);
+    expect(s.debug.activity()).toEqual([]);
+    expect(s.debug.stats().last.events).toBe(0);
+  });
+});
+
+describe('edgeSearch', () => {
+  /** A replica stand-in: one net starting at `first`, instants with or without events. */
+  function replica(first: Level, steps: readonly [time: number, level: Level, events: number][]) {
+    const levels = Uint8Array.of(first);
+    const stats = { events: 0 };
+    let listener: ((t: number) => void) | undefined;
+    return {
+      sim: {
+        levels,
+        stats,
+        onInstant: (l: (t: number) => void) => {
+          listener = l;
+          return () => {
+            listener = undefined;
+          };
+        },
+      },
+      run() {
+        for (const [time, level, events] of steps) {
+          levels[0] = level;
+          stats.events += events;
+          listener?.(time);
+        }
+      },
+    };
+  }
+  type Sim = Parameters<ReturnType<typeof edgeSearch>['watch']>[0];
+  const at = (time: number) => ({ time, actions: 0 });
+  const before = at(Number.POSITIVE_INFINITY);
+
+  it('keeps the newest edge, and finds the instant before it in an older segment', () => {
+    const search = edgeSearch(0, Level.L1, 'Back');
+    // Newest segment: starts high (the edge was before it), nothing but a stale instant.
+    const newest = replica(Level.L1, [[50, Level.L1, 0]]);
+    let stop = search.watch(newest.sim as unknown as Sim, at, before);
+    newest.run();
+    stop();
+    expect(search.target()).toBeUndefined();
+    // Older: an edge at 20, then one at 40 (the newest edge) — no instant before 40 but 40's.
+    const older = replica(Level.L0, [
+      [10, Level.L0, 1],
+      [20, Level.L1, 1],
+      [30, Level.L0, 1],
+      [35, Level.L0, 0], // only stale events
+      [40, Level.L1, 1],
+    ]);
+    stop = search.watch(older.sim as unknown as Sim, at, before);
+    older.run();
+    stop();
+    expect(search.target()).toBe(30); // not 35 (nothing happened), not before 20
+    // A segment older still changes nothing once found.
+    const oldest = replica(Level.L0, [[5, Level.L1, 1]]);
+    stop = search.watch(oldest.sim as unknown as Sim, at, before);
+    oldest.run();
+    stop();
+    expect(search.target()).toBe(30);
+  });
+
+  it('goes on to an older segment for the instant before an edge at a segment start', () => {
+    const search = edgeSearch(0, Level.L1, 'Back');
+    const newest = replica(Level.L0, [
+      [40, Level.L1, 1],
+      [45, Level.L1, 1],
+    ]);
+    let stop = search.watch(newest.sim as unknown as Sim, at, before);
+    newest.run();
+    stop();
+    expect(search.target()).toBeUndefined();
+    const older = replica(Level.L0, [
+      [10, Level.L1, 1],
+      [25, Level.L0, 1],
+    ]);
+    stop = search.watch(older.sim as unknown as Sim, at, before);
+    older.run();
+    stop();
+    expect(search.target()).toBe(25); // before the edge at 40, not the one at 10
   });
 });

@@ -43,6 +43,30 @@ export type DiagnosticInput = Omit<Diagnostic, 'count' | 'lastTime'>;
 
 type Entry = { -readonly [K in keyof Diagnostic]: Diagnostic[K] };
 
+/** What a `DiagnosticLog` held at a moment (`snapshot`): its entries and their counts. */
+export interface DiagnosticLogSnapshot {
+  /** The entries then (only `count` and `lastTime` of an entry ever change: see `counts`). */
+  readonly entries: readonly Diagnostic[];
+  readonly counts: Float64Array;
+  readonly lastTimes: Float64Array;
+  readonly dropped: number;
+}
+
+const keyOf = (d: DiagnosticInput) =>
+  `${d.kind}|${d.net ?? ''}|${d.component ?? ''}|${d.pin ?? ''}`;
+
+/** The same report (its first occurrence), whatever its count. */
+function sameReport(a: Diagnostic, b: Diagnostic): boolean {
+  return (
+    a.kind === b.kind &&
+    a.time === b.time &&
+    a.message === b.message &&
+    a.net === b.net &&
+    a.component === b.component &&
+    a.pin === b.pin
+  );
+}
+
 /**
  * Collects diagnostics: merges repeats (same kind, net, component and pin → `count`, `lastTime`)
  * and keeps at most `max` distinct entries, counting the rest in `dropped`.
@@ -71,7 +95,7 @@ export class DiagnosticLog {
 
   add(input: DiagnosticInput): void {
     for (const listener of this.occurrences) listener(input);
-    const key = `${input.kind}|${input.net ?? ''}|${input.component ?? ''}|${input.pin ?? ''}`;
+    const key = keyOf(input);
     const existing = this.byKey.get(key);
     if (existing) {
       existing.count++;
@@ -86,6 +110,39 @@ export class DiagnosticLog {
     this.list.push(entry);
     this.byKey.set(key, entry);
     for (const listener of this.listeners) listener(entry);
+  }
+
+  /** The entries and their counts now, for `restore` (entries are shared, counts copied). */
+  snapshot(): DiagnosticLogSnapshot {
+    const list = this.list;
+    return {
+      entries: list.slice(),
+      counts: Float64Array.from(list, (d) => d.count),
+      lastTimes: Float64Array.from(list, (d) => d.lastTime),
+      dropped: this.droppedCount,
+    };
+  }
+
+  /**
+   * Back to what a snapshot (of this log or another) held: later entries go, counts are reset.
+   * An entry still here for the same report is kept as the same object (a "cleared" mark held
+   * by the UI stays valid). Listeners are not called.
+   */
+  restore(snapshot: DiagnosticLogSnapshot): void {
+    const list = this.list;
+    snapshot.entries.forEach((saved, i) => {
+      let entry = list[i];
+      if (entry === undefined || !sameReport(entry, saved)) {
+        entry = { ...saved };
+        list[i] = entry;
+      }
+      entry.count = snapshot.counts[i]!;
+      entry.lastTime = snapshot.lastTimes[i]!;
+    });
+    list.length = snapshot.entries.length;
+    this.byKey.clear();
+    for (const entry of list) this.byKey.set(keyOf(entry), entry);
+    this.droppedCount = snapshot.dropped;
   }
 
   /**

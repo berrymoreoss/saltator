@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CircuitBuilder } from '../circuit';
-import { diagnosticSeverity, ms, ns, type PropDef } from '../core';
+import { diagnosticSeverity, ms, ns, type PropDef, us } from '../core';
 import { buildScene, MAX_SPEED, REAL_TIME, type SimStatus, selectionOf } from '../editor';
 import { createDefaultRegistry } from '../library';
 import { issueLocation } from './MessagesPanel';
@@ -103,6 +103,18 @@ describe('simulationSummary', () => {
     expect(simulationSummary(status({ goal: 'Step Clock (CLK ↑)', speed: MAX_SPEED }))).toBe(
       'Running · 1.25 s · Step Clock (CLK ↑)…',
     );
+  });
+
+  it('says how far behind the present a rewound run is', () => {
+    const paused = status({ state: 'paused', time: ns(500), reason: 'Step Back' });
+    const behind = { start: 0, present: us(2), behind: true };
+    expect(simulationSummary(paused, behind)).toBe(
+      'Paused · 500 ns · Step Back · 1.5 µs behind the present',
+    );
+    expect(simulationSummary(paused, { ...behind, behind: false })).toBe(
+      'Paused · 500 ns · Step Back',
+    );
+    expect(simulationSummary(status({}), behind)).toBe('Running · 1.25 s');
   });
 });
 

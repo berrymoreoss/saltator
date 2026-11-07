@@ -7,6 +7,7 @@
 import { describe, type TestContext, test } from 'vitest';
 import { NetlistBuilder, ns, Recorder, Simulator, strong, Trigger, us } from '../../src/core';
 import { testDriver } from '../../src/core/testing';
+import { Timeline } from '../../src/editor/timeline';
 import { createDefaultRegistry } from '../../src/library';
 
 const registry = createDefaultRegistry().register(testDriver);
@@ -267,4 +268,55 @@ describe('kernel', () => {
       sim.runFor(us(100));
     });
   });
+
+  // R14b: the host's history — the run in the host's chunks of 20 000 events, the timeline told
+  // after each (a checkpoint every 200 000 events, thinned within 64 MiB).
+  const inChunks = (sim: Simulator, dt: number, after?: () => void) => () => {
+    const end = sim.now + dt;
+    while (sim.now < end) {
+      sim.runUntil(end, { maxEvents: 20_000 });
+      after?.();
+    }
+  };
+
+  for (const history of [false, true]) {
+    const name = `ring oscillator ×1001 in host chunks${history ? ' with a history' : ''}`;
+    test(`${name}: 100 µs`, async ({ bench }) => {
+      const sim = ring(1001);
+      sim.action('EN', strong(0));
+      sim.settle();
+      const timeline = history ? new Timeline(sim) : undefined;
+      sim.action('EN', strong(1));
+      timeline?.acted('EN', strong(1));
+      sim.runFor(us(10));
+      await measure(
+        bench,
+        name,
+        sim,
+        inChunks(sim, us(100), () => timeline?.ran()),
+      );
+    });
+  }
+
+  for (const history of [false, true]) {
+    const name = `6116 ×16 read by a 74HC4040, 100 counts${history ? ' with a history' : ''}`;
+    test(name, async ({ bench }) => {
+      const sim = ramSweep(16);
+      sim.action('CLK', strong(1));
+      sim.action('MR', strong(1));
+      sim.runFor(ns(100));
+      sim.action('MR', strong(0));
+      sim.runFor(ns(100));
+      const timeline = history ? new Timeline(sim) : undefined;
+      let level: 0 | 1 = 0;
+      await measure(bench, name, sim, () => {
+        for (let i = 0; i < 200; i++) {
+          level = level === 0 ? 1 : 0;
+          sim.action('CLK', strong(level));
+          sim.runFor(ns(200));
+          timeline?.ran();
+        }
+      });
+    });
+  }
 });

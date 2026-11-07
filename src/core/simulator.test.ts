@@ -3,7 +3,8 @@ import { defineComponent, type EvalContext } from './component';
 import { Drive, Level, levelChar, not, strong } from './logic';
 import { NetlistBuilder } from './netlist';
 import { Registry } from './registry';
-import { Simulator } from './simulator';
+import { Simulator, snapshotBytes } from './simulator';
+import { Trace } from './testing/trace';
 import { ns } from './time';
 
 // Tiny inline parts; the real primitives live in src/library and are tested there.
@@ -825,5 +826,291 @@ describe('carry-over into a recompiled netlist', () => {
     second.runUntil(ns(2));
     expect(second.contended[second.netIndex('bus')]).toBe(0);
     expect(levels(second, 'bus')).toBe('1');
+  });
+});
+
+describe('snapshots', () => {
+  /** Oscillates in zero-delay deltas while EN is 1 (an oscillation halt on demand). */
+  const osc = defineComponent({
+    type: 'test/osc',
+    name: 'O',
+    title: 'Oscillator',
+    pins: [
+      { name: 'EN', dir: 'in' },
+      { name: 'A', dir: 'in' },
+      { name: 'Y', dir: 'out' },
+    ],
+    create: () => ({
+      evaluate(ctx) {
+        const on = ctx.read(0) === Level.L1;
+        ctx.drive(2, on ? strong(not(ctx.read(1))) : Drive.STRONG_0, 0);
+      },
+    }),
+  });
+  /** A memory-sized state: `sim.action('M', [address, value])` writes a byte. */
+  const ram = defineComponent<Record<string, never>, { data: Uint8Array; stamps: Float64Array }>({
+    type: 'test/ram',
+    name: 'M',
+    title: 'Memory',
+    pins: [],
+    create: () => ({
+      createState: () => ({ data: new Uint8Array(32_768), stamps: new Float64Array(32_768) }),
+      action(ctx, payload) {
+        const [address, value] = payload as [number, number];
+        ctx.state.data[address] = value;
+        ctx.state.stamps[address] = ctx.now;
+      },
+    }),
+  });
+  const parts = new Registry([source, inverter, recorder, clock, osc, ram]);
+  const build = (f: (b: NetlistBuilder) => NetlistBuilder) =>
+    new Simulator(f(new NetlistBuilder()).build(), parts);
+  const ring = () =>
+    build((b) =>
+      b
+        .add('C', 'test/clock', { half: ns(7) })
+        .add('S', 'test/source', { delay: ns(4) })
+        .add('I1', 'test/inv', { delay: ns(3) })
+        .add('I2', 'test/inv', { delay: ns(5) })
+        .add('R', 'test/recorder')
+        .net('clk', 'C.Y', 'I1.A', 'R.A')
+        .net('n1', 'I1.Y', 'I2.A')
+        .net('s', 'S.Y', 'R.B'),
+    );
+  /** Every change from now until `t`, as lines. */
+  const runTrace = (s: Simulator, t: number) => {
+    const trace = new Trace(s);
+    s.runUntil(t);
+    trace.stop();
+    return trace.lines();
+  };
+
+  it('puts a run back so it goes on exactly as it did', () => {
+    const s = ring();
+    s.runUntil(ns(30));
+    s.action('S', Drive.STRONG_1); // pending until 34 ns
+    s.action('R', ns(9)); // a timer at 39 ns
+    const snap = s.snapshot();
+    const at = { levels: s.levels.slice(), drives: s.drives.slice() };
+    expect(snap.time).toBe(ns(30));
+    expect(snap.events).toBe(s.stats.events);
+    const first = runTrace(s, ns(100));
+    const end = { levels: levels(s, 'clk', 'n1', 'I2.Y', 's'), stats: { ...s.stats } };
+    const log = [...(s.stateOf('R') as Log).log];
+    s.restore(snap);
+    expect(s.now).toBe(ns(30));
+    expect({ levels: s.levels.slice(), drives: s.drives.slice() }).toEqual(at);
+    expect(s.nextEventTime).toBeLessThanOrEqual(ns(34));
+    expect(runTrace(s, ns(100))).toEqual(first);
+    expect(first).toContain(`${ns(34)} s=1`);
+    expect({ levels: levels(s, 'clk', 'n1', 'I2.Y', 's'), stats: { ...s.stats } }).toEqual(end);
+    expect((s.stateOf('R') as Log).log).toEqual(log);
+    expect(log.some((line) => line.startsWith(`${ns(39)} R wake7`))).toBe(true);
+  });
+
+  it('keeps a pending change as it was: confirmed, not postponed; seen ahead', () => {
+    const s = build((b) => b.add('S', 'test/source', { delay: ns(4) }).net('s', 'S.Y'));
+    s.settle();
+    s.action('S', Drive.STRONG_1); // pending until 4 ns + now
+    const due = s.now + ns(4);
+    const snap = s.snapshot();
+    s.runUntil(due + ns(10));
+    s.action('S', Drive.Z); // another change pending later, then applied
+    s.runUntil(due + ns(30));
+    s.restore(snap);
+    const net = s.netIndex('s');
+    expect(s.settle({ stopBefore: { net, level: Level.L1 } })).toBe('before');
+    expect(s.nextEventTime).toBe(due);
+    s.runUntil(due - ns(1));
+    s.action('S', Drive.STRONG_1); // confirms the pending 1: it stays due then
+    expect(runTrace(s, due + ns(10))).toEqual([`${due} s=1`]);
+  });
+
+  it('keeps cancelled changes cancelled', () => {
+    const s = build((b) => b.add('S', 'test/source', { delay: ns(4) }).net('s', 'S.Y'));
+    s.settle();
+    s.action('S', Drive.STRONG_1);
+    s.action('S', Drive.Z); // the pending 1 is cancelled; its stale event stays queued
+    const snap = s.snapshot();
+    const first = runTrace(s, ns(10));
+    s.restore(snap);
+    expect(runTrace(s, ns(10))).toEqual(first);
+    expect(first).toEqual([]);
+  });
+
+  it('restores the state objects in place', () => {
+    const s = ring();
+    s.runUntil(ns(20));
+    const state = s.stateOf('R') as Log;
+    const { log } = state;
+    const length = log.length;
+    const snap = s.snapshot();
+    s.runUntil(ns(80));
+    expect(log.length).toBeGreaterThan(length);
+    s.restore(snap);
+    expect(s.stateOf('R')).toBe(state);
+    expect(state.log).toBe(log);
+    expect(log.length).toBe(length);
+  });
+
+  it('taken before power-on, processes the power-on instant again', () => {
+    const s = build((b) => b.add('C', 'test/clock').add('R', 'test/recorder').add('I', 'test/inv'));
+    const snap = s.snapshot();
+    const first = runTrace(s, ns(50));
+    const log = [...(s.stateOf('R') as Log).log];
+    // R's init read its inputs already; only the forced evaluation reads I.A.
+    expect(s.diagnostics.entries.map((d) => d.component)).toEqual(['R', 'R', 'I']);
+    s.restore(snap);
+    expect(s.diagnostics.entries.map((d) => d.component)).toEqual(['R', 'R']);
+    expect(runTrace(s, ns(50))).toEqual(first);
+    expect(s.diagnostics.entries.map((d) => d.component)).toEqual(['R', 'R', 'I']);
+    expect((s.stateOf('R') as Log).log).toEqual(log);
+    expect(log.filter((line) => line.startsWith('0 R eval'))).toHaveLength(1);
+  });
+
+  it('gets out of an oscillation halt, which then happens again at the same instant', () => {
+    const s = build((b) =>
+      b
+        .add('S', 'test/source')
+        .add('O', 'test/osc')
+        .net('en', 'S.Y', 'O.EN')
+        .net('y', 'O.Y', 'O.A'),
+    );
+    s.action('S', Drive.STRONG_0);
+    s.runUntil(ns(5));
+    const snap = s.snapshot();
+    s.action('S', Drive.STRONG_1);
+    expect(s.runUntil(ns(10))).toBe('halted');
+    expect(s.diagnostics.entries.at(-1)?.kind).toBe('oscillation');
+    s.restore(snap);
+    expect(s.halted).toBe(false);
+    expect(s.diagnostics.entries.some((d) => d.kind === 'oscillation')).toBe(false);
+    expect(s.runUntil(ns(8))).toBe('idle');
+    s.action('S', Drive.STRONG_1);
+    expect(s.runUntil(ns(10))).toBe('halted');
+    expect(s.diagnostics.entries.at(-1)?.time).toBe(ns(8));
+  });
+
+  it('puts diagnostics back as they were, keeping the entries that stay', () => {
+    const s = build((b) =>
+      b
+        .add('S1', 'test/source')
+        .add('S2', 'test/source')
+        .add('R', 'test/recorder')
+        .net('a', 'S1.Y', 'R.A')
+        .net('b', 'S2.Y', 'R.B'),
+    );
+    s.settle(); // R.A and R.B float: reported once each
+    const entries = [...s.diagnostics.entries];
+    expect(entries.map((d) => d.pin)).toEqual(['A', 'B']);
+    const values = entries.map((d) => ({ ...d }));
+    const snap = s.snapshot();
+    s.action('S2', Drive.STRONG_1);
+    s.settle(); // b changed: it may be reported again
+    s.runUntil(ns(5));
+    s.action('S2', Drive.Z);
+    s.settle(); // and it is: B counts 2
+    s.action('S2', Drive.STRONG_0);
+    s.action('S1', Drive.STRONG_0);
+    s.settle();
+    expect(entries[1]?.count).toBe(2);
+    s.restore(snap);
+    expect(s.diagnostics.entries.map((d) => ({ ...d }))).toEqual(values);
+    expect(s.diagnostics.entries[1]).toBe(entries[1]);
+    expect(entries[1]?.count).toBe(1);
+    // As at the snapshot, b was reported since it last changed: reading it again isn't news.
+    s.action('S1', Drive.STRONG_1);
+    s.settle();
+    expect(s.diagnostics.entries.map((d) => d.count)).toEqual([1, 1]);
+  });
+
+  it('replaces an entry that is another report than the snapshot had there', () => {
+    const s = build((b) =>
+      b.add('S1', 'test/source').add('S2', 'test/source').net('bus', 'S1.Y', 'S2.Y'),
+    );
+    const start = s.snapshot();
+    s.action('S1', Drive.STRONG_1);
+    s.action('S2', Drive.STRONG_0);
+    s.settle(); // contention at 0
+    const contention = s.snapshot();
+    s.restore(start);
+    expect(s.diagnostics.entries).toEqual([]);
+    s.action('S1', Drive.STRONG_1);
+    s.runUntil(ns(5));
+    s.action('S2', Drive.STRONG_0);
+    s.settle(); // contention again, at 5 ns: another first occurrence
+    expect(s.diagnostics.entries.map((d) => d.time)).toEqual([ns(5)]);
+    s.restore(contention);
+    expect(s.diagnostics.entries.map((d) => [d.kind, d.time])).toEqual([['contention', 0]]);
+  });
+
+  it('puts contention back as it was', () => {
+    const s = build((b) =>
+      b.add('S1', 'test/source').add('S2', 'test/source').net('bus', 'S1.Y', 'S2.Y'),
+    );
+    s.action('S1', Drive.STRONG_1);
+    s.settle();
+    const snap = s.snapshot();
+    s.action('S2', Drive.STRONG_0);
+    s.settle();
+    const bus = s.netIndex('bus');
+    expect(s.contended[bus]).toBe(1);
+    s.restore(snap);
+    expect(s.contended[bus]).toBe(0);
+    expect(s.diagnostics.entries).toEqual([]);
+    s.action('S2', Drive.STRONG_0);
+    s.settle();
+    expect(s.diagnostics.entries.map((d) => [d.kind, d.count])).toEqual([['contention', 1]]);
+  });
+
+  it('restores into a replica, which runs without the listeners of the original', () => {
+    const s = ring();
+    s.runUntil(ns(25));
+    const heard: number[] = [];
+    s.onNetChange((t) => heard.push(t));
+    s.onInstant((t) => heard.push(-t));
+    const copy = s.replica();
+    copy.restore(s.snapshot());
+    const replayed = runTrace(copy, ns(90));
+    expect(heard).toEqual([]);
+    expect(runTrace(s, ns(90))).toEqual(replayed);
+    // And back: the replica's state into the original.
+    s.restore(copy.snapshot());
+    expect(s.now).toBe(ns(90));
+  });
+
+  it('refuses snapshots of another netlist and snapshots during a run', () => {
+    const s = ring();
+    expect(() => s.restore(ring().snapshot())).toThrow(/another netlist/);
+    let error: unknown;
+    s.onInstant(() => {
+      try {
+        s.snapshot();
+      } catch (e) {
+        error = e;
+      }
+    });
+    s.runUntil(ns(10));
+    expect(String(error)).toMatch(/running/);
+    expect(() => s.snapshot()).not.toThrow();
+  });
+
+  it('shares the pages of a large state that did not change with its base', () => {
+    const s = build((b) => b.add('M', 'test/ram'));
+    const first = s.snapshot();
+    expect(first.bytes).toBeGreaterThan(32_768 * 9);
+    const same = s.snapshot(first);
+    expect(same.bytes).toBeLessThan(2_000);
+    s.runUntil(ns(5));
+    s.action('M', [100, 0x3f]); // a page of the cells and one of the stamps change
+    const poked = s.snapshot(same);
+    expect(poked.bytes).toBeGreaterThan(2 * 4096);
+    expect(poked.bytes).toBeLessThan(3 * 4096);
+    expect(snapshotBytes(poked)).toBe(first.bytes);
+    expect(snapshotBytes(poked, first)).toBe(poked.bytes);
+    s.restore(same);
+    expect((s.stateOf('M') as { data: Uint8Array }).data[100]).toBe(0);
+    s.restore(poked);
+    expect((s.stateOf('M') as { data: Uint8Array }).data[100]).toBe(0x3f);
   });
 });

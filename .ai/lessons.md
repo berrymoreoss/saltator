@@ -284,3 +284,24 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
   recorder merges them into that instant: a channel attached then saw no edge (fixed: its
   first level goes 1 ps early). Test what a tool sees of a change made while paused, not only
   of changes made while running.
+- 2026-11-08 (R14b) — Restoring a kernel snapshot into a _replica_ needs the event queue's seq
+  counter restored too: a lower counter makes the queued events look "queued after the delta
+  began" (`peekSeq() < boundary` fails) and `processTimestamp` loops forever on the same
+  instant. Per-delta stamps are the opposite: never restore them, let the delta id keep
+  counting, so no stale stamp can equal a later delta.
+- 2026-11-08 (R14b) — Comparing a replay with the original by "same levels" hides a replay
+  that ran the kernel between two actions of one frame (press and release cancel out vs a
+  0-width pulse): the levels end equal, the event count and the queue's head don't. Compare
+  those too in determinism tests.
+- 2026-11-08 (R14b) — After `Simulator.restore`, `sim.now` is the rewound time: anything that
+  asks "how far did the record reach" must be told the present explicitly (`Recorder.seek(t,
+  present)`), and an instant may be processed several times (an action while paused), so
+  "where the run is" is a position — a time and the actions delivered by then — not a time.
+- 2026-11-08 (R14b) — A run that stops exactly at a recorded action's instant must stop
+  _before_ delivering it: the original run stopped there and the user acted after. Delivering
+  actions due "now" at the top of every kernel call is right for resuming, wrong for the last
+  call of a step — check the goal first.
+- 2026-11-08 (R14b) — Editor tests with DIP chips: `CircuitBuilder.connect` routes wires along
+  the chip's pin row and shorts everything (the R02/R04b lesson bit again: a 74HC161's outputs on
+  VCC). Join pins with net labels placed at the pin tips (`b.pin('U1.CP')`) instead, and check
+  `compileCircuit(…).netlist.nets` once.

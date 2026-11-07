@@ -25,8 +25,9 @@ import { clockPhases } from '../library';
 import { formatValue } from './analyzer';
 import type { Editor } from './editor';
 import type { Scene } from './scene';
-import type { SimClock } from './simulation';
+import type { BackSearch, SimClock } from './simulation';
 import { Store } from './store';
+import { comparePositions, type TimelinePosition } from './timeline';
 
 /**
  * A signal as the debugger takes it: one reference (`CLK`, `U3.QA`, `D[0..7]`), or several
@@ -307,7 +308,8 @@ export class Debugger {
    * why there is none.
    */
   #built = new Map<number, { key: string; trigger?: Trigger; problem?: string }>();
-  #hits = new Map<number, number>();
+  /** When each breakpoint was hit, in order (a rewind forgets the hits after it). */
+  #hits = new Map<number, number[]>();
   #offDiagnostics: (() => void) | undefined;
   // Watches: values at the last stop and the one before, by reference.
   #lastStop = new Map<string, string>();
@@ -336,6 +338,8 @@ export class Debugger {
       this.#rebuild();
       this.#refresh();
     });
+    editor.simulation.onRewind(({ time, present }) => this.#rewound(time, present));
+    editor.simulation.onDiverge((time) => this.#recorder.cut(time));
     this.#sync();
   }
 
@@ -503,6 +507,13 @@ export class Debugger {
       const { high, low } = manual.phases;
       const now = host.simulator?.now ?? 0;
       const stopped = host.state === 'stopped';
+      // Behind the present the recording has the presses: replay the next one, don't press.
+      const recorded = this.#nextPress(manual.id);
+      if (recorded !== undefined) {
+        const until = recorded + high + low;
+        host.runTo({ kind: 'time', until, label: `Step Clock (${manual.id} pulse)` });
+        return undefined;
+      }
       if (!stopped) {
         const breaks = host.breaks;
         host.action(manual.id, { type: 'step' });
@@ -521,6 +532,19 @@ export class Debugger {
       label: `Step Clock (${signal} ${EDGE_TEXT[edge]})`,
     });
     return ok ? undefined : 'The simulation is halted: Reset or Stop first.';
+  }
+
+  /** When the recorded future presses manual clock `id` next (behind the present only). */
+  #nextPress(id: string): Time | undefined {
+    const timeline = this.#editor.simulation.timeline;
+    if (!timeline?.hasFuture) return undefined;
+    const { actions } = timeline;
+    for (let i = timeline.position.actions; i < actions.length; i++) {
+      const action = actions[i]!;
+      const payload = action.payload as { type?: unknown } | undefined;
+      if (action.component === id && payload?.type === 'step') return action.time;
+    }
+    return undefined;
   }
 
   /** The manual `io/clock` driving a net of the scene, with its phases, if one does. */
@@ -545,16 +569,131 @@ export class Debugger {
     return this.#runTo(now + duration, `Run For ${formatTime(duration)}`);
   }
 
-  /** Run To a simulated time; why not instead. */
+  /** Run To a simulated time — back to it, when it is past (R14b); why not instead. */
   runToTime(time: Time): string | undefined {
-    const now = this.#editor.simulation.simulator?.now ?? 0;
-    if (time <= now) return `The simulation is at ${formatTime(now)} already.`;
+    const host = this.#editor.simulation;
+    const now = host.simulator?.now ?? 0;
+    if (time === now && host.state !== 'stopped') {
+      return `The simulation is at ${formatTime(now)} already.`;
+    }
+    if (time < now) {
+      const start = host.timeline?.start ?? 0;
+      if (time < start) return `The history reaches back to ${formatTime(start)} only.`;
+    }
     return this.#runTo(time, `Run To ${formatTime(time)}`);
   }
 
   #runTo(until: Time, label: string): string | undefined {
     const ok = this.#editor.simulation.runTo({ kind: 'time', until, label });
     return ok ? undefined : 'The simulation is halted: Reset or Stop first.';
+  }
+
+  // ── Steps back (R14b) ───────────────────────────────────────────────────────────────────
+
+  /**
+   * Step Back Clock: back to right before the step clock's last active edge at or before now —
+   * the instant with events before it, as it ended: what Step Clock stopped at one cycle
+   * earlier. Why not instead.
+   */
+  stepBackClock(): string | undefined {
+    const { signal, net, problem } = this.clock();
+    if (problem !== undefined || net === undefined) return problem;
+    const host = this.#editor.simulation;
+    const index = host.netOf(net);
+    if (index === undefined || !host.timeline) return 'Nothing to step back from: run first.';
+    const active = this.setup.get().edge === 'rise' ? Level.L1 : Level.L0;
+    host.searchBack(
+      edgeSearch(index, active, `Step Back Clock (${signal} ${EDGE_TEXT[this.setup.get().edge]})`),
+    );
+    return undefined;
+  }
+
+  /**
+   * Reverse Continue: back to the last instant before now at which an enabled breakpoint held
+   * anew (hit counts aside) or, with the break-on toggles, an error or warning was reported —
+   * else the history's start. Why not instead.
+   */
+  reverseContinue(): string | undefined {
+    const host = this.#editor.simulation;
+    if (!host.timeline) return 'Nothing to go back through: run first.';
+    host.searchBack(this.#hitSearch());
+    return undefined;
+  }
+
+  /** The search behind Reverse Continue: the breakpoints and break-on toggles, in a replay. */
+  #hitSearch(): BackSearch {
+    const breakpoints = this.setup.get().breakpoints;
+    const { breakOnErrors, breakOnWarnings } = this.setup.get();
+    const conditions = [...this.#built]
+      .filter(([, built]) => built.trigger !== undefined)
+      .map(([id, built]) => ({ id, condition: built.trigger!.condition }));
+    const channels = new Map<number, number>();
+    for (const [key, channel] of this.#bits) {
+      const net = this.#nets.get(key);
+      const index = net === undefined ? undefined : this.#editor.simulation.netOf(net);
+      if (index !== undefined) channels.set(channel, index);
+    }
+    const top = Math.max(-1, ...this.#bits.values());
+    // Segments replay newest first and the search ends with the first that has a hit: the
+    // latest hit seen is the one to go to.
+    let last: { position: TimelinePosition; reason: string } | undefined;
+    return {
+      label: 'Reverse Continue',
+      notFound: 'no earlier hit',
+      get reason() {
+        return last ? `Reverse Continue: ${last.reason}` : 'Reverse Continue';
+      },
+      watch: (sim, at, before) => {
+        // A recorder of the replica's own, its channels numbered as the debugger's.
+        const recorder = new Recorder({ budget: DEBUG_BUDGET });
+        for (let c = 0; c <= top; c++) recorder.addChannel();
+        recorder.attach(sim, channels);
+        const note = (position: TimelinePosition, reason: string) => {
+          if (comparePositions(position, before) >= 0) return;
+          if (!last || comparePositions(position, last.position) >= 0) last = { position, reason };
+        };
+        const triggers = conditions.map(({ id, condition }) => {
+          const breakpoint = breakpoints.find((b) => b.id === id)!;
+          const text = `Breakpoint ${id}: ${breakpoint.terms.map(termText).join(' · ')}`;
+          const trigger = new Trigger(recorder, condition, (t) => note(at(t), text), {
+            repeat: true,
+          });
+          trigger.attach(sim);
+          return trigger;
+        });
+        const offDiagnostics = sim.diagnostics.onOccurrence((d) => {
+          const severity = diagnosticSeverity(d);
+          if (severity === 'error' ? !breakOnErrors : !breakOnWarnings) return;
+          note(at(sim.now), `${severity === 'error' ? 'Error' : 'Warning'}: ${d.message}`);
+        });
+        return () => {
+          for (const trigger of triggers) trigger.disarm();
+          offDiagnostics();
+          recorder.detach();
+        };
+      },
+      target: () => last?.position,
+    };
+  }
+
+  /** The run went back to `time` (from `present`): breakpoints and counters follow. */
+  #rewound(time: Time, present: Time): void {
+    const sim = this.#sim;
+    if (!sim) return;
+    this.#recorder.seek(time, present);
+    for (const built of this.#built.values()) built.trigger?.resync(time);
+    for (const [id, times] of this.#hits) {
+      let n = times.length;
+      while (n > 0 && times[n - 1]! > time) n--;
+      times.length = n;
+      if (n === 0) this.#hits.delete(id);
+    }
+    if (this.#activity) {
+      this.#activityFrom = sim.now;
+      this.#countActivity(sim, new Map()); // it counts forward: from here
+    }
+    this.#lastRun = this.#counters();
+    this.#refresh();
   }
 
   // ── Statistics ──────────────────────────────────────────────────────────────────────────
@@ -844,9 +983,10 @@ export class Debugger {
   #hit(id: number): void {
     const breakpoint = this.setup.get().breakpoints.find((b) => b.id === id);
     if (!breakpoint) return;
-    const hits = (this.#hits.get(id) ?? 0) + 1;
-    this.#hits.set(id, hits);
-    if (hits < (breakpoint.hitCount ?? 1)) return;
+    const times = this.#hits.get(id) ?? [];
+    times.push(this.#sim?.now ?? 0);
+    this.#hits.set(id, times);
+    if (times.length < (breakpoint.hitCount ?? 1)) return;
     const text = breakpoint.terms.map(termText).join(' · ');
     this.#editor.simulation.requestPause(`Breakpoint ${breakpoint.id}: ${text}`);
   }
@@ -899,7 +1039,7 @@ export class Debugger {
       return {
         breakpoint,
         text: breakpoint.terms.map(termText).join(' · '),
-        hits: this.#hits.get(breakpoint.id) ?? 0,
+        hits: this.#hits.get(breakpoint.id)?.length ?? 0,
         ...(problem !== undefined && { problem }),
       };
     });
@@ -1018,4 +1158,39 @@ export class Debugger {
 
 function hitCountOf(hitCount: number | undefined): { readonly hitCount?: number } {
   return hitCount !== undefined && hitCount > 1 ? { hitCount: Math.floor(hitCount) } : {};
+}
+
+/**
+ * Step Back Clock's search: the last instant at or before where it began at which net `net`
+ * became `active` (the edge), then the last instant with events before that edge.
+ */
+export function edgeSearch(net: number, active: Level, label: string): BackSearch {
+  let edge: Time | undefined;
+  let target: Time | undefined;
+  return {
+    label,
+    notFound: 'no earlier edge',
+    watch(sim) {
+      const instants: Time[] = [];
+      const edges: Time[] = [];
+      let events = sim.stats.events;
+      let level = sim.levels[net];
+      const off = sim.onInstant((time) => {
+        const now = sim.levels[net];
+        if (now === active && level !== active) edges.push(time);
+        level = now;
+        if (sim.stats.events === events) return;
+        events = sim.stats.events;
+        if (instants.at(-1) !== time) instants.push(time);
+      });
+      return () => {
+        off();
+        edge ??= edges.at(-1);
+        if (edge === undefined || target !== undefined) return;
+        const before = instants.filter((t) => t < edge!);
+        target = before.at(-1);
+      };
+    },
+    target: () => target,
+  };
 }
