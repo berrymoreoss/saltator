@@ -15,7 +15,8 @@ export type DesignIssueCode =
   | 'undriven-input'
   | 'dangling-wire'
   | 'multiple-net-names'
-  | 'single-net-label';
+  | 'single-net-label'
+  | 'bus-entry-member';
 
 export interface DesignIssue {
   readonly severity: 'error' | 'warning';
@@ -184,10 +185,64 @@ export function multipleNetNames(nets: readonly CircuitNet[]): DesignIssue[] {
 }
 
 /**
- * Net labels whose name nothing else uses (no other label, no VCC/GND symbol): they join nothing
- * by name, which is usually a typo (`CKL` for `CLK`).
+ * Buses with more than one name (bus labels `D[0..7]` and `A[0..7]` on one bus line), as
+ * `multiple-net-names`: the bus is called by its first name.
  */
-export function singleNetLabels(nets: readonly CircuitNet[]): DesignIssue[] {
+export function multipleBusNames(buses: readonly CircuitBus[]): DesignIssue[] {
+  const issues: DesignIssue[] = [];
+  for (const bus of buses) {
+    const second = bus.names[1];
+    if (second === undefined) continue;
+    const pin = bus.pins.find((p) => p.net === second)!;
+    issues.push({
+      severity: 'warning',
+      code: 'multiple-net-names',
+      message: `bus "${bus.id}" has several names: ${bus.names.join(', ')} (it is called ${bus.id})`,
+      component: pin.component,
+      pin: pin.pin,
+      at: pin.at,
+    });
+  }
+  return issues;
+}
+
+/**
+ * Bus entries on a named bus whose net name isn't one of the bus's members (`D9` on `D[0..7]`):
+ * the bit joins its name, but not as part of that bus. `entryNames` maps each bus entry (a part
+ * with an unnamed bus pin) to the net name its other pin joins.
+ */
+export function busEntryMembers(
+  buses: readonly CircuitBus[],
+  entryNames: ReadonlyMap<string, string>,
+): DesignIssue[] {
+  const issues: DesignIssue[] = [];
+  for (const bus of buses) {
+    if (bus.members.length === 0) continue;
+    for (const pin of bus.pins) {
+      const name = entryNames.get(pin.component);
+      if (name === undefined || bus.members.includes(name)) continue;
+      issues.push({
+        severity: 'warning',
+        code: 'bus-entry-member',
+        message: `bus entry ${pin.component} joins ${name}, which is not a member of bus ${bus.id}`,
+        component: pin.component,
+        pin: pin.pin,
+        at: pin.at,
+      });
+    }
+  }
+  return issues;
+}
+
+/**
+ * Net labels and bus entries whose name nothing else uses (no other label or entry, no VCC/GND
+ * symbol): they join nothing by name, which is usually a typo (`CKL` for `CLK`). `entries` are
+ * the bus entries among the schematic-only parts.
+ */
+export function singleNetLabels(
+  nets: readonly CircuitNet[],
+  entries: ReadonlySet<string> = new Set(),
+): DesignIssue[] {
   const issues: DesignIssue[] = [];
   for (const net of nets) {
     for (const label of net.schematicPins) {
@@ -195,10 +250,11 @@ export function singleNetLabels(nets: readonly CircuitNet[]): DesignIssue[] {
       if (name === undefined) continue;
       const uses = [...net.pins, ...net.schematicPins].filter((p) => p.net === name).length;
       if (uses > 1) continue;
+      const kind = entries.has(label.component) ? 'bus entry' : 'net label';
       issues.push({
         severity: 'warning',
         code: 'single-net-label',
-        message: `net label ${label.component} "${name}" is the only one with this name, so it joins nothing (a typo?)`,
+        message: `${kind} ${label.component} "${name}" is the only one with this name, so it joins nothing (a typo?)`,
         net: net.id,
         component: label.component,
         pin: label.pin,

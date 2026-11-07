@@ -13,10 +13,12 @@ import {
   resolveProps,
 } from '../core';
 import {
+  busEntryMembers,
   type CircuitBus,
   type CircuitNet,
   type DesignIssue,
   danglingWires,
+  multipleBusNames,
   multipleNetNames,
   type PlacedPin,
   shortedOutputs,
@@ -151,6 +153,13 @@ export function compileCircuit(circuit: Circuit, registry: ComponentRegistry): C
   const busConnectivity = connectPins(busPins, busWires);
   const buses = nameBuses(busConnectivity, busPins, busWires);
   const onBus = busLocator(busPins, busWires);
+  // Bus entries: parts with an unnamed bus pin; each joins the name of its other pin.
+  const entries = new Set(busPins.filter((p) => p.net === undefined).map((p) => p.component));
+  const entryNames = new Map(
+    allPins.flatMap((p) =>
+      entries.has(p.component) && p.net !== undefined ? [[p.component, p.net] as const] : [],
+    ),
+  );
 
   issues.push(
     ...shortedOutputs(nets),
@@ -158,7 +167,9 @@ export function compileCircuit(circuit: Circuit, registry: ComponentRegistry): C
     ...danglingWires(connectivity.danglingEnds, wires, onBus),
     ...danglingWires(busConnectivity.danglingEnds, busWires),
     ...multipleNetNames(nets),
-    ...singleNetLabels(nets),
+    ...multipleBusNames(buses),
+    ...singleNetLabels(nets, entries),
+    ...busEntryMembers(buses, entryNames),
   );
   issues.sort((a, b) => severityRank(a) - severityRank(b));
 

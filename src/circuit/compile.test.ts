@@ -442,6 +442,51 @@ describe('compileCircuit', () => {
       ]);
     });
 
+    it('report entries that are not members of their bus, and entries that join nothing', () => {
+      const result = compile(
+        [
+          entry('BE1', 'D9', 0, 0),
+          entry('BE2', 'D2', 0, 2),
+          busLabel('BL1', 'D[0..3]', 3, 5),
+          entry('BE3', 'D9', 20, 0), // on an unnamed bus: no member check
+        ],
+        [bus('b1', 3, 1, 3, 5), bus('b2', 23, 1, 23, 4)],
+      );
+      expect(result.issues.filter((i) => i.code === 'bus-entry-member')).toEqual([
+        {
+          severity: 'warning',
+          code: 'bus-entry-member',
+          message: 'bus entry BE1 joins D9, which is not a member of bus D[0..3]',
+          component: 'BE1',
+          pin: 'B',
+          at: [3, 1],
+        },
+      ]);
+      expect(
+        result.issues.filter((i) => i.code === 'single-net-label').map((i) => i.message),
+      ).toEqual([
+        'bus entry BE2 "D2" is the only one with this name, so it joins nothing (a typo?)',
+      ]);
+    });
+
+    it('report a bus with several names, called by the first', () => {
+      const result = compile(
+        [busLabel('BL1', 'D[0..3]', 3, 5), busLabel('BL2', 'A[0..7]', 3, 1)],
+        [bus('b1', 3, 1, 3, 5)],
+      );
+      expect(result.buses.map((b) => [b.id, b.members.length])).toEqual([['A[0..7]', 8]]);
+      expect(result.issues).toEqual([
+        {
+          severity: 'warning',
+          code: 'multiple-net-names',
+          message: 'bus "A[0..7]" has several names: A[0..7], D[0..3] (it is called A[0..7])',
+          component: 'BL1',
+          pin: 'B',
+          at: [3, 5],
+        },
+      ]);
+    });
+
     it('get junction dots of their own', () => {
       const result = compile(
         [],

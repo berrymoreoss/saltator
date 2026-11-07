@@ -166,7 +166,7 @@ single entries vs a multi-bit ripper.
   ends, open bus pins, bus ids and members), the dangling-wire hint; `addWires` and
   `normalizeWires` per layer, the builder's buses; tests (with `test-parts.ts`), the
   normalization property test with buses.
-- [ ] 4. `circuit`: checks `bus-entry-member`, `multiple-net-names` on buses, `single-net-label`
+- [x] 4. `circuit`: checks `bus-entry-member`, `multiple-net-names` on buses, `single-net-label`
   with entries and without bus labels; tests.
 - [ ] 5. `library`: bus labels (the name pattern, the bus pin), `net/bus-entry`; tests;
   scenarios (two 74HC245s joined over a bus by entries, a member missing reads `Z`, adding a bus
