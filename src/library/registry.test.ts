@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { designatorPrefixOf, familyOf } from '../core';
 import { createDefaultRegistry } from './registry';
 
-const MEMORIES = ['mem/at28c16', 'mem/at28c64b', 'mem/at28c256', 'mem/6116'];
+const MEMORIES = ['mem/at28c16', 'mem/at28c64b', 'mem/at28c256', 'mem/6116', 'mem/62256'];
 
 const CHIPS = [
   '74xx/74hc00',

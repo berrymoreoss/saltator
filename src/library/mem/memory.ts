@@ -73,15 +73,16 @@ export interface MemoryPins {
   readonly we: PinRef;
 }
 
-/** The pin list and `PinRef`s of a memory chip with address pins A0… and data pins IO0…. */
+/** The `PinRef`s of a memory chip with address pins A0… and data pins IO0… (or DQ0…). */
 export function memoryPins(
   pinList: readonly PinDef[],
   addressBits: number,
   ce: string,
+  data: 'IO' | 'DQ' = 'IO',
 ): MemoryPins {
   return {
     address: pinIndices(pinList, Array.from({ length: addressBits }, (_, i) => `A${i}`).join(', ')),
-    data: pinIndices(pinList, 'IO0, IO1, IO2, IO3, IO4, IO5, IO6, IO7'),
+    data: pinIndices(pinList, Array.from({ length: 8 }, (_, i) => `${data}${i}`).join(', ')),
     ce: pinIndex(pinList, ce),
     oe: pinIndex(pinList, 'OE'),
     we: pinIndex(pinList, 'WE'),

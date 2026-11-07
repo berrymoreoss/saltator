@@ -262,7 +262,7 @@ export class WritePath {
     if (selected < timing.chipSelect) {
       ctx.report({
         kind: TimingViolation.PULSE_WIDTH,
-        message: `CS was LOW for only ${formatTime(selected)} when the write ended (tCW ≥ ${formatTime(timing.chipSelect)})`,
+        message: `${this.#pinList[this.#pins.ce]!.name} was LOW for only ${formatTime(selected)} when the write ended (tCW ≥ ${formatTime(timing.chipSelect)})`,
         pin: this.#pins.ce,
       });
       unknownBits = 0xff;

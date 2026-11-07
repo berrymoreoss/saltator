@@ -1,5 +1,5 @@
 /**
- * Static RAMs (6116, 62256) from their data sheets: the shared read path with its `X` window,
+ * Static RAMs (6116, AS6C62256) from their data sheets: the shared read path with its `X` window,
  * level-sensitive writes checked against the data sheet's requirements (`write.ts`), power-on
  * contents unknown (default), zeroed or random, and the `poke` debug write.
  * Spec: docs/components.md#memories-mem.
@@ -40,6 +40,9 @@ export interface SramSpec {
   readonly pinCount: number;
   readonly pins: readonly PinRow[];
   readonly datasheet: string;
+  /** The chip select pin's name in the data sheet (`CS`, `CE`) and the data pins' (`IO`, `DQ`). */
+  readonly chipSelect: 'CS' | 'CE';
+  readonly data: 'IO' | 'DQ';
   /** Speed grades by their access time in ns (`'25'`), each with its label. */
   readonly grades: Readonly<Record<string, { readonly label: string; readonly timing: TimingDef }>>;
   readonly defaultGrade: string;
@@ -49,8 +52,13 @@ export interface SramSpec {
 const nsAll = (values: Record<string, number>): Record<string, Time> =>
   Object.fromEntries(Object.entries(values).map(([k, v]) => [k, ns(v)]));
 
-const dataPins = (numbers: string) =>
-  pins('IO0, IO1, IO2, IO3, IO4, IO5, IO6, IO7', numbers, 'bidir', 'data input/output');
+const dataPins = (data: 'IO' | 'DQ', numbers: string) =>
+  pins(
+    Array.from({ length: 8 }, (_, i) => `${data}${i}`).join(', '),
+    numbers,
+    'bidir',
+    'data input/output',
+  );
 
 const IDT_6116 =
   'Renesas (IDT) 6116SA/LA data sheet, Jul.17.20, AC electrical characteristics (read and write cycles)';
@@ -79,7 +87,7 @@ export const SRAM_6116: SramSpec = {
   pins: [
     pins('A7, A6, A5, A4, A3, A2, A1, A0', '1, 2, 3, 4, 5, 6, 7, 8', 'in', 'address input'),
     pins('A8, A9, A10', '23, 22, 19', 'in', 'address input'),
-    dataPins('9, 10, 11, 13, 14, 15, 16, 17'),
+    dataPins('IO', '9, 10, 11, 13, 14, 15, 16, 17'),
     pins('GND', '12', 'power', 'ground (0 V)'),
     pins('CS', '18', 'in', 'chip select (active LOW)', { activeLow: true }),
     pins('OE', '20', 'in', 'output enable (active LOW)', { activeLow: true }),
@@ -87,6 +95,8 @@ export const SRAM_6116: SramSpec = {
     pins('VCC', '24', 'power', 'supply voltage'),
   ],
   datasheet: 'https://www.renesas.com/us/en/document/dst/6116sala-data-sheet',
+  chipSelect: 'CS',
+  data: 'IO',
   grades: {
     '15': {
       label: '15 ns (6116SA15, 0–70 °C)',
@@ -113,13 +123,67 @@ export const SRAM_6116: SramSpec = {
   defaultGrade: '25',
 };
 
-/** The data sheets' truth table. */
-export const SRAM_MODES: FunctionTable = {
-  inputs: ['CS', 'OE', 'WE'],
-  outputs: ['IOn'],
-  rows: ['H X X | Z', 'L L H | Dout', 'L H H | Z', 'L X L | Din'],
-  note: 'standby, read, read with the outputs disabled, write',
+export const SRAM_62256: SramSpec = {
+  name: '62256',
+  title: '256K (32K × 8) low-power CMOS static RAM',
+  words: 32768,
+  pinCount: 28,
+  pins: [
+    pins(
+      'A14, A12, A7, A6, A5, A4, A3, A2, A1, A0',
+      '1, 2, 3, 4, 5, 6, 7, 8, 9, 10',
+      'in',
+      'address input',
+    ),
+    pins('A8, A9, A10, A11, A13', '25, 24, 21, 23, 26', 'in', 'address input'),
+    dataPins('DQ', '11, 12, 13, 15, 16, 17, 18, 19'),
+    pins('VSS', '14', 'power', 'ground (0 V)'),
+    pins('CE', '20', 'in', 'chip enable (active LOW)', { activeLow: true }),
+    pins('OE', '22', 'in', 'output enable (active LOW)', { activeLow: true }),
+    pins('WE', '27', 'in', 'write enable (active LOW)', { activeLow: true }),
+    pins('VCC', '28', 'power', 'supply voltage'),
+  ],
+  datasheet: 'https://www.alliancememory.com/wp-content/uploads/AS6C62256-23-March-2016-rev1.2.pdf',
+  chipSelect: 'CE',
+  data: 'DQ',
+  grades: {
+    '55': {
+      label: '55 ns (AS6C62256-55)',
+      timing: {
+        typical: {},
+        max: nsAll({ tAA: 55, tACE: 55, tOE: 30, tCHZ: 20, tOHZ: 20, tWHZ: 20 }),
+        min: nsAll({
+          tCLZ: 10,
+          tOLZ: 5,
+          tOH: 10,
+          tCW: 50,
+          tAW: 50,
+          tAS: 0,
+          tWP: 45,
+          tWR: 0,
+          tDW: 25,
+          tDH: 0,
+          tOW: 5,
+        }),
+        conditions:
+          'VCC = 2.7 to 5.5 V, CL = 50 pF + 1 TTL (5 pF for the low-Z and high-Z times); limits only, no typical values',
+        source:
+          'Alliance Memory AS6C62256 data sheet, rev. 1.2 (March 23, 2016), AC electrical characteristics (AS6C62256-55)',
+      },
+    },
+  },
+  defaultGrade: '55',
 };
+
+/** An SRAM data sheet's truth table, with its chip select and data pin names. */
+export function sramModes(spec: SramSpec): FunctionTable {
+  return {
+    inputs: [spec.chipSelect, 'OE', 'WE'],
+    outputs: [`${spec.data}n`],
+    rows: ['H X X | Z', 'L L H | Dout', 'L H H | Z', 'L X L | Din'],
+    note: 'standby, read, output disable, write',
+  };
+}
 
 export const POWER_ON: PropDef = {
   key: 'powerOn',
@@ -142,7 +206,8 @@ function need(table: Readonly<Record<string, Time>> | undefined, key: string): T
 function sramReadTiming({ max, min }: TimingDef): ReadTiming {
   return {
     access: need(max, 'tAA'),
-    ceAccess: need(max, 'tACS'),
+    // `tACS` (chip select access, 6116) or `tACE` (chip enable access, AS6C62256).
+    ceAccess: max?.tACS ?? need(max, 'tACE'),
     oeAccess: need(max, 'tOE'),
     hold: need(min, 'tOH'),
     ceLowZ: need(min, 'tCLZ'),
@@ -171,7 +236,7 @@ type SramProps = { speed: string; powerOn: string };
 /** The definition of an SRAM: type `mem/<name>`, a DIP package, a speed prop for several grades. */
 export function sramDefinition(spec: SramSpec): AnyComponentDefinition {
   const pinList = withDataLabels(dipPins(spec.pinCount, spec.pins));
-  const refs = memoryPins(pinList, Math.log2(spec.words), 'CS');
+  const refs = memoryPins(pinList, Math.log2(spec.words), spec.chipSelect, spec.data);
   const { ce: CS, oe: OE, we: WE } = refs;
   const grades = Object.keys(spec.grades);
   const timingOf = (speed: string) =>
@@ -198,7 +263,7 @@ export function sramDefinition(spec: SramSpec): AnyComponentDefinition {
     package: { kind: 'dip', pins: spec.pinCount },
     props,
     timing: grades.length > 1 ? ({ speed }) => timingOf(speed) : timingOf(spec.defaultGrade),
-    functionTable: SRAM_MODES,
+    functionTable: sramModes(spec),
     memory: { words: spec.words, width: 8, volatile: true, view: (state) => state },
     create: ({ speed, powerOn }) => {
       const timing = timingOf(speed ?? spec.defaultGrade);
@@ -269,4 +334,4 @@ function poke(
   }
 }
 
-export const srams: readonly AnyComponentDefinition[] = [SRAM_6116].map(sramDefinition);
+export const srams: readonly AnyComponentDefinition[] = [SRAM_6116, SRAM_62256].map(sramDefinition);

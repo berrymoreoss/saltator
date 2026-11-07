@@ -217,16 +217,16 @@ simulator vs written into the document; EEPROM write cycles deferred.
 ### Data sheets
 
 The Microchip and Renesas PDFs download directly; Alliance's product table loads by script, so
-the user downloads the AS6C62256. Pinning figures and timing tables were rendered with
+the user downloaded the AS6C62256. Pinning figures and timing tables were rendered with
 `pdftoppm` and read off the images (`pdftotext` garbles the 6116's tables).
 
-| Part      | Document                                                                                  |
-| --------- | ----------------------------------------------------------------------------------------- |
-| AT28C16   | Atmel AT28C16, rev. 0540B–10/98 (`ww1.microchip.com/downloads/en/DeviceDoc/doc0540.pdf`)  |
-| AT28C64B  | Atmel AT28C64B, rev. 0270L–PEEPR–2/09 (`…/DeviceDoc/doc0270.pdf`)                         |
-| AT28C256  | Atmel AT28C256, rev. 0006M–PEEPR–12/09 (`…/DeviceDoc/doc0006.pdf`)                        |
-| 6116      | Renesas (IDT) 6116SA/LA, Jul.17.20 (`renesas.com/us/en/document/dst/6116sala-data-sheet`) |
-| AS6C62256 | Alliance Memory AS6C62256 (55 ns) — _the user downloads it_                               |
+| Part      | Document                                                                                                                         |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| AT28C16   | Atmel AT28C16, rev. 0540B–10/98 (`ww1.microchip.com/downloads/en/DeviceDoc/doc0540.pdf`)                                         |
+| AT28C64B  | Atmel AT28C64B, rev. 0270L–PEEPR–2/09 (`…/DeviceDoc/doc0270.pdf`)                                                                |
+| AT28C256  | Atmel AT28C256, rev. 0006M–PEEPR–12/09 (`…/DeviceDoc/doc0006.pdf`)                                                               |
+| 6116      | Renesas (IDT) 6116SA/LA, Jul.17.20 (`renesas.com/us/en/document/dst/6116sala-data-sheet`)                                        |
+| AS6C62256 | Alliance Memory AS6C62256, rev. 1.2, March 23, 2016 (`alliancememory.com/wp-content/uploads/AS6C62256-23-March-2016-rev1.2.pdf`) |
 
 **Pinouts** (DIP; active-LOW controls overlined in every figure):
 
@@ -281,6 +281,16 @@ CL = 30 pF, the low-Z/high-Z times at 5 pF):
 | `tDH` data hold from end of write, min     | 0   | 0   | 0   |
 | `tOW` output active from end of write, min | 0   | 0   | 0   |
 
+**AS6C62256-55** (ns; VCC = 2.7 to 5.5 V, CL = 50 pF + 1 TTL, the low-Z/high-Z times at 5 pF;
+one grade; 0–70 °C C grade, −40–85 °C I grade). Pins: 1 A14, 2 A12, 3 A7 … 10 A0, 11 DQ0,
+12 DQ1, 13 DQ2, 14 Vss, 15 DQ3 … 19 DQ7, 20 CE#, 21 A10, 22 OE#, 23 A11, 24 A9, 25 A8, 26 A13,
+27 WE#, 28 Vcc (the AT28C256's pinout). Truth table: Standby (CE# H: High-Z), Output Disable
+(L, H, H: High-Z), Read (L, L, H: Dout), Write (L, X, L: Din). Read: `tAA` 55, `tACE` 55, `tOE`
+30, `tCHZ` 20, `tOHZ` 20 (max); `tCLZ` 10, `tOLZ` 5, `tOH` 10 (min). Write (min): `tCW` 50, `tAW`
+50, `tAS` 0, `tWP` 45, `tWR` 0, `tDW` 25, `tDH` 0, `tOW` 5; `tWHZ` 20 max. Its write notes are
+the 6116's (address transitions only while WE#/CE# HIGH; with OE# LOW, tWP > tWHZ + tDW — here
+20 + 25 = 45 = tWP, so the minimum pulse just makes it).
+
 The write waveforms' notes decide the model: "WE̅ or CS̅ must be HIGH during all address
 transitions" (an address change during a write is a violation); "a write occurs during the
 overlap of a LOW CS̅ and a LOW WE̅"; with OE̅ LOW during a WE̅-controlled write the pulse must be
@@ -295,7 +305,7 @@ counts from the end of the write (the cell just changed).
 
 Small, ordered, each committable on its own with its tests (`pnpm check` green).
 
-- [ ] 1. Data sheets: download and read the five; record per part (and grade) the read limits
+- [x] 1. Data sheets: download and read the five; record per part (and grade) the read limits
   (`tACC`/`tAA`, `tCE`/`tACS`, `tOE`, `tOH`, `tCLZ`, `tOLZ`, `tDF`/`tCHZ`/`tOHZ`, `tWHZ`), the
   RAM write requirements (`tAS`, `tAW`, `tWP`, `tCW`, `tDW`, `tDH`, `tWR`), conditions, mode
   tables and pinouts in this plan.
@@ -305,7 +315,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 3. `library`: the memory read engine with the `X` window (`src/library/mem/`), the three
   EEPROMs as ROMs (write attempts reported), mode tables, `memory` views; tests: mode tables,
   every read path's limits, the window, unknown controls and address bits, images.
-- [ ] 4. `library`: the SRAM write engine and its checks, `mem/6116` (speed grades) and
+- [x] 4. `library`: the SRAM write engine and its checks, `mem/6116` (speed grades) and
   `mem/62256`, power-on modes, `poke`; tests: writes WE̅- and CE̅-controlled, every requirement
   just inside (silent) and just outside (diagnostic and `X`), unknowns, power-on, random
   reproducible; mutation-checked.
@@ -394,15 +404,16 @@ Checkable statements; verified one by one in the finish-branch workflow.
   the RAM lets go), scenario and browser tests. Docs, ADR-0017, recipe, lessons. `pnpm check`
   (1910), `pnpm e2e` (59) green.
 
+- 2026-11-07 — the AS6C62256 data sheet (downloaded by the user; rev. 1.2): `mem/62256` with
+  Alliance's pin names (`DQ0`…`DQ7`, `VSS`, `CE#` → `CE`) and `tACE`; SRAM specs name their
+  chip select and data pins (`sramModes`); tests like the 6116's (all 15 address bits; note 3
+  holds exactly: tWHZ + tDW = tWP); in the carry-over property. 1918 tests.
+
 ## Handoff
 
-- **State:** every task done for the AT28C16/64B/256 and the 6116; the 62256 is missing (task 1
-  and 4 for it): its data sheet (Alliance AS6C62256, 55 ns) has to come from the user. Docs say
-  _(planned, waiting for its data sheet)_ in the components.md table.
-- **Next step:** with the PDF: record its limits in the Data sheets section, add `SRAM_62256`
-  (DIP-28, A0–A14, `CE̅`/`OE̅`/`WE̅`, one grade) to `srams.ts`, tests like the 6116's, the
-  registry and parts lists (`registry.test.ts`), docs' table row; then finish-branch (roadmap:
-  R12a done, R12b next).
-- **Watch out:** the bench leaves pins floating (set the address); gate commits on `pnpm check`'s
-  exit code; the dev server on port 5231 may still be running from this session.
+- **State:** every task done; acceptance criteria to be verified (finish-branch).
+- **Next step:** finish-branch: check the criteria one by one, `pnpm check`, `pnpm build`,
+  `pnpm e2e`, plan done, roadmap (R12a done, R12b next), ask to merge.
+- **Watch out:** the bench leaves pins floating (set the address); gate commits on `pnpm
+  check`'s exit code.
 - **Verify with:** `pnpm check`, `pnpm e2e tests/e2e/memory.spec.ts`.

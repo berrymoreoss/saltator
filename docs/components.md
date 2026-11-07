@@ -743,16 +743,16 @@ R12a: memory chips as their data sheets describe them ([ADR-0017](adr/0017-memor
 `src/library/mem`. Data sheets: Atmel/Microchip for the EEPROMs, Renesas (IDT) for the 6116,
 Alliance Memory for the 62256.
 
-| Type           | Part               | Organization   | Package | Read (max)                              | Notes                                            |
-| -------------- | ------------------ | -------------- | ------- | --------------------------------------- | ------------------------------------------------ |
-| `mem/at28c16`  | AT28C16-15         | 2K × 8 EEPROM  | DIP-24  | tACC 150, tCE 150, tOE 70 ns            | read as a ROM; `contents` image                  |
-| `mem/at28c64b` | AT28C64B-15        | 8K × 8 EEPROM  | DIP-28  | tACC 150, tCE 150, tOE 70 ns            | the current part (the plain AT28C64 is not made) |
-| `mem/at28c256` | AT28C256-15        | 32K × 8 EEPROM | DIP-28  | tACC 150, tCE 150, tOE 70 ns            | the -20/-25/-35 grades are military only         |
-| `mem/6116`     | 6116SA/LA 15/20/25 | 2K × 8 SRAM    | DIP-24  | tAA 15/19/25, tACS 15/20/25 ns          | `speed` (25 ns by default), `powerOn`            |
-| `mem/62256`    | AS6C62256          | 32K × 8 SRAM   | DIP-28  | _(planned, waiting for its data sheet)_ | `powerOn`                                        |
+| Type           | Part               | Organization   | Package | Read (max)                     | Notes                                            |
+| -------------- | ------------------ | -------------- | ------- | ------------------------------ | ------------------------------------------------ |
+| `mem/at28c16`  | AT28C16-15         | 2K × 8 EEPROM  | DIP-24  | tACC 150, tCE 150, tOE 70 ns   | read as a ROM; `contents` image                  |
+| `mem/at28c64b` | AT28C64B-15        | 8K × 8 EEPROM  | DIP-28  | tACC 150, tCE 150, tOE 70 ns   | the current part (the plain AT28C64 is not made) |
+| `mem/at28c256` | AT28C256-15        | 32K × 8 EEPROM | DIP-28  | tACC 150, tCE 150, tOE 70 ns   | the -20/-25/-35 grades are military only         |
+| `mem/6116`     | 6116SA/LA 15/20/25 | 2K × 8 SRAM    | DIP-24  | tAA 15/19/25, tACS 15/20/25 ns | `speed` (25 ns by default), `powerOn`            |
+| `mem/62256`    | AS6C62256-55       | 32K × 8 SRAM   | DIP-28  | tAA 55, tACE 55, tOE 30 ns     | `powerOn`; Alliance's names `DQ0`…`DQ7`, `VSS`   |
 
 - **Pins**: data sheet names, the data pins named `IO0`…`IO7` and drawn `I/O0`… (no `/` in pin
-  names: R11's instance paths will use it); `CE̅`/`CS̅`, `OE̅`, `WE̅` active LOW, data pins `bidir`.
+  names: R11's instance paths will use it), `DQ0`…`DQ7` on the AS6C62256; `CE̅`/`CS̅`, `OE̅`, `WE̅` active LOW, data pins `bidir`.
   The mode tables are `functionTable`s with text cells (`Dout`, `Din`), checked by hand.
 - **Reads** (`ReadPath` in `memory.ts`), with the outputs driving while `CE̅` and `OE̅` are LOW
   (and, for a RAM, `WE̅` HIGH):

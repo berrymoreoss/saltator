@@ -17,7 +17,15 @@ export {
   type ReadTiming,
   withDataLabels,
 } from './memory';
-export { POWER_ON, SRAM_6116, SRAM_MODES, srams } from './srams';
+export {
+  POWER_ON,
+  SRAM_6116,
+  SRAM_62256,
+  type SramSpec,
+  sramDefinition,
+  sramModes,
+  srams,
+} from './srams';
 export {
   createRamState,
   forEachCandidate,

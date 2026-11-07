@@ -14,21 +14,21 @@ export function address(value: number, bits: number): BenchValues {
   );
 }
 
-/** Data pins `IO0`…`IO7` driven with `value`, or released (`'Z'`). */
-export function dataBus(value: number | 'Z'): BenchValues {
+/** Data pins `IO0`…`IO7` (or `DQ0`…) driven with `value`, or released (`'Z'`). */
+export function dataBus(value: number | 'Z', pins: 'IO' | 'DQ' = 'IO'): BenchValues {
   return Object.fromEntries(
-    DATA.map((i) => [`IO${i}`, value === 'Z' ? 'Z' : (value >> i) & 1 ? 1 : 0] as const),
+    DATA.map((i) => [`${pins}${i}`, value === 'Z' ? 'Z' : (value >> i) & 1 ? 1 : 0] as const),
   );
 }
 
 /** The data pins as text, I/O7 first: `10100101`, `XXXXXXXX`, `ZZZZZZZZ`. */
-export function dataText(bench: Bench): string {
-  return DATA.map((i) => levelChar(bench.get(`IO${7 - i}`))).join('');
+export function dataText(bench: Bench, pins: 'IO' | 'DQ' = 'IO'): string {
+  return DATA.map((i) => levelChar(bench.get(`${pins}${7 - i}`))).join('');
 }
 
 /** The data pins as a byte; throws unless every bit is 0 or 1. */
-export function dataByte(bench: Bench): number {
-  const text = dataText(bench);
+export function dataByte(bench: Bench, pins: 'IO' | 'DQ' = 'IO'): number {
+  const text = dataText(bench, pins);
   if (!/^[01]{8}$/.test(text)) throw new Error(`data pins are ${text}`);
   return Number.parseInt(text, 2);
 }

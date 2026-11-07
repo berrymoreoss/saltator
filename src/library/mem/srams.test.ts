@@ -11,12 +11,12 @@ import {
   TimingViolation,
   timingOf,
 } from '../../core';
-import { Bench } from '../../core/testing';
-import { SRAM_6116, SRAM_MODES, sramDefinition, srams } from './srams';
+import { Bench, type BenchValues } from '../../core/testing';
+import { SRAM_6116, sramDefinition, sramModes, srams } from './srams';
 import { address, changes, dataBus, dataByte, dataText } from './test-helpers';
 import type { RamState } from './write';
 
-const [sram6116] = srams as [AnyComponentDefinition];
+const [sram6116, sram62256] = srams as [AnyComponentDefinition, AnyComponentDefinition];
 
 const PINOUT_6116 = [
   ...['A7', 'A6', 'A5', 'A4', 'A3', 'A2', 'A1', 'A0', 'IO0', 'IO1', 'IO2', 'GND'],
@@ -74,7 +74,13 @@ describe('6116', () => {
       expect(pins.find((p) => p.name === control)?.activeLow).toBe(true);
     }
     expect(sram6116.type).toBe('mem/6116');
-    expect(sram6116.functionTable).toBe(SRAM_MODES);
+    expect(sram6116.functionTable).toEqual({
+      inputs: ['CS', 'OE', 'WE'],
+      outputs: ['IOn'],
+      rows: ['H X X | Z', 'L L H | Dout', 'L H H | Z', 'L X L | Din'],
+      note: 'standby, read, output disable, write',
+    });
+    expect(sramModes(SRAM_6116)).toEqual(sram6116.functionTable);
     expect(sram6116.memory).toMatchObject({ words: 2048, width: 8, volatile: true });
   });
 
@@ -520,5 +526,169 @@ describe('write requirements the 6116 has as 0 (a test part)', () => {
       [TimingViolation.HOLD, 'IO7'],
     ]);
     expect(readAt(b, 1)).toBe('X000111X');
+  });
+});
+
+describe('62256 (AS6C62256-55)', () => {
+  const PINOUT = [
+    ...['A14', 'A12', 'A7', 'A6', 'A5', 'A4', 'A3', 'A2', 'A1', 'A0', 'DQ0', 'DQ1', 'DQ2'],
+    ...['VSS', 'DQ3', 'DQ4', 'DQ5', 'DQ6', 'DQ7', 'CE', 'A10', 'OE', 'A11', 'A9', 'A8'],
+    ...['A13', 'WE', 'VCC'],
+  ];
+  const bus = (value: number | 'Z') => dataBus(value, 'DQ');
+  const text = (b: Bench) => dataText(b, 'DQ');
+
+  /** Selected, outputs off, WE̅ HIGH, zeroed, at address 0. */
+  const idle62256 = () => {
+    const b = new Bench(sram62256, { powerOn: 'zeros' });
+    b.set({ CE: 0, OE: 1, WE: 1, ...address(0, 15) }).settle();
+    return b;
+  };
+  /** A WE̅-controlled write: address, data, WE̅ LOW for `pulse`, data held 10 ns, released. */
+  const write62256 = (b: Bench, at: number, value: number, pulse = ns(60)) => {
+    b.set(address(at, 15)).run(ns(60));
+    b.set(bus(value)).run(ns(60));
+    b.set({ WE: 0 }).run(pulse);
+    b.set({ WE: 1 }).run(ns(10));
+    b.set(bus('Z')).run(ns(60));
+  };
+  const read62256 = (b: Bench, at: number) => {
+    b.set({ ...address(at, 15), OE: 0 }).settle();
+    const result = text(b);
+    b.set({ OE: 1 }).settle();
+    return result;
+  };
+
+  it('has its data sheet pinout (DQ0…DQ7, Vss), truth table and one speed grade', () => {
+    const pins = pinsOf(sram62256, {});
+    expect(pins.map((p) => p.name)).toEqual(PINOUT);
+    expect(pins.map((p) => p.number)).toEqual(pins.map((_, i) => i + 1));
+    expect(pins.find((p) => p.name === 'DQ5')?.label).toBeUndefined();
+    for (const control of ['CE', 'OE', 'WE']) {
+      expect(pins.find((p) => p.name === control)?.activeLow).toBe(true);
+    }
+    expect(sram62256.type).toBe('mem/62256');
+    expect(sram62256.functionTable?.inputs).toEqual(['CE', 'OE', 'WE']);
+    expect(sram62256.functionTable?.outputs).toEqual(['DQn']);
+    expect(sram62256.props!.map((p) => p.key)).toEqual(['powerOn']);
+    expect(sram62256.memory).toMatchObject({ words: 32768, width: 8, volatile: true });
+    const { max, min, source } = timingOf(sram62256, { powerOn: 'x' })!;
+    expect(max).toEqual({
+      tAA: ns(55),
+      tACE: ns(55),
+      tOE: ns(30),
+      tCHZ: ns(20),
+      tOHZ: ns(20),
+      tWHZ: ns(20),
+    });
+    expect([min!.tCLZ, min!.tOLZ, min!.tOH, min!.tOW].map((t) => t! / 1000)).toEqual([
+      10, 5, 10, 5,
+    ]);
+    expect(
+      [min!.tCW, min!.tAW, min!.tAS, min!.tWP, min!.tWR, min!.tDW, min!.tDH].map((t) => t! / 1000),
+    ).toEqual([50, 50, 0, 45, 0, 25, 0]);
+    expect(source).toMatch(/^Alliance Memory AS6C62256 data sheet, rev\. 1\.2/);
+  });
+
+  it('writes and reads back across all 15 address bits', () => {
+    const b = idle62256();
+    for (let i = 0; i < 15; i++) write62256(b, 1 << i, i + 1);
+    for (let i = 0; i < 15; i++) expect(read62256(b, 1 << i), `A${i}`).toBe(hex(i + 1));
+    expect(read62256(b, 0)).toBe(hex(0));
+    expect(violations(b)).toEqual([]);
+  });
+
+  it('reads with its limits: tOH 10, tAA 55; tCLZ 10, tACE 55; tOLZ 5, tOE 30 ns', () => {
+    const b = idle62256();
+    write62256(b, 1, 0xff);
+    b.set({ ...address(0, 15), OE: 0 }).settle();
+    expect(changes(b, address(1, 15), 'DQ0')).toEqual([
+      [10, 'X'],
+      [55, '1'],
+    ]);
+    b.set({ CE: 1 }).settle();
+    expect(changes(b, { CE: 0 }, 'DQ0')).toEqual([
+      [10, 'X'],
+      [55, '1'],
+    ]);
+    b.set({ OE: 1 }).settle();
+    expect(changes(b, { OE: 0 }, 'DQ0')).toEqual([
+      [5, 'X'],
+      [30, '1'],
+    ]);
+  });
+
+  it('releases tCHZ, tOHZ, tWHZ = 20 ns after CE̅, OE̅, WE̅', () => {
+    const stimuli: BenchValues[] = [{ CE: 1 }, { OE: 1 }, { WE: 0 }];
+    for (const stimulus of stimuli) {
+      const b = idle62256();
+      write62256(b, 0, 0x01);
+      b.set({ OE: 0 }).settle();
+      expect(changes(b, stimulus, 'DQ0')).toEqual([[20, 'Z']]);
+    }
+  });
+
+  it('tWP = 45 ns and tDW = 25 ns: just inside writes, just outside is reported and X', () => {
+    const b = idle62256();
+    write62256(b, 1, 0x5a, ns(45));
+    expect(read62256(b, 1)).toBe(hex(0x5a));
+    expect(violations(b)).toEqual([]);
+    write62256(b, 2, 0x5a, ns(44));
+    expect(read62256(b, 2)).toBe('XXXXXXXX');
+    expect(violations(b)).toEqual([
+      [TimingViolation.PULSE_WIDTH, 'WE', 'the write lasted only 44 ns (tWP ≥ 45 ns)'],
+    ]);
+
+    const c = idle62256();
+    c.set(address(3, 15)).run(ns(60));
+    c.set({ WE: 0 }).run(ns(30));
+    c.set(bus(0x0f)).run(ns(25));
+    c.set({ WE: 1 }).run(ns(10));
+    expect(violations(c)).toEqual([]);
+    c.set({ WE: 0 }).run(ns(30));
+    c.set({ DQ7: 1 }).run(ns(24));
+    c.set({ WE: 1 }).run(ns(10));
+    c.set(bus('Z')).run(ns(60));
+    expect(read62256(c, 3)).toBe('X0001111');
+    expect(violations(c)).toEqual([
+      [TimingViolation.SETUP, 'DQ7', 'DQ7 changed 24 ns before the write ended (tDW ≥ 25 ns)'],
+    ]);
+  });
+
+  it('tCW = tAW = 50 ns: a CE̅-controlled write of 50 ns stores, 49 ns is reported on CE', () => {
+    const b = idle62256();
+    const ceWrite = (at: number, low: Time) => {
+      b.set({ CE: 1, ...address(at, 15) }).run(ns(60));
+      b.set({ WE: 0, ...bus(0x66) }).run(ns(60));
+      b.set({ CE: 0 }).run(low);
+      b.set({ CE: 1 }).run(ns(10));
+      b.set({ WE: 1, ...bus('Z') }).run(ns(10));
+      b.set({ CE: 0 }).settle();
+    };
+    ceWrite(4, ns(50));
+    expect(read62256(b, 4)).toBe(hex(0x66));
+    expect(violations(b)).toEqual([]);
+    ceWrite(5, ns(49));
+    expect(read62256(b, 5)).toBe('XXXXXXXX');
+    expect(violations(b)).toEqual([
+      [
+        TimingViolation.PULSE_WIDTH,
+        'CE',
+        'CE was LOW for only 49 ns when the write ended (tCW ≥ 50 ns)',
+      ],
+    ]);
+  });
+
+  it('with OE̅ LOW the minimum pulse still writes: tWHZ + tDW = 20 + 25 = tWP (note 3)', () => {
+    const b = idle62256();
+    b.set({ OE: 0, ...address(1, 15) }).settle();
+    // The outputs drive the cell (0x00) for tWHZ: the bits of 0x81 that differ fight (note 4).
+    b.set({ WE: 0, ...bus(0x81) }).run(ns(45));
+    b.set({ WE: 1 }).run(ns(10));
+    b.set(bus('Z')).settle();
+    expect(text(b)).toBe(hex(0x81));
+    const fights = b.diagnostics.filter((d) => d.kind === KernelDiagnosticKind.CONTENTION);
+    expect(fights.map((d) => d.net).sort()).toEqual(['DQ0', 'DQ7']);
+    expect(b.diagnostics.filter((d) => d.kind !== KernelDiagnosticKind.CONTENTION)).toEqual([]);
   });
 });

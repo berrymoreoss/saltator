@@ -336,7 +336,7 @@ describe('recompiling counters and shift registers mid-run', () => {
 
 describe('recompiling memories mid-run', () => {
   it('is invisible in random networks of EEPROMs and SRAMs, writes and pokes included (seeded)', () => {
-    const memories = ['mem/at28c16', 'mem/6116'];
+    const memories = ['mem/at28c16', 'mem/6116', 'mem/62256'];
     let changes = 0;
     let violations = 0;
     for (let seed = 1; seed <= 25; seed++) {
@@ -359,12 +359,15 @@ describe('recompiling memories mid-run', () => {
       for (let i = 0; i < 3; i++) {
         const type = pick(memories);
         const bytes = Array.from({ length: 16 }, () => Math.floor(random() * 256));
+        const powerOn = pick(['x', 'zeros', 'random']);
         const props =
           type === 'mem/6116'
-            ? { speed: pick(['15', '20', '25']), powerOn: pick(['x', 'zeros', 'random']) }
-            : { contents: `0000:${bytes.map((x) => x.toString(16).padStart(2, '0')).join('')}` };
+            ? { speed: pick(['15', '20', '25']), powerOn }
+            : type === 'mem/62256'
+              ? { powerOn }
+              : { contents: `0000:${bytes.map((x) => x.toString(16).padStart(2, '0')).join('')}` };
         b.add(`M${i}`, type, props);
-        if (type === 'mem/6116') rams.push(`M${i}`);
+        if (type !== 'mem/at28c16') rams.push(`M${i}`);
         for (const pin of pinsOf(registry.get(type)!, resolveProps(registry.get(type)!, props))) {
           if (pin.dir === 'in') inputs.push(`M${i}.${pin.name}`);
           if (pin.dir === 'bidir') data.push(`M${i}.${pin.name}`);
