@@ -9,6 +9,9 @@ import {
   type CircuitDocument,
   type ComponentInstance,
   ID_PATTERN,
+  PROBE_RADIXES,
+  type Probe,
+  type ProbeRadix,
   SCHEMA_VERSION,
   type Wire,
 } from './document';
@@ -127,13 +130,20 @@ const rotation: Parser<Rotation> = {
   parse: (v) => (isRotation(v) ? v : undefined),
 };
 
+const radix: Parser<ProbeRadix> = {
+  expected: PROBE_RADIXES.map((r) => `"${r}"`).join(', '),
+  parse: (v) => (PROBE_RADIXES.find((r) => r === v) ? (v as ProbeRadix) : undefined),
+};
+
 const bool: Parser<boolean> = {
   expected: 'true or false',
   parse: (v) => (typeof v === 'boolean' ? v : undefined),
 };
 
 const ROOT_KEYS = ['schemaVersion', 'circuits'];
-const CIRCUIT_KEYS = ['id', 'name', 'components', 'wires'];
+const CIRCUIT_KEYS = ['id', 'name', 'components', 'wires', 'probes'];
+const SIGNAL_PROBE_KEYS = ['ref', 'name', 'radix'];
+const GROUP_PROBE_KEYS = ['name', 'members', 'radix'];
 const COMPONENT_KEYS = ['id', 'type', 'label', 'x', 'y', 'rotation', 'flip', 'props'];
 const WIRE_KEYS = ['id', 'from', 'to', 'bus'];
 
@@ -169,14 +179,46 @@ class Checker {
       ],
       'id',
     );
+    const rawProbes = value.probes === undefined ? [] : (this.array(value, 'probes', path) ?? []);
+    const probes = rawProbes.map((p, i) => this.probe(p, join(join(path, 'probes'), i)));
     if (circuitId === undefined || name === undefined) return undefined;
-    if (components.some((c) => !c) || wires.some((w) => !w)) return undefined;
+    if (components.some((c) => !c) || wires.some((w) => !w) || probes.some((p) => !p)) {
+      return undefined;
+    }
     return {
       id: circuitId,
       name,
       components: components as ComponentInstance[],
       wires: wires as Wire[],
+      probes: probes as Probe[],
     };
+  }
+
+  /** `{ ref, name?, radix? }` or a group `{ name, members, radix? }`; references unchecked. */
+  private probe(value: unknown, path: string): Probe | undefined {
+    if (!this.isObject(value, path)) return undefined;
+    const group = value.members !== undefined;
+    this.unknownKeys(value, path, group ? GROUP_PROBE_KEYS : SIGNAL_PROBE_KEYS);
+    const probeRadix = this.optional(value, 'radix', path, radix);
+    const extra = probeRadix === undefined ? {} : { radix: probeRadix };
+    if (group) {
+      const name = this.field(value, 'name', path, nonEmpty);
+      const members = this.array(value, 'members', path);
+      const refs = (members ?? []).map((m, i) => {
+        if (typeof m === 'string' && m !== '') return m;
+        this.fail(join(join(path, 'members'), i), `expected ${nonEmpty.expected}, got ${show(m)}`);
+        return undefined;
+      });
+      if (members?.length === 0) this.fail(join(path, 'members'), 'expected at least one member');
+      if (name === undefined || refs.length === 0 || refs.some((r) => r === undefined)) {
+        return undefined;
+      }
+      return { name, members: refs as string[], ...extra };
+    }
+    const ref = this.field(value, 'ref', path, nonEmpty);
+    const name = this.optional(value, 'name', path, nonEmpty);
+    if (ref === undefined) return undefined;
+    return { ref, ...(name !== undefined && { name }), ...extra };
   }
 
   private component(value: unknown, path: string): ComponentInstance | undefined {

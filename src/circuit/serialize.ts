@@ -1,8 +1,15 @@
 /**
- * Writing documents as JSON: fixed key order, defaults omitted, one line per component and per
- * wire, so a saved file diffs well in git (one edit = one changed line).
+ * Writing documents as JSON: fixed key order, defaults omitted, one line per component, per
+ * wire and per probe, so a saved file diffs well in git (one edit = one changed line). A circuit
+ * without probes leaves the key out.
  */
-import type { CircuitDocument, ComponentInstance, Wire } from './document';
+import {
+  type CircuitDocument,
+  type ComponentInstance,
+  isGroupProbe,
+  type Probe,
+  type Wire,
+} from './document';
 
 /** Serializes a document to JSON text (ends with a newline). `loadDocument` reads it back. */
 export function serializeDocument(document: CircuitDocument): string {
@@ -12,7 +19,10 @@ export function serializeDocument(document: CircuitDocument): string {
       `      "id": ${JSON.stringify(circuit.id)},`,
       `      "name": ${JSON.stringify(circuit.name)},`,
       `      "components": ${list(circuit.components.map(componentJson), '      ')},`,
-      `      "wires": ${list(circuit.wires.map(wireJson), '      ')}`,
+      `      "wires": ${list(circuit.wires.map(wireJson), '      ')}${circuit.probes.length > 0 ? ',' : ''}`,
+      ...(circuit.probes.length > 0
+        ? [`      "probes": ${list(circuit.probes.map(probeJson), '      ')}`]
+        : []),
       '    }',
     ].join('\n'),
   );
@@ -36,6 +46,12 @@ function componentJson(c: ComponentInstance): Record<string, unknown> {
     ...(c.flip && { flip: true }),
     ...(Object.keys(c.props).length > 0 && { props: c.props }),
   };
+}
+
+function probeJson(p: Probe): Record<string, unknown> {
+  const radix = p.radix !== undefined && { radix: p.radix };
+  if (isGroupProbe(p)) return { name: p.name, members: p.members, ...radix };
+  return { ref: p.ref, ...(p.name !== undefined && { name: p.name }), ...radix };
 }
 
 function wireJson(w: Wire): Record<string, unknown> {

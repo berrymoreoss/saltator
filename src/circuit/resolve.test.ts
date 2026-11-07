@@ -43,6 +43,7 @@ const circuit: Circuit = {
     wire('w3', 27, 11, 30, 11),
     wire('w4', 40, 20, 42, 20),
   ],
+  probes: [],
 };
 
 const resolver = new Resolver(compileCircuit(circuit, registry), registry);
@@ -81,6 +82,46 @@ describe('Resolver', () => {
     ['U5/D0', '"U5/D0": paths into subcircuits come with R11'],
   ])('explains %j: %s', (reference, message) => {
     expect(resolver.resolve(reference)).toBe(message);
+  });
+
+  it('resolves what a probe shows: a net, a pin, a bus, a group of single signals', () => {
+    expect(resolver.signal('CLK')).toEqual({ nets: ['CLK'], vector: false });
+    expect(resolver.signal('U1.B')).toEqual({ nets: ['U1.B'], vector: false });
+    expect(resolver.signal('D[0..1]')).toEqual({ nets: ['D0', 'D1'], vector: true });
+    expect(resolver.signal('U1')).toBe('U1 is a part: probe one of its pins');
+    expect(resolver.signal('U9.A')).toBe('no part U9');
+    expect(resolver.probe({ ref: 'TICK', name: 'tick' })).toEqual({ nets: ['CLK'], vector: false });
+    expect(resolver.probe({ name: 'G', members: ['D0', 'U1.Y', 'CLK'] })).toEqual({
+      nets: ['D0', 'D1', 'CLK'],
+      vector: true,
+    });
+    expect(resolver.probe({ name: 'G', members: ['CLK', 'U9.Y'] })).toBe('U9.Y: no part U9');
+    expect(resolver.probe({ name: 'G', members: ['D[0..1]'] })).toBe(
+      "D[0..1] is a bus: a group's members are single signals",
+    );
+  });
+
+  it('names a net to probe it by: its name, else a pin on it, a driving one first', () => {
+    expect(resolver.netReference('CLK')).toBe('CLK');
+    expect(resolver.netReference('U1.B')).toBe('U1.B');
+    const unnamed = new Resolver(
+      compileCircuit(
+        {
+          ...circuit,
+          components: [part('U3', 'test/and', 20, 0), part('U1', 'test/and', 10, 0)],
+          wires: [wire('w1', 15, 1, 18, 1), wire('w2', 18, 1, 18, 2), wire('w3', 18, 2, 20, 2)],
+        },
+        registry,
+      ),
+      registry,
+    );
+    // U3.B, an input, comes first on the net (U3 is first in the document); U1.Y drives it.
+    const target = unnamed.resolve('U3.B');
+    expect(target).toMatchObject({ kind: 'pin' });
+    const net = (target as { net: string }).net;
+    expect(unnamed.netReference(net)).toBe('U1.Y');
+    expect(unnamed.netReference('nothing')).toBeUndefined();
+    expect(resolver.netReference('w4')).toBeUndefined(); // a wire on no pin
   });
 
   it('lists the simulated parts and, in designator order, the memories', () => {

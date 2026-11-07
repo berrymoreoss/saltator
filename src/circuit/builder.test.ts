@@ -38,6 +38,7 @@ describe('CircuitBuilder', () => {
         },
       ],
       wires: [],
+      probes: [],
     });
   });
 

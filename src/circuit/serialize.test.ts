@@ -4,7 +4,7 @@ import { parseDocument } from './schema';
 import { serializeDocument } from './serialize';
 
 const document: CircuitDocument = {
-  schemaVersion: 2,
+  schemaVersion: 3,
   circuits: [
     {
       id: 'main',
@@ -27,13 +27,18 @@ const document: CircuitDocument = {
         { id: 'w2', from: [9, 2], to: [9, -7] },
         { id: 'w3', from: [20, 0], to: [20, 8], bus: true },
       ],
+      probes: [
+        { ref: 'U1.Y' },
+        { ref: 'D[0..7]', name: 'data', radix: 'bin' },
+        { name: 'PC', members: ['U1.Y', 'U2.Y'], radix: 'dec' },
+      ],
     },
-    { id: 'sub', name: 'Empty', components: [], wires: [] },
+    { id: 'sub', name: 'Empty', components: [], wires: [], probes: [] },
   ],
 };
 
 const text = `{
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "circuits": [
     {
       "id": "main",
@@ -46,6 +51,11 @@ const text = `{
         { "id": "w1", "from": [4, 2], "to": [9, 2] },
         { "id": "w2", "from": [9, 2], "to": [9, -7] },
         { "id": "w3", "from": [20, 0], "to": [20, 8], "bus": true }
+      ],
+      "probes": [
+        { "ref": "U1.Y" },
+        { "ref": "D[0..7]", "name": "data", "radix": "bin" },
+        { "name": "PC", "members": ["U1.Y", "U2.Y"], "radix": "dec" }
       ]
     },
     {
@@ -59,7 +69,7 @@ const text = `{
 `;
 
 describe('serializeDocument', () => {
-  it('writes one line per component and wire, with defaults omitted', () => {
+  it('writes one line per component, wire and probe, with defaults omitted', () => {
     expect(serializeDocument(document)).toBe(text);
   });
 

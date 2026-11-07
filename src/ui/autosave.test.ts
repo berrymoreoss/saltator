@@ -308,7 +308,7 @@ describe('restoring a session', () => {
 
   it('a session stored before buses (schema v1) comes back unchanged', () => {
     const text = serializeDocument(nandDocument(4)).replace(
-      '"schemaVersion": 2',
+      '"schemaVersion": 3',
       '"schemaVersion": 1',
     );
     expect(text).toContain('"schemaVersion": 1');

@@ -247,7 +247,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   evaluation, bus values with don't-care digits) on the recorder; tests.
 - [x] 4. `core`: VCD writer (header, vectors, `$dumpvars`, ranges, safe names and identifiers);
   tests against hand-checked dumps; a scenario dumping a counter.
-- [ ] 5. `circuit`: `Circuit.probes` — schema v3 with the identity migration, parse (strict) and
+- [x] 5. `circuit`: `Circuit.probes` — schema v3 with the identity migration, parse (strict) and
   serialize (canonical, one probe a line), rename rewriting, edits that keep the netlist
   structure; the resolver resolving a probe (net, pin, bus, group with reasons); tests.
 - [ ] 6. `editor`: `Analyzer` — channels, lifecycle (power-on, carry-over, Reset, Stop, probes
@@ -340,11 +340,18 @@ Checkable statements; verified one by one in the finish-branch workflow.
   `.` → `_`), `vcdIdentifier`; a scenario dumping a 74HC161 (count 22 ns after each edge) and a
   trigger on its count breaking at 622 ns. Mutation-checked (a cursor mutation hangs the merge:
   the mutation script now has a timeout and restores the file).
+- 2026-11-07 — task 5: `Circuit.probes` (`SignalProbe` `{ ref, name?, radix? }`, `GroupProbe`
+  `{ name, members, radix? }`), schema v3 with an identity migration (examples bumped; v1/v2
+  files open with no probes), strict parsing with paths, serialization one probe a line (no key
+  when empty), `CircuitBuilder.probe`; `renameComponent` rewrites pin references
+  (`renameInProbes`), `copyFragment` leaves probes out; `sameCircuit` compares probes (it
+  didn't: a probe edit would have been no edit and no unsaved change) via `sameProbes`;
+  `Resolver.signal`, `probe` (groups, reasons), `netReference` (name, else a driving pin).
 
 ## Handoff
 
-- **State:** tasks 1–4 done (core: break, `onInstant`, recorder, triggers, VCD).
-- **Next step:** task 5 (`Circuit.probes`, schema v3).
+- **State:** tasks 1–5 done (core: break, `onInstant`, recorder, triggers, VCD; circuit: probes, schema v3, resolver).
+- **Next step:** task 6 (`Analyzer` model in the editor, with the host's `pauseAt`).
 - **Watch out:** nets have no identity across compiles — channels are references, re-resolved
   on every carry-over; the kernel's listener reports levels only.
 - **Verify with:** `pnpm check`.

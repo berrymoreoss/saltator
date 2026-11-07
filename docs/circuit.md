@@ -12,7 +12,7 @@ produce new values.
 
 ```ts
 interface CircuitDocument {
-  schemaVersion: 2;
+  schemaVersion: 3;
   circuits: Circuit[]; // at least one; the first is used (R11 gives the others a meaning)
 }
 
@@ -21,7 +21,13 @@ interface Circuit {
   name: string;
   components: ComponentInstance[];
   wires: Wire[];
+  probes: Probe[]; // the Waveforms tab's signals, in its order (R13); left out of files when empty
 }
+
+type Probe =
+  | { ref: string; name?: string; radix?: ProbeRadix } // 'CLK', 'U1.Y', 'D[0..7]'
+  | { name: string; members: string[]; radix?: ProbeRadix }; // a group, bit 0 first
+type ProbeRadix = 'hex' | 'dec' | 'bin' | 'ascii';
 
 interface ComponentInstance {
   id: string; // the designator: 'U1', 'SW1', 'D3'
@@ -58,6 +64,15 @@ interface Wire {
   A memory's contents are a string prop of type `image` in sparse hex runs (`"contents":
   "0000:3F065B4F 07FC:0080"`; [components.md](components.md#properties)), so a ROM's program is
   saved with the circuit.
+- **Probes** (R13, [ADR-0019](adr/0019-waveforms.md)) are the signals the Waveforms tab shows
+  ([editor.md](editor.md#waveforms)), saved with the circuit so a file opens with its signals
+  ready: a resolver reference ([Resolver](#resolver)) — a net by name (`CLK`), a pin (`U1.Y`,
+  also how an unnamed net is probed, since its id changes with the wiring), a bus (`D[0..7]`) —
+  or a **group** of 1-bit references read as one value (`{ "name": "PC", "members": ["U3.Q0",
+  …] }`), with an optional display name and radix. They are no part of the netlist (a probe
+  edit keeps a running simulator as it is), aren't checked when loading (a probe that names
+  nothing is shown greyed with the resolver's reason), are rewritten when a part is renamed
+  (`renameComponent`: `U5.A0` → `U7.A0`) and are left out of copies (`copyFragment`).
 
 ## Loading, versioning, saving
 
@@ -77,15 +92,15 @@ interface Wire {
   n + 1; `migrate()` runs the steps in order and sets `schemaVersion` after each, before
   validation. A file from a newer version is rejected with "this file was saved by a newer
   version of the app". Never edit a released migration; bump `SCHEMA_VERSION` and add one. Schema
-  v1 is the first version; v2 (R10b) added bus lines (`"bus": true` on a wire), so its
-  migration from v1 changes nothing.
+  v1 is the first version; v2 (R10b) added bus lines (`"bus": true` on a wire), v3 (R13) probes
+  (`"probes"` on a circuit), so both migrations change nothing.
 - `serializeDocument(doc)` writes stable JSON: fixed key order, defaults omitted, one line per
-  component and per wire, so a saved file diffs well in git. Round trip is lossless:
-  `parseDocument(serializeDocument(doc))` equals `doc`.
+  component, per wire and per probe (no `probes` key without any), so a saved file diffs well in
+  git. Round trip is lossless: `parseDocument(serializeDocument(doc))` equals `doc`.
 
 ```text
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "circuits": [
     {
       "id": "main",
@@ -97,6 +112,10 @@ interface Wire {
       "wires": [
         { "id": "w1", "from": [16, 2], "to": [19, 2] },
         { "id": "w2", "from": [19, 2], "to": [19, 0] }
+      ],
+      "probes": [
+        { "ref": "U1.Y" },
+        { "name": "PC", "members": ["U3.Q0", "U3.Q1", "U3.Q2", "U3.Q3"], "radix": "dec" }
       ]
     }
   ]
@@ -321,6 +340,9 @@ resolver.resolve('CLK'); // { kind: 'net', net: 'CLK' } — by any name of the n
 resolver.resolve('D[0..7]'); // { kind: 'bus', bus: 'D[0..7]', members: ['D0', …, 'D7'] }
 resolver.resolve('U9'); // 'no part or net named U9'
 resolver.memories(); // the parts with `memory`, in designator order (U2 before U10)
+resolver.signal('D[0..7]'); // { nets: ['D0', …, 'D7'], vector: true } — what a probe shows
+resolver.probe({ name: 'PC', members: ['U3.Q0', 'U3.Q1'] }); // a group: { nets, vector: true }
+resolver.netReference('U1.Y'); // how to probe a net: its name, else a (driving) pin on it
 ```
 
 - A target carries **netlist ids** (component id, net ids); the simulator maps them to indices
@@ -332,6 +354,12 @@ resolver.memories(); // the parts with `memory`, in designator order (U2 before 
   the simulation and don't resolve.
 - References that name nothing are refused with the reason (`U1 has no pin Q`, `no part U9`);
   `/` is reserved for instance paths (`U5/D0`: "paths into subcircuits come with R11").
+- **Probes** (R13): `signal(reference)` gives the nets a net, pin or bus reference shows (a part
+  is refused: "U5 is a part: probe one of its pins"), `probe(probe)` also groups, whose members
+  must each be one signal ("D[0..7] is a bus: a group's members are single signals"; a failing
+  member is named: "U9.Y: no part U9"). `netReference(net)` is how the editor stores a probe
+  on a wire: the net's name, else a pin on it — a driving one (`out`, `tristate`, `bidir`)
+  first.
 - `compareDesignators` orders designators as people count them (`U2` before `U10`).
 
 ## Performance
