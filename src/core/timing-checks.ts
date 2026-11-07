@@ -74,21 +74,25 @@ export interface SetupHoldCheck {
   /**
    * At the active edge of the clock (in this delta): the data inputs that changed less than the
    * setup time before it, at the same instant included; bit `n` is the `n`th data pin. Reports
-   * each one. 0 when the clock had no active edge.
+   * each one. 0 when the clock had no active edge, or when not `armed` (the part ignores the
+   * edge: held in reset, loading disabled).
    */
-  setup(ctx: EvalContext<unknown>, times: PinTimes): number;
+  setup(ctx: EvalContext<unknown>, times: PinTimes, armed?: boolean): number;
   /**
    * The data inputs that changed in this delta less than the hold time after the last active
    * edge; bit `n` is the `n`th data pin. An edge in this delta isn't recorded yet (`track` runs
-   * last): data changing with it is the setup check's business.
+   * last): data changing with it is the setup check's business. 0 when not `armed`.
    */
-  hold(ctx: EvalContext<unknown>, times: PinTimes): number;
+  hold(ctx: EvalContext<unknown>, times: PinTimes, armed?: boolean): number;
 }
 
 /** A declared pulse-width check. */
 export interface PulseWidthCheck {
-  /** True (and reported) when the pin just ended a checked phase shorter than the minimum. */
-  check(ctx: EvalContext<unknown>, times: PinTimes): boolean;
+  /**
+   * True (and reported) when the pin just ended a checked phase shorter than the minimum; false
+   * when not `armed` (a clock the part ignores now).
+   */
+  check(ctx: EvalContext<unknown>, times: PinTimes, armed?: boolean): boolean;
 }
 
 /** A declared recovery check. */
@@ -158,8 +162,8 @@ export class TimingChecks {
       spec.edge === 'rise' ? ctx.rose(clock) : ctx.fell(clock);
 
     return {
-      setup(ctx, times) {
-        if (!active(ctx)) return 0;
+      setup(ctx, times, armed = true) {
+        if (!armed || !active(ctx)) return 0;
         let late = 0;
         for (let n = 0; n < data.length; n++) {
           const pin = data[n]!;
@@ -175,8 +179,8 @@ export class TimingChecks {
         }
         return late;
       },
-      hold(ctx, times) {
-        if (th === 0) return 0;
+      hold(ctx, times, armed = true) {
+        if (!armed || th === 0) return 0;
         const elapsed = ctx.now - times[clock * 3 + edgeSlot]!;
         if (elapsed >= th) return 0;
         let early = 0;
@@ -203,8 +207,8 @@ export class TimingChecks {
     const high = spec.level !== 'low';
     const low = spec.level !== 'high';
     return {
-      check(ctx, times) {
-        if (!ctx.changed(pin)) return false;
+      check(ctx, times, armed = true) {
+        if (!armed || !ctx.changed(pin)) return false;
         // A phase counts from a strict edge into it: one that began from X/Z (power-on) is
         // not a pulse.
         const was = ctx.prev(pin);

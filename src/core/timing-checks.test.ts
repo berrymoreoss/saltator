@@ -67,10 +67,12 @@ function flipFlop(edge: Edge) {
       createState: () => ({ q: [Level.X, Level.X], times: checks.createTimes() }),
       evaluate(ctx) {
         const { q, times } = ctx.state;
-        const late = data.setup(ctx, times);
-        const early = data.hold(ctx, times);
+        // Held in reset, the flip-flop ignores its clock: no clock checks then.
+        const armed = toInput(ctx.read(3)) !== Level.L0;
+        const late = data.setup(ctx, times, armed);
+        const early = data.hold(ctx, times, armed);
         const unsure =
-          clockWidth.check(ctx, times) ||
+          clockWidth.check(ctx, times, armed) ||
           resetWidth.check(ctx, times) ||
           recovery.check(ctx, times);
         const active = edge === 'rise' ? ctx.rose(2) : ctx.fell(2);
@@ -294,6 +296,17 @@ describe('TimingChecks recovery', () => {
     expect(b.diagnostics.map((d) => d.message)).toEqual([
       'CP rose at the same time as RN was released (recovery time ≥ 5 ns)',
     ]);
+  });
+});
+
+describe('TimingChecks armed', () => {
+  it('skips the clock checks while the part ignores its clock', () => {
+    const b = bench();
+    b.set({ RN: 0 }).run(ns(20));
+    b.set({ D0: 1, CP: 1 }).run(ns(1)); // data with the edge, in reset: no setup violation
+    b.set({ D1: 1 }).run(ns(1)); // nor hold
+    b.set({ CP: 0 }).run(ns(20)); // nor pulse width
+    b.expect({ Q0: 0, Q1: 0 }).expectNoDiagnostics();
   });
 });
 

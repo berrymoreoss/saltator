@@ -6,7 +6,7 @@ const pinList = (d: AnyComponentDefinition) => pinsOf(d, {});
 const cases = chips74xx.map((d) => [d.name, d] as const);
 
 describe('74xx chips', () => {
-  it('are the chips of R06 and R08, in number order, and register cleanly', () => {
+  it('are the chips of R06, R08 and R09a, in number order, and register cleanly', () => {
     expect(chips74xx.map((d) => d.name.slice(4))).toEqual([
       '00',
       '02',
@@ -20,6 +20,7 @@ describe('74xx chips', () => {
       '27',
       '30',
       '32',
+      '74',
       '85',
       '86',
       '125',
@@ -53,7 +54,9 @@ describe('74xx chips', () => {
       expect(pin.description, pin.name).toMatch(/\S/);
       if (pin.dir === 'nc') expect(pin.name).toBe(`NC${pin.number}`);
       // Inputs say so; outputs drawn with an overline (138's Yn, 151's YN) may not.
-      if (pin.activeLow && pin.dir === 'in') expect(pin.description).toContain('active LOW');
+      // A falling-edge clock is drawn overlined; its description says HIGH-to-LOW instead.
+      if (pin.activeLow && pin.dir === 'in' && !pin.clock)
+        expect(pin.description).toContain('active LOW');
     }
   });
 

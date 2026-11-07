@@ -40,8 +40,9 @@ type Expected =
 interface Case {
   readonly label: string;
   readonly prepare: readonly BenchValues[];
-  /** Applied first; then the transitions, if any. */
+  /** Applied first; then the clock inputs' levels; then the transitions, if any. */
   readonly inputs: BenchValues;
+  readonly clocks: BenchValues | null;
   readonly edges: BenchValues | null;
   readonly outputs: Readonly<Record<string, Expected>>;
 }
@@ -64,8 +65,10 @@ interface Case {
  * An output column mapped to `null` is display-only (the 4511's `Display` column: `8`,
  * `blank`): its cells are not checked.
  *
- * Sequential tables: a row with `↑`/`↓` applies its other inputs (and the level before the
- * transition), runs `options.gap`, then makes the transition; `h`/`l` are applied like `H`/`L`.
+ * Sequential tables: a row applies its data inputs, runs `options.gap`, then sets its clock inputs
+ * (pins marked `clock`; a don't-care clock may make an edge, with the data already stable), and
+ * for `↑`/`↓` the level before the transition, runs `options.gap` again, then makes the
+ * transition; `h`/`l` are applied like `H`/`L`.
  * A row with previous-state outputs (`q`, `q̅`) is checked once after each of `options.states`.
  */
 export function functionTable(
@@ -83,7 +86,16 @@ export function functionTable(
   const inPins = pins.slice(0, table.inputs.length);
   const outPins = pins.slice(table.inputs.length);
   if (inPins.includes(null)) throw new Error('function table: every input column needs a pin');
-  let sequential = false;
+  // Transitions, levels before them or previous-state outputs anywhere make the whole table
+  // sequential: every row then waits `gap` per step and sets its clocks after its data.
+  const sequential = table.rows.some((row) => {
+    const { inputs: ins, outputs: outs } = parseFunctionTableRow(table, row);
+    return (
+      ins.some((cell) => cell in EDGE_LETTERS || cell === 'h' || cell === 'l') ||
+      outs.some((cell) => stateReference(table, cell) !== undefined)
+    );
+  });
+  const clockPins = new Set(bench.pins.filter((p) => p.clock).map((p) => p.name));
   const referenced = new Set<string>();
   const cases: Case[] = [];
   for (const row of table.rows) {
@@ -123,16 +135,27 @@ export function functionTable(
       return values;
     });
     const hasEdge = Object.keys(edges).length > 0;
-    if (hasEdge || usesState || /[hl]/.test(ins.join(''))) sequential = true;
     const prepares = usesState ? (options.states ?? []) : [[]];
     if (usesState && prepares.length === 0) {
       throw new Error(`function table row "${row}" uses the previous state: pass options.states`);
     }
     for (const combo of product(choices)) {
-      const inputs = Object.fromEntries(inPins.map((name, i) => [name!, combo[i]!]));
+      const inputs: Record<string, BenchValue> = {};
+      const clocks: Record<string, BenchValue> = {};
+      inPins.forEach((name, i) => {
+        (clockPins.has(name!) ? clocks : inputs)[name!] = combo[i]!;
+      });
+      const hasClocks = sequential && Object.keys(clocks).length > 0;
       prepares.forEach((prepare, s) => {
         const label = usesState ? `${row}" from state #${s + 1} "` : row;
-        cases.push({ label, prepare, inputs, edges: hasEdge ? edges : null, outputs });
+        cases.push({
+          label,
+          prepare,
+          inputs: hasClocks ? inputs : { ...inputs, ...clocks },
+          clocks: hasClocks ? clocks : null,
+          edges: hasEdge ? edges : null,
+          outputs,
+        });
       });
     }
   }
@@ -165,6 +188,7 @@ function check(
       }
     }
     step(c.inputs);
+    if (c.clocks) step(c.clocks);
     if (c.edges) step(c.edges);
     const expected: Record<string, BenchValue> = {};
     for (const [pin, e] of Object.entries(c.outputs)) {
@@ -177,7 +201,7 @@ function check(
     }
     const wrong = bench.mismatches(expected);
     if (wrong.length > 0) {
-      const applied = Object.entries({ ...c.inputs, ...c.edges })
+      const applied = Object.entries({ ...c.inputs, ...c.clocks, ...c.edges })
         .map(([n, v]) => `${n}=${levelChar(toLevel(v))}`)
         .join(' ');
       failures.push(`row "${c.label}" with ${applied}: ${wrong.join(', ')}`);
@@ -220,6 +244,7 @@ export function truthTable(
       label: row.map((v) => levelChar(toLevel(v))).join(' '),
       prepare: [],
       inputs: Object.fromEntries(inputs.map((name, i) => [name, row[i]!])),
+      clocks: null,
       edges: null,
       outputs: Object.fromEntries(expected),
     };

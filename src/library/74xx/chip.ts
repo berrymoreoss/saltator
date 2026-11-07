@@ -45,13 +45,15 @@ export interface LogicFamily {
 }
 
 /**
- * Makes a behavior for one instance. Called once per chip definition with the pin list and the
- * typical delays, so it can precompute pin indices; the returned function runs per instance.
- * `State` is the instance's mutable state (a latch's stored bits); stateless chips use `undefined`.
+ * Makes a behavior for one instance. Called once per chip definition with the pin list, the
+ * typical delays and the minima of its timing requirements (for `TimingChecks`), so it can
+ * precompute pin indices; the returned function runs per instance. `State` is the instance's
+ * mutable state (a latch's stored bits); stateless chips use `undefined`.
  */
 export type ChipBehavior<State = undefined> = (
   pins: readonly PinDef[],
   delays: Readonly<Record<string, Time>>,
+  min: Readonly<Record<string, Time>>,
 ) => () => Behavior<State>;
 
 /** The definition of `spec` in `family`: type `74xx/74hc00`, name `74HC00`, a DIP package. */
@@ -64,7 +66,7 @@ export function chipDefinition<State = undefined>(
   if (!made) throw new Error(`74${family.name}${spec.number}: no timing in the family`);
   const name = `74${family.name}${spec.number}`;
   const pinList = dipPins(spec.pinCount, spec.pins);
-  const create = behavior(pinList, made.timing.typical);
+  const create = behavior(pinList, made.timing.typical, made.timing.min ?? {});
   return defineComponent<Record<string, never>, State>({
     type: `74xx/${name.toLowerCase()}`,
     name,

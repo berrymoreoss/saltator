@@ -7,6 +7,7 @@ import { hcArithmetic } from './arithmetic';
 import { hcBuffers } from './buffers';
 import { hcDecoders } from './decoders';
 import { hcEncoders } from './encoders';
+import { hcFlipFlops } from './flip-flops';
 import { hcGates } from './gates';
 import { hcMultiplexers } from './multiplexers';
 import { hc4511 } from './seven-segment-decoder';
@@ -17,6 +18,13 @@ export { BUFFER_SPECS, type BufferSpec, bufferChips } from './buffers';
 export type { ChipSpec, ChipTiming, LogicFamily } from './chip';
 export { DECODER_SPECS, type DecoderSpec, decoderChips } from './decoders';
 export { ENCODER147_SPEC, ENCODER148_SPEC, encoderChips } from './encoders';
+export {
+  FF74_SPEC,
+  FLIP_FLOP_SPECS,
+  type FlipFlopSpec,
+  type FlipFlopState,
+  flipFlopChips,
+} from './flip-flops';
 export { GATE_SPECS, type GateSpec, gateChips } from './gates';
 export { HC } from './hc-timing';
 export { MUX_SPECS, type MuxSpec, muxChips } from './multiplexers';
@@ -37,4 +45,5 @@ export const chips74xx: readonly AnyComponentDefinition[] = [
   ...hcArithmetic,
   ...hcEncoders,
   hc4511,
+  ...hcFlipFlops,
 ].sort((a, b) => Number(a.name.slice(4)) - Number(b.name.slice(4)));

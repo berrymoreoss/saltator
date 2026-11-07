@@ -190,7 +190,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   delays per path and requirements (typ and min at 25 °C, max delays at −40…+85 °C) for the
   ten chips, sources cited. (Timing committed here; each chip's pinout and function table land
   with its behavior in tasks 4–7, read off the rendered pages.)
-- [ ] 4. Shared edge-triggered machinery in `library/74xx` (uncertain edges, async controls,
+- [x] 4. Shared edge-triggered machinery in `library/74xx` (uncertain edges, async controls,
   checks, the `X` policy) and the 74HC74, with tests (function table per unit, set+reset, each
   path, each check inside/outside its limit, unknown and floating inputs).
 - [ ] 5. JK flip-flops 74HC107, 109, 112 with tests (toggle, hold, negative/positive edges,
@@ -272,6 +272,16 @@ Checkable statements; verified one by one in the finish-branch workflow.
   output for SD/RD (keys per output); the 107's and 112's clocks are overlined (falling edge);
   the 107 and 109 specify tW of R/SD/RD "HIGH or LOW"; the 574's table note says "HIGH-to-LOW
   CP transition" for h/l (a typo: the table uses ↑).
+- 2026-11-07 — task 4: `edge-triggered.ts` (strict/uncertain clock edges, `either`, `jkNext`,
+  unit templates) and `flip-flops.ts` (a dual flip-flop engine driven by a `FlipFlopSpec`;
+  per flip-flop the stored bit plus the bits before the last edge and before the last
+  set/reset, for the `X` policy) with the 74HC74; behaviors get the minima as a third argument.
+  Two fixes the 74's function table forced: the timing checks take an `armed` flag (a clock the
+  part ignores — held in set/reset — has no set-up, hold or pulse-width requirement; otherwise
+  a running clock under a held reset reports nonsense), and the function table checker sets
+  clock pins (`clock` flag) after the data, a gap later, so a don't-care clock's edges see
+  stable data. Mutation-checked (7 mutations of the violation handling, the clock ordering,
+  `armed`).
 
 ## Handoff
 

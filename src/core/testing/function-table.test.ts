@@ -93,6 +93,17 @@ describe('functionTable on sequential tables', () => {
     expect(functionTable(bench, loadOne)).toBe(1);
   });
 
+  it("sets a don't-care clock after the data, so its edges see stable data", () => {
+    // Both states leave CP high and J = K = 1: with CP = L the row makes a falling edge while J
+    // and K change; set together, the flip-flop would go X.
+    const hold: FunctionTable = { ...TABLE, rows: ['H X l l | q q̅'] };
+    const states = [
+      [{ R: 0, CP: 1, J: 1, K: 1 }, { R: 1 }],
+      [{ R: 1, J: 1, K: 0, CP: 1 }, { CP: 0 }, { CP: 1, K: 1 }],
+    ] as const;
+    expect(functionTable(new Bench(jk()), hold, undefined, { states })).toBe(4);
+  });
+
   it('maps the columns to pins, previous-state references included', () => {
     const renamed: FunctionTable = { ...TABLE, outputs: ['nQ', 'nQN'], state: { q: 'nQ' } };
     expect(
