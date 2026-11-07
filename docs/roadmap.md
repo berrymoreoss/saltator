@@ -13,31 +13,32 @@ How to read this file:
 
 ## Overview
 
-| ID   | Branch                       | Title                                      | Status  |
-| ---- | ---------------------------- | ------------------------------------------ | ------- |
-| R00  | — (initial commit on `main`) | Foundation                                 | done    |
-| R01  | `feat/engine-core`           | Simulation kernel                          | done    |
-| R02  | `feat/circuit-model`         | Circuit document & netlist compiler        | done    |
-| R03  | `feat/io-basic`              | Basic IO parts (headless)                  | done    |
-| R04a | `feat/editor-canvas`         | App shell & schematic view                 | done    |
-| R04b | `feat/editor-tools`          | Schematic editing                          | done    |
-| R05  | `feat/sim-ui`                | Running simulations in the editor          | done    |
-| R06  | `feat/74hc-gates`            | 74HC gates & bus buffers                   | done    |
-| R07  | `feat/persistence`           | Save, load, examples                       | done    |
-| R08  | `feat/74hc-msi`              | 74HC combinational MSI                     | done    |
-| R09a | `feat/74hc-registers`        | 74HC flip-flops, registers + timing checks | done    |
-| R09b | `feat/74hc-counters`         | 74HC counters & shift registers            | done    |
-| R10  | `feat/nets-and-buses`        | Net labels, tunnels, buses                 | next    |
-| R11  | `feat/subcircuits`           | Hierarchical design                        | planned |
-| R12  | `feat/memory`                | ROM / RAM + memory inspector               | planned |
-| R13  | `feat/logic-analyzer`        | Waveforms & probes                         | planned |
-| R14  | `feat/debugger`              | Breakpoints, stepping, watches             | planned |
-| R15  | `feat/test-benches`          | Circuit test benches ("test before fab")   | planned |
-| R16  | `example/sap-1`              | Ben Eater SAP-1 reference build            | planned |
-| R17  | `feat/cpu-6502`              | W65C02S CPU                                | planned |
-| R18  | `feat/peripherals`           | VIA, LCD, serial, buzzer                   | planned |
-| R19  | `feat/toolchain`             | 6502 assembler & flashing                  | planned |
-| R20  | `example/be6502`             | Ben Eater 6502 reference build             | planned |
+| ID   | Branch                       | Title                                      | Status      |
+| ---- | ---------------------------- | ------------------------------------------ | ----------- |
+| R00  | — (initial commit on `main`) | Foundation                                 | done        |
+| R01  | `feat/engine-core`           | Simulation kernel                          | done        |
+| R02  | `feat/circuit-model`         | Circuit document & netlist compiler        | done        |
+| R03  | `feat/io-basic`              | Basic IO parts (headless)                  | done        |
+| R04a | `feat/editor-canvas`         | App shell & schematic view                 | done        |
+| R04b | `feat/editor-tools`          | Schematic editing                          | done        |
+| R05  | `feat/sim-ui`                | Running simulations in the editor          | done        |
+| R06  | `feat/74hc-gates`            | 74HC gates & bus buffers                   | done        |
+| R07  | `feat/persistence`           | Save, load, examples                       | done        |
+| R08  | `feat/74hc-msi`              | 74HC combinational MSI                     | done        |
+| R09a | `feat/74hc-registers`        | 74HC flip-flops, registers + timing checks | done        |
+| R09b | `feat/74hc-counters`         | 74HC counters & shift registers            | done        |
+| R10a | `feat/net-labels`            | Net labels                                 | in-progress |
+| R10b | `feat/buses`                 | Buses, rippers, bus values                 | planned     |
+| R11  | `feat/subcircuits`           | Hierarchical design                        | planned     |
+| R12  | `feat/memory`                | ROM / RAM + memory inspector               | planned     |
+| R13  | `feat/logic-analyzer`        | Waveforms & probes                         | planned     |
+| R14  | `feat/debugger`              | Breakpoints, stepping, watches             | planned     |
+| R15  | `feat/test-benches`          | Circuit test benches ("test before fab")   | planned     |
+| R16  | `example/sap-1`              | Ben Eater SAP-1 reference build            | planned     |
+| R17  | `feat/cpu-6502`              | W65C02S CPU                                | planned     |
+| R18  | `feat/peripherals`           | VIA, LCD, serial, buzzer                   | planned     |
+| R19  | `feat/toolchain`             | 6502 assembler & flashing                  | planned     |
+| R20  | `example/be6502`             | Ben Eater 6502 reference build             | planned     |
 
 ---
 
@@ -194,20 +195,28 @@ exceptions (`U̅/D`, `Q̅0̅`). Examples: Shift Register LEDs (a self-running Jo
 Ben Eater's Program Counter. Spec: [components.md](components.md#counters-and-shift-registers).
 Plan: `.ai/plans/feat-74hc-counters.md`.
 
-### R10 · Net labels, tunnels, buses — `feat/nets-and-buses` — `next`
+R10 (net labels, tunnels, buses) was split at its start into net labels (R10a) and buses
+(R10b). Junction dots, also listed for R10, are derived and drawn since R02/R04a; "tunnel" is
+Logisim's name for a net label.
 
-Named net labels/tunnels, multi-bit buses with bus rippers/splitters, bus value display (hex),
-junction dots. Essential for readable 8-bit schematics.
+### R10a · Net labels — `feat/net-labels` — `in-progress`
 
-**Net labels** (KiCad/Altium/Proteus "net label", Logisim "tunnel"): a flag with a name and one
-connection point, placed on a wire end or a pin tip. All labels with the same name are one net,
-so a circuit can be laid out in blocks without wires running across it: switches `A`, `B` →
-labels `A`, `B` in one place; labels `A`, `B` → the 74HC00 inputs in another. The net takes the
-label's name (Properties, Messages, later the analyzer); a name used by a single label is a
-design warning (likely a typo). Scope: the whole circuit until R11 decides local vs global
-labels. VCC and GND symbols join by name the same way
+Essential for readable 8-bit schematics. **Net labels** (KiCad/Altium/Proteus "net label",
+Logisim "tunnel"): a flag with a name and one connection point, placed on a wire end or a pin
+tip. All labels with the same name are one net, so a circuit can be laid out in blocks without
+wires running across it: switches `A`, `B` → labels `A`, `B` in one place; labels `A`, `B` → the
+74HC00 inputs in another. The net takes the label's name (Properties, Messages, later the
+analyzer); a name used by a single label is a design warning (likely a typo). Scope: the whole
+circuit until R11 decides local vs global labels. VCC and GND symbols join by name the same way
 ([ADR-0007](adr/0007-io-electrical-model.md)). Placed from the canvas context menu's Place
-submenu (backlog) as well as the Parts panel.
+submenu (built here, from the backlog) as well as the Parts panel. Plan:
+`.ai/plans/feat-net-labels.md`.
+
+### R10b · Buses, rippers, bus values — `feat/buses`
+
+Multi-bit buses with bus rippers/splitters and bus labels, the bus value shown in hex while
+simulating. Builds on R10a's names (`D0`…`D7`); the bus model (KiCad-style, joined by member
+names, or Logisim-style rippers by bit index) is decided when it starts.
 
 ### R11 · Hierarchical design — `feat/subcircuits`
 
