@@ -383,6 +383,18 @@ describe('74HC193', () => {
     const e = bench(5);
     e.set({ CPD: 0 }).run(us(1));
     expect(e.measure({ MR: 1 }, 'TCD')).toBe(ns(27));
+    const f = bench(5);
+    f.set(word('D', 4)).run(us(1));
+    expect(f.measure({ PL: 0 }, 'Q0')).toBe(ns(25));
+  });
+
+  it('reports a floating input it uses, and merges what it allows', () => {
+    const b = bench(5);
+    b.set({ PL: 'Z', ...word('D', 4) }).run(us(1));
+    expect(b.diagnostics.map((x) => `${x.kind} ${x.net}`)).toEqual([
+      `${KernelDiagnosticKind.FLOATING_INPUT} PL`,
+    ]);
+    b.expect({ Q0: 'X', Q1: 0, Q2: 1, Q3: 0 });
   });
 
   it('is unknown from power-on until reset or loaded', () => {
@@ -483,6 +495,14 @@ describe('74HC193', () => {
     });
 
     it('MR and PL̅ pulse widths', () => {
+      const ok = bench(5);
+      ok.set({ MR: 1 }).run(ns(20));
+      ok.set({ MR: 0 }).run(us(1));
+      ok.set(word('D', 6)).run(us(1));
+      ok.set({ PL: 0 }).run(ns(20));
+      ok.set({ PL: 1 }).run(us(1));
+      expect(timing(ok)).toEqual([]);
+      ok.expect(word('Q', 6));
       const b = bench(5);
       b.set({ MR: 1 }).run(ns(19));
       b.set({ MR: 0 }).run(us(1));
@@ -513,9 +533,16 @@ describe('74HC193', () => {
       expect(messages(recover('PL', 'CPU', 9))).toEqual([
         'CPU rose 9 ns after PL was released (recovery time ≥ 10 ns)',
       ]);
+      expect(timing(recover('PL', 'CPD', 10))).toEqual([]);
     });
 
     it('set-up of D to PL̅ rising: a late bit is X', () => {
+      const ok = bench(5);
+      ok.set({ PL: 0, ...word('D', 9) }).run(us(1));
+      ok.set({ D1: 1 }).run(ns(16));
+      ok.set({ PL: 1 }).run(us(1));
+      expect(timing(ok)).toEqual([]);
+      ok.expect(word('Q', 11));
       const b = bench(5);
       b.set({ PL: 0, ...word('D', 9) }).run(us(1));
       b.set({ D1: 1 }).run(ns(15));

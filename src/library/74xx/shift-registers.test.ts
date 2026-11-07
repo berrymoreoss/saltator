@@ -142,6 +142,13 @@ describe('74HC164', () => {
     });
 
     it('clock pulse width, both phases', () => {
+      const ok = bench();
+      load(ok, 0b10);
+      ok.set({ CP: 1 }).run(ns(16));
+      ok.set({ CP: 0 }).run(ns(16));
+      ok.set({ CP: 1 }).run(us(1));
+      expect(timing(ok)).toEqual([]);
+      ok.expect({ Q1: 0, Q2: 0, Q3: 1 });
       const b = bench();
       load(b, 0b10);
       b.set({ CP: 1 }).run(ns(15)); // 0100
@@ -158,6 +165,12 @@ describe('74HC164', () => {
     });
 
     it('MR̅ pulse width and recovery', () => {
+      const ok = bench();
+      load(ok, 0b101);
+      ok.set({ MR: 0 }).run(ns(12));
+      ok.set({ MR: 1 }).run(us(1));
+      expect(timing(ok)).toEqual([]);
+      ok.expect(byte(0));
       const b = bench();
       load(b, 0b101);
       b.set({ MR: 0 }).run(ns(11));
@@ -397,6 +410,13 @@ describe('74HC165', () => {
     });
 
     it('clock pulse width, PL̅ pulse width and recovery', () => {
+      const ok = bench(0b0100_0000);
+      ok.set({ CP: 1 }).run(ns(16));
+      ok.set({ CP: 0 }).run(us(1));
+      ok.set({ D7: 1, PL: 0 }).run(ns(16));
+      ok.set({ PL: 1 }).run(us(1));
+      expect(timing(ok)).toEqual([]);
+      ok.expect({ Q7: 1 });
       const b = bench(0b0100_0000);
       b.set({ CP: 1 }).run(ns(15));
       b.set({ CP: 0 }).run(us(1));
@@ -550,6 +570,19 @@ describe('74HC595', () => {
     b.expect({ Q0: 1, Q1: 'X' });
   });
 
+  it('shifts X only where an uncertain SHCP edge could change, and merges an unknown MR̅', () => {
+    const b = bench();
+    shiftIn(b, 0b0000_0011);
+    b.set({ DS: 1, SHCP: 'X' }).run(us(1)); // would give 0000 0111
+    pulse(b, 'STCP');
+    b.expect({ Q0: 1, Q1: 1, Q2: 'X', Q3: 0 });
+    const c = bench();
+    shiftIn(c, 0b0000_0101);
+    c.set({ MR: 'X' }).run(us(1));
+    pulse(c, 'STCP');
+    c.expect({ Q0: 'X', Q1: 0, Q2: 'X', Q3: 0 });
+  });
+
   it('stores X only where an uncertain STCP edge could change the storage register', () => {
     const b = bench();
     shiftIn(b, 0b0000_0011);
@@ -597,6 +630,16 @@ describe('74HC595', () => {
     });
 
     it('pulse widths of SHCP, STCP and MR̅', () => {
+      const ok = bench();
+      ok.set({ DS: 1 }).run(us(1));
+      ok.set({ SHCP: 1 }).run(ns(15));
+      ok.set({ SHCP: 0 }).run(us(1));
+      ok.set({ STCP: 1 }).run(ns(15));
+      ok.set({ STCP: 0 }).run(us(1));
+      ok.set({ MR: 0 }).run(ns(15));
+      ok.set({ MR: 1 }).run(us(1));
+      expect(timing(ok)).toEqual([]);
+      ok.expect({ Q0: 1, Q1: 0, Q7S: 0 });
       const b = bench();
       b.set({ DS: 1 }).run(us(1));
       b.set({ SHCP: 1 }).run(ns(14));
