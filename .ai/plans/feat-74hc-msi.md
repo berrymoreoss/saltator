@@ -178,7 +178,7 @@ Built with `CircuitBuilder` in a throwaway script that checks the nets, then sav
 
 Small, ordered, each committable on its own with its tests (`pnpm check` green).
 
-- [ ] 1. `library/74xx` groundwork: `ChipBehavior` generic over state; per-path delay tables
+- [x] 1. `library/74xx` groundwork: `ChipBehavior` generic over state; per-path delay tables
   (`tpd(An-Yn)` keys, longest changed path, precomputed); helpers for buses of pins. Tests on
   a small fixture chip.
 - [ ] 2. Data sheets: the user downloads the Nexperia PDFs; pinouts, pin descriptions, function
