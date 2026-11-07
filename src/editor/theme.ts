@@ -6,6 +6,7 @@
 /**
  * How a net looks while simulating: its level and whether it is driven strongly, only pulled
  * (`WEAK_*`), or shorted (`CONTENTION`: two strong drivers disagree). `NONE`: not simulated.
+ * A bus has no level: `BUS` when every member is 0 or 1, else `X` or (all floating) `Z`.
  */
 export const SignalStyle = {
   NONE: 0,
@@ -16,6 +17,7 @@ export const SignalStyle = {
   WEAK_0: 5,
   WEAK_1: 6,
   CONTENTION: 7,
+  BUS: 8,
 } as const;
 export type SignalStyle = (typeof SignalStyle)[keyof typeof SignalStyle];
 
@@ -39,6 +41,8 @@ export interface CanvasTheme {
   readonly gridMajor: string;
   /** Wires while not simulating. */
   readonly wire: string;
+  /** Bus lines, and buses whose members are all known while simulating. */
+  readonly bus: string;
   readonly junction: string;
   /** Part outlines and line art. */
   readonly partStroke: string;
@@ -66,6 +70,8 @@ export function signalColor(theme: CanvasTheme, style: SignalStyle, bright = tru
   switch (style) {
     case SignalStyle.NONE:
       return theme.wire;
+    case SignalStyle.BUS:
+      return theme.bus;
     case SignalStyle.L0:
       return c.l0;
     case SignalStyle.L1:
@@ -89,6 +95,7 @@ export const DARK_CANVAS: CanvasTheme = {
   gridDot: '#3a3f48',
   gridMajor: '#5a616c',
   wire: '#9fb3c8',
+  bus: '#a98fe0',
   junction: '#9fb3c8',
   partStroke: '#e0b979',
   partFill: '#25231f',
@@ -118,6 +125,7 @@ export const LIGHT_CANVAS: CanvasTheme = {
   gridDot: '#d5d2c8',
   gridMajor: '#a9a598',
   wire: '#2f5f3a',
+  bus: '#6f42c1',
   junction: '#2f5f3a',
   partStroke: '#8c2a1c',
   partFill: '#fff7d6',

@@ -11,7 +11,8 @@ adder, comparator, encoders, 4511, with per-path delays in `paths.ts`; R09a: fli
 core timing checks; R09b: counters in `counters.ts` (161, 163), `up-down-counters.ts` (191, 193)
 and `ripple-counter.ts` (4040), shift registers in `shift-registers.ts` (164, 165, 595)),
 `timer/` (`timer/*`,
-R08: the behavioral NE555), `net/` (`net/*`, R10a: the schematic-only net label) and
+R08: the behavioral NE555), `net/` (`net/*`: R10a the schematic-only net label, which is a
+bus label when named like a bus; R10b the bus entry) and
 `registry.ts`
 (`createDefaultRegistry()`); planned: `memory/`, `cpu/`, `peripherals/`. One part per file (or one factory file for a
 family of near-identical parts, like `primitives/gates.ts`), with a colocated `*.test.ts` built

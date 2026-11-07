@@ -40,7 +40,7 @@ import { ALL_SPEEDS, type Editor, type Store } from '../editor';
 import type { ClipboardBridge } from './clipboard';
 import type { Command } from './commands';
 import type { DocumentController } from './document-controller';
-import { GateIcon, WireIcon } from './icons';
+import { BusIcon, GateIcon, WireIcon } from './icons';
 import { RECENT_LIMIT, type RecentFiles } from './recent-files';
 import type { PanelId, Settings, ThemeSetting } from './settings';
 import type { Example, UiState } from './ui-state';
@@ -341,6 +341,16 @@ export function createCommands({
       run: () => editor.setTool('wire'),
     },
 
+    {
+      id: 'tool.bus',
+      label: 'Bus',
+      title: 'Draw bus lines',
+      icon: BusIcon,
+      shortcuts: ['B'],
+      checked: () => editor.tool.get() === 'bus',
+      run: () => editor.setTool('bus'),
+    },
+
     ...PLACE_PARTS.map(
       (item): Command => ({
         id: item.id,
@@ -617,6 +627,7 @@ export function workbenchMenus(examples: readonly Example[], recentCount?: numbe
         'tool.select',
         'tool.pan',
         'tool.wire',
+        'tool.bus',
         'tool.interact',
         SEPARATOR,
         'view.grid',
@@ -663,6 +674,8 @@ const PLACE_PARTS: readonly {
   { id: 'place.pullUp', label: 'Pull-up', type: 'prim/pull', props: { direction: 'up' } },
   { id: 'place.pullDown', label: 'Pull-down', type: 'prim/pull', props: { direction: 'down' } },
   { id: 'place.netLabel', label: 'Net Label', type: 'net/label', shortcuts: ['L'] },
+  // KiCad's key for a bus entry.
+  { id: 'place.busEntry', label: 'Bus Entry', type: 'net/bus-entry', shortcuts: ['Z'] },
 ];
 
 /** The Place menu and the canvas context menu's Place submenu. */
@@ -673,7 +686,9 @@ export const PLACE_MENU: readonly MenuEntry[] = [
   'place.pullDown',
   SEPARATOR,
   'tool.wire',
+  'tool.bus',
   'place.netLabel',
+  'place.busEntry',
   SEPARATOR,
   'parts.search',
 ];
@@ -706,7 +721,7 @@ export const CANVAS_CONTEXT_MENU: readonly MenuEntry[] = [
 
 /** Toolbar groups, separated by dividers. */
 export const TOOLBAR: readonly (readonly string[])[] = [
-  ['tool.select', 'tool.pan', 'tool.wire', 'tool.interact'],
+  ['tool.select', 'tool.pan', 'tool.wire', 'tool.bus', 'tool.interact'],
   ['edit.undo', 'edit.redo'],
   ['edit.rotate', 'edit.flipH', 'edit.delete'],
   ['sim.toggle', 'sim.step', 'sim.stop', 'sim.reset', 'widget:speed'],

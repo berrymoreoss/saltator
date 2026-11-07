@@ -262,6 +262,102 @@ describe('placing parts', () => {
   });
 });
 
+describe('buses', () => {
+  const chip = new CircuitBuilder(registry).add('U1', '74xx/74hc245', { at: [0, 0] }).build();
+  const wires = (c: Circuit) => c.wires.map((w) => `${w.from}-${w.to}${w.bus ? ' bus' : ''}`);
+
+  it('places entries by their bit end, D0 → D1 …; the Bus tool joins their bus ends', () => {
+    const editor = new Editor(registry, chip);
+    editor.placePart('net/bus-entry');
+    for (let row = 3; row <= 10; row++) click(editor, [6, row]); // U1.B0…B7
+    editor.setTool('bus');
+    click(editor, [9, 4]); // BE1.B
+    expect(editor.mode.get()).toBe('wiring');
+    click(editor, [9, 11]); // BE8.B: a bus pin finishes the bus line
+    expect(editor.mode.get()).toBe('idle');
+    expect(editor.undoLabel).toBe('Bus');
+    expect(editor.tool.get()).toBe('bus');
+    const { circuit } = editor.state.get();
+    expect(wires(circuit)).toEqual(['9,4-9,11 bus']);
+    const entries = circuit.components.filter((c) => c.type === 'net/bus-entry');
+    expect(entries.map((c) => `${c.id}=${c.props.name}@${c.x},${c.y}`)).toEqual(
+      Array.from({ length: 8 }, (_, i) => `BE${i + 1}=D${i}@6,${i + 3}`),
+    );
+    const result = compileCircuit(circuit, registry);
+    expect(result.buses).toHaveLength(1);
+    expect(result.buses[0]!.pins).toHaveLength(8);
+    expect(result.nets.find((n) => n.id === 'D3')!.pins).toMatchObject([
+      { component: 'U1', pin: 'B3' },
+    ]);
+  });
+
+  it('never finishes a wire on a bus line, nor a bus line on a wire', () => {
+    const editor = new Editor(registry, chip);
+    editor.setTool('bus');
+    click(editor, [20, 0]);
+    click(editor, [20, 10]);
+    click(editor, [20, 10]); // a double click ends it
+    editor.setTool('wire');
+    click(editor, [15, 5]);
+    click(editor, [20, 5]); // on the bus line: no connection, the wire goes on
+    expect(editor.mode.get()).toBe('wiring');
+    editor.setTool('bus');
+    click(editor, [25, 5]);
+    click(editor, [20, 5]); // a bus line on a bus line: finishes
+    expect(editor.mode.get()).toBe('idle');
+    expect(wires(editor.state.get().circuit)).toEqual(['20,0-20,10 bus', '25,5-20,5 bus']);
+  });
+
+  it('drags a bus line out of a bus pin or a bus end, a wire out of other pins', () => {
+    const circuit = new CircuitBuilder(registry)
+      .add('BE1', 'net/bus-entry', { at: [0, 0] }) // N (0, 0), B (3, 1)
+      .build();
+    const editor = new Editor(registry, circuit);
+    drag(editor, [3, 1], [3, 6]);
+    drag(editor, [3, 6], [8, 6]);
+    drag(editor, [0, 0], [-4, 0]);
+    expect(wires(editor.state.get().circuit)).toEqual(['3,1-3,6 bus', '3,6-8,6 bus', '0,0--4,0']);
+  });
+
+  it('duplicates, rotates and undoes bus lines as bus lines', () => {
+    const circuit = new CircuitBuilder(registry)
+      .add('BE1', 'net/bus-entry', { at: [0, 0] }) // B (3, 1)
+      .bus('BE1.B', [3, 6])
+      .build();
+    const editor = new Editor(registry, circuit);
+    editor.selectAll();
+    editor.duplicate();
+    click(editor, [20, 20]);
+    const copied = editor.state.get().circuit;
+    expect(copied.wires.map((w) => w.bus)).toEqual([true, true]);
+    expect(compileCircuit(copied, registry).buses).toHaveLength(2);
+    editor.rotate(true);
+    expect(editor.state.get().circuit.wires.map((w) => w.bus)).toEqual([true, true]);
+    expect(compileCircuit(editor.state.get().circuit, registry).buses).toHaveLength(2);
+    editor.undo();
+    editor.undo();
+    expect(editor.state.get().circuit).toBe(circuit);
+  });
+
+  it('moves an entry off a bus line with a bus stub, off a pin with a wire', () => {
+    const circuit = new CircuitBuilder(registry)
+      .add('U1', '74xx/74hc245', { at: [0, 0] })
+      .add('BE1', 'net/bus-entry', { at: [6, 3] }) // on U1.B0; B (9, 4)
+      .bus([9, 0], [9, 12])
+      .build();
+    const editor = new Editor(registry, circuit);
+    editor.setSelection(selectionOf(['BE1']));
+    editor.nudge(2, 0);
+    // The old bit end gets a wire, the old bus end a bus stub teed into the bus line.
+    expect(wires(editor.state.get().circuit)).toEqual(['9,0-9,12 bus', '6,3-8,3', '9,4-11,4 bus']);
+    const result = compileCircuit(editor.state.get().circuit, registry);
+    expect(result.nets.find((n) => n.id === 'D0')!.pins).toMatchObject([
+      { component: 'U1', pin: 'B0' },
+    ]);
+    expect(result.buses).toHaveLength(1);
+  });
+});
+
 describe('copy, paste, duplicate', () => {
   it('pastes floating items that drop where clicked, renumbered', () => {
     const editor = new Editor(registry, connected);

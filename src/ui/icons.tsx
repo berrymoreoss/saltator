@@ -46,6 +46,16 @@ export function ChipIcon(props: IconProps) {
 }
 
 /** A wire with a corner between two connection dots (the Wire tool). */
+/** A bus line: a heavy line with entries leaving it. */
+export function BusIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M6 4v16" strokeWidth="3.5" />
+      <path d="M6 8l3 3h10M6 14l3 3h10" />
+    </Svg>
+  );
+}
+
 export function WireIcon(props: IconProps) {
   return (
     <Svg {...props}>

@@ -11,6 +11,7 @@ const STYLE_TEXT: Readonly<Record<SignalStyle, [text: string, className: string,
     [SignalStyle.WEAK_0]: ['0', 'weak0', 'Pulled low (weak)'],
     [SignalStyle.WEAK_1]: ['1', 'weak1', 'Pulled high (weak)'],
     [SignalStyle.CONTENTION]: ['X', 'contention', 'Contention: drivers disagree (a short)'],
+    [SignalStyle.BUS]: ['', '', ''], // a bus shows its value, not a level
   };
 
 /**
@@ -33,11 +34,32 @@ export function LiveLevel({
     : wire !== undefined
       ? simulation.wireStyle(wire)
       : undefined;
-  if (style === undefined || style === SignalStyle.NONE) return null;
+  return style === undefined ? null : <LevelBadge style={style} />;
+}
+
+/** A level badge for a signal style (nothing for `NONE` and `BUS`). */
+export function LevelBadge({ style }: { readonly style: SignalStyle }) {
+  if (style === SignalStyle.NONE || style === SignalStyle.BUS) return null;
   const [text, className, title] = STYLE_TEXT[style];
   return (
     <span className={`level-badge ${className}`} title={title} data-testid="live-level">
       {text}
     </span>
   );
+}
+
+/** The bit a signal style reads as: `0`, `1` (weak too), `Z`, else `X`. */
+export function styleBit(style: SignalStyle): string {
+  switch (style) {
+    case SignalStyle.L0:
+    case SignalStyle.WEAK_0:
+      return '0';
+    case SignalStyle.L1:
+    case SignalStyle.WEAK_1:
+      return '1';
+    case SignalStyle.Z:
+      return 'Z';
+    default:
+      return 'X';
+  }
 }

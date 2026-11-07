@@ -9,11 +9,13 @@
  */
 import { type Point, pointKey } from '../circuit';
 import {
+  busValueText,
   type ComponentRegistry,
   type Diagnostic,
   Drive,
   formatTime,
   Level,
+  levelOf,
   type Netlist,
   ns,
   type RunStatus,
@@ -104,15 +106,38 @@ export interface SimulationOptions {
   readonly frameBudget?: number;
 }
 
+/** A bus as it is in the simulation (Properties). */
+export interface BusLive {
+  /** `0x3F`, with `X`/`Z` nibbles. */
+  readonly value: string;
+  /** Each member's signal style, least significant first (`Z` for a member without a net). */
+  readonly members: readonly SignalStyle[];
+}
+
 /** Where each wire and connection point of the scene is in the simulator's nets. */
 export interface SignalMap {
   /** Net index of each wire, by wire id; −1 when the simulator has no such net. */
   readonly wires: ReadonlyMap<string, number>;
   /** Net index at wire ends and pin tips, by `pointKey` (junction dots). */
   readonly points: ReadonlyMap<number, number>;
+  /**
+   * Net indices of each bus's members, least significant first, by bus id; −1 for a member
+   * nothing is named after (it reads `Z`).
+   */
+  readonly buses: ReadonlyMap<string, Int32Array>;
+  /** Bus id of each bus line, by wire id. */
+  readonly busWires: ReadonlyMap<string, string>;
+  /** Bus id at bus line ends and bus pins, by `pointKey` (bus junction dots). */
+  readonly busPoints: ReadonlyMap<number, string>;
 }
 
-const EMPTY_SIGNALS: SignalMap = { wires: new Map(), points: new Map() };
+const EMPTY_SIGNALS: SignalMap = {
+  wires: new Map(),
+  points: new Map(),
+  buses: new Map(),
+  busWires: new Map(),
+  busPoints: new Map(),
+};
 
 /** Events per kernel call; the frame budget is checked between calls. */
 const CHUNK_EVENTS = 20_000;
@@ -164,6 +189,33 @@ class LivePart implements PartLive {
   light(i: number): number {
     return this.#lights.get(this.#id)?.brightness[i] ?? 0;
   }
+}
+
+/**
+ * How a bus looks: `X` if a member is unknown or in contention, `Z` if every member floats, `X`
+ * if only some do, else `BUS` (an unnamed bus, without members, too).
+ */
+export function busStyle(sim: Simulator, members: Int32Array): SignalStyle {
+  let floating = 0;
+  for (const net of members) {
+    const level = memberLevel(sim, net);
+    if (level === Level.X) return SignalStyle.X;
+    if (level === Level.Z) floating++;
+  }
+  if (floating === 0) return SignalStyle.BUS;
+  return floating === members.length ? SignalStyle.Z : SignalStyle.X;
+}
+
+/** A bus's value as text (`0x3F`) from its members' nets. */
+export function busValue(sim: Simulator, members: Int32Array): string {
+  return busValueText(Array.from(members, (net) => memberLevel(sim, net)));
+}
+
+/** A bus member's level: `Z` for a member without a net, `X` in contention. */
+function memberLevel(sim: Simulator, net: number): Level {
+  if (net < 0) return Level.Z;
+  if (sim.contended[net] === 1) return Level.X;
+  return levelOf(sim.drives[net]! as Drive);
 }
 
 /** Signal style of each kernel drive value (level + strength). */
@@ -270,6 +322,20 @@ export class Simulation {
     return sim && net !== undefined ? netStyle(sim, net) : undefined;
   }
 
+  /**
+   * A bus's live value (`0x3F`) and its members' signal styles, least significant first;
+   * undefined without a simulator, or for a bus without members.
+   */
+  busLive(bus: string): BusLive | undefined {
+    const sim = this.#sim;
+    const members = this.#signals.buses.get(bus);
+    if (!sim || !members || members.length === 0) return undefined;
+    return {
+      value: busValue(sim, members),
+      members: Array.from(members, (net) => (net < 0 ? SignalStyle.Z : netStyle(sim, net))),
+    };
+  }
+
   /** The scene's wires on a simulator net (by the net id a diagnostic names). */
   wiresOfNet(net: string): string[] {
     const sim = this.#sim;
@@ -296,12 +362,32 @@ export class Simulation {
   signalView(): SignalView | undefined {
     const sim = this.#sim;
     if (!sim) return undefined;
-    const { wires, points } = this.#signals;
+    const { wires, points, buses, busWires, busPoints } = this.#signals;
     const style = (net: number | undefined) =>
       net === undefined ? SignalStyle.NONE : netStyle(sim, net);
+    // Bus styles are worked out once per frame and bus, not per bus line.
+    const styles = new Map<string, SignalStyle>();
+    const ofBus = (id: string | undefined) => {
+      const members = id === undefined ? undefined : buses.get(id);
+      if (id === undefined || !members) return SignalStyle.NONE;
+      let style = styles.get(id);
+      if (style === undefined) {
+        style = busStyle(sim, members);
+        styles.set(id, style);
+      }
+      return style;
+    };
     return {
-      wire: (id: string) => style(wires.get(id)),
+      wire: (id: string) => {
+        const bus = busWires.get(id);
+        return bus === undefined ? style(wires.get(id)) : ofBus(bus);
+      },
       point: (p: Point) => style(points.get(pointKey(p))),
+      busPoint: (p: Point) => ofBus(busPoints.get(pointKey(p))),
+      busValue: (id: string) => {
+        const members = buses.get(id);
+        return members && members.length > 0 ? busValue(sim, members) : undefined;
+      },
       flash: this.#flash || this.state !== 'running',
       part: (id: string) => this.#parts.get(id),
     };
@@ -654,6 +740,7 @@ export class Simulation {
 export function signalMap(scene: Scene, sim: Simulator): SignalMap {
   const wires = new Map<string, number>();
   const points = new Map<number, number>();
+  const named = new Map<string, number>();
   for (const net of scene.compiled.nets) {
     let index = -1;
     for (const pin of net.pins) {
@@ -671,6 +758,22 @@ export function signalMap(scene: Scene, sim: Simulator): SignalMap {
     }
     for (const pin of net.pins) points.set(pointKey(pin.at), index);
     for (const pin of net.schematicPins) points.set(pointKey(pin.at), index);
+    for (const name of net.names) named.set(name, index);
   }
-  return { wires, points };
+  const buses = new Map<string, Int32Array>();
+  const busWires = new Map<string, string>();
+  const busPoints = new Map<number, string>();
+  for (const bus of scene.compiled.buses) {
+    buses.set(
+      bus.id,
+      Int32Array.from(bus.members, (name) => named.get(name) ?? -1),
+    );
+    for (const wire of bus.wires) {
+      busWires.set(wire.id, bus.id);
+      busPoints.set(pointKey(wire.from), bus.id);
+      busPoints.set(pointKey(wire.to), bus.id);
+    }
+    for (const pin of bus.pins) busPoints.set(pointKey(pin.at), bus.id);
+  }
+  return { wires, points, buses, busWires, busPoints };
 }

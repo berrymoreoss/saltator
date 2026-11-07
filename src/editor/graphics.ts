@@ -15,7 +15,7 @@ import type { CanvasTheme } from './theme';
  * (arrow heads, ground bars); `pin`: pin stubs; `text`, `pinText`: text; anything else is a CSS
  * color (an LED's color).
  */
-export type Paint = 'line' | 'body' | 'ink' | 'pin' | 'text' | 'pinText' | (string & {});
+export type Paint = 'line' | 'body' | 'ink' | 'pin' | 'bus' | 'text' | 'pinText' | (string & {});
 
 export interface TextStyle {
   /** Font size in cells. */
@@ -78,6 +78,8 @@ export interface SymbolGraphics {
 export const LINE_WIDTH = 0.1;
 /** Wires are a little heavier than outlines. */
 export const WIRE_WIDTH = 0.125;
+/** Bus lines are much heavier than wires, as schematics draw them. */
+export const BUS_WIDTH = 0.3;
 /** Thin lines never get thinner than this on screen, in CSS px. */
 export const MIN_LINE_PX = 1;
 
@@ -181,6 +183,8 @@ export class CanvasGraphics implements SymbolGraphics {
         return t.partFill;
       case 'pin':
         return this.highlight ?? t.pin;
+      case 'bus':
+        return this.highlight ?? t.bus;
       case 'text':
         return this.highlight ?? t.text;
       case 'pinText':

@@ -118,8 +118,8 @@ Implemented in R02. Full spec: [circuit.md](circuit.md). Rationale:
 
 - **Document**: `{ schemaVersion, circuits: [...] }`; a circuit has component instances
   `{ id, type, x, y, rotation, flip, props, label? }` and wires, each one straight horizontal or
-  vertical segment `{ id, from, to }` in integer grid coordinates. Immutable values in memory.
-  Later: buses (R10b), subcircuit instances (R11).
+  vertical segment `{ id, from, to, bus? }` in integer grid coordinates (`bus`: a bus line,
+  R10b). Immutable values in memory. Later: subcircuit instances (R11).
 - **A component's id is its designator** (`U1`, `SW1`): readable in netlists, diagnostics and
   test benches. `label` is free display text.
 - **Pin positions are derived** from part definitions (`partLayout`: DIP drawing for packages,
@@ -132,13 +132,17 @@ Implemented in R02. Full spec: [circuit.md](circuit.md). Rationale:
   name (`PinDef.net`); the VCC and GND symbols join `VCC` and `GND` the same way. The compiler
   leaves schematic-only parts out of the netlist and calls a named net by its name
   ([ADR-0015](adr/0015-net-labels.md)).
+- **Buses** (R10b) are groups of nets named by their members (`D[0..7]` → `D0`…`D7`), as in
+  KiCad: bus lines and bus pins (bus labels, bus entries' bus ends) are a second connectivity
+  layer that never touches wires; bus entries join their bit's net by name, so the netlist and
+  the kernel don't know buses ([ADR-0016](adr/0016-buses.md)).
 - **Schema versioning**: every saved document carries `schemaVersion`; loading migrates older
   versions forward and rejects newer ones. Never break old files silently.
 - **Compiler** (`compileCircuit`): document → `Netlist` with deterministic, readable net ids, plus
   the net of every wire and the junction dots for the editor. It never throws on user mistakes.
 - **Design checks** (pre-simulation): unknown part types, invalid props, shorted push-pull
-  outputs, undriven inputs, dangling wires, nets with several names, lone net labels; later
-  power-pin checks.
+  outputs, undriven inputs, dangling wires, nets with several names, lone net labels, bus
+  entries that aren't members of their bus; later power-pin checks.
 
 ## Editor
 

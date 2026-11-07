@@ -28,8 +28,8 @@ How to read this file:
 | R09a | `feat/74hc-registers`        | 74HC flip-flops, registers + timing checks | done    |
 | R09b | `feat/74hc-counters`         | 74HC counters & shift registers            | done    |
 | R10a | `feat/net-labels`            | Net labels                                 | done    |
-| R10b | `feat/buses`                 | Buses, rippers, bus values                 | next    |
-| R11  | `feat/subcircuits`           | Hierarchical design                        | planned |
+| R10b | `feat/buses`                 | Buses, rippers, bus values                 | done    |
+| R11  | `feat/subcircuits`           | Hierarchical design                        | next    |
 | R12  | `feat/memory`                | ROM / RAM + memory inspector               | planned |
 | R13  | `feat/logic-analyzer`        | Waveforms & probes                         | planned |
 | R14  | `feat/debugger`              | Breakpoints, stepping, watches             | planned |
@@ -216,13 +216,24 @@ them. Example: Net Labels. Spec: [circuit.md](circuit.md#connectivity),
 [components.md](components.md#net-labels-net). Decision: [ADR-0015](adr/0015-net-labels.md).
 Plan: `.ai/plans/feat-net-labels.md`.
 
-### R10b · Buses, rippers, bus values — `feat/buses` — `next`
+### R10b · Buses, rippers, bus values — `feat/buses` — `done`
 
-Multi-bit buses with bus rippers/splitters and bus labels, the bus value shown in hex while
-simulating. Builds on R10a's names (`D0`…`D7`); the bus model (KiCad-style, joined by member
-names, or Logisim-style rippers by bit index) is decided when it starts.
+Buses as KiCad has them: a bus is a group of ordinary nets named by its members (`D[0..7]` →
+`D0`…`D7`; names with indices 0…99 either way round), so the kernel and the netlist don't
+change. Bus lines (`Wire.bus`, document schema v2 with an identity migration) and bus pins
+(`PinDef.bus`) are a second connectivity layer that never touches wires: a wire ending on a bus
+is dangling ("use a bus entry"); bus junction dots only where bus lines meet. A net label named
+like a bus is a bus label; `net/bus-entry` (KiCad's 45° entry, `BE`, `Z`) carries its member's
+name and joins it like a label, placed by its bit end so clicking down a chip's data pins gives
+`D0`…`D7`. Checks `bus-entry-member`, `multiple-net-names` on buses, `single-net-label` for
+entries. Bus lines heavy in a bus color, `X`/`Z` when members are; the value (`0x3F`, `X`/`Z`
+nibbles) on bus labels while simulating; Properties lists a bus's bits with hex, binary and
+decimal. The Bus tool (`B`), buses dragged out of bus pins, rubber-banding and normalization per
+layer. Example: Data Bus (74HC245 → bus → 74HC574 → LEDs). Spec:
+[circuit.md](circuit.md#buses), [components.md](components.md#net-labels-net). Decision:
+[ADR-0016](adr/0016-buses.md). Plan: `.ai/plans/feat-buses.md`.
 
-### R11 · Hierarchical design — `feat/subcircuits`
+### R11 · Hierarchical design — `feat/subcircuits` — `next`
 
 Multiple circuits per project, subcircuit instances with generated or custom symbols, navigation
 into instances while simulating. A subcircuit's interface pins (ports) join the Place menu (R10a).
@@ -322,6 +333,9 @@ Promote to a numbered item when needed.
   but not simulated (BOM, breadboard view), a 555 reading its R and C from them, and turning a
   potentiometer with the Interact tool (Ben's clock speed knob); a read-only hint of a 555's
   resulting frequency in Properties. CMOS 555s (TLC555, ICM7555) and the 556 with the same model.
+- Bus follow-ups (R10b): a multi-bit ripper (one part fanning a bus out to N adjacent pins);
+  a radix setting for bus values (decimal, binary on the canvas); KiCad group buses (`{A B}`)
+  and bus aliases if ever needed.
 - Net highlighting (R10a follow-up): selecting or hovering a wire or net label highlights every
   wire and label of its net, across labels.
 - Placing VCC/GND symbols by their pin (R10a follow-up), as net labels are placed, so a click on

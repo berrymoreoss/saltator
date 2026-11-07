@@ -11,8 +11,9 @@ drawers, hit-testing, selection and the `Editor` facade (R04a); tools, gestures 
 Modules: `camera`, `scene` + `text-placement`, `hit-test`, `selection`, `graphics`
 (`SymbolGraphics`, upright text), `renderer`, `grid`, `theme`, `symbols/` (drawers by kind,
 DIP, fallbacks), `editor` (the facade: tools, gestures on `PointerInput`, stores), `history`
-(snapshot undo), `move` (rubber-band transforms), `operations` (delete, rotate, flip, nudge),
-`wire-route` (L routes, connection marks), `clipboard` (fragments as document text), `store`,
+(snapshot undo), `move` (rubber-band transforms, per layer: wires, bus lines), `operations`
+(delete, rotate, flip, nudge), `wire-route` (L routes, connection marks, one layer's
+`ConnectionIndex`), `clipboard` (fragments as document text), `store`,
 `preview` (Parts panel), `simulation` (the simulator host: run control, pacing, following edits,
 signal and part views for the renderer), `symbols/interact` (part actions for the Interact tool),
 `recording-graphics` and `fake-clock` (tests), `dev-parts` (renderer fixtures, never in the

@@ -12,7 +12,9 @@ Modules: `document.ts` (types), `schema.ts` + `migrations.ts` (loading), `serial
 (saving), `geometry.ts`, `layout.ts` (pin positions), `connectivity.ts` (nets from wires),
 `compile.ts` + `checks.ts` (netlist, net names, design checks), `builder.ts` (code-first
 documents). Net labels are parts like any other (`schematicOnly`, a pin with a `net` name): the
-compiler joins pins by name and leaves those parts out of the netlist.
+compiler joins pins by name and leaves those parts out of the netlist. Bus lines (`Wire.bus`)
+and bus pins (`PinDef.bus`) are a second layer, connected apart from wires and pins
+(`CompileResult.buses`); `addWires` and `normalizeWires` keep the layers apart.
 `test-parts.ts` holds small part definitions for unit tests: this layer may not import `library`,
 not even in tests; scenarios with real parts live in `tests/scenarios/`.
 

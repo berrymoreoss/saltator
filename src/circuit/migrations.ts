@@ -12,8 +12,11 @@ export type Migration = (doc: RawDocument) => RawDocument;
 
 export type Migrations = Readonly<Record<number, Migration>>;
 
-/** Built-in migrations. Schema v1 is the first version, so there are none yet. */
-export const MIGRATIONS: Migrations = {};
+/** Built-in migrations, keyed by the version they upgrade from. */
+export const MIGRATIONS: Migrations = {
+  // v2 added bus lines (`"bus": true` on a wire); v1 documents have none.
+  1: (doc) => doc,
+};
 
 /**
  * Upgrades `doc` from `from` to `to`, running `migrations[from]`, `migrations[from + 1]`, … and

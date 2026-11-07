@@ -1,13 +1,16 @@
 /**
  * The circuit document: what the user draws and what gets saved. Spec: docs/circuit.md.
  * Documents are immutable values; `loadDocument` builds them from JSON and fills defaults, so in
- * memory every optional field except `label` is present.
+ * memory every optional field except a component's `label` and a wire's `bus` is present.
  */
 import type { PropValue } from '../core';
 import type { Point, Rotation } from './geometry';
 
-/** Version written into every saved document. Bump it together with a migration. */
-export const SCHEMA_VERSION = 1;
+/**
+ * Version written into every saved document. Bump it together with a migration.
+ * v2 (R10b): bus lines (`Wire.bus`).
+ */
+export const SCHEMA_VERSION = 2;
 
 /**
  * Ids of circuits, components (their designators: `U1`, `SW1`) and wires: a letter or `_`, then
@@ -17,7 +20,7 @@ export const ID_PATTERN = /^[A-Za-z_][A-Za-z0-9_-]*$/;
 
 export interface CircuitDocument {
   readonly schemaVersion: typeof SCHEMA_VERSION;
-  /** At least one. Schema v1 uses the first; subcircuits (R11) give the others a meaning. */
+  /** At least one. The first is used; subcircuits (R11) give the others a meaning. */
   readonly circuits: readonly Circuit[];
 }
 
@@ -52,6 +55,11 @@ export interface Wire {
   readonly id: string;
   readonly from: Point;
   readonly to: Point;
+  /**
+   * A bus line: it connects only to bus lines and bus pins (bus entries, bus labels), never to
+   * wires or other pins. Absent on plain wires.
+   */
+  readonly bus?: true;
 }
 
 /** A document holding one empty circuit. */

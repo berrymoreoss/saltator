@@ -3,7 +3,7 @@ import { designatorError } from '../circuit';
 import { formatTime, type PropDef, type PropValue, pinsOf } from '../core';
 import { type Editor, LED_COLORS, type Scene, type ScenePart, type SceneWire } from '../editor';
 import { useStore } from './hooks';
-import { LiveLevel } from './LiveLevel';
+import { LevelBadge, LiveLevel, styleBit } from './LiveLevel';
 import { formatSi, parsePropText, propText } from './prop-input';
 
 /** A prop value as shown to the user: units, enum labels, time in ns/µs/ms. */
@@ -64,7 +64,15 @@ export function PropertiesPanel({
 
   if (parts.length === 1 && wires.length === 0) {
     const part = parts[0]!;
-    return <PartProperties key={part.id} part={part} editor={editor} designatorRef={designator} />;
+    return (
+      <PartProperties
+        key={part.id}
+        part={part}
+        scene={scene}
+        editor={editor}
+        designatorRef={designator}
+      />
+    );
   }
   if (parts.length === 0 && wires.length === 1) {
     return <WireProperties wire={wires[0]!} scene={scene} editor={editor} />;
@@ -166,14 +174,20 @@ const ROTATION_OPTIONS = [0, 90, 180, 270] as const;
 
 function PartProperties({
   part,
+  scene,
   editor,
   designatorRef,
 }: {
   readonly part: ScenePart;
+  readonly scene: Scene;
   readonly editor: Editor;
   readonly designatorRef: Ref<HTMLInputElement>;
 }) {
   const { instance, definition } = part;
+  // A bus label names a bus: show it like a selected bus line.
+  const busPin = part.definition?.schematicOnly
+    ? part.pins.find((p) => p.bus && p.net !== undefined && !p.open)
+    : undefined;
   const defs = definition ? pinsOf(definition, part.props) : [];
   const circuit = editor.state.get().circuit;
   const integer = (text: string) =>
@@ -301,6 +315,7 @@ function PartProperties({
           })}
         </Section>
       )}
+      {busPin?.net !== undefined && <BusSection bus={busPin.net} scene={scene} editor={editor} />}
     </div>
   );
 }
@@ -369,6 +384,64 @@ function PropEditor({
   );
 }
 
+/**
+ * A bus: its name, its value while simulating (hex, binary, decimal when every bit is known) and
+ * each member net with its level, most significant first, as a data sheet lists a bus.
+ */
+function BusSection({
+  bus: id,
+  scene,
+  editor,
+}: {
+  readonly bus: string;
+  readonly scene: Scene;
+  readonly editor: Editor;
+}) {
+  useStore(editor.simulation.ticks);
+  const bus = scene.compiled.buses.find((b) => b.id === id);
+  if (!bus) return null;
+  const live = editor.simulation.busLive(bus.id);
+  const named = new Set(scene.compiled.nets.flatMap((n) => n.names));
+  const bits = live?.members.map(styleBit).reverse().join('');
+  const known = bits !== undefined && /^[01]+$/.test(bits);
+  return (
+    <>
+      <Section title="Bus">
+        <Row label="Name">
+          <span className="mono">{bus.names.length > 0 ? bus.names.join(', ') : 'unnamed'}</span>
+        </Row>
+        <Row label="Members">{bus.members.length}</Row>
+        {live && (
+          <Row label="Value">
+            <span className="mono" data-testid="bus-value">
+              {live.value}
+            </span>{' '}
+            <span className="mono muted">
+              {bits}
+              {known && ` = ${Number.parseInt(bits, 2)}`}
+            </span>
+          </Row>
+        )}
+      </Section>
+      {bus.members.length > 0 && (
+        <Section title="Bits">
+          {bus.members
+            .map((member, i) => (
+              <Row key={member} label={member}>
+                {live ? (
+                  <LevelBadge style={live.members[i]!} />
+                ) : (
+                  !named.has(member) && <span className="muted">no net</span>
+                )}
+              </Row>
+            ))
+            .reverse()}
+        </Section>
+      )}
+    </>
+  );
+}
+
 function WireProperties({
   wire,
   scene,
@@ -378,8 +451,27 @@ function WireProperties({
   readonly scene: Scene;
   readonly editor: Editor;
 }) {
-  const net = scene.compiled.nets.find((n) => n.id === wire.net);
   const length = Math.abs(wire.to[0] - wire.from[0]) + Math.abs(wire.to[1] - wire.from[1]);
+  if (wire.bus) {
+    return (
+      <div className="props" data-testid="wire-properties">
+        <div className="props-heading">
+          <span className="props-name">Bus line {wire.id}</span>
+        </div>
+        <Section title="Bus line">
+          <Row label="From">
+            <span className="mono">{wire.from.join(', ')}</span>
+          </Row>
+          <Row label="To">
+            <span className="mono">{wire.to.join(', ')}</span>
+          </Row>
+          <Row label="Length">{length} cells</Row>
+        </Section>
+        <BusSection bus={wire.net} scene={scene} editor={editor} />
+      </div>
+    );
+  }
+  const net = scene.compiled.nets.find((n) => n.id === wire.net);
   return (
     <div className="props" data-testid="wire-properties">
       <div className="props-heading">

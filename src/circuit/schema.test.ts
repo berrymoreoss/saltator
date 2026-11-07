@@ -71,6 +71,43 @@ describe('loadDocument', () => {
     expect(loaded.circuits[0]!.wires[0]!.from).toEqual([0, 0]);
   });
 
+  it('loads bus lines; plain wires have no bus field', () => {
+    const loaded = loadDocument(
+      doc({
+        wires: [
+          { id: 'w1', from: [0, 0], to: [0, 5], bus: true },
+          { id: 'w2', from: [0, 5], to: [3, 5], bus: false },
+          { id: 'w3', from: [3, 5], to: [3, 7] },
+        ],
+      }),
+    );
+    expect(loaded.circuits[0]!.wires).toEqual([
+      { id: 'w1', from: [0, 0], to: [0, 5], bus: true },
+      { id: 'w2', from: [0, 5], to: [3, 5] },
+      { id: 'w3', from: [3, 5], to: [3, 7] },
+    ]);
+    expect('bus' in loaded.circuits[0]!.wires[1]!).toBe(false);
+    expect(problemsOf(doc({ wires: [{ id: 'w1', from: [0, 0], to: [0, 5], bus: 1 }] }))).toEqual([
+      'circuits[0].wires[0].bus: expected true or false, got 1',
+    ]);
+  });
+
+  it('opens a schema v1 document (before buses) unchanged', () => {
+    const v1 = {
+      schemaVersion: 1,
+      circuits: [
+        {
+          id: 'main',
+          name: 'Main',
+          components: [],
+          wires: [{ id: 'w1', from: [0, 0], to: [2, 0] }],
+        },
+      ],
+    };
+    expect(loadDocument(v1)).toEqual({ ...v1, schemaVersion: SCHEMA_VERSION });
+    expect(SCHEMA_VERSION).toBe(2);
+  });
+
   it('loads an empty document', () => {
     expect(loadDocument(emptyDocument())).toEqual(emptyDocument());
   });

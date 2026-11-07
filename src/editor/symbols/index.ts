@@ -35,6 +35,7 @@ export interface LiveDraw {
   readonly part?: PartLive;
   readonly levelColor: (level: Level) => string;
   readonly pinColor?: (pin: string) => string;
+  readonly busValue?: string;
 }
 
 /**
@@ -62,6 +63,7 @@ export function drawPartBody(
           gateStyle,
           ...(live?.part && { live: live.part, levelColor: live.levelColor }),
           ...(live?.pinColor && { pinColor: live.pinColor }),
+          ...(live?.busValue !== undefined && { busValue: live.busValue }),
         });
       } else {
         drawLabeledBox(g, layout.body, definition?.name ?? drawing.symbol.kind, layout.pins);

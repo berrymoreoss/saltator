@@ -57,6 +57,11 @@ export interface PinDef {
    * name is on one net, without a wire between them (net labels, the VCC and GND symbols).
    */
   readonly net?: string;
+  /**
+   * The pin connects on the bus layer: to bus lines and other bus pins, never to wires or other
+   * pins (a bus entry's bus end, a bus label's pin). `nc` pins only.
+   */
+  readonly bus?: boolean;
 }
 
 /** True for pins whose net level the component may read. */
@@ -258,8 +263,9 @@ export function pinIndex(pins: readonly PinDef[], name: string): PinRef {
 
 /**
  * Throws if pin names are empty or not unique, a label or net name is blank, or a flag doesn't fit
- * the pin: `weak` on a non-driver, `sense` on anything but `in`, `constant` on anything but a
- * strong `out` (or with a level other than 0/1). `where` prefixes the message.
+ * the pin: `weak` on a non-driver, `sense` on anything but `in`, `bus` on anything but `nc`,
+ * `constant` on anything but a strong `out` (or with a level other than 0/1). `where` prefixes
+ * the message.
  */
 export function validatePins(pins: readonly PinDef[], where: string): void {
   const seen = new Set<string>();
@@ -276,6 +282,7 @@ export function validatePins(pins: readonly PinDef[], where: string): void {
       new Error(`${where}: pin "${pin.name}" is "${pin.dir}" and cannot be ${what}`);
     if (pin.weak && !isDriverPin(pin.dir)) throw bad('weak');
     if (pin.sense && pin.dir !== 'in') throw bad('sense');
+    if (pin.bus && pin.dir !== 'nc') throw bad('a bus pin');
     if (pin.constant !== undefined) {
       if (pin.dir !== 'out') throw bad('constant');
       if (pin.weak) throw new Error(`${where}: pin "${pin.name}" cannot be weak and constant`);

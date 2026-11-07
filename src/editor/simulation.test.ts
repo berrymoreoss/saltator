@@ -4,6 +4,7 @@ import { type Level, levelChar, ms, ns } from '../core';
 import { createDefaultRegistry } from '../library';
 import { Editor } from './editor';
 import { FakeClock } from './fake-clock';
+import { selectionOf } from './selection';
 import { ALL_SPEEDS, formatRate, MAX_SPEED, REAL_TIME, SPEEDS } from './simulation';
 import { UNKNOWN_LIGHT } from './symbols';
 import { SignalStyle } from './theme';
@@ -404,6 +405,92 @@ describe('Simulation: signal view', () => {
     simulation.revision.subscribe(() => redraws++);
     clock.frames(30);
     expect(redraws).toBe(0);
+  });
+});
+
+describe('Simulation: buses', () => {
+  /**
+   * Switches SW1…SW4 with bus entries D0…D3 on their outputs, one bus line through the entries'
+   * bus ends, labeled `name`; another bus line labeled Q[0..3] that nothing is named after.
+   */
+  function switches(name = 'D[0..3]') {
+    const b = new CircuitBuilder(registry);
+    for (let i = 0; i < 4; i++) {
+      b.add(`SW${i + 1}`, 'io/switch', { at: [0, 3 * i] });
+      b.add(`BE${i + 1}`, 'net/bus-entry', { at: b.pin(`SW${i + 1}.Y`), props: { name: `D${i}` } });
+    }
+    const [x, y] = b.pin('BE1.B');
+    return b
+      .bus([x, y], [x, 16])
+      .add('NL1', 'net/label', { at: [x, 16], props: { name } })
+      .bus([20, 0], [20, 6])
+      .add('NL2', 'net/label', { at: [20, 6], props: { name: 'Q[0..3]' } })
+      .build();
+  }
+
+  const busLine = (editor: Editor, bus: string) => editor.scene.wires.find((w) => w.net === bus)!;
+
+  it('finds every member by name; members nothing is named after have no net', () => {
+    const { simulation } = setup(switches('D[0..7]'));
+    simulation.run();
+    const members = [...simulation.signals.buses.get('D[0..7]')!];
+    expect(members.slice(0, 4).every((n) => n >= 0)).toBe(true);
+    expect(members.slice(4)).toEqual([-1, -1, -1, -1]);
+    expect([...simulation.signals.buses.get('Q[0..3]')!]).toEqual([-1, -1, -1, -1]);
+  });
+
+  it('shows a bus in the bus color when every member is known, its value on the label', () => {
+    const { clock, editor, simulation } = setup(switches());
+    simulation.run();
+    clock.frame(16);
+    let view = simulation.signalView()!;
+    expect(view.wire(busLine(editor, 'D[0..3]').id)).toBe(SignalStyle.BUS);
+    expect(view.busPoint(editor.scene.partById.get('NL1')!.pins[0]!.at)).toBe(SignalStyle.BUS);
+    expect(view.busValue('D[0..3]')).toBe('0x0');
+    simulation.action('SW1', { type: 'toggle' });
+    simulation.action('SW4', { type: 'toggle' });
+    clock.frame(16);
+    view = simulation.signalView()!;
+    expect(view.busValue('D[0..3]')).toBe('0x9');
+    // Nothing named after Q's members: they float.
+    expect(view.wire(busLine(editor, 'Q[0..3]').id)).toBe(SignalStyle.Z);
+    expect(view.busValue('Q[0..3]')).toBe('0xZ');
+  });
+
+  it('shows a bus with some members floating as unknown', () => {
+    const { clock, editor, simulation } = setup(switches('D[0..7]'));
+    simulation.run();
+    clock.frame(16);
+    const view = simulation.signalView()!;
+    expect(view.wire(busLine(editor, 'D[0..7]').id)).toBe(SignalStyle.X);
+    expect(view.busValue('D[0..7]')).toBe('0xZ0');
+  });
+
+  it('keeps the simulator when bus lines and bus labels change', () => {
+    const { clock, editor, simulation } = setup(switches());
+    simulation.run();
+    clock.frame(16);
+    const before = simulation.simulator;
+    const { circuit } = addWires(
+      editor.state.get().circuit,
+      [
+        [
+          [20, 6],
+          [30, 6],
+        ],
+      ],
+      true,
+    );
+    editor.edit('Bus', circuit);
+    editor.setPartProp('NL1', 'name', 'D[3..0]'); // the same members
+    expect(simulation.simulator).toBe(before);
+    // Q's bus line and its label, moved together.
+    const q = editor.scene.wires.find((w) => w.net === 'Q[0..3]')!;
+    editor.setSelection(selectionOf(['NL2'], [q.id]));
+    editor.nudge(5, 0);
+    expect(editor.scene.wires.find((w) => w.net === 'Q[0..3]')!.from[0]).toBe(q.from[0] + 5);
+    expect(simulation.simulator).toBe(before);
+    expect(simulation.signalView()!.busValue('D[3..0]')).toBe('0x0');
   });
 });
 

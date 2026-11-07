@@ -12,6 +12,8 @@
  * 3. a fixed pin or a fixed wire's interior there gets a new wire from the old point to the new
  *    one, leaving a pin head-on (one cell out before turning) and a wire at a right angle.
  *
+ * Bus lines and wires are separate layers (bus lines connect only to bus lines and bus pins):
+ * each layer rubber-bands on its own, and new segments take the layer of what they continue.
  * The result is not normalized (`Editor.edit` does that). Pure. Spec: docs/editor.md#moving.
  */
 import {
@@ -125,18 +127,48 @@ const same = (a: Point, b: Point) => a[0] === b[0] && a[1] === b[1];
 /** Applies a transform to the selected parts and wires, keeping their connections. */
 export function transformItems(scene: Scene, items: Selection, t: ItemTransform): Circuit {
   const { circuit } = scene;
-  const wires = circuit.wires;
+  const out: Wire[] = [...circuit.wires];
+  const extra = [false, true].map((bus) => transformLayer(scene, items, t, bus, out));
+  const components = circuit.components.map((c) =>
+    items.parts.has(c.id) ? { ...c, ...t.placement(c) } : c,
+  );
+  const ids = IdAllocator.of(circuit);
+  const added = extra.flatMap((segments, layer) =>
+    segments
+      .filter(([a, b]) => !same(a, b))
+      .map(([from, to]): Wire => {
+        const id = ids.next(WIRE_PREFIX);
+        return layer === 1 ? { id, from, to, bus: true } : { id, from, to };
+      }),
+  );
+  return { ...circuit, components, wires: [...out, ...added] };
+}
+
+/**
+ * Rubber-bands one layer (bus lines and bus pins, or wires and the other pins): updates its
+ * wires in `out` and returns the new segments it needs.
+ */
+function transformLayer(
+  scene: Scene,
+  items: Selection,
+  t: ItemTransform,
+  bus: boolean,
+  out: Wire[],
+): Segment[] {
+  const wires = scene.circuit.wires;
+  const inLayer = (i: number) => (wires[i]!.bus === true) === bus;
   const selectedWire = (i: number) => items.wires.has(wires[i]!.id);
+  const pinsOf = (part: Scene['parts'][number]) => part.pins.filter((pin) => pin.bus === bus);
 
   // Fixed things by point.
   const fixedPins = new Map<number, Side>();
   for (const part of scene.parts) {
     if (items.parts.has(part.id)) continue;
-    for (const pin of part.pins) fixedPins.set(pointKey(pin.at), pin.side);
+    for (const pin of pinsOf(part)) fixedPins.set(pointKey(pin.at), pin.side);
   }
   const fixedEnds = new Map<number, number[]>();
   wires.forEach((w, i) => {
-    if (selectedWire(i)) return;
+    if (!inLayer(i) || selectedWire(i)) return;
     for (const end of [w.from, w.to]) {
       const key = pointKey(end);
       const list = fixedEnds.get(key);
@@ -144,18 +176,18 @@ export function transformItems(scene: Scene, items: Selection, t: ItemTransform)
       else fixedEnds.set(key, [i]);
     }
   });
-  const fixedLines = lineIndex(wires, (i) => !selectedWire(i));
-  const movingLines = lineIndex(wires, selectedWire);
+  const fixedLines = lineIndex(wires, (i) => inLayer(i) && !selectedWire(i));
+  const movingLines = lineIndex(wires, (i) => inLayer(i) && selectedWire(i));
 
   // Moving points: pin tips of moved parts, ends of selected wires, and fixed wire ends or pins
   // sitting on a selected wire's interior (they were connected to it).
   const moving = new Map<number, Point>();
   const addMoving = (p: Point) => moving.set(pointKey(p), p);
   for (const part of scene.parts) {
-    if (items.parts.has(part.id)) for (const pin of part.pins) addMoving(pin.at);
+    if (items.parts.has(part.id)) for (const pin of pinsOf(part)) addMoving(pin.at);
   }
   wires.forEach((w, i) => {
-    if (selectedWire(i)) {
+    if (inLayer(i) && selectedWire(i)) {
       addMoving(w.from);
       addMoving(w.to);
     }
@@ -165,10 +197,10 @@ export function transformItems(scene: Scene, items: Selection, t: ItemTransform)
       if (interiorAt(wires, movingLines, p) >= 0) addMoving(p);
     };
     for (const part of scene.parts) {
-      if (!items.parts.has(part.id)) for (const pin of part.pins) attached(pin.at);
+      if (!items.parts.has(part.id)) for (const pin of pinsOf(part)) attached(pin.at);
     }
     wires.forEach((w, i) => {
-      if (!selectedWire(i)) {
+      if (inLayer(i) && !selectedWire(i)) {
         attached(w.from);
         attached(w.to);
       }
@@ -176,13 +208,12 @@ export function transformItems(scene: Scene, items: Selection, t: ItemTransform)
   }
   const isMoving = (p: Point) => moving.has(pointKey(p));
 
-  const out: Wire[] = [...wires];
   const extra: Segment[] = [];
   const claimed = new Set<number>();
 
   // Selected wires move with the selection.
   wires.forEach((w, i) => {
-    if (selectedWire(i)) out[i] = { ...w, from: t.point(w.from), to: t.point(w.to) };
+    if (inLayer(i) && selectedWire(i)) out[i] = { ...w, from: t.point(w.from), to: t.point(w.to) };
   });
 
   /** The single perpendicular wire at a plain corner `a` of wire `i`, or -1. */
@@ -203,7 +234,7 @@ export function transformItems(scene: Scene, items: Selection, t: ItemTransform)
   };
 
   wires.forEach((w, i) => {
-    if (selectedWire(i)) return;
+    if (!inLayer(i) || selectedWire(i)) return;
     const fromMoves = isMoving(w.from);
     const toMoves = isMoving(w.to);
     if (fromMoves && toMoves) {
@@ -269,13 +300,5 @@ export function transformItems(scene: Scene, items: Selection, t: ItemTransform)
     const corner: Point = wireIsHorizontal ? [p[0], p2[1]] : [p2[0], p[1]];
     extra.push([p, corner], [corner, p2]);
   }
-
-  const components = circuit.components.map((c) =>
-    items.parts.has(c.id) ? { ...c, ...t.placement(c) } : c,
-  );
-  const ids = IdAllocator.of(circuit);
-  const added = extra
-    .filter(([a, b]) => !same(a, b))
-    .map(([from, to]): Wire => ({ id: ids.next(WIRE_PREFIX), from, to }));
-  return { ...circuit, components, wires: [...out, ...added] };
+  return extra;
 }

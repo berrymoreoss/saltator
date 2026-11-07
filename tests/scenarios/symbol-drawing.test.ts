@@ -102,9 +102,10 @@ describe('symbol drawing', () => {
       for (const props of propVariants(definition)) {
         const circuit = circuitOf(definition.type, props);
         const compiled = compileCircuit(circuit, registry);
-        const connected = compiled.nets.flatMap((net) =>
-          [...net.pins, ...net.schematicPins].map((p) => [p.pin, p.at]),
-        );
+        const connected = [
+          ...compiled.nets.flatMap((net) => [...net.pins, ...net.schematicPins]),
+          ...compiled.buses.flatMap((bus) => bus.pins),
+        ].map((p) => [p.pin, p.at]);
         const drawn = buildScene(circuit, registry).parts[0]!.pins.map((p) => [p.name, p.at]);
         expect(drawn, definition.type).toEqual(connected);
       }

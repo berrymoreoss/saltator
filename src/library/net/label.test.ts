@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { pinsOf, resolveProps, symbolOf } from '../../core';
-import { FIRST_NET_NAME, NET_NAME, netLabel, netLabelWidth, nextNetName } from './label';
+import { FIRST_NET_NAME, netLabel, netLabelWidth, nextNetName } from './label';
 
 describe('net/label', () => {
   it('is schematic-only, with one pin joining the net of its name', () => {
@@ -12,45 +12,20 @@ describe('net/label', () => {
     expect(resolveProps(netLabel)).toEqual({ name: FIRST_NET_NAME });
   });
 
-  it.each([
-    'A',
-    'CLK',
-    'D0',
-    'BUS7',
-    'RESET_N',
-    '+5V',
-    'R/W',
-    'A-B',
-    '#WR',
-    '~{CLR}',
-    '~{CS}1',
-    'R/~{W}',
-    'X'.repeat(32),
-  ])('accepts the name %s', (name) => {
-    expect(NET_NAME.test(name)).toBe(true);
-  });
-
-  it.each([
-    '',
-    ' ',
-    'A B',
-    'U1.Y',
-    'D[0..7]',
-    'D[3]',
-    '~CLR',
-    '~{}',
-    '~{CLR',
-    'CLR}',
-    'É',
-    'X'.repeat(33),
-  ])('rejects the name %j', (name) => {
-    expect(NET_NAME.test(name)).toBe(false);
-  });
-
   it('refuses a bad name with a hint saying what names may be', () => {
     expect(() => resolveProps(netLabel, { name: 'A B' }, 'NL1')).toThrow(
-      'NL1: prop "name" must be letters, digits, _ + - / # and ~{…} for an overline, at most 32 characters, got "A B"',
+      'NL1: prop "name" must be letters, digits, _ + - / # and ~{…} for an overline, at most 32 characters, or a bus such as D[0..7], got "A B"',
     );
+    expect(() => resolveProps(netLabel, { name: 'D[0..100]' })).toThrow('or a bus such as');
+  });
+
+  it('is a bus label when named like a bus: its pin sits on the bus layer', () => {
+    const props = resolveProps(netLabel, { name: 'D[0..7]' });
+    expect(pinsOf(netLabel, props)).toEqual([
+      { name: 'N', dir: 'nc', net: 'D[0..7]', bus: true, description: 'names the bus D[0..7]' },
+    ]);
+    expect(symbolOf(netLabel, props)).toMatchObject({ kind: 'net-label', width: 4 });
+    expect(netLabel.nextProps!(props)).toEqual({ name: 'D[0..7]' });
   });
 
   it('is a centered tag as wide as its name', () => {

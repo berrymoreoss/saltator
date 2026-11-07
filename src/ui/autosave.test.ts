@@ -306,6 +306,16 @@ describe('restoring a session', () => {
     expect(unsaved.session.saved).toBeUndefined();
   });
 
+  it('a session stored before buses (schema v1) comes back unchanged', () => {
+    const text = serializeDocument(nandDocument(4)).replace(
+      '"schemaVersion": 2',
+      '"schemaVersion": 1',
+    );
+    expect(text).toContain('"schemaVersion": 1');
+    const restored = restoreSession(stored({ text }))!;
+    expect(restored.circuit).toEqual(nandDocument(4).circuits[0]);
+  });
+
   it('a session that no longer loads is skipped', () => {
     expect(restoreSession(stored({ text: '{"schemaVersion": 99}' }))).toBeUndefined();
   });

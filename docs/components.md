@@ -11,7 +11,8 @@ How parts are described in `src/library`. Rationale for modeling chips as packag
 > path, pin `label`s, `si` props and the `timer` family (NE555); R09a added edge-triggered chips,
 > `timing.min` with timing checks, sequential function tables and the pin `clock` flag on
 > packages; R10a added the `net` family (net labels), the `net` pin field, `schematicOnly`,
-> `nextProps`, prop `pattern`s and `centered` symbols.
+> `nextProps`, prop `pattern`s and `centered` symbols; R10b bus labels, bus entries and the
+> `bus` pin field.
 
 ## Families and type ids
 
@@ -23,7 +24,7 @@ the part before the slash (`familyOf(type)`).
 | -------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
 | `prim`   | `prim/nand`, `prim/tristate-buffer`, `prim/pull`                   | Abstract building blocks (Logisim-style), configurable inputs and delay. For prototyping and learning. |
 | `io`     | `io/switch`, `io/button`, `io/led`, `io/clock`, `io/seven-segment` | Interaction and indication: rails, switches, LEDs, displays, clock, probe ([below](#io-parts-io)).     |
-| `net`    | `net/label`                                                        | Schematic-only connections: net labels ([below](#net-labels-net)); bus parts and ports later.          |
+| `net`    | `net/label`, `net/bus-entry`                                       | Schematic-only connections: net and bus labels, bus entries ([below](#net-labels-net)); ports later.   |
 | `74xx`   | `74xx/74hc00`, `74xx/74hc245`, `74xx/74ls189`                      | Real logic chips ([below](#74xx-chips-74xx)). Behavior shared per function; timing per logic family.   |
 | `timer`  | `timer/ne555`                                                      | Analog timers, behavioral: the RC network as props ([below](#timers-timer)).                           |
 | `mem`    | `mem/at28c256`, `mem/62256`                                        | ROM/EEPROM/SRAM with inspectors _(planned, R12)_.                                                      |
@@ -67,6 +68,7 @@ interface PinDef {
   sense?: boolean; // only observes the net (LEDs, displays, probes); `in` pins only
   constant?: 0 | 1; // output tied to this level (rails, constants); strong `out` pins only
   net?: string; // joins the circuit-wide net of this name (net labels, VCC/GND symbols)
+  bus?: boolean; // connects on the bus layer (bus entries' bus ends, bus labels); nc only
 }
 ```
 
@@ -79,7 +81,7 @@ duplicate pin names, flags on the wrong kind of pin, a symbol that doesn't place
 `designatorPrefix` (uppercase letters) is what the editor numbers new instances with, by
 KiCad/IEEE convention: `U` for chips, gates and other logic (the default), `R` resistors, `SW`
 switches and buttons, `D` LEDs, `DS` displays, `X` clocks and oscillators, `TP` probes, `PWR`
-power symbols, `NL` net labels (never drawn).
+power symbols, `NL` net labels and `BE` bus entries (never drawn).
 
 `pins` may be a function of the (resolved) props, for parts whose pin count is configurable
 (N-input gates, DIP-switch banks, LED bars). `pinsOf(definition, props)` returns an instance's
@@ -113,6 +115,10 @@ A pin with `net: 'NAME'` joins the circuit-wide net of that name wherever it sit
 one name is on one net, without a wire between them, and the net is called by the name
 ([circuit.md](circuit.md#connectivity)). The VCC and GND symbols have `net: 'VCC'` / `'GND'`; a
 net label's pin has its `name` prop (its pins are a function of props).
+
+A pin with `bus: true` connects on the bus layer: to bus lines and other bus pins only, never
+to wires or other pins ([circuit.md](circuit.md#connectivity)) — a bus entry's bus end, a bus
+label's pin. Only `nc` pins can be bus pins.
 
 A `schematicOnly` part is drawn and connects but is never simulated: the compiler leaves it out
 of the netlist and keeps its pins apart from the simulated ones, so adding, moving or renaming
@@ -402,16 +408,41 @@ with R11).
 | ---------- | --------------- | ----------------------------------------------------------------------- |
 | `N` (`nc`) | `name` (`NET1`) | `net: name`; designator `NL`, not drawn; symbol `net-label`, `centered` |
 
-- **Names** (`NET_NAME`): letters, digits, `_ + - / #`, and `~{…}` for an overline as in KiCad
-  (`~{CLR}` → C̅L̅R̅, `~{CS}1` → C̅S̅1, `netNameRuns` in core), at most 32 characters,
-  case-sensitive. No whitespace, no `.` (netlists address pins as `U1.Y`), no `[` `]` (kept for
-  bus ranges, R10b). A name's identity is its text: `~{CLR}` and `CLR` are different nets.
+- **Names** (`NET_NAME` in core): letters, digits, `_ + - / #`, and `~{…}` for an overline as in
+  KiCad (`~{CLR}` → C̅L̅R̅, `~{CS}1` → C̅S̅1, `netNameRuns` in core), at most 32 characters,
+  case-sensitive. No whitespace, no `.` (netlists address pins as `U1.Y`), no `[` `]` (they make
+  bus names). A name's identity is its text: `~{CLR}` and `CLR` are different nets.
+- **Bus labels**: a label named like a bus (`BUS_NAME`: a net name, then a range of indices
+  0…99 either way round, `D[0..7]`, `A[15..0]`, at most 32 characters) is a bus label: its pin
+  is a bus pin with `net: name`, so it sits on a bus line, names that bus and joins every bus
+  of that name ([circuit.md](circuit.md#buses)). One Net Label tool for both, as in KiCad; the
+  outline is drawn in the bus color, and while simulating a tag after it shows the bus value
+  (`0x3F`; a nibble whose bits all float `Z`, any other unknown `X` — `busValueText`).
 - **Drawing**: an outlined tag pointing at its connection point (one cell out, like every pin
   stub), the name inside in a monospaced font; the body is as wide as the name
   (`netLabelWidth`) and one cell high, `centered` on the pin's row, so labels stack on adjacent
   DIP pins.
 - **Next name** (`nextNetName`, through `nextProps`): the trailing number incremented, keeping
-  its width (`D0` → `D1`, `A09` → `A10`); a name without one stays (`CLK`).
+  its width (`D0` → `D1`, `A09` → `A10`); a name without one stays (`CLK`, `D[0..7]`).
+
+`net/bus-entry` (`src/library/net`): one bit leaving a bus, KiCad's 45° bus entry carrying its
+member's name. Its bit end joins the net of its name like a net label; its bus end sits on a
+bus line. Schematic-only.
+
+| Pins                          | Props         | Notes                                                     |
+| ----------------------------- | ------------- | --------------------------------------------------------- |
+| `N` (`nc`), `B` (`nc`, `bus`) | `name` (`D0`) | `N`: `net: name`; designator `BE`, not drawn; `bus-entry` |
+
+- **Drawing**: body 1 × 1 with `N` on the left at offset 0 and `B` on the right at offset 1: the
+  bit end at (0, 0), the bus end at (3, 1) — a stub, a diagonal across the body, a heavy bus
+  stub; its name in small text above the bus stub, upright.
+- **Placing**: by its bit end (schematic-only parts are placed by their first pin), each named
+  after the last (`D0` → `D1`): clicking down a chip's adjacent data pins puts `D0`…`D7` on
+  them without wires, their bus ends in one column for a single bus line through them; `F`
+  before placing for a chip's left side. Gaps (the 28C16's GND between D2 and D3) need nothing
+  special.
+- Names are net names, not bus names. An entry on a named bus whose name isn't a member is a
+  `bus-entry-member` warning.
 
 ## 74xx chips (`74xx/*`)
 

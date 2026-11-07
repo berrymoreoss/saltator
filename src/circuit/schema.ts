@@ -135,7 +135,7 @@ const bool: Parser<boolean> = {
 const ROOT_KEYS = ['schemaVersion', 'circuits'];
 const CIRCUIT_KEYS = ['id', 'name', 'components', 'wires'];
 const COMPONENT_KEYS = ['id', 'type', 'label', 'x', 'y', 'rotation', 'flip', 'props'];
-const WIRE_KEYS = ['id', 'from', 'to'];
+const WIRE_KEYS = ['id', 'from', 'to', 'bus'];
 
 class Checker {
   readonly problems: string[] = [];
@@ -207,8 +207,9 @@ class Checker {
       this.fail(path, 'a wire must be horizontal or vertical with non-zero length');
       return undefined;
     }
-    if (wireId === undefined || !from || !to) return undefined;
-    return { id: wireId, from, to };
+    const bus = this.field(value, 'bus', path, bool, false);
+    if (wireId === undefined || !from || !to || bus === undefined) return undefined;
+    return bus ? { id: wireId, from, to, bus } : { id: wireId, from, to };
   }
 
   private props(value: Obj, path: string): Record<string, PropValue> | undefined {

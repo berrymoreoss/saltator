@@ -107,6 +107,9 @@ function galleryRows(dev: boolean): GalleryItem[][] {
       { type: 'net/label', props: { name: '~{CS}1' } },
       ...ROTATIONS.map((rotation) => ({ type: 'net/label', props: { name: 'D0' }, rotation })),
       { type: 'net/label', props: { name: 'D0' }, flip: true },
+      { type: 'net/label', props: { name: 'D[0..7]' } },
+      ...ROTATIONS.map((rotation) => ({ type: 'net/bus-entry', props: { name: 'D0' }, rotation })),
+      { type: 'net/bus-entry', props: { name: 'A15' }, flip: true },
     ],
     chips74xx.map((chip) => ({ type: chip.type })),
     (['astable', 'monostable', 'bistable'] as const).map((mode) => ({

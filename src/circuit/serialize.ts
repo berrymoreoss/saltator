@@ -39,7 +39,7 @@ function componentJson(c: ComponentInstance): Record<string, unknown> {
 }
 
 function wireJson(w: Wire): Record<string, unknown> {
-  return { id: w.id, from: w.from, to: w.to };
+  return { id: w.id, from: w.from, to: w.to, ...(w.bus && { bus: true }) };
 }
 
 /** A JSON array with one inline item per line. */

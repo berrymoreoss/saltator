@@ -35,8 +35,9 @@ export function polylineSegments(points: readonly Point[]): [Point, Point][] {
 }
 
 /**
- * What is drawn where, for routing: pin tips, wire ends, wires by row and column. Built once per
- * gesture from the committed scene.
+ * What is drawn where, for routing: pin tips, wire ends, wires by row and column — of one layer,
+ * wires and their pins or (`bus`) bus lines and bus pins, which never connect to each other.
+ * Built once per gesture from the committed scene.
  */
 export class ConnectionIndex {
   readonly #pins = new Map<number, Side>();
@@ -44,11 +45,12 @@ export class ConnectionIndex {
   readonly #rows = new Map<number, [number, number][]>();
   readonly #cols = new Map<number, [number, number][]>();
 
-  constructor(scene: Scene) {
+  constructor(scene: Scene, bus = false) {
     for (const part of scene.parts) {
-      for (const pin of part.pins) this.#pins.set(pointKey(pin.at), pin.side);
+      for (const pin of part.pins) if (pin.bus === bus) this.#pins.set(pointKey(pin.at), pin.side);
     }
-    for (const { from, to } of scene.wires) {
+    for (const { from, to, bus: line } of scene.wires) {
+      if (line !== bus) continue;
       this.#ends.add(pointKey(from));
       this.#ends.add(pointKey(to));
       const horizontal = from[1] === to[1];

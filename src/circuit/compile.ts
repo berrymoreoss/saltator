@@ -3,6 +3,7 @@
  * (net of every wire, junction dots) and design issues. Spec: docs/circuit.md#compiler.
  */
 import {
+  busMembers,
   type ComponentRegistry,
   isDriverPin,
   type Netlist,
@@ -12,18 +13,21 @@ import {
   resolveProps,
 } from '../core';
 import {
+  busEntryMembers,
+  type CircuitBus,
   type CircuitNet,
   type DesignIssue,
   danglingWires,
+  multipleBusNames,
   multipleNetNames,
   type PlacedPin,
   shortedOutputs,
   singleNetLabels,
   undrivenInputs,
 } from './checks';
-import { connect } from './connectivity';
+import { type Connectivity, connect } from './connectivity';
 import type { Circuit, CircuitDocument, Wire } from './document';
-import type { Point } from './geometry';
+import { type Point, pointKey } from './geometry';
 import { type PartLayout, partLayout, placementOf, placePins } from './layout';
 
 export interface CompileResult {
@@ -31,12 +35,22 @@ export interface CompileResult {
   readonly netlist: Netlist;
   /** Every net with its placed pins and wires, in netlist order. */
   readonly nets: readonly CircuitNet[];
-  /** Net id of every wire, by wire id (for coloring wires by level). */
+  /** Net id of every plain wire, by wire id (for coloring wires by level). */
   readonly wireNets: ReadonlyMap<string, string>;
-  /** Points where a junction dot is drawn, sorted by x, then y. */
+  /** Every bus: bus lines and bus pins, apart from the nets (a layer of their own). */
+  readonly buses: readonly CircuitBus[];
+  /** Bus id of every bus line, by wire id. */
+  readonly wireBuses: ReadonlyMap<string, string>;
+  /** Points where a junction dot is drawn on wires, sorted by x, then y. */
   readonly junctions: readonly Point[];
   /**
-   * Pins that touch nothing at their point (`U1.A`), net labels included. A pin can be open and
+   * Points where three or more bus line ends or interiors meet, sorted by x, then y. Bus pins
+   * don't count: the entries along a bus would each get a dot.
+   */
+  readonly busJunctions: readonly Point[];
+  /**
+   * Pins that touch nothing at their point (`U1.A`), net labels and bus pins included: a bus pin
+   * touches only bus lines and bus pins, other pins only wires and pins. A pin can be open and
    * still share a net by name: a lone VCC symbol, a label away from any wire.
    */
   readonly openPins: ReadonlySet<string>;
@@ -56,6 +70,7 @@ export function compileCircuit(circuit: Circuit, registry: ComponentRegistry): C
   const components: NetlistComponent[] = [];
   const pins: PlacedPin[] = [];
   const schematicPins: PlacedPin[] = [];
+  const busPins: PlacedPin[] = [];
   const layouts = new Map<string, PartLayout>();
 
   for (const instance of circuit.components) {
@@ -98,7 +113,7 @@ export function compileCircuit(circuit: Circuit, registry: ComponentRegistry): C
     const target = schematicOnly ? schematicPins : pins;
     placePins(layout, placementOf(instance)).forEach((placed, i) => {
       const def = defs[i]!;
-      target.push({
+      (def.bus === true ? busPins : target).push({
         component: instance.id,
         pin: def.name,
         dir: def.dir,
@@ -117,13 +132,13 @@ export function compileCircuit(circuit: Circuit, registry: ComponentRegistry): C
     );
   }
 
+  // Two layers that never touch: wires with pins (nets), bus lines with bus pins (buses).
+  const wires = circuit.wires.filter((w) => w.bus !== true);
+  const busWires = circuit.wires.filter((w) => w.bus === true);
+
   // Simulated pins first, so nets keep being numbered by them; label pins only join.
   const allPins = [...pins, ...schematicPins];
-  const connectivity = connect(
-    allPins.map((p) => p.at),
-    circuit.wires,
-    allPins.map((p) => p.net),
-  );
+  const connectivity = connectPins(allPins, wires);
   const groups = Array.from({ length: connectivity.netCount }, () => ({
     pins: [] as PlacedPin[],
     schematicPins: [] as PlacedPin[],
@@ -133,17 +148,31 @@ export function compileCircuit(circuit: Circuit, registry: ComponentRegistry): C
     const group = groups[connectivity.pinNet[i]!]!;
     (i < pins.length ? group.pins : group.schematicPins).push(pin);
   }
-  for (const [i, wire] of circuit.wires.entries()) {
+  for (const [i, wire] of wires.entries()) {
     groups[connectivity.wireNet[i]!]!.wires.push(wire);
   }
   const nets = nameNets(groups);
 
+  const busConnectivity = connectPins(busPins, busWires);
+  const buses = nameBuses(busConnectivity, busPins, busWires);
+  const onBus = busLocator(busPins, busWires);
+  // Bus entries: parts with an unnamed bus pin; each joins the name of its other pin.
+  const entries = new Set(busPins.filter((p) => p.net === undefined).map((p) => p.component));
+  const entryNames = new Map(
+    allPins.flatMap((p) =>
+      entries.has(p.component) && p.net !== undefined ? [[p.component, p.net] as const] : [],
+    ),
+  );
+
   issues.push(
     ...shortedOutputs(nets),
     ...undrivenInputs(nets),
-    ...danglingWires(connectivity.danglingEnds, circuit.wires),
+    ...danglingWires(connectivity.danglingEnds, wires, onBus),
+    ...danglingWires(busConnectivity.danglingEnds, busWires),
     ...multipleNetNames(nets),
-    ...singleNetLabels(nets),
+    ...multipleBusNames(buses),
+    ...singleNetLabels(nets, entries),
+    ...busEntryMembers(buses, entryNames),
   );
   issues.sort((a, b) => severityRank(a) - severityRank(b));
 
@@ -156,13 +185,18 @@ export function compileCircuit(circuit: Circuit, registry: ComponentRegistry): C
       })),
     },
     nets,
-    wireNets: new Map(
-      circuit.wires.map((wire, i) => [wire.id, nets[connectivity.wireNet[i]!]!.id]),
+    wireNets: new Map(wires.map((wire, i) => [wire.id, nets[connectivity.wireNet[i]!]!.id])),
+    buses,
+    wireBuses: new Map(
+      busWires.map((wire, i) => [wire.id, buses[busConnectivity.wireNet[i]!]!.id]),
     ),
     junctions: connectivity.junctions,
-    openPins: new Set(
-      connectivity.openPins.map((i) => `${allPins[i]!.component}.${allPins[i]!.pin}`),
-    ),
+    // Only where bus lines meet: entries and labels along a bus would each get a dot.
+    busJunctions: connect([], busWires).junctions,
+    openPins: new Set([
+      ...connectivity.openPins.map((i) => pinId(allPins[i]!)),
+      ...busConnectivity.openPins.map((i) => pinId(busPins[i]!)),
+    ]),
     issues,
     ok: !issues.some((issue) => issue.severity === 'error'),
   };
@@ -174,6 +208,57 @@ export function compileDocument(
   registry: ComponentRegistry,
 ): CompileResult {
   return compileCircuit(document.circuits[0]!, registry);
+}
+
+const pinId = (pin: PlacedPin) => `${pin.component}.${pin.pin}`;
+
+function connectPins(pins: readonly PlacedPin[], wires: readonly Wire[]): Connectivity {
+  return connect(
+    pins.map((p) => p.at),
+    wires,
+    pins.map((p) => p.net),
+  );
+}
+
+/**
+ * Buses from the bus layer's connectivity. A bus is called by its first name (bus labels, in
+ * code-point order), else its first bus pin (`BE1.B`), else its first bus line. Bus ids are only
+ * compared with each other, so they may repeat a net id.
+ */
+function nameBuses(
+  connectivity: Connectivity,
+  pins: readonly PlacedPin[],
+  wires: readonly Wire[],
+): CircuitBus[] {
+  const groups = Array.from({ length: connectivity.netCount }, () => ({
+    pins: [] as PlacedPin[],
+    wires: [] as Wire[],
+  }));
+  for (const [i, pin] of pins.entries()) groups[connectivity.pinNet[i]!]!.pins.push(pin);
+  for (const [i, wire] of wires.entries()) groups[connectivity.wireNet[i]!]!.wires.push(wire);
+  return groups.map((group) => {
+    const names = [...new Set(group.pins.flatMap((p) => (p.net === undefined ? [] : [p.net])))];
+    names.sort(byCodePoint);
+    const pin = group.pins[0];
+    const id = names[0] ?? (pin ? pinId(pin) : group.wires[0]!.id);
+    return { id, names, members: names[0] === undefined ? [] : busMembers(names[0]), ...group };
+  });
+}
+
+/** Whether a point lies on a bus line (ends included) or a bus pin. */
+function busLocator(pins: readonly PlacedPin[], wires: readonly Wire[]): (at: Point) => boolean {
+  const points = new Set(pins.map((p) => pointKey(p.at)));
+  return (at) =>
+    points.has(pointKey(at)) ||
+    wires.some(({ from, to }) => {
+      const [x, y] = at;
+      return (
+        x >= Math.min(from[0], to[0]) &&
+        x <= Math.max(from[0], to[0]) &&
+        y >= Math.min(from[1], to[1]) &&
+        y <= Math.max(from[1], to[1])
+      );
+    });
 }
 
 type NetGroup = Omit<CircuitNet, 'id' | 'names'>;
