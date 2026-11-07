@@ -383,10 +383,26 @@ Checkable statements; verified one by one in the finish-branch workflow.
   before CS̅/WE̅ were first known is ignored (power-on transient, so `zeros` survives gates
   that start `X`). Mutation-checked. 1893 tests.
 
+- 2026-11-07 — tasks 5–8 done but for the 62256: scenarios (`tests/scenarios/memory.test.ts`:
+  a 6116 on a bus through a 74HC245 — with OE̅ following WRITE the RAM fights the 245 for 5 ns,
+  with OE̅ HIGH first the bus turns round cleanly; an AT28C16 hex decoder; a 574 clocked before
+  `tAA` latches `X`), the carry-over property with memories (mutation-checked), the benchmark
+  (16 × 6116 swept by a 4040: ≈ 7.5M events/s, others unchanged). UI: Properties' image summary,
+  the Part tab's limits (every key once with typ/max/min, a limits-only legend, the instance's
+  speed grade; conditions kept short so the table fits). Examples EEPROM 7-Segment Decoder and
+  RAM by Hand (net labels; PROGRAM is a changeover with pull-ups so the 245 drives 1 ns after
+  the RAM lets go), scenario and browser tests. Docs, ADR-0017, recipe, lessons. `pnpm check`
+  (1910), `pnpm e2e` (59) green.
+
 ## Handoff
 
-- **State:** plan approved, branch started; no code yet.
-- **Next step:** task 1 (data sheets).
-- **Watch out:** memory data sheets have no typical values (use the limits); Alliance's site may
-  not hand out the AS6C62256 PDF to curl. Gate commits on `pnpm check`'s exit code.
-- **Verify with:** `pnpm check`.
+- **State:** every task done for the AT28C16/64B/256 and the 6116; the 62256 is missing (task 1
+  and 4 for it): its data sheet (Alliance AS6C62256, 55 ns) has to come from the user. Docs say
+  _(planned, waiting for its data sheet)_ in the components.md table.
+- **Next step:** with the PDF: record its limits in the Data sheets section, add `SRAM_62256`
+  (DIP-28, A0–A14, `CE̅`/`OE̅`/`WE̅`, one grade) to `srams.ts`, tests like the 6116's, the
+  registry and parts lists (`registry.test.ts`), docs' table row; then finish-branch (roadmap:
+  R12a done, R12b next).
+- **Watch out:** the bench leaves pins floating (set the address); gate commits on `pnpm check`'s
+  exit code; the dev server on port 5231 may still be running from this session.
+- **Verify with:** `pnpm check`, `pnpm e2e tests/e2e/memory.spec.ts`.
