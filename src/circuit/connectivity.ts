@@ -5,6 +5,7 @@
  * - A wire end connects to pins, wire ends and wire interiors at its point (T-junction).
  * - A pin connects to wire ends and wire interiors at its point, and to other pins there.
  * - Crossing interiors don't connect; collinear overlapping wires do (an end lies on the other).
+ * - Pins given the same name connect wherever they are (net labels, VCC and GND symbols).
  *
  * Union-find over the points where something ends (wire ends, pins). Points inside wires are found
  * through rows/columns of those points sorted by coordinate: O((P + W) log P), so recompiling large
@@ -37,8 +38,16 @@ export interface Connectivity {
   readonly danglingEnds: readonly WireEnd[];
 }
 
-/** Computes the nets formed by pins (given by their grid points) and axis-aligned wires. */
-export function connect(pins: readonly Point[], wires: readonly WireSegment[]): Connectivity {
+/**
+ * Computes the nets formed by pins (given by their grid points) and axis-aligned wires. `names`
+ * (by pin index, `undefined` for most pins) joins every pin of one name into one net; that adds
+ * no junction dots, since it isn't a geometric connection.
+ */
+export function connect(
+  pins: readonly Point[],
+  wires: readonly WireSegment[],
+  names: readonly (string | undefined)[] = [],
+): Connectivity {
   // Nodes: every distinct point where a wire ends or a pin sits.
   const nodeOf = new Map<number, number>();
   const points: Point[] = [];
@@ -81,6 +90,14 @@ export function connect(pins: readonly Point[], wires: readonly WireSegment[]): 
     degree[wireTo[w]!]!++;
     union(wireFrom[w]!, wireTo[w]!);
   }
+
+  const named = new Map<string, number>();
+  names.forEach((name, pin) => {
+    if (name === undefined) return;
+    const first = named.get(name);
+    if (first === undefined) named.set(name, pinNode[pin]!);
+    else union(first, pinNode[pin]!);
+  });
 
   // Nodes strictly inside a wire join it (T-junctions, pins on a wire, overlapping wires).
   const rows = groupNodes(points, 1, 0); // nodes by y, sorted by x — for horizontal wires

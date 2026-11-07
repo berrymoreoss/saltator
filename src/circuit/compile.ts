@@ -48,6 +48,7 @@ export function compileCircuit(circuit: Circuit, registry: ComponentRegistry): C
   const issues: DesignIssue[] = [];
   const components: NetlistComponent[] = [];
   const pins: PlacedPin[] = [];
+  const schematicPins: PlacedPin[] = [];
   const layouts = new Map<string, PartLayout>();
 
   for (const instance of circuit.components) {
@@ -86,18 +87,22 @@ export function compileCircuit(circuit: Circuit, registry: ComponentRegistry): C
       layouts.set(key, layout);
     }
     const defs = pinsOf(definition, props);
+    const schematicOnly = definition.schematicOnly === true;
+    const target = schematicOnly ? schematicPins : pins;
     placePins(layout, placementOf(instance)).forEach((placed, i) => {
       const def = defs[i]!;
-      pins.push({
+      target.push({
         component: instance.id,
         pin: def.name,
         dir: def.dir,
         weak: def.weak === true,
         sense: def.sense === true,
         ...(def.constant !== undefined && { constant: def.constant }),
+        ...(def.net !== undefined && { net: def.net }),
         at: placed.at,
       });
     });
+    if (schematicOnly) continue;
     components.push(
       Object.keys(instance.props).length > 0
         ? { id: instance.id, type: instance.type, props: instance.props }
@@ -105,19 +110,26 @@ export function compileCircuit(circuit: Circuit, registry: ComponentRegistry): C
     );
   }
 
+  // Simulated pins first, so nets keep being numbered by them; label pins only join.
+  const allPins = [...pins, ...schematicPins];
   const connectivity = connect(
-    pins.map((p) => p.at),
+    allPins.map((p) => p.at),
     circuit.wires,
+    allPins.map((p) => p.net),
   );
   const groups = Array.from({ length: connectivity.netCount }, () => ({
     pins: [] as PlacedPin[],
+    schematicPins: [] as PlacedPin[],
     wires: [] as Wire[],
   }));
-  for (const [i, pin] of pins.entries()) groups[connectivity.pinNet[i]!]!.pins.push(pin);
+  for (const [i, pin] of allPins.entries()) {
+    const group = groups[connectivity.pinNet[i]!]!;
+    (i < pins.length ? group.pins : group.schematicPins).push(pin);
+  }
   for (const [i, wire] of circuit.wires.entries()) {
     groups[connectivity.wireNet[i]!]!.wires.push(wire);
   }
-  const nets: CircuitNet[] = groups.map((g) => ({ id: netName(g.pins, g.wires), ...g }));
+  const nets = nameNets(groups);
 
   issues.push(
     ...shortedOutputs(nets),
@@ -152,13 +164,45 @@ export function compileDocument(
   return compileCircuit(document.circuits[0]!, registry);
 }
 
+type NetGroup = Omit<CircuitNet, 'id' | 'names'>;
+
 /**
- * A readable, deterministic net id: the net's first driver pin (`U1.Y`), else its first pin, else
- * its first wire. Pin names contain a dot and ids don't, so these never collide.
+ * Readable, deterministic net ids. A named net is called by its first name (`CLK`, `VCC`); other
+ * nets by their first driver pin (`U1.Y`), else their first pin, else their first wire. Pin ids
+ * contain a dot and names and wire ids don't; a wire id that is also some net's name gets a
+ * `#2` suffix.
  */
-function netName(pins: readonly PlacedPin[], wires: readonly Wire[]): string {
-  const named = pins.find((p) => isDriverPin(p.dir)) ?? pins[0];
-  return named ? `${named.component}.${named.pin}` : wires[0]!.id;
+function nameNets(groups: readonly NetGroup[]): CircuitNet[] {
+  const names = groups.map(namesOf);
+  const taken = new Set(names.flat());
+  return groups.map((group, i) => {
+    const own = names[i]!;
+    let id = own[0];
+    if (id === undefined) {
+      const base = unnamedId(group);
+      id = base;
+      for (let n = 2; taken.has(id); n++) id = `${base}#${n}`;
+      taken.add(id);
+    }
+    return { id, names: own, ...group };
+  });
+}
+
+/** Names from simulated pins (VCC, GND), then from labels, each group in code-point order. */
+function namesOf(group: NetGroup): string[] {
+  const names = new Set<string>();
+  for (const list of [group.pins, group.schematicPins]) {
+    const own = list.flatMap((p) => (p.net === undefined ? [] : [p.net]));
+    for (const name of own.sort(byCodePoint)) names.add(name);
+  }
+  return [...names];
+}
+
+const byCodePoint = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+
+function unnamedId({ pins, schematicPins, wires }: NetGroup): string {
+  const pin = pins.find((p) => isDriverPin(p.dir)) ?? pins[0] ?? schematicPins[0];
+  return pin ? `${pin.component}.${pin.pin}` : wires[0]!.id;
 }
 
 const severityRank = (issue: DesignIssue) => (issue.severity === 'error' ? 0 : 1);

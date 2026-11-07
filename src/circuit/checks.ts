@@ -36,13 +36,23 @@ export interface PlacedPin {
   readonly sense: boolean;
   /** The output is tied to this level (rails, constants). */
   readonly constant?: 0 | 1;
+  /** The circuit-wide net the pin joins by name (net labels, VCC and GND symbols). */
+  readonly net?: string;
   readonly at: Point;
 }
 
 /** A net of the compiled circuit, with everything on it in document order. */
 export interface CircuitNet {
   readonly id: string;
+  /**
+   * The names its pins give it, the one it is called by first: names from simulated pins (VCC,
+   * GND) before names from net labels, each in code-point order. Empty for unnamed nets.
+   */
+  readonly names: readonly string[];
+  /** Pins of simulated parts (the netlist's pins). */
   readonly pins: readonly PlacedPin[];
+  /** Pins of schematic-only parts (net labels): drawn and connected, never simulated. */
+  readonly schematicPins: readonly PlacedPin[];
   readonly wires: readonly Wire[];
 }
 
@@ -91,7 +101,7 @@ export function undrivenInputs(nets: readonly CircuitNet[]): DesignIssue[] {
   const issues: DesignIssue[] = [];
   for (const net of nets) {
     if (net.pins.some((p) => isDriverPin(p.dir))) continue;
-    const alone = net.pins.length === 1 && net.wires.length === 0;
+    const alone = net.pins.length === 1 && net.wires.length === 0 && net.schematicPins.length === 0;
     for (const pin of net.pins) {
       if (pin.dir !== 'in' || pin.sense) continue;
       issues.push({
