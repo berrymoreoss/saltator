@@ -251,6 +251,11 @@ Checkable statements; verified one by one in the finish-branch workflow.
   do, with the same maxima — _proposed:_ TI pins, names and function, typical delays from
   Philips, maxima from TI. — **answer:** as proposed; both documents cited.
 
+- [x] Q7. (found in task 10) Ben's bistable 555 is driven by an SPDT switch with its common on
+  GND and its throws on TRIG and RESET; `io/switch` `spdt` has one output between the rails —
+  _proposed:_ a changeover contact (`spdt-gnd`, `spdt-vcc`: throws `ON`, `OFF`, the open one
+  released); alternatives: an inverter, two SPST switches. — **answer:** changeover contact.
+
 ## Progress log
 
 - 2026-11-07 — plan drafted. Web searches: Nexperia has current sheets for 85, 158, 4511; none

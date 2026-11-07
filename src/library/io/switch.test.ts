@@ -26,6 +26,31 @@ describe('io/switch', () => {
     ]);
   });
 
+  // A changeover with its common on a rail: the closed throw carries the rail, the other floats.
+  it.each([
+    ['spdt-gnd', false, { ON: 'Z', OFF: '0' }],
+    ['spdt-gnd', true, { ON: '0', OFF: 'Z' }],
+    ['spdt-vcc', false, { ON: 'Z', OFF: '1' }],
+    ['spdt-vcc', true, { ON: '1', OFF: 'Z' }],
+  ] as const)('%s, on = %s: throws %o', (contact, on, levels) => {
+    const bench = new Bench(toggleSwitch, { contact, on });
+    bench.settle();
+    expect(bench.levels()).toEqual(levels);
+    expect(bench.pins.map((p) => [p.name, p.dir])).toEqual([
+      ['ON', 'tristate'],
+      ['OFF', 'tristate'],
+    ]);
+  });
+
+  it('changes over both throws at the time of the action', () => {
+    const bench = new Bench(toggleSwitch, { contact: 'spdt-gnd' });
+    bench.settle();
+    bench.action({ type: 'toggle' }).settle();
+    bench.expect({ ON: 0, OFF: 'Z' });
+    bench.action({ type: 'set', on: false }).settle();
+    bench.expect({ ON: 'Z', OFF: 0 });
+  });
+
   it('defaults to an SPDT switch that is off at power-on', () => {
     const bench = new Bench(toggleSwitch);
     bench.settle();

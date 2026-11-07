@@ -82,6 +82,7 @@ function galleryRows(dev: boolean): GalleryItem[][] {
       { type: 'io/switch', props: { on: true }, note: 'SPDT on' },
       { type: 'io/switch', props: { contact: 'spst-vcc' }, note: 'SPST to VCC' },
       { type: 'io/switch', props: { contact: 'spst-gnd', on: true }, note: 'SPST to GND, on' },
+      { type: 'io/switch', props: { contact: 'spdt-gnd' }, note: 'changeover to GND' },
       { type: 'io/button', note: 'to VCC' },
       { type: 'io/button', props: { contact: 'spdt' }, note: 'SPDT' },
       { type: 'io/dip-switch', props: { count: 4, on: 5 } },
