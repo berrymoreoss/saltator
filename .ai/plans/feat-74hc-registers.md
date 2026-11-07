@@ -207,7 +207,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   looked at in both themes.
 - [x] 11. Example: SAP-1 register per Q4, run by a scenario test, looked at in the browser;
   File ▸ New from Example lists it.
-- [ ] 12. e2e: the SAP-1 register loads a value from the bus and drives it back; the Part tab
+- [x] 12. e2e: the SAP-1 register loads a value from the bus and drives it back; the Part tab
   of the 74HC74 shows its timing; a too-fast clock on a 74HC74 shows a timing violation.
 - [ ] 13. Docs: components.md (sequential chips, timing checks, `timing.min`), simulation.md
   (timing checks replace "planned"), editor.md (Part tab timing, error severity), ADR-0014,
@@ -327,6 +327,12 @@ Checkable statements; verified one by one in the finish-branch workflow.
   (right the first time), written canonically (resolved props, normalized wires), then deleted;
   a scenario test runs it (clear, load from the switches, drive the bus back, no diagnostics).
   Looked at in Chromium in both themes: no design issues.
+- 2026-11-07 — task 12: `tests/e2e/registers.spec.ts` — the Part tab's Timing table of the
+  74HC74 (tsu min 15 ns, source); a 74HC74 clocked at 30 MHz (typed `30M`) reports
+  `1CP was HIGH for only …` as an error in the Simulation tab; the SAP-1 A Register example
+  opens with no design issues and runs with no diagnostics (clicking its switches would need
+  canvas coordinates of a fitted view; its behavior is the scenario test's). `pnpm e2e`: 48
+  passed.
 
 ## Handoff
 
