@@ -346,14 +346,6 @@ export function createCommands({
         id: item.id,
         label: item.label,
         ...(item.shortcuts && { shortcuts: item.shortcuts }),
-        checked: () => {
-          const tool = editor.tool.get();
-          return (
-            typeof tool === 'object' &&
-            tool.type === item.type &&
-            tool.props?.direction === item.props?.direction
-          );
-        },
         run: () => editor.placePart(item.type, item.props),
       }),
     ),

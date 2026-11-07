@@ -109,4 +109,18 @@ describe('prop input', () => {
     expect(parsePropText(choice, 'green')).toEqual({ value: 'green' });
     expect(parsePropText(choice, 'mauve')).toEqual({ error: 'Choose one of the options.' });
   });
+
+  it('checks a string prop with a pattern, without the spaces at its ends', () => {
+    const name: PropDef = {
+      key: 'name',
+      label: 'Name',
+      type: 'string',
+      default: 'A',
+      pattern: { regex: /^[A-Z]+$/, hint: 'capital letters' },
+    };
+    expect(parsePropText(name, ' CLK ')).toEqual({ value: 'CLK' });
+    expect(parsePropText(name, 'a b')).toEqual({ error: 'Use capital letters.' });
+    const free: PropDef = { key: 'text', label: 'Text', type: 'string', default: '' };
+    expect(parsePropText(free, ' a b ')).toEqual({ value: ' a b ' });
+  });
 });

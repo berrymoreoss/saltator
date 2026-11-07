@@ -25,6 +25,12 @@ export const EXAMPLE_FILES: readonly ExampleFile[] = [
     description: 'A + B with a 74HC86 (XOR → Sum) and a 74HC08 (AND → Carry).',
   },
   {
+    id: 'net-labels',
+    title: 'Net Labels',
+    description:
+      'Switches A and B reach a 74HC00 through labels, not wires; labels named GND tie its unused inputs.',
+  },
+  {
     id: 'sr-latch',
     title: 'SR Latch',
     description:

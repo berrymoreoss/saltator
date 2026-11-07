@@ -106,8 +106,15 @@ export function parsePropText(def: PropDef, text: string): Parsed {
       return def.options?.some((o) => o.value === trimmed)
         ? { value: trimmed }
         : { error: 'Choose one of the options.' };
-    case 'color':
     case 'string':
+      // A pattern (net names) never allows spaces at the ends: drop them rather than refuse.
+      if (def.pattern) {
+        return def.pattern.regex.test(trimmed)
+          ? { value: trimmed }
+          : { error: `Use ${def.pattern.hint}.` };
+      }
+      return { value: text };
+    case 'color':
       return { value: text };
   }
 }
