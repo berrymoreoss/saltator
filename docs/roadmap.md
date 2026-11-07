@@ -13,32 +13,32 @@ How to read this file:
 
 ## Overview
 
-| ID   | Branch                       | Title                                      | Status  |
-| ---- | ---------------------------- | ------------------------------------------ | ------- |
-| R00  | — (initial commit on `main`) | Foundation                                 | done    |
-| R01  | `feat/engine-core`           | Simulation kernel                          | done    |
-| R02  | `feat/circuit-model`         | Circuit document & netlist compiler        | done    |
-| R03  | `feat/io-basic`              | Basic IO parts (headless)                  | done    |
-| R04a | `feat/editor-canvas`         | App shell & schematic view                 | done    |
-| R04b | `feat/editor-tools`          | Schematic editing                          | done    |
-| R05  | `feat/sim-ui`                | Running simulations in the editor          | done    |
-| R06  | `feat/74hc-gates`            | 74HC gates & bus buffers                   | done    |
-| R07  | `feat/persistence`           | Save, load, examples                       | done    |
-| R08  | `feat/74hc-msi`              | 74HC combinational MSI                     | done    |
-| R09a | `feat/74hc-registers`        | 74HC flip-flops, registers + timing checks | done    |
-| R09b | `feat/74hc-counters`         | 74HC counters & shift registers            | done    |
-| R10a | `feat/net-labels`            | Net labels                                 | done    |
-| R10b | `feat/buses`                 | Buses, rippers, bus values                 | next    |
-| R11  | `feat/subcircuits`           | Hierarchical design                        | planned |
-| R12  | `feat/memory`                | ROM / RAM + memory inspector               | planned |
-| R13  | `feat/logic-analyzer`        | Waveforms & probes                         | planned |
-| R14  | `feat/debugger`              | Breakpoints, stepping, watches             | planned |
-| R15  | `feat/test-benches`          | Circuit test benches ("test before fab")   | planned |
-| R16  | `example/sap-1`              | Ben Eater SAP-1 reference build            | planned |
-| R17  | `feat/cpu-6502`              | W65C02S CPU                                | planned |
-| R18  | `feat/peripherals`           | VIA, LCD, serial, buzzer                   | planned |
-| R19  | `feat/toolchain`             | 6502 assembler & flashing                  | planned |
-| R20  | `example/be6502`             | Ben Eater 6502 reference build             | planned |
+| ID   | Branch                       | Title                                      | Status      |
+| ---- | ---------------------------- | ------------------------------------------ | ----------- |
+| R00  | — (initial commit on `main`) | Foundation                                 | done        |
+| R01  | `feat/engine-core`           | Simulation kernel                          | done        |
+| R02  | `feat/circuit-model`         | Circuit document & netlist compiler        | done        |
+| R03  | `feat/io-basic`              | Basic IO parts (headless)                  | done        |
+| R04a | `feat/editor-canvas`         | App shell & schematic view                 | done        |
+| R04b | `feat/editor-tools`          | Schematic editing                          | done        |
+| R05  | `feat/sim-ui`                | Running simulations in the editor          | done        |
+| R06  | `feat/74hc-gates`            | 74HC gates & bus buffers                   | done        |
+| R07  | `feat/persistence`           | Save, load, examples                       | done        |
+| R08  | `feat/74hc-msi`              | 74HC combinational MSI                     | done        |
+| R09a | `feat/74hc-registers`        | 74HC flip-flops, registers + timing checks | done        |
+| R09b | `feat/74hc-counters`         | 74HC counters & shift registers            | done        |
+| R10a | `feat/net-labels`            | Net labels                                 | done        |
+| R10b | `feat/buses`                 | Buses, rippers, bus values                 | in-progress |
+| R11  | `feat/subcircuits`           | Hierarchical design                        | planned     |
+| R12  | `feat/memory`                | ROM / RAM + memory inspector               | planned     |
+| R13  | `feat/logic-analyzer`        | Waveforms & probes                         | planned     |
+| R14  | `feat/debugger`              | Breakpoints, stepping, watches             | planned     |
+| R15  | `feat/test-benches`          | Circuit test benches ("test before fab")   | planned     |
+| R16  | `example/sap-1`              | Ben Eater SAP-1 reference build            | planned     |
+| R17  | `feat/cpu-6502`              | W65C02S CPU                                | planned     |
+| R18  | `feat/peripherals`           | VIA, LCD, serial, buzzer                   | planned     |
+| R19  | `feat/toolchain`             | 6502 assembler & flashing                  | planned     |
+| R20  | `example/be6502`             | Ben Eater 6502 reference build             | planned     |
 
 ---
 
@@ -216,7 +216,7 @@ them. Example: Net Labels. Spec: [circuit.md](circuit.md#connectivity),
 [components.md](components.md#net-labels-net). Decision: [ADR-0015](adr/0015-net-labels.md).
 Plan: `.ai/plans/feat-net-labels.md`.
 
-### R10b · Buses, rippers, bus values — `feat/buses` — `next`
+### R10b · Buses, rippers, bus values — `feat/buses` — `in-progress`
 
 Multi-bit buses with bus rippers/splitters and bus labels, the bus value shown in hex while
 simulating. Builds on R10a's names (`D0`…`D7`); the bus model (KiCad-style, joined by member
