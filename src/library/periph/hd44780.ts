@@ -487,8 +487,19 @@ export const hd44780 = defineComponent<Hd44780Props, Hd44780State>({
             message: `E is ${e === Level.X ? 'unknown' : 'floating'}: a transfer may or may not happen`,
             pin: E,
           });
-          if (st.open) end(ctx, 0xff, false);
-          else begin(ctx, 0, false);
+          // A transfer may start, or the one under way may end or not: it stays open, uncertain,
+          // until E is known LOW again. A read keeps driving X meanwhile — releasing the bus
+          // now could hand E back to a driver it fights (a data pin on E's own net would make
+          // E flip every tDHR).
+          if (!st.open) begin(ctx, 0, false);
+          else {
+            st.uncertain = 1;
+            if (st.outPins && st.outX !== 0xff) {
+              st.outX = 0xff;
+              st.readGen++;
+              driveOutput(ctx, 0, 0xff);
+            }
+          }
         }
 
         // RS and R/W̅ must hold from tAS before E rises until tAH after it falls.

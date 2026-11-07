@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { ms, ns, TimingViolation, us } from '../../core';
 import { Bench } from '../../core/testing';
 import { hd44780 } from './hd44780';
-import { Hd44780Diagnostic, Unknown } from './hd44780-controller';
+import { ALL_UNKNOWN, Hd44780Diagnostic, Iface, Unknown } from './hd44780-controller';
 import { busValues, LcdBench, SAFE } from './test-helpers';
 
 const kinds = (lcd: LcdBench) => lcd.bench.diagnostics.map((d) => `${d.kind} ${d.pin ?? ''}`);
@@ -258,6 +258,39 @@ describe('unknowns', () => {
     lcd.command(0x01, ms(2));
     expect(lcd.text).toEqual([' '.repeat(16), ' '.repeat(16)]);
     expect(lcd.controller.unknown).toBe(0);
+  });
+
+  /** Writes an instruction with the bus bits in `xBits` unknown. */
+  function instructionWithX(lcd: LcdBench, byte: number, xBits: number) {
+    const unknown = Object.fromEntries(
+      [0, 1, 2, 3, 4, 5, 6, 7].filter((i) => (xBits >> i) & 1).map((i) => [`DB${i}`, 'X'] as const),
+    );
+    lcd.bench.set({ RS: 0, RW: 0, ...busValues(byte), ...unknown });
+    lcd.run(ns(100));
+    lcd.bench.set({ E: 1 });
+    lcd.run(ns(300));
+    lcd.bench.set({ E: 0 });
+    lcd.run(us(60));
+  }
+
+  it('runs an instruction with up to 3 unknown bits once per value it could have', () => {
+    const lcd = ready();
+    instructionWithX(lcd, 0x80, 0x07); // Set DDRAM 0x00–0x07
+    const c = lcd.controller;
+    // Every value loads the same blank into the data register: only AC is unknown.
+    expect(c.unknown).toBe(Unknown.AC);
+    expect(c.ac & 0x78).toBe(0); // the known bits stay known
+  });
+
+  it('gives up on more: any instruction may have run, everything it could touch unknown', () => {
+    const lcd = ready().data('ok');
+    instructionWithX(lcd, 0x00, 0xff);
+    const c = lcd.controller;
+    expect(c.unknown).toBe(ALL_UNKNOWN);
+    expect(c.iface).toBe(Iface.EIGHT | Iface.HIGH);
+    expect([...c.ddramX.slice(0, 3)]).toEqual([0x20 ^ 0x6f, 0x20 ^ 0x6b, 0]); // a Clear's spaces
+    lcd.write(0, 0x01).run(us(60));
+    expect(lcd.diagnostics()).toEqual([expect.stringMatching(/^busy-violation: .* may be busy/)]);
   });
 
   it('reports E going unknown once it was known, and the transfer may have happened', () => {

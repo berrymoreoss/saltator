@@ -305,3 +305,21 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
   the chip's pin row and shorts everything (the R02/R04b lesson bit again: a 74HC161's outputs on
   VCC). Join pins with net labels placed at the pin tips (`b.pin('U1.CP')`) instead, and check
   `compileCircuit(…).netlist.nets` once.
+- 2026-11-08 (LCD) — A mutation script that times vitest out with `subprocess.run(timeout=…)`
+  kills only the parent: its workers stay, orphaned (PPID 1), each spinning at 100 % CPU for
+  hours and slowing every later run. Start vitest in its own session (`start_new_session=True`)
+  and `os.killpg` the group on a timeout; after an interrupted run, `pgrep -fl vitest`.
+- 2026-11-08 (LCD) — Running every possible outcome and merging them is exact but multiplies:
+  an instruction with 8 unknown bits (a floating bus) × 24 outcomes of an uncertain transfer was
+  thousands of state copies per `E` edge, and a random-network property test ran out of memory
+  (vitest diffing two huge change lists made it look like a crash). Enumerate only a few unknown
+  bits (≤ 3) and fall back to "anything may have changed" beyond; drive the property test's
+  inputs to known levels first (reset the counter).
+- 2026-11-08 (LCD) — A part that drives `X` onto a net and reacts to that net going `X` can ring
+  with a period of its own delays (the LCD's read released the bus `tDHR` after `E` went `X` —
+  and a data pin on `E`'s net gave `E` back to the clock: 12M net changes in 10 ms). Keep an
+  uncertain state until the input is known again instead of acting on every `X`; the kernel's
+  oscillation guard only catches loops within one instant.
+- 2026-11-08 (LCD) — The canvas redraws on events and light changes only: anything whose look
+  changes with time alone (a blinking cursor) needs `ComponentDefinition.animation`. A page
+  script that edits a part's state in place doesn't redraw either — move the camera.

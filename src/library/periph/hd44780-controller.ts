@@ -378,6 +378,35 @@ function runInstruction(
 }
 
 /**
+ * Instructions with more unknown bits than this aren't run value by value (2⁸ values in up to
+ * 24 outcomes of a transfer would cost thousands of runs per `E` edge on a floating bus): any
+ * instruction may have run.
+ */
+const MAX_ENUMERATED_BITS = 3;
+
+/**
+ * What some instruction may have done: every register, the cells a Clear display writes, the
+ * interface (a function set with either DL; any other leaves 8-bit or awaits a high nibble),
+ * busy for up to the longest execution (or not at all: 0x00 is no instruction).
+ */
+function anyInstruction(c: Controller, now: Time, t: ControllerTiming): void {
+  c.unknown = ALL_UNKNOWN;
+  for (let i = 0; i < 80; i++) c.ddramX[i]! |= c.ddram[i]! ^ SPACE;
+  c.drX = 0xff;
+  c.iface = Iface.EIGHT | Iface.HIGH;
+  c.maybeBusyUntil = Math.max(c.maybeBusyUntil, now + t.long);
+  c.acShownX = 0x7f;
+  c.acShownUntil = Math.max(c.acShownUntil, now + t.long);
+}
+
+/** Number of set bits of a byte. */
+function bitCount(x: number): number {
+  let n = 0;
+  for (let v = x & 0xff; v; v &= v - 1) n++;
+  return n;
+}
+
+/**
  * Runs an instruction byte whose bits may be unknown (`x`), sets the interface mode after it:
  * a function set's DL decides; otherwise a 4-bit controller awaits the next high nibble.
  */
@@ -398,6 +427,10 @@ function instruction(
   const unknownBits = x & 0xff;
   if (unknownBits === 0) {
     run(c, value & 0xff, report);
+    return;
+  }
+  if (bitCount(unknownBits) > MAX_ENUMERATED_BITS) {
+    anyInstruction(c, now, t);
     return;
   }
   // Every value the byte could have, merged.

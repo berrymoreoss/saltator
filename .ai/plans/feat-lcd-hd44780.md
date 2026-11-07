@@ -255,7 +255,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   bring every hypothesis to the known state; short waits and missing steps stay unknown.
 - [x] 5. `editor`: the `lcd` drawer, `PartLive.time`; symbol-drawing test, drawer tests
   (recording graphics); looked at in the browser — every size, backlight, both themes, zoom.
-- [ ] 6. Scenarios: the data sheet's 8-bit (Figure 23) and 4-bit (Figure 24) initializations
+- [x] 6. Scenarios: the data sheet's 8-bit (Figure 23) and 4-bit (Figure 24) initializations
   and "Hello, world!" from a test driver; a 74HC574 driving the bus too early (`tDSW`); a read
   with a driver still on the bus (contention); the carry-over and rewind properties with the
   LCD.
@@ -380,14 +380,24 @@ mode), 15 `LED+` (anode, +5 V via an on-board resistor), 16 `LED−` (cathode); 
   - subscript (`Clear display` → "tlear display", `PWEH` → "tWEH"): `symbolParts` sets `t…` and
     `PW…` with subscripts, descriptive keys as they are. Drawer tests: backlight by A/K, V0
     contrast, unknown cells, idle look, pin names.
+- 2026-11-08 — task 6: `tests/scenarios/lcd.test.ts` — a 74HC574 on the bus (8-bit through the
+  latch; CP 80 ns before E falls → tDSW on the bits that change; OE left LOW during a read →
+  contention; 4-bit with DB0–DB3 open → no floating inputs), and a wiring mistake (DB0 on E's
+  clock). The carry-over property got random LCD networks (sizes, oscillators, both power-on
+  modes, > 10 ms). It first ran 9+ minutes and then out of memory: three orphaned vitest workers
+  from the mutation script's timeouts had been spinning for two hours (script fixed: own
+  session, `killpg`), the floating bus (counter never reset) made every transfer enumerate 2⁸
+  instructions × 24 outcomes (now ≤ 3 unknown bits enumerated, else `anyInstruction`), and a
+  read ringing every tDHR when its data pin sat on E's net (an uncertain E now keeps the
+  transfer open until E is known LOW). No carry-over divergence was found; the file runs in
+  1.2 s. Lessons recorded.
 
 ## Handoff
 
-- **State:** tasks 1–5 done: the part, both power-on modes, the drawer (looked at in the
-  browser), the blink redraw, the Part tab's symbols.
-- **Next step:** task 6 — scenarios: the data sheet's initializations driven by real chips
-  (a 74HC574 on the bus), a too-early latch (tDSW), a read contention; the carry-over and
-  rewind properties with the LCD in their circuits.
+- **State:** tasks 1–6 done: the part, both power-on modes, the drawer, scenarios with real
+  chips, the carry-over property with LCDs.
+- **Next step:** task 7 — examples LCD Hello, World (sequencer) and LCD by Hand, generators,
+  gallery entries, scenario and browser tests.
 - **Watch out:** the data sheet copy is in the session scratchpad only; download it again if
   the scratchpad is gone.
 - **Verify with:** `pnpm check`.
