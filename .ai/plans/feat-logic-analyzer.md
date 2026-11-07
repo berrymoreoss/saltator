@@ -239,7 +239,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 1. `core`: `requestBreak()` and run status `break` (from a listener, from a component;
   honored after the instant's delta cycles; the next run goes on; `settle` too); tests;
   benchmark unchanged.
-- [ ] 2. `core`: `Recorder` — channels, attach/detach across simulators, instant collapsing,
+- [x] 2. `core`: `Recorder` — channels, attach/detach across simulators, instant collapsing,
   chunked storage with the budget and `start`, queries (`levelAt`, `changes`, next/prev,
   `busValueAt`, `summary`); tests (incl. a carry-over scenario re-attaching by reference);
   mutation-checked; kernel benchmark with 16 probed nets.
@@ -319,11 +319,19 @@ Checkable statements; verified one by one in the finish-branch workflow.
   at any speed. Mutation-checked. Kernel benchmark unchanged (inverter chain 14.07M events/s vs
   13.55M on `main`, ring oscillator 13.38M vs 13.76M: noise). Component callbacks don't get a
   break of their own (nothing needs one yet).
+- 2026-11-07 — task 2: `core/recorder.ts` — channels attached to nets per simulator (carry-over
+  re-attaches by the caller's re-resolved nets; a channel left out gets `NO_DATA`, resumes when
+  attached again), instants collapsed (a glitch within one instant leaves nothing), growable
+  typed arrays per channel, a budget (default 4M changes) trimmed by bisection over time to ¾,
+  each channel keeping its level at `start`; `level`, `indexAt`, next/prev change (also of
+  several channels), raw access, `summarize` (fractional steps). Mutation-checked (14
+  mutations; one equivalent: `>=`/`>` in the bisection). Benchmark: ring oscillator 13.69M
+  events/s, 13.24M recording 16 nets (−3 %), 8.68M recording all 1001.
 
 ## Handoff
 
-- **State:** task 1 done (kernel break request).
-- **Next step:** task 2 (`Recorder` in core).
+- **State:** tasks 1–2 done (kernel break request, recorder).
+- **Next step:** task 3 (trigger conditions in core).
 - **Watch out:** nets have no identity across compiles — channels are references, re-resolved
   on every carry-over; the kernel's listener reports levels only.
 - **Verify with:** `pnpm check`.

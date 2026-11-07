@@ -381,6 +381,40 @@ the net ids.
   parts seed it from what identifies them (a RAM's random power-on contents from its
   designator), never from `Math.random`.
 
+## Recorder
+
+`Recorder` (`src/core/recorder.ts`, R13) keeps the levels of chosen nets over simulated time —
+the data behind the waveform view ([editor.md](editor.md#waveforms)) and, later, headless test
+benches (R15):
+
+```ts
+const recorder = new Recorder({ budget: 4_000_000 }); // changes kept across every channel
+const clk = recorder.addChannel();
+recorder.attach(sim, new Map([[clk, sim.netIndex('CLK')]])); // channel → net index
+sim.runUntil(ms(1));
+recorder.level(clk, us(500)); // Level at that instant (undefined where there is no data)
+recorder.nextChange(clk, us(500)); // time of the next edge
+```
+
+- **Channels**, not nets: nets have no identity across compiles, so after a carry-over the
+  caller re-resolves what each channel shows and attaches the new simulator; the record goes
+  on. A channel left out of an `attach` gets no data from that instant (`NO_DATA`), one given a
+  net again resumes; `attachChannel` adds one while running; `detach` ends the record at `now`
+  (Stop); `clear` forgets it (power-on). Several channels may show one net.
+- **One instant, one level**: changes at the same instant (delta cycles) collapse into its last
+  level, and a change back to the level before the instant leaves nothing — a zero-delay delta
+  is not a pulse a real circuit makes.
+- **Bounded**: past the budget the oldest changes are dropped (down to three quarters of it),
+  each channel keeping the last change before the cut, and `start` moves forward: the earliest
+  instant every channel still knows.
+- **Queries**: `level(channel, t)`, `indexAt`, `nextChange`/`prevChange` (and `…Of(channels)`
+  for a bus or a group), raw access (`changeCount`, `changeTime`, `changeLevel`) and
+  `summarize(channel, t0, step, buckets, levels, changes)` — per drawing bucket the level at
+  its start and the number of changes inside, two binary searches each.
+- **Cost**: no listener without channels; with them, one call per changed net that looks the net
+  up in an `Int32Array`. Ring oscillator benchmark: 13.7M events/s, 13.2M recording 16 of its
+  1001 nets, 8.7M recording all of them (R13).
+
 ## Test bench
 
 `src/core/testing` provides utilities used by every part test (pure: failures are thrown as plain

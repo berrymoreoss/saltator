@@ -122,6 +122,7 @@ export {
   sameNetlistStructure,
 } from './netlist';
 export { hashString, SeededRandom } from './random';
+export { NO_DATA, Recorder, type RecorderOptions } from './recorder';
 export { type ComponentRegistry, familyOf, Registry } from './registry';
 export {
   type CarriedComponent,
