@@ -209,7 +209,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 3. Counting helpers (`increment`/`decrement`, outcome merging over controls) and the
   74HC161, 163, with tests (function table, counting 0–15 and wrap, load, enables, TC and its
   paths, MR̅ asynchronous vs synchronous, unknown/floating/late controls, every check).
-- [ ] 4. 74HC191, 193 with tests (up/down, asynchronous load, TC/RC̅, TC̅U/TC̅D, cascading
+- [x] 4. 74HC191, 193 with tests (up/down, asynchronous load, TC/RC̅, TC̅U/TC̅D, cascading
   signals, the 193's clock rule, every check).
 - [ ] 5. 74HC4040 with tests (counting, MR, the ripple delay of every stage, transient states,
   uncertain edges, checks).
@@ -303,11 +303,23 @@ Checkable statements; verified one by one in the finish-branch workflow.
   163 modulo-10 counter, power-on, uncertain edge, unknown controls, floating CEP, every path,
   every check at its limit; mutation-checked (17 mutations; one survivor — reset and load
   merged under an unknown 163 MR — got its test). Started the components.md section.
+- 2026-11-07 — task 4: `up-down-counters.ts` (own behaviors for the 191 and 193; shared
+  asynchronous load). The 193's logic diagram at 220 dpi: FF1 toggles on CPU · CPD rising, the
+  other stages on their up/down chains steered by the clock levels — a clock rising while the
+  other is LOW toggles the upper stages on the up chain but not bit 0 (a partial count). Decided
+  without a new question, under ADR-0014 (what the data sheet doesn't guarantee is reported and
+  `X`): that edge is a hold violation of `th(CPU to CPD, CPD to CPU)` and merges counting and not;
+  both clocks together merge up and down. The 191's two usage rules are set-up violations (CE̅
+  rising while CP LOW may count; U̅/D changing while CE̅ and CP are LOW makes the next count's
+  direction unknown). Recovery checks of the 193 are armed only when neither MR nor PL̅ holds it
+  (found by its function table, run without gaps). Delays the sheets lack borrow a Qn path.
+  37 tests, mutation-checked (19 mutations; two survivors — the 191's direction never forgotten,
+  the 193 reading D during MR — got tests).
 
 ## Handoff
 
-- **State:** tasks 1–3 done (timing data; `setupHold` variants; 74HC161/163 in the registry).
-- **Next step:** task 4 (74HC191, 193 in `counters.ts`; render the 193's logic diagram at high
-  resolution first; decide how the 191's usage rules are modelled).
+- **State:** tasks 1–4 done (timing data; `setupHold` variants; 161, 163, 191, 193 in the
+  registry).
+- **Next step:** task 5 (74HC4040, `ripple-counter.ts`).
 - **Watch out:** pinouts and names in the Parts table are from memory.
 - **Verify with:** `pnpm check`.

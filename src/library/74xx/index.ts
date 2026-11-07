@@ -14,6 +14,7 @@ import { hcMultiplexers } from './multiplexers';
 import { hcRegisters } from './registers';
 import { hc4511 } from './seven-segment-decoder';
 import { hc245 } from './transceiver';
+import { hcUpDownCounters } from './up-down-counters';
 
 export { ADDER_SPEC, arithmeticChips, COMPARATOR_SPEC } from './arithmetic';
 export { BUFFER_SPECS, type BufferSpec, bufferChips } from './buffers';
@@ -59,6 +60,13 @@ export {
   bcdDecoderChip,
 } from './seven-segment-decoder';
 export { TRANSCEIVER_SPEC, transceiverChip } from './transceiver';
+export {
+  CNT191_SPEC,
+  CNT193_SPEC,
+  type UpDownCounterSpec,
+  type UpDownCounterState,
+  upDownCounterChips,
+} from './up-down-counters';
 
 /** Every 74xx chip in the default registry, by number. */
 export const chips74xx: readonly AnyComponentDefinition[] = [
@@ -73,4 +81,5 @@ export const chips74xx: readonly AnyComponentDefinition[] = [
   ...hcFlipFlops,
   ...hcRegisters,
   ...hcCounters,
+  ...hcUpDownCounters,
 ].sort((a, b) => Number(a.name.slice(4)) - Number(b.name.slice(4)));

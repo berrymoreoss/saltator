@@ -543,15 +543,33 @@ fault. The 74HC4511 checks its LE the same way (code set-up 12 ns, LE LOW width 
 R09b adds the counters and shift registers, from the Nexperia data sheets, on R09a's timing
 checks and `X` policy:
 
-| Type           | Function                                                | Package | Delays (ns)                         | Minima (ns)                                       |
-| -------------- | ------------------------------------------------------- | ------- | ----------------------------------- | ------------------------------------------------- |
-| `74xx/74hc161` | 4-bit binary counter, synchronous load, asynchronous MR̅ | DIP-16  | CP→Q 22, CP→TC 25, CET→TC 12, MR 23 | tsu D 16, PE̅ 20, CEP/CET 34; th 0; tW 16; trec 20 |
-| `74xx/74hc163` | 4-bit binary counter, synchronous load and MR̅           | DIP-16  | CP→Q 20, CP→TC 25, CET→TC 13        | tsu D/MR̅ 16, PE̅ 16, CEP/CET 35; th 0; tW 16       |
+| Type           | Function                                                    | Package | Delays (ns)                             | Minima (ns)                                            |
+| -------------- | ----------------------------------------------------------- | ------- | --------------------------------------- | ------------------------------------------------------ |
+| `74xx/74hc161` | 4-bit binary counter, synchronous load, asynchronous MR̅     | DIP-16  | CP→Q 22, CP→TC 25, CET→TC 12, MR 23     | tsu D 16, PE̅ 20, CEP/CET 34; th 0; tW 16; trec 20      |
+| `74xx/74hc163` | 4-bit binary counter, synchronous load and MR̅               | DIP-16  | CP→Q 20, CP→TC 25, CET→TC 13            | tsu D/MR̅ 16, PE̅ 16, CEP/CET 35; th 0; tW 16            |
+| `74xx/74hc191` | 4-bit up/down counter, CE̅, U̅/D, asynchronous load PL̅        | DIP-16  | CP→Q 26, CP→TC 30, CP→RC̅ 17, PL̅/D→Q 22  | tsu U̅/D 41, CE̅ 28, D→PL̅ 20; th 0; tW 25, PL̅ 20; trec 7 |
+| `74xx/74hc193` | 4-bit up/down counter, two clocks, MR, asynchronous load PL̅ | DIP-16  | CPU/CPD→Q 23, →TC̅U/TC̅D 14, PL̅ 25, MR 21 | tsu D→PL̅ 16; th other clock 16; tW 20; trec 10         |
 
 - **Synchronous counters** (`counters.ts`, `SyncCounterSpec`): on the rising clock edge the
   163's MR̅ clears, else PE̅ LOW loads D0–D3, else CEP · CET counts; TC = CET · (count = 15),
   for cascading (TC → the next counter's CET). The 161's MR̅ clears at once and holds the
   clock's checks disarmed.
+- **Up/down counters** (`up-down-counters.ts`): PL̅ LOW loads D asynchronously (Q follows D;
+  a bit changed within `tsu(Dn to PL)` before PL̅ rises is `X`). The 191 counts on CP while CE̅
+  is LOW, up with U̅/D LOW (only U is overlined: LOW counts up); TC is HIGH at 15 up / 0 down,
+  RC̅ LOW while TC is HIGH and CE̅ and CP are LOW (to clock the next stage). The 193 counts up
+  on a rising CPU while CPD is HIGH, down on a rising CPD while CPU is HIGH; MR (HIGH) clears
+  over PL̅; TC̅U is LOW while CPU is LOW at 15, TC̅D while CPD is LOW at 0.
+- **Usage rules as timing checks**: the 191's data sheet says CE̅ may rise only while CP is
+  HIGH and U̅/D may change only while CE̅ or CP is HIGH (a set-up violation; the gated clock may
+  count, or the next count's direction is unknown: `X` where the outcomes differ). The 193's
+  other clock must be HIGH at the counting edge and stay HIGH 16 ns after it
+  (`th(CPU to CPD, CPD to CPU)`): a clock rising while the other is LOW is a hold violation
+  (its logic diagram then counts partially: `X` where counting or not differ), both rising
+  together where up and down differ. A clock held by MR or PL̅ checks nothing.
+- **Delays the data sheets lack** borrow a given path: the 191's TC and RC̅ after a parallel
+  load use `tpd(PL to Qn)` / `tpd(Dn to Qn)`; the 193's terminal count changed by the other
+  clock uses `tpd(CPU, CPD to Qn)`.
 - **Unknown or late controls** merge every mode they allow (reset, load, count, hold): only the
   bits where those outcomes differ become `X` (PE̅ unknown at 5 with D = 6: load and count agree,
   nothing is lost). Counting from an `X` count gives `X` where the carry reaches
