@@ -75,8 +75,10 @@ describe('waveKey', () => {
     expect(waveKey('-', false)).toEqual({ kind: 'zoom', factor: 0.5 });
     expect(waveKey('ArrowLeft', false)).toEqual({ kind: 'pan', pages: -0.1 });
     expect(waveKey('ArrowRight', true)).toEqual({ kind: 'pan', pages: 1 });
-    expect(waveKey(']', false)).toEqual({ kind: 'edge', direction: 1 });
-    expect(waveKey('[', false)).toEqual({ kind: 'edge', direction: -1 });
+    expect(waveKey(']', false)).toEqual({ kind: 'edge', direction: 1, cursor: 'A' });
+    expect(waveKey('[', false)).toEqual({ kind: 'edge', direction: -1, cursor: 'A' });
+    expect(waveKey('}', true)).toEqual({ kind: 'edge', direction: 1, cursor: 'B' });
+    expect(waveKey('{', true)).toEqual({ kind: 'edge', direction: -1, cursor: 'B' });
     expect(waveKey('Home', false)).toEqual({ kind: 'fit' });
     expect(waveKey('End', false)).toEqual({ kind: 'follow' });
     expect(waveKey('ArrowDown', false)).toEqual({ kind: 'select', step: 1 });

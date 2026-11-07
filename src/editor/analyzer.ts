@@ -485,20 +485,21 @@ export class Analyzer {
   }
 
   /**
-   * Moves cursor A to the selected channel's next (or previous) change after (before) A, or after
-   * the window's start when A isn't set; brings it into view. False when there is none.
+   * Moves a cursor (A unless told) to the selected channel's next (or previous) change after
+   * (before) it, or after the window's start when it isn't set; brings it into view. False when
+   * there is none.
    */
-  edge(direction: 1 | -1): boolean {
+  edge(direction: 1 | -1, which: 'A' | 'B' = 'A'): boolean {
     const view = this.view.get();
     const channel = view.selected === undefined ? undefined : this.channels.get()[view.selected];
     if (!channel) return false;
-    const from = view.cursorA ?? view.start;
+    const from = (which === 'A' ? view.cursorA : view.cursorB) ?? view.start;
     const t =
       direction > 0
         ? this.recorder.nextChangeOf(channel.bits, from)
         : this.recorder.prevChangeOf(channel.bits, from);
     if (t === undefined) return false;
-    this.setCursor('A', t);
+    this.setCursor(which, t);
     const x = this.xOf(t);
     if (x < 0 || x > view.width) this.scrollTo(t - (view.width * view.scale) / 2);
     return true;

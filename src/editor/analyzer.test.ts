@@ -286,6 +286,9 @@ describe('Analyzer: the view', () => {
     expect(analyzer.edge(1)).toBe(false);
     analyzer.edge(-1);
     expect(analyzer.view.get().cursorA).toBe(us(1));
+    analyzer.edge(1, 'B');
+    analyzer.edge(1, 'B');
+    expect(analyzer.view.get()).toMatchObject({ cursorA: us(1), cursorB: us(2) });
     // An edge outside the window brings it into view.
     analyzer.scrollTo(us(1.8));
     analyzer.edge(1);

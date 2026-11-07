@@ -61,7 +61,7 @@ export function cursorReadout(view: WaveView): CursorReadout {
 export type WaveKey =
   | { readonly kind: 'zoom'; readonly factor: number }
   | { readonly kind: 'pan'; readonly pages: number }
-  | { readonly kind: 'edge'; readonly direction: 1 | -1 }
+  | { readonly kind: 'edge'; readonly direction: 1 | -1; readonly cursor: 'A' | 'B' }
   | { readonly kind: 'fit' }
   | { readonly kind: 'follow' }
   | { readonly kind: 'remove' }
@@ -70,7 +70,7 @@ export type WaveKey =
 
 /**
  * The plot's keys: `+`/`=` and `-` zoom, ←/→ pan a tenth of the window (Shift: a whole one),
- * `[`/`]` previous/next edge of the selected channel, Home fits, End follows `now`, ↑/↓ pick a
+ * `[`/`]` move cursor A to the previous/next edge of the selected channel (`{`/`}` cursor B), Home fits, End follows `now`, ↑/↓ pick a
  * channel, Delete removes it, Escape clears the cursors. Undefined for other keys (they reach the
  * shortcuts).
  */
@@ -86,9 +86,14 @@ export function waveKey(key: string, shift: boolean): WaveKey | undefined {
     case 'ArrowRight':
       return { kind: 'pan', pages: shift ? 1 : 0.1 };
     case '[':
-      return { kind: 'edge', direction: -1 };
+      return { kind: 'edge', direction: -1, cursor: 'A' };
     case ']':
-      return { kind: 'edge', direction: 1 };
+      return { kind: 'edge', direction: 1, cursor: 'A' };
+    // Shift+[ and Shift+] on most layouts.
+    case '{':
+      return { kind: 'edge', direction: -1, cursor: 'B' };
+    case '}':
+      return { kind: 'edge', direction: 1, cursor: 'B' };
     case 'Home':
       return { kind: 'fit' };
     case 'End':

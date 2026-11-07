@@ -517,7 +517,7 @@ function Plot({ editor, theme, rows, scroll }: PlotProps) {
         analyzer.pan(action.pages * view.width);
         break;
       case 'edge':
-        analyzer.edge(action.direction);
+        analyzer.edge(action.direction, action.cursor);
         break;
       case 'fit':
         analyzer.zoomToFit();

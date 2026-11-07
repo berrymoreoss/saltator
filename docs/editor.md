@@ -660,7 +660,8 @@ shows how many signals are probed and `T` while a trigger is armed.
 - **Plot** (a canvas, HiDPI): click places cursor A — snapped to an edge of the row under the
   pointer — Shift-click B; drag pans; the wheel zooms about the pointer (Shift or a sideways
   swipe pans). Keys (`waveKey`, kept from the shortcuts): `+`/`-` zoom, ←/→ pan (Shift: a
-  window), `[`/`]` previous/next edge of the picked channel, Home fit, End follow, ↑/↓ pick,
+  window), `[`/`]` cursor A to the previous/next edge of the picked channel (`{`/`}` cursor B), Home
+  fit, End follow, ↑/↓ pick,
   Delete remove, Escape clears the cursors.
 - **Export VCD…** (`vcd-export.ts`): the whole record or the span between cursors A and B (the
   default when both are placed), every probe that resolves — 1-bit signals as wires, buses and

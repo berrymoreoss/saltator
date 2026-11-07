@@ -263,7 +263,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 8b. `editor` + `ui`: the Probe tool (`P`): hover highlight, click to add or remove, pan,
   Escape; headless gesture tests; command, toolbar button, shortcuts dialog.
 - [x] 9. `ui`: Export VCD… (whole capture or between the cursors); test of the file model.
-- [ ] 10. e2e: Clock Module — the clock probed with the Probe tool, run, the period measured with
+- [x] 10. e2e: Clock Module — the clock probed with the Probe tool, run, the period measured with
   the cursors; Data Bus — `D[0..7]` captured with a trigger on its value, the run paused at it,
   exported VCD read back; probes saved, reopened and undone; a structural edit while recording
   keeps the capture.
@@ -386,11 +386,21 @@ Checkable statements; verified one by one in the finish-branch workflow.
   resolve, whole record or cursor span, reasons when there is nothing) and the Export VCD…
   dialog in the tab's toolbar (range radios with their spans, Save… through `ImageFileAccess`
   with a new file kind `vcd` and picker id `logic-waveforms`).
+- 2026-11-07 — task 10: `tests/e2e/waveforms.spec.ts` — Clock Module: U1.OUT probed with the
+  Probe tool, run 2.5 s, A and B stepped onto edges from the keyboard (`]`, and `}` added for
+  cursor B: production builds have no `window.logicEditor`, so the keys are how a test — and a
+  user — puts cursors exactly on edges): `Δ 652.113 ms · 1.533 Hz`, the 555's period; Data Bus:
+  `D[0..7]` added by name, trigger `= 2B` with a 100 ms window armed while running, a DIP lever
+  flips bit 0, the run pauses, Export VCD… writes the record (the bus floats until the 245's
+  `ten`, `0x2A` at 11 ns, the record ends 90 ms after the trigger); probes from the context
+  menu, Undo/Redo, probing while running, saved as schema v3 with the probes. `openExample`
+  moved to `support.ts` (pin and wire positions added). `pnpm e2e`: 67 passed. A structural
+  edit while recording is covered by the analyzer's unit tests, not in the browser.
 
 ## Handoff
 
-- **State:** tasks 1–9 done (core, circuit, analyzer model, renderer, Waveforms tab, Probe tool, VCD export).
-- **Next step:** task 10 (e2e: Clock Module period with cursors; Data Bus trigger + VCD; probes saved/undone; carry-over).
+- **State:** tasks 1–10 done (everything but the docs task).
+- **Next step:** task 11 (docs: ADR-0019, architecture, glossary, READMEs, roadmap, examples with probes, lessons), then finish-branch.
 - **Watch out:** nets have no identity across compiles — channels are references, re-resolved
   on every carry-over; the kernel's listener reports levels only. Docs already link
   `adr/0019-waveforms.md` (write it in task 11). Max-speed tests need `clock.cost > 0`.
