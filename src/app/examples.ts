@@ -101,6 +101,11 @@ function galleryRows(dev: boolean): GalleryItem[][] {
       { type: 'io/hex-display', props: { color: 'yellow' } },
     ],
     chips74xx.map((chip) => ({ type: chip.type })),
+    (['astable', 'monostable', 'bistable'] as const).map((mode) => ({
+      type: 'timer/ne555',
+      props: { mode },
+      note: mode,
+    })),
     [
       ...ROTATIONS.map((rotation) => ({ type: 'prim/nand', rotation, note: `${rotation}°` })),
       ...ROTATIONS.map((rotation) => ({

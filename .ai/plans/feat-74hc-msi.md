@@ -196,7 +196,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   tests: astable first cycle, tH, tL against the formulas, RESET stop/restart; monostable tw,
   ignored retrigger, held trigger; bistable function table and DISCH; power-on per Q4; prop
   entry parsing/formatting.
-- [ ] 9. Registry and properties across parts: carry-over property over random networks with
+- [x] 9. Registry and properties across parts: carry-over property over random networks with
   the new chips (stateful 4511 and 555 included); symbol-drawing scenario covers DIP-16 and
   DIP-8; Symbol Gallery row; looked at in both themes (DIP-16 names such as `IA>B` fit).
 - [ ] 10. Examples per Q3, run by tests, looked at in the browser; File ▸ New from Example lists
@@ -281,6 +281,12 @@ Checkable statements; verified one by one in the finish-branch workflow.
   read off TI Figure 5-8 (the table gives only rise/fall times); `PropDef.si` with
   `formatSi`/`parseSi` (exact: `100n` is 1e-7), also on `io/clock` frequency; `nc` pins draw
   their names unless named `NC<n>` (the Part tab calls them "not simulated"); ADR-0013.
+- 2026-11-07 — task 9: carry-over property over 30 random networks of MSI chips and 555s in
+  every mode (mutation-checked: a 555 restarting its timer on every evaluate fails it); Symbol
+  Gallery row of 555s; looked at in Chromium, both themes (Playwright script from the
+  scratchpad): DIP-16 names fit, 151's Y̅, 147/148 overlines. The NE555's vertical name ran
+  into TRIG/DISCH/THRES in a 4-cell body: a DIP body is two cells wider when a row's two pin
+  names exceed 7 characters together (only the NE555 today; docs/circuit.md).
 
 ## Handoff
 
