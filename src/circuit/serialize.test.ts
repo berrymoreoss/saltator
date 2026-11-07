@@ -4,7 +4,7 @@ import { parseDocument } from './schema';
 import { serializeDocument } from './serialize';
 
 const document: CircuitDocument = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   circuits: [
     {
       id: 'main',
@@ -25,6 +25,7 @@ const document: CircuitDocument = {
       wires: [
         { id: 'w1', from: [4, 2], to: [9, 2] },
         { id: 'w2', from: [9, 2], to: [9, -7] },
+        { id: 'w3', from: [20, 0], to: [20, 8], bus: true },
       ],
     },
     { id: 'sub', name: 'Empty', components: [], wires: [] },
@@ -32,7 +33,7 @@ const document: CircuitDocument = {
 };
 
 const text = `{
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "circuits": [
     {
       "id": "main",
@@ -43,7 +44,8 @@ const text = `{
       ],
       "wires": [
         { "id": "w1", "from": [4, 2], "to": [9, 2] },
-        { "id": "w2", "from": [9, 2], "to": [9, -7] }
+        { "id": "w2", "from": [9, 2], "to": [9, -7] },
+        { "id": "w3", "from": [20, 0], "to": [20, 8], "bus": true }
       ]
     },
     {

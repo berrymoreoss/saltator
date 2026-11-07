@@ -5,7 +5,13 @@
  */
 import { describe, type TestContext, test } from 'vitest';
 import { nandGrid } from '../../src/app/examples';
-import { compileCircuit, parseDocument, serializeDocument } from '../../src/circuit';
+import {
+  type CircuitDocument,
+  compileCircuit,
+  parseDocument,
+  SCHEMA_VERSION,
+  serializeDocument,
+} from '../../src/circuit';
 import { createDefaultRegistry } from '../../src/library';
 
 const registry = createDefaultRegistry();
@@ -19,7 +25,7 @@ async function measure(bench: TestContext['bench'], name: string, iterate: () =>
 
 describe('circuit', () => {
   const circuit = grid(60, 60);
-  const document = { schemaVersion: 1 as const, circuits: [circuit] };
+  const document: CircuitDocument = { schemaVersion: SCHEMA_VERSION, circuits: [circuit] };
   const text = serializeDocument(document);
   const label = `${circuit.components.length} parts, ${circuit.wires.length} wires`;
 

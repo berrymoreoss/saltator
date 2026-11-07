@@ -160,7 +160,7 @@ single entries vs a multi-bit ripper.
 
 - [x] 1. `core`: bus names (`parseBusName`, `busMembers`), the bus value text from member
   levels, `PinDef.bus` (validated: `nc` only); tests.
-- [ ] 2. `circuit`: `Wire.bus`, schema v2 with the migration, load/serialize; example files
+- [x] 2. `circuit`: `Wire.bus`, schema v2 with the migration, load/serialize; example files
   re-saved as v2; tests.
 - [ ] 3. `circuit`: the compiler's bus layer (`buses`, `wireBuses`, `busJunctions`, dangling bus
   ends, open bus pins, bus ids and members), the dangling-wire hint; `addWires` and

@@ -170,7 +170,8 @@ export function sameCircuit(a: Circuit, b: Circuit): boolean {
         x.from[0] !== y.from[0] ||
         x.from[1] !== y.from[1] ||
         x.to[0] !== y.to[0] ||
-        x.to[1] !== y.to[1])
+        x.to[1] !== y.to[1] ||
+        x.bus !== y.bus)
     ) {
       return false;
     }
