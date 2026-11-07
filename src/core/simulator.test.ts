@@ -501,6 +501,22 @@ describe('breaking a run', () => {
     expect(s.now).toBe(ns(10));
   });
 
+  it('tells instant listeners when an instant has settled, before checking for a break', () => {
+    const s = clocked();
+    const seen: string[] = [];
+    // One that leaves at its first call must not make the next one miss that instant.
+    const once = s.onInstant(() => once());
+    const off = s.onInstant((t) => {
+      seen.push(`${t / 1000}:${levels(s, 'C.Y', 'I.Y')}`);
+      if (t === ns(20)) s.requestBreak();
+    });
+    expect(s.runUntil(ns(100))).toBe('break');
+    expect(seen).toEqual(['0:01', '10:10', '20:01']);
+    off();
+    s.runUntil(ns(40));
+    expect(seen).toHaveLength(3);
+  });
+
   it('asked between runs, stops after the first instant the next run processes', () => {
     const s = clocked();
     s.requestBreak();

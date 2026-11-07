@@ -356,7 +356,9 @@ the net ids.
   `componentCount`, `pinNet(component, pin)`, `level(netIdOrIndex)`, `pinLevel(component, pin)`,
   `stateOf(component)` (inspection only).
 - **Change listeners**: `onNetChange((time, net, level) => …)` returns an unsubscribe function;
-  zero cost when nobody listens.
+  zero cost when nobody listens. `onInstant((time) => …)` (R13) is called after each instant
+  has finished all its delta cycles, before a run checks for a break: a condition on several
+  nets sees the instant's final levels there and can still `requestBreak()` at it.
 - **Diagnostics**: `sim.diagnostics` is a `DiagnosticLog`. Each entry is
   `{ time, kind, message, net?, component?, pin?, count, lastTime }` with kinds `contention`,
   `floating-input`, `oscillation` (`KernelDiagnosticKind`) and component-reported ones
@@ -414,6 +416,41 @@ recorder.nextChange(clk, us(500)); // time of the next edge
 - **Cost**: no listener without channels; with them, one call per changed net that looks the net
   up in an `Int32Array`. Ring oscillator benchmark: 13.7M events/s, 13.2M recording 16 of its
   1001 nets, 8.7M recording all of them (R13).
+
+## Triggers
+
+`Trigger` (`src/core/trigger.ts`, R13) is a logic analyzer's trigger on recorder channels: a
+condition is an AND of terms, at most one of them an edge ("pattern and one edge"):
+
+| Term                   | Holds when                                                                      |
+| ---------------------- | ------------------------------------------------------------------------------- |
+| `rise`, `fall`, `edge` | the channel went exactly 0 → 1 (1 → 0, either) at this instant; `X → 1` is none |
+| `level`                | the channel is at `0`, `1`, `X` or `Z`                                          |
+| `equal`, `notEqual`    | the channels (bit 0 first) read the hex `value`; `X` digits are don't care      |
+
+```ts
+const trigger = new Trigger(
+  recorder,
+  [
+    { kind: 'rise', channel: clk },
+    { kind: 'equal', channels: bus, value: '3F' },
+  ],
+  (time) => sim.requestBreak(),
+);
+trigger.attach(sim); // armed; attach the new simulator after a carry-over
+```
+
+- Evaluated in `onInstant`, only at instants where one of its channels changed, from the
+  recorder's levels: a glitch inside one instant (collapsed by the recorder) never fires it.
+- Fires **once** (single shot) and disarms: at the edge while the other terms hold, or —
+  without an edge term — when the pattern **becomes** true (one already true when armed waits
+  until it has been false).
+- Values: digits not written are 0, as in a number (`5` on eight bits is `0x05`, `X5` leaves the
+  high nibble free); a bit that is `X` or `Z` matches no 0 or 1, so `notEqual` holds while it
+  is. `conditionProblems(condition)` and `parseHexPattern(text, width)` give the reasons a
+  condition can't be armed.
+- The editor's analyzer arms it and turns its firing into a pause ([editor.md](editor.md#waveforms));
+  R14's breakpoints are the same conditions without the analyzer.
 
 ## Test bench
 

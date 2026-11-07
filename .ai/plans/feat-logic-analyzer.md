@@ -243,7 +243,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   chunked storage with the budget and `start`, queries (`levelAt`, `changes`, next/prev,
   `busValueAt`, `summary`); tests (incl. a carry-over scenario re-attaching by reference);
   mutation-checked; kernel benchmark with 16 probed nets.
-- [ ] 3. `core`: trigger conditions (terms, AND, one edge, "becomes true", end-of-instant
+- [x] 3. `core`: trigger conditions (terms, AND, one edge, "becomes true", end-of-instant
   evaluation, bus values with don't-care digits) on the recorder; tests.
 - [ ] 4. `core`: VCD writer (header, vectors, `$dumpvars`, ranges, safe names and identifiers);
   tests against hand-checked dumps; a scenario dumping a counter.
@@ -327,11 +327,18 @@ Checkable statements; verified one by one in the finish-branch workflow.
   several channels), raw access, `summarize` (fractional steps). Mutation-checked (14
   mutations; one equivalent: `>=`/`>` in the bisection). Benchmark: ring oscillator 13.69M
   events/s, 13.24M recording 16 nets (−3 %), 8.68M recording all 1001.
+- 2026-11-07 — task 3: `Simulator.onInstant` (after an instant's delta cycles, before the break
+  check; safe to unsubscribe inside), `Recorder.lastChange`; `core/trigger.ts` — terms (`rise`,
+  `fall`, `edge` strict; `level`; `equal`/`notEqual` with hex patterns, `X` digits don't care,
+  unwritten digits 0), `conditionProblems`, single-shot `Trigger` evaluated at the end of
+  instants where its channels changed (glitches never fire it), "becomes true" without an edge,
+  `attach` after a carry-over. Mutation-checked (one equivalent check removed from `#edgeAt`;
+  the "any channel changed" check is kept as an optimization — equivalent by design).
 
 ## Handoff
 
-- **State:** tasks 1–2 done (kernel break request, recorder).
-- **Next step:** task 3 (trigger conditions in core).
+- **State:** tasks 1–3 done (kernel break request and `onInstant`, recorder, triggers).
+- **Next step:** task 4 (VCD writer in core).
 - **Watch out:** nets have no identity across compiles — channels are references, re-resolved
   on every carry-over; the kernel's listener reports levels only.
 - **Verify with:** `pnpm check`.

@@ -260,6 +260,12 @@ export class Recorder {
     return this.#track(channel).level(i);
   }
 
+  /** Time of the channel's last recorded change (O(1): did it change at this instant?). */
+  lastChange(channel: number): Time | undefined {
+    const track = this.#tracks[channel];
+    return track && track.count > 0 ? track.time(track.count - 1) : undefined;
+  }
+
   /** Index of the channel's last change at or before `t`; −1 if none. */
   indexAt(channel: number, t: Time): number {
     return this.#tracks[channel]?.indexAt(t) ?? -1;
