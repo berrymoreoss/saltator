@@ -181,7 +181,7 @@ with `pdftoppm` and looked at (overlines, arrows).
 
 Small, ordered, each committable on its own with its tests (`pnpm check` green).
 
-- [ ] 1. `core`: `TimingDef.min`; timing checks (setup, hold, pulse width, recovery) with
+- [x] 1. `core`: `TimingDef.min`; timing checks (setup, hold, pulse width, recovery) with
   diagnostic kinds and messages, returning the bits made uncertain; no allocation per call.
   Tests on a fixture flip-flop, including carry-over and the forced evaluation.
 - [ ] 2. `core`: sequential function tables (`↑`, `↓`, `h`, `l`, previous-state outputs) in

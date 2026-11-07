@@ -96,3 +96,17 @@ export {
   validateSymbol,
 } from './symbol';
 export { formatTime, ms, ns, parseTime, ps, TIME_MAX, type Time, us } from './time';
+export {
+  type Edge,
+  isTimingViolation,
+  type PinTimes,
+  type PulseWidthCheck,
+  type PulseWidthSpec,
+  type RecoveryCheck,
+  type RecoverySpec,
+  type SetupHoldCheck,
+  type SetupHoldSpec,
+  TimingChecks,
+  TimingViolation,
+  type TimingViolationKind,
+} from './timing-checks';

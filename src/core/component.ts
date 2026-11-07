@@ -101,6 +101,12 @@ export interface TimingDef {
   readonly typical: Readonly<Record<string, Time>>;
   /** Maximum values, for a future worst-case mode. */
   readonly max?: Readonly<Record<string, Time>>;
+  /**
+   * Minimum values the part requires (`tsu`, `th`, `tW`, `trec`): the data sheet's guaranteed
+   * minimum, which the timing checks use (`TimingChecks`). Their typical values, which may be
+   * negative, go into `typical` for reference.
+   */
+  readonly min?: Readonly<Record<string, Time>>;
   readonly conditions?: string;
   /** Where the numbers came from: datasheet, revision, table. */
   readonly source?: string;
