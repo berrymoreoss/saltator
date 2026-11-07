@@ -181,9 +181,9 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 1. `library/74xx` groundwork: `ChipBehavior` generic over state; per-path delay tables
   (`tpd(An-Yn)` keys, longest changed path, precomputed); helpers for buses of pins. Tests on
   a small fixture chip.
-- [ ] 2. Data sheets: the user downloads the Nexperia PDFs; pinouts, pin descriptions, function
+- [x] 2. Data sheets: the user downloads the Nexperia PDFs; pinouts, pin descriptions, function
   tables and HC timing (every path) for the 11 chips, sources cited; fallback per Q2.
-- [ ] 3. Decoders 74HC138, 139 with tests (every output, enables, unknown address/enable, each
+- [x] 3. Decoders 74HC138, 139 with tests (every output, enables, unknown address/enable, each
   path delay).
 - [ ] 4. Multiplexers 74HC151, 153, 157, 158 with tests (both 151 outputs, shared selects,
   unknown select with equal/different candidates, each path delay).
@@ -242,6 +242,15 @@ Checkable statements; verified one by one in the finish-branch workflow.
   shows `X` until the first press). Alternative: low (what most 555s do in practice; hides a
   missing reset). — **answer:** `X` until the first trigger or reset.
 
+- [x] Q5. (found in task 2) 74HC151's complementary output has the same symbol as Y in the
+  Nexperia sheet (Y with an overline) — _proposed:_ `W` (TI, KiCad); alternative: name `YN`
+  plus a display label so it is drawn as Y with an overline. — **answer:** `YN`, drawn `Y`
+  overlined: a new optional `PinDef.label` (display text; the name stays the unique id).
+- [x] Q6. (found in task 2) TI's CD74HC147 and CD74HC283 (ex-Harris) give no typical delay at
+  4.5 V / 50 pF (only maxima there, typical at 5 V / 15 pF); the Philips sheets (December 1990)
+  do, with the same maxima — _proposed:_ TI pins, names and function, typical delays from
+  Philips, maxima from TI. — **answer:** as proposed; both documents cited.
+
 ## Progress log
 
 - 2026-11-07 — plan drafted. Web searches: Nexperia has current sheets for 85, 158, 4511; none
@@ -253,6 +262,13 @@ Checkable statements; verified one by one in the finish-branch workflow.
 - 2026-11-07 — plan approved; branch started. The user downloaded the Nexperia sheets for 138,
   139, 151, 153, 157, 158, 85, 4511 to `~/Downloads/nexperia-74hc/`; Nexperia has none for 147
   and 283, so 147, 148 and 283 follow TI (CD74HC147, SN74HC148, CD74HC283).
+- 2026-11-07 — task 1 (`57b5770`): `ChipBehavior<State>`, `pinIndices`, `pathDelays`.
+- 2026-11-07 — task 2 (data): every table read (`pdftotext -layout`; overlines are lost in the
+  text, so the pinning and timing pages were rendered with `pdftoppm` and looked at). Found:
+  151's two `Y` outputs (Q5); CD74HC147/283 without typical delays at 4.5 V (Q6); TI's
+  CD74HC147 pin table names pin 9 an input `I0`, its pinning figure (and the classic pinout)
+  say output `Y0` — the figure wins; TI has no 283 function table (the Philips example row is
+  used); 4511 shows 6 and 9 without tails; 85's `QA>B` ignores `IA>B` (cascade rule).
 
 ## Handoff
 
