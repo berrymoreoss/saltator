@@ -106,6 +106,14 @@ export interface SimulationOptions {
   readonly frameBudget?: number;
 }
 
+/** A bus as it is in the simulation (Properties). */
+export interface BusLive {
+  /** `0x3F`, with `X`/`Z` nibbles. */
+  readonly value: string;
+  /** Each member's signal style, least significant first (`Z` for a member without a net). */
+  readonly members: readonly SignalStyle[];
+}
+
 /** Where each wire and connection point of the scene is in the simulator's nets. */
 export interface SignalMap {
   /** Net index of each wire, by wire id; −1 when the simulator has no such net. */
@@ -312,6 +320,20 @@ export class Simulation {
     const sim = this.#sim;
     const net = this.#signals.wires.get(wire);
     return sim && net !== undefined ? netStyle(sim, net) : undefined;
+  }
+
+  /**
+   * A bus's live value (`0x3F`) and its members' signal styles, least significant first;
+   * undefined without a simulator, or for a bus without members.
+   */
+  busLive(bus: string): BusLive | undefined {
+    const sim = this.#sim;
+    const members = this.#signals.buses.get(bus);
+    if (!sim || !members || members.length === 0) return undefined;
+    return {
+      value: busValue(sim, members),
+      members: Array.from(members, (net) => (net < 0 ? SignalStyle.Z : netStyle(sim, net))),
+    };
   }
 
   /** The scene's wires on a simulator net (by the net id a diagnostic names). */

@@ -176,7 +176,7 @@ single entries vs a multi-bit ripper.
   Gallery entries; tests.
 - [x] 7. `editor`: the Bus tool, buses dragged out of bus pins and ends, layer-aware routing and
   moves, schematic-only parts placed by their first pin; gesture tests.
-- [ ] 8. `ui`: Place menu and shortcuts (`B`, `Z`), Parts panel, Properties for buses (members,
+- [x] 8. `ui`: Place menu and shortcuts (`B`, `Z`), Parts panel, Properties for buses (members,
   levels, value), the label name hint with bus names; tests.
 - [ ] 9. Example **Data Bus** (Q5), gallery entry; e2e: draw a bus, place entries `D0`…`D7` on a
   chip, label the bus, run, see the value.
@@ -230,13 +230,21 @@ single entries vs a multi-bit ripper.
   checks `bus-entry-member`, `multiple-net-names` on buses, `single-net-label` for entries; bus
   labels and `net/bus-entry` with a first drawer; scenario `tests/scenarios/buses.test.ts`.
   1764 tests.
+- 2026-11-07 — tasks 6–8 done: bus lines and bus stubs drawn heavy in a bus color (`theme.bus`,
+  `SignalStyle.BUS`), bus junction dots only where bus lines meet (dots at every entry looked
+  cluttered in the browser), entry designators hidden; the signal map resolves members by name;
+  bus label value tag; the Bus tool (`B`), buses dragged out of bus pins/ends, per-layer routing
+  index and rubber-banding (`transformLayer`), schematic-only parts placed by their first pin;
+  Place ▸ Bus, Bus Entry (`Z`), toolbar icon; Properties' Bus section (value hex/binary/decimal,
+  bits MSB first) for bus lines, bus labels and entries. Looked at in the browser, both themes,
+  stopped and running. 1774 tests.
 
 ## Handoff
 
-- **State:** tasks 1–5 done (core, circuit, library). Editor and UI not started.
-- **Next step:** task 6 — scene/renderer for buses (`SceneWire` needs to know its bus; scene
-  pins of bus parts have no net), live bus colors and the value tag via the signal map
-  (members by name → simulator nets; a member nothing is named after reads `Z`).
+- **State:** tasks 1–8 done. Example, e2e and docs left.
+- **Next step:** task 9 — the Data Bus example (generate with `CircuitBuilder` in a throwaway
+  vitest file, check nets, look at it in the browser) and an e2e spec (Place ▸ Bus, Bus Entry
+  `Z`, run, `bus-value` in Properties).
 - **Watch out:** the layer check covers tests (`src/circuit/*.test.ts` use `test-parts.ts`,
   library tests can't import `circuit`). 74HC245 pins are 0-based (A0…A7). Gate commits on
   `pnpm check`'s exit code.
