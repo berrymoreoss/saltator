@@ -178,7 +178,7 @@ single entries vs a multi-bit ripper.
   moves, schematic-only parts placed by their first pin; gesture tests.
 - [x] 8. `ui`: Place menu and shortcuts (`B`, `Z`), Parts panel, Properties for buses (members,
   levels, value), the label name hint with bus names; tests.
-- [ ] 9. Example **Data Bus** (Q5), gallery entry; e2e: draw a bus, place entries `D0`…`D7` on a
+- [x] 9. Example **Data Bus** (Q5), gallery entry; e2e: draw a bus, place entries `D0`…`D7` on a
   chip, label the bus, run, see the value.
 - [ ] 10. Docs: circuit.md, components.md, editor.md, glossary, architecture, READMEs,
   ADR-0016; roadmap (R10b done, R11 next; backlog: multi-bit ripper, radix); lessons.

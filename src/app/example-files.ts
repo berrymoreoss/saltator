@@ -1,7 +1,7 @@
 /**
  * Example circuits shipped as files in `examples/` at the repository root, bundled as text at
  * build time. They are ordinary saved documents: edit one in the app and save it over the file.
- * Titles and descriptions live here because the file format (schema v1) has no metadata; the
+ * Titles and descriptions live here because the file format has no metadata; the
  * order is the gallery's order.
  */
 import { type CircuitDocument, parseDocument } from '../circuit';
@@ -29,6 +29,12 @@ export const EXAMPLE_FILES: readonly ExampleFile[] = [
     title: 'Net Labels',
     description:
       'Switches A and B reach a 74HC00 through labels, not wires; labels named GND tie its unused inputs.',
+  },
+  {
+    id: 'data-bus',
+    title: 'Data Bus',
+    description:
+      'A 74HC245 puts the DATA switches on bus D[0..7]; bus entries carry each bit to a 74HC574, LOAD latches it.',
   },
   {
     id: 'sr-latch',
