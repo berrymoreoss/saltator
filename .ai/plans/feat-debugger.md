@@ -208,7 +208,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   of `io/clock`, the NE555 and a gated clock (scenario).
 - [x] 3. `core`: `DiagnosticLog.onOccurrence`, `Trigger` with `repeat`; tests. (A kernel
   `netChanges` counter was tried and dropped: ≈ 3 % on gate chains.)
-- [ ] 4. `circuit`: memory references in the resolver (cells, ranges, address forms, the bus
+- [x] 4. `circuit`: memory references in the resolver (cells, ranges, address forms, the bus
   ambiguity) and `renameReference`; tests.
 - [ ] 5. `editor`: host — stepping goals (`runTo`: a time, before a clock edge) at Max across
   frames, `requestPause(reason)`, the pause reason in the status, breaks during steps, Pause /
@@ -298,11 +298,17 @@ Checkable statements; verified one by one in the finish-branch workflow.
   A kernel `netChanges` counter (one increment in `updateNet`) cost ≈ 3 % on gate chains (two
   runs each: 74HC04 chain 7.9–8.0M events/s vs 8.24–8.26M without it, 74HC595 chain 5.5–5.7M vs
   5.9–6.0M): dropped; the debugger measures activity on request instead. Mutation-checked.
+- 2026-11-07 — task 4: `Target` kind `cells` (`U5[1F]`, `U5[10..1F]`, either way round; a
+  memory's designator wins over a bus name, another part's is refused unless the text is a bus
+  name); `parseAddress` moved from `ui/memory-view.ts` to `circuit` (the resolver and the
+  Memory tab share it); `renameReference` (pins only — `U5` and `D1[0..7]` stay: a net or a bus
+  may look like a designator), so watches keep a memory reference as data (part, from, to)
+  that a rename rewrites, not as text.
 
 ## Handoff
 
-- **State:** in progress; tasks 1–3 done.
-- **Next step:** task 4 (memory references in the resolver, `renameReference`).
+- **State:** in progress; tasks 1–4 done.
+- **Next step:** task 5 (host: stepping goals, `requestPause`, pause reasons).
 - **Watch out:** `io/clock` drives at its wake with zero delay — the lookahead can't see it
   until task 2; a breakpoint during a trigger's post-trigger time must win over `pauseAt`.
 - **Verify with:** `pnpm check`, `pnpm bench`.

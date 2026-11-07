@@ -1,5 +1,6 @@
 import { Eraser, FileDown, FileUp } from 'lucide-react';
 import { useState } from 'react';
+import { parseAddress } from '../circuit';
 import { formatAddress, placeImage, suggestedLoadAddress } from '../core';
 import type { Editor, MemoryEntry } from '../editor';
 import { Dialog } from './Dialogs';
@@ -12,7 +13,6 @@ import {
   imageFileName,
   readImageForLoad,
 } from './image-dialogs';
-import { parseAddress } from './memory-view';
 
 type Open =
   | { readonly kind: 'load'; readonly info: ImageFileInfo }

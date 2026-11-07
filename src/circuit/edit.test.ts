@@ -14,6 +14,7 @@ import {
   removeItems,
   renameComponent,
   renameInProbes,
+  renameReference,
   sameCircuit,
   sameProbes,
   translateCircuit,
@@ -101,6 +102,12 @@ describe('designators and ids', () => {
     expect(renamed.probes[1]).toBe(c.probes[1]);
     expect(renamed.probes[4]).toBe(c.probes[4]);
     expect(renameInProbes(c.probes, 'U9', 'U8')).toBe(c.probes);
+  });
+  it('renames the pins of a part in a signal reference, nothing else', () => {
+    expect(renameReference('U5.A0', 'U5', 'U7')).toBe('U7.A0');
+    expect(renameReference('U55.A0', 'U5', 'U7')).toBe('U55.A0');
+    expect(renameReference('U5', 'U5', 'U7')).toBe('U5'); // a net could be called so
+    expect(renameReference('D1[0..7]', 'D1', 'D3')).toBe('D1[0..7]'); // a bus
   });
 });
 

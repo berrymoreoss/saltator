@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { parseAddress } from '../circuit';
 import type { Editor, MemoryEntry } from '../editor';
 import { useStore } from './hooks';
 import {
@@ -18,7 +19,6 @@ import {
   cellText,
   type HexCursor,
   hexKey,
-  parseAddress,
   ROW_HEIGHT,
   rowAddress,
   scrollToRow,

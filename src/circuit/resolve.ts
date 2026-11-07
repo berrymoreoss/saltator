@@ -1,5 +1,5 @@
 /**
- * The resolver: references as the app writes them (`U5`, `U5.A0`, `CLK`, `D[0..7]`) turned into
+ * The resolver: references as the app writes them (`U5`, `U5.A0`, `CLK`, `D[0..7]`, `U5[1F]`) turned into
  * the parts and nets of a compiled circuit. The memory inspector finds its memories through it;
  * probes (R13), watches and breakpoints (R14) and test benches (R15) will too, so subcircuit
  * instance paths (`U5/D0`, R11) are added here once. Spec: docs/circuit.md#resolver.
@@ -26,7 +26,32 @@ export type Target =
       readonly bus: string;
       /** Net ids of the members, bit 0 first; `undefined` where no net has the member's name. */
       readonly members: readonly (string | undefined)[];
+    }
+  | {
+      /** Cells `from` … `to` (inclusive, `from ≤ to`) of a memory part: `U5[1F]`, `U5[10..1F]`. */
+      readonly kind: 'cells';
+      readonly part: string;
+      readonly type: string;
+      readonly memory: MemoryDef;
+      readonly from: number;
+      readonly to: number;
     };
+
+/** A memory reference taken apart: `U5[10..1F]` → `U5`, `10`, `1F`. */
+const CELLS = /^([^[\].\s]+)\[\s*([^\].]+?)\s*(?:\.\.\s*([^\].]+?)\s*)?\]$/;
+
+/**
+ * An address as the memory tools take it: hex, bare or with `0x`, `$` or `h` (`7F0`, `0x7F0`,
+ * `$7F0`, `7F0h`), below `words`; or why not.
+ */
+export function parseAddress(text: string, words: number): number | string {
+  const trimmed = text.trim();
+  const hex = trimmed.replace(/^(0x|\$)/i, '').replace(/h$/i, '');
+  const last = (words - 1).toString(16).toUpperCase();
+  if (!/^[0-9a-f]+$/i.test(hex)) return `Type a hex address, 0 to ${last}.`;
+  const address = Number.parseInt(hex, 16);
+  return address < words ? address : `The last address is ${last}.`;
+}
 
 /** What a probe shows: nets, bit 0 first. */
 export interface ProbeTarget {
@@ -87,12 +112,21 @@ export class Resolver {
 
   /**
    * What `reference` names — a part (`U5`), a pin (`U5.A0`), a net by name or id (`CLK`,
-   * `U1.Y`), a bus by its name (`D[0..7]`) — or why it names nothing.
+   * `U1.Y`), a bus by its name (`D[0..7]`), cells of a memory part (`U5[1F]`, `U5[10..1F]`:
+   * addresses as `parseAddress` takes them; a memory's designator before `[` wins over a bus
+   * name) — or why it names nothing.
    */
   resolve(reference: string): Target | string {
     const text = reference.trim();
     if (text === '') return 'empty reference';
     if (text.includes('/')) return `"${text}": paths into subcircuits come with R11`;
+    const cells = CELLS.exec(text);
+    const owner = cells && this.#parts.get(cells[1]!);
+    if (cells && owner) {
+      const memory = this.#registry.get(owner.type)?.memory;
+      if (memory) return this.#cells(owner, memory, cells[2]!, cells[3]);
+      if (!isBusName(text)) return `${owner.id} holds no memory`;
+    }
     if (isBusName(text)) {
       const members = busMembers(text).map((name) => this.#nets.get(name));
       if (members.every((net) => net === undefined)) {
@@ -115,6 +149,26 @@ export class Resolver {
     return `no part or net named ${text}`;
   }
 
+  #cells(
+    part: NetlistComponent,
+    memory: MemoryDef,
+    first: string,
+    last: string | undefined,
+  ): Target | string {
+    const from = parseAddress(first, memory.words);
+    if (typeof from === 'string') return `${part.id}[${first}]: ${from}`;
+    const to = last === undefined ? from : parseAddress(last, memory.words);
+    if (typeof to === 'string') return `${part.id}[${last}]: ${to}`;
+    return {
+      kind: 'cells',
+      part: part.id,
+      type: part.type,
+      memory,
+      from: Math.min(from, to),
+      to: Math.max(from, to),
+    };
+  }
+
   /** The nets a signal reference shows — a net, a pin or a bus — or why it shows none. */
   signal(reference: string): ProbeTarget | string {
     const target = this.resolve(reference);
@@ -128,6 +182,8 @@ export class Resolver {
         return { nets: [target.net], vector: false };
       case 'bus':
         return { nets: target.members, vector: true };
+      case 'cells':
+        return `${reference.trim()} is memory, not a signal`;
     }
   }
 

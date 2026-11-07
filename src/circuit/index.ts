@@ -47,6 +47,7 @@ export {
   removeItems,
   renameComponent,
   renameInProbes,
+  renameReference,
   sameCircuit,
   sameProbes,
   translateCircuit,
@@ -92,6 +93,7 @@ export {
   compareDesignators,
   type MemoryPart,
   type ProbeTarget,
+  parseAddress,
   Resolver,
   type Target,
 } from './resolve';

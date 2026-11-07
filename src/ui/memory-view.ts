@@ -53,16 +53,6 @@ export function cellChar(value: number, unknown: number): string {
   return unknown === 0 && value >= 0x20 && value < 0x7f ? String.fromCharCode(value) : '.';
 }
 
-/** A Go to address: hex, bare or with `0x`, `$` or `h` (`7F0`, `0x7F0`, `$7F0`, `7F0h`). */
-export function parseAddress(text: string, words: number): number | string {
-  const trimmed = text.trim();
-  const hex = trimmed.replace(/^(0x|\$)/i, '').replace(/h$/i, '');
-  const last = (words - 1).toString(16).toUpperCase();
-  if (!/^[0-9a-f]+$/i.test(hex)) return `Type a hex address, 0 to ${last}.`;
-  const address = Number.parseInt(hex, 16);
-  return address < words ? address : `The last address is ${last}.`;
-}
-
 /** The hex editor's cursor: a cell, and the digits typed into it so far. */
 export interface HexCursor {
   readonly address: number;

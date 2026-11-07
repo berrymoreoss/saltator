@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { compileCircuit } from './compile';
 import type { Circuit, ComponentInstance, Wire } from './document';
-import { compareDesignators, Resolver } from './resolve';
+import { compareDesignators, parseAddress, Resolver } from './resolve';
 import { testRegistry } from './test-parts';
 
 const registry = testRegistry();
@@ -124,6 +124,27 @@ describe('Resolver', () => {
     expect(resolver.netReference('w4')).toBeUndefined(); // a wire on no pin
   });
 
+  it('resolves cells of a memory part: one address or a range, as the memory tools take them', () => {
+    const rom = registry.get('test/rom')!.memory!;
+    const cells = (from: number, to: number) => ({
+      kind: 'cells',
+      part: 'U2',
+      type: 'test/rom',
+      memory: rom,
+      from,
+      to,
+    });
+    expect(resolver.resolve('U2[3]')).toEqual(cells(3, 3));
+    expect(resolver.resolve(' U2[ 0x1 .. $2 ] ')).toEqual(cells(1, 2));
+    expect(resolver.resolve('U2[3h..1]')).toEqual(cells(1, 3)); // either way round
+    expect(resolver.resolve('U2[0..1]')).toEqual(cells(0, 1)); // a memory wins over a bus name
+    expect(resolver.resolve('U2[4]')).toBe('U2[4]: The last address is 3.');
+    expect(resolver.resolve('U2[0..q]')).toBe('U2[q]: Type a hex address, 0 to 3.');
+    expect(resolver.resolve('U1[0]')).toBe('U1 holds no memory');
+    expect(resolver.resolve('U9[0]')).toBe('no part or net named U9[0]');
+    expect(resolver.signal('U2[1]')).toBe('U2[1] is memory, not a signal');
+  });
+
   it('lists the simulated parts and, in designator order, the memories', () => {
     expect(resolver.parts.map((p) => p.id)).toEqual(['H1', 'U1', 'U10', 'U2']);
     const memories = resolver.memories();
@@ -132,6 +153,17 @@ describe('Resolver', () => {
       ['U10', 'test/rom', 4],
     ]);
     expect(memories[0]!.definition).toBe(registry.get('test/rom'));
+  });
+});
+
+describe('parseAddress', () => {
+  it('reads hex with or without a prefix, within the memory', () => {
+    expect(['7f0', '0x7F0', '$7f0', '7F0h', ' 7f0 '].map((t) => parseAddress(t, 2048))).toEqual([
+      0x7f0, 0x7f0, 0x7f0, 0x7f0, 0x7f0,
+    ]);
+    expect(parseAddress('800', 2048)).toBe('The last address is 7FF.');
+    expect(parseAddress('xyz', 2048)).toBe('Type a hex address, 0 to 7FF.');
+    expect(parseAddress('', 2048)).toBe('Type a hex address, 0 to 7FF.');
   });
 });
 
