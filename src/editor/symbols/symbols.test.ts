@@ -69,6 +69,32 @@ describe('gate drawers', () => {
   });
 });
 
+describe('net drawers', () => {
+  it('draw a bus label in the bus color, its value after it while simulating', () => {
+    const label = part('net/label', { name: 'D[0..7]' });
+    const stopped = new RecordingGraphics();
+    drawPartBody(stopped, label, 'ansi', 'red');
+    expect(stopped.texts.map((t) => t.text)).toEqual(['D[0..7]']);
+    const running = new RecordingGraphics();
+    drawPartBody(running, label, 'ansi', 'red', {
+      levelColor: () => 'green',
+      pinColor: () => 'violet',
+      busValue: '0x3F',
+    });
+    expect(running.texts.map((t) => t.text)).toEqual(['D[0..7]', '0x3F']);
+    // The value sits after the tag, outside the label's own bounds.
+    expect(running.texts[1]!.at[0]).toBeGreaterThan(label.layout.body.x + label.layout.body.width);
+  });
+
+  it('draw a bus entry with its name, no designator', () => {
+    const entry = part('net/bus-entry', { name: 'A15' });
+    expect(draw('net/bus-entry', { name: 'A15' }, 'ansi').texts.map((t) => t.text)).toEqual([
+      'A15',
+    ]);
+    expect(entry.texts).toEqual([]);
+  });
+});
+
 describe('power drawers', () => {
   it('draw constants, pulls and rails inside the layout in both styles', () => {
     const cases: [string, Record<string, PropValue>][] = [

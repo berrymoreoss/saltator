@@ -1,6 +1,10 @@
 import { expect, type Page, test } from '@playwright/test';
-import type { Point } from '../../src/circuit';
+import dataBus from '../../examples/data-bus.logic.json' with { type: 'json' };
+import { loadDocument, type Point } from '../../src/circuit';
+import { buildScene, fitRect } from '../../src/editor';
+import { createDefaultRegistry } from '../../src/library';
 import {
+  canvas,
   clickAt,
   menu,
   newCircuit,
@@ -13,7 +17,10 @@ import {
 
 // R10b in the browser: bus entries placed with Z on two switches, a bus line drawn from the
 // Place menu through their bus ends, a bus label named D[0..1]; running, the bus's value follows
-// the switches in Properties. The Data Bus example opens clean and runs.
+// the switches in Properties. The Data Bus example opens clean and runs; LOAD latches the bus
+// value from one chip into the other.
+
+const registry = createDefaultRegistry();
 
 const SW1: Point = [-14, 0];
 const SW2: Point = [-14, 4];
@@ -78,7 +85,9 @@ test('entries, a bus line and a bus label make a bus whose value follows the swi
 
 test('a wire does not connect to a bus line', async ({ page }) => {
   const grid = await newCircuit(page);
-  await placeBus(page);
+  await canvasFocus(page, grid);
+  await page.keyboard.press('b'); // the Bus tool
+  await expect(page.getByTestId('statusbar')).toContainText('Click to start a bus line');
   for (const at of [[0, 0] as Point, [0, 8] as Point, [0, 8] as Point]) {
     await page.mouse.move(...grid(at));
     await clickAt(page, grid(at));
@@ -92,17 +101,46 @@ test('a wire does not connect to a bus line', async ({ page }) => {
   await expect(page.getByTestId('statusbar')).toContainText('Click to add a corner');
 });
 
-test('the Data Bus example opens without design issues and runs cleanly', async ({ page }) => {
+test('the Data Bus example runs cleanly; LOAD latches 0x2A from the bus into the 74HC574', async ({
+  page,
+}) => {
   const errors = watchErrors(page);
   await newCircuit(page);
   await menu(page, 'File', 'New from Example…');
   await page.getByTestId('example-gallery').locator('[data-example="data-bus"]').click();
   await expect(page).toHaveTitle('Data Bus — Logic');
   await expect(page.getByTestId('bottom-panel')).toContainText('No problems found');
+
+  // The example opens fitted to the canvas: where its parts are on screen.
+  const scene = buildScene(loadDocument(dataBus).circuits[0]!, registry);
+  const box = (await canvas(page).boundingBox())!;
+  const camera = fitRect(scene.bounds!, { width: box.width, height: box.height });
+  const centerOf = (id: string): Point => {
+    const { x, y, width, height } = scene.partById.get(id)!.body;
+    return [
+      box.x + (x + width / 2 - camera.x) * camera.scale,
+      box.y + (y + height / 2 - camera.y) * camera.scale,
+    ];
+  };
+
   await page.keyboard.press('F5');
   await expect(page.getByTestId('sim-status')).toHaveText(/Running · /);
+  // Hold LOAD for a moment: the 574 takes the bus on the rising edge.
+  await page.mouse.move(...centerOf('SW2'));
+  await page.mouse.down();
+  await page.waitForTimeout(100);
+  await page.mouse.up();
+  await clickAt(page, centerOf('U2')); // a click on a chip selects it
+  await expect(summary(page)).toHaveText('U2 · 74HC574');
+  // 0x2A = 0010 1010: Q1, Q3, Q5 high.
+  const q = (i: number) =>
+    properties(page)
+      .locator('.prop-row')
+      .filter({ has: page.locator('.prop-label', { hasText: new RegExp(` Q${i}$`) }) })
+      .getByTestId('live-level');
+  for (let i = 0; i < 8; i++) await expect(q(i)).toHaveText(i % 2 === 1 && i < 6 ? '1' : '0');
+
   await page.getByRole('tab', { name: /Simulation/ }).click();
-  await page.waitForTimeout(500);
   await expect(page.getByTestId('sim-diagnostics')).toContainText('No problems while running');
   expect(errors).toEqual([]);
 });

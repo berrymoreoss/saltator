@@ -319,6 +319,26 @@ describe('buses', () => {
     expect(wires(editor.state.get().circuit)).toEqual(['3,1-3,6 bus', '3,6-8,6 bus', '0,0--4,0']);
   });
 
+  it('duplicates, rotates and undoes bus lines as bus lines', () => {
+    const circuit = new CircuitBuilder(registry)
+      .add('BE1', 'net/bus-entry', { at: [0, 0] }) // B (3, 1)
+      .bus('BE1.B', [3, 6])
+      .build();
+    const editor = new Editor(registry, circuit);
+    editor.selectAll();
+    editor.duplicate();
+    click(editor, [20, 20]);
+    const copied = editor.state.get().circuit;
+    expect(copied.wires.map((w) => w.bus)).toEqual([true, true]);
+    expect(compileCircuit(copied, registry).buses).toHaveLength(2);
+    editor.rotate(true);
+    expect(editor.state.get().circuit.wires.map((w) => w.bus)).toEqual([true, true]);
+    expect(compileCircuit(editor.state.get().circuit, registry).buses).toHaveLength(2);
+    editor.undo();
+    editor.undo();
+    expect(editor.state.get().circuit).toBe(circuit);
+  });
+
   it('moves an entry off a bus line with a bus stub, off a pin with a wire', () => {
     const circuit = new CircuitBuilder(registry)
       .add('U1', '74xx/74hc245', { at: [0, 0] })

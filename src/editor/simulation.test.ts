@@ -4,6 +4,7 @@ import { type Level, levelChar, ms, ns } from '../core';
 import { createDefaultRegistry } from '../library';
 import { Editor } from './editor';
 import { FakeClock } from './fake-clock';
+import { selectionOf } from './selection';
 import { ALL_SPEEDS, formatRate, MAX_SPEED, REAL_TIME, SPEEDS } from './simulation';
 import { UNKNOWN_LIGHT } from './symbols';
 import { SignalStyle } from './theme';
@@ -482,6 +483,12 @@ describe('Simulation: buses', () => {
     );
     editor.edit('Bus', circuit);
     editor.setPartProp('NL1', 'name', 'D[3..0]'); // the same members
+    expect(simulation.simulator).toBe(before);
+    // Q's bus line and its label, moved together.
+    const q = editor.scene.wires.find((w) => w.net === 'Q[0..3]')!;
+    editor.setSelection(selectionOf(['NL2'], [q.id]));
+    editor.nudge(5, 0);
+    expect(editor.scene.wires.find((w) => w.net === 'Q[0..3]')!.from[0]).toBe(q.from[0] + 5);
     expect(simulation.simulator).toBe(before);
     expect(simulation.signalView()!.busValue('D[3..0]')).toBe('0x0');
   });
