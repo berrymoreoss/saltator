@@ -142,7 +142,7 @@ export class WritePath {
     if (addressChanged && state.writing !== NOT_WRITING && next !== NOT_WRITING) {
       if (state.writing === WRITING) {
         this.#violation(ctx, TimingViolation.SETUP, changedPin, 'during the write');
-        this.#markX(state, state.address, state.addressX);
+        this.#markX(state, state.address, state.addressX, now);
         state.spoiled = true;
       } else {
         this.#merge(ctx, state.address, state.addressX);
@@ -186,7 +186,7 @@ export class WritePath {
           addressChanged ? changedPin : this.#lastAddressPin(state),
           `${when(elapsed, 'before')} the write started (tAS ≥ ${formatTime(timing.addressSetup)})`,
         );
-        this.#markX(state, state.prevAddress, state.prevAddressX);
+        this.#markX(state, state.prevAddress, state.prevAddressX, now);
         state.spoiled = true;
       }
     } else if (state.writing === MAYBE_WRITING && next === WRITING) {
@@ -203,11 +203,11 @@ export class WritePath {
           changedPin,
           `${when(elapsed, 'after')} the write ended (tWR ≥ ${formatTime(timing.recovery)})`,
         );
-        this.#markX(state, state.address, state.addressX);
+        this.#markX(state, state.address, state.addressX, now);
         const written = state.address;
         const writtenX = state.addressX;
         this.#readAddress(ctx);
-        this.#markX(state, state.address, state.addressX);
+        this.#markX(state, state.address, state.addressX, now);
         state.address = written;
         state.addressX = writtenX;
       }
@@ -275,12 +275,12 @@ export class WritePath {
         this.#lastAddressPin(state),
         `${when(valid, 'before')} the write ended (tAW ≥ ${formatTime(timing.addressValid)})`,
       );
-      this.#markX(state, state.prevAddress, state.prevAddressX);
+      this.#markX(state, state.prevAddress, state.prevAddressX, now);
       state.spoiled = true;
     }
 
-    this.#store(state, value, unknownBits);
-    if (state.spoiled) this.#markX(state, state.address, state.addressX);
+    this.#store(state, value, unknownBits, now);
+    if (state.spoiled) this.#markX(state, state.address, state.addressX, now);
   }
 
   /** A data bit changing within tDH after the end: that bit is unknown where it differs. */
@@ -300,20 +300,25 @@ export class WritePath {
       const bit = 1 << i;
       forEachCandidate(state.address, state.addressX, (a) => {
         const stored = state.data[a]! & bit ? Level.L1 : Level.L0;
-        if (level !== stored || state.unknown[a]! & bit) state.unknown[a] = state.unknown[a]! | bit;
+        if (level !== stored || state.unknown[a]! & bit) {
+          state.unknown[a] = state.unknown[a]! | bit;
+          state.writtenAt[a] = ctx.now;
+        }
       });
     }
   }
 
   /** The cell at the write address takes `value`; with unknown address bits each may have. */
-  #store(state: RamState, value: number, unknownBits: number): void {
+  #store(state: RamState, value: number, unknownBits: number, now: Time): void {
     if (state.addressX === 0) {
       state.data[state.address] = value;
       state.unknown[state.address] = unknownBits;
+      state.writtenAt[state.address] = now;
       return;
     }
     forEachCandidate(state.address, state.addressX, (a) => {
       state.unknown[a] = state.unknown[a]! | unknownBits | (state.data[a]! ^ value);
+      state.writtenAt[a] = now;
     });
   }
 
@@ -330,12 +335,15 @@ export class WritePath {
     }
     forEachCandidate(address, addressX, (a) => {
       state.unknown[a] = state.unknown[a]! | unknownBits | (state.data[a]! ^ value);
+      state.writtenAt[a] = ctx.now;
     });
   }
 
-  #markX(state: RamState, address: number, addressX: number): void {
+  /** What a violated write may have hit becomes unknown (and counts as written). */
+  #markX(state: RamState, address: number, addressX: number, now: Time): void {
     forEachCandidate(address, addressX, (a) => {
       state.unknown[a] = 0xff;
+      state.writtenAt[a] = now;
     });
   }
 

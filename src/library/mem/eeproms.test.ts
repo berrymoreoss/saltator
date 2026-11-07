@@ -109,6 +109,28 @@ describe.each(eeproms.map((d) => [d.name, d] as const))('%s', (name, d) => {
     expect(view.unknown.every((x) => x === 0)).toBe(true);
   });
 
+  it('names its address pins and stamps the cells it reads, never a write', () => {
+    expect(d.memory!.addressPins).toEqual(Array.from({ length: bits }, (_, i) => `A${i}`));
+    const bench = reading(d, IMAGE);
+    const view = d.memory!.view(bench.sim.stateOf('DUT') as MemoryState);
+    expect(view.readAt[0]).toBe(ns(150)); // valid tACC after power-on
+    const t = bench.now;
+    bench.set(address(5, bits)).settle();
+    expect(view.readAt[5]).toBe(t + ns(150));
+    expect(view.readAt[0]).toBe(ns(150));
+    expect(view.readAt.filter((at) => at !== -Infinity)).toHaveLength(2);
+    expect(view.writtenAt.every((at) => at === -Infinity)).toBe(true);
+  });
+
+  it('stamps nothing while its outputs are off or its address is unknown', () => {
+    const bench = new Bench(d, { contents: IMAGE });
+    bench.set({ CE: 0, OE: 1, WE: 1, ...address(3, bits) }).settle();
+    bench.set({ CE: 1, OE: 0 }).settle();
+    bench.set({ CE: 0, A0: 'X' }).settle();
+    const view = d.memory!.view(bench.sim.stateOf('DUT') as MemoryState);
+    expect(view.readAt.every((at) => at === -Infinity)).toBe(true);
+  });
+
   it('rejects an image larger than the chip', () => {
     const end = WORDS[name]!.toString(16).toUpperCase();
     expect(() => new Bench(d, { contents: `${end}:00` })).toThrow('reaches past the last address');

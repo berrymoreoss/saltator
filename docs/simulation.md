@@ -362,11 +362,14 @@ the net ids.
   drivers disagree right now (a short on real hardware), so a renderer can tell contention from
   an `X` that is merely unknown.
 - **Stats**: `sim.stats` = `{ events, deltaCycles, evaluations }`; `sim.now`, `sim.halted`.
-- **Inspection** (R12a): a memory part's definition has `memory` (`MemoryDef`: words, width,
-  volatile, `view(state)` → `{ data, unknown }`), a view of the instance's cells read through
-  `sim.stateOf(id)` without copying; RAMs take a debug write, the action `{ type: 'poke',
-  address, data }` (`PokeAction`), that bypasses their timing
-  ([components.md](components.md#memories-mem)). CPU registers come with R17 _(planned)_.
+- **Inspection** (R12a, R12b): a memory part's definition has `memory` (`MemoryDef`: words,
+  width, volatile, `addressPins`, `view(state)` → `{ data, unknown, readAt, writtenAt }`), a view
+  of the instance's cells and of when each was last read and written (simulated time, stamped
+  by the part), read through `sim.stateOf(id)` without copying; RAMs take a debug write, the
+  action `{ type: 'poke', address, data }` (`PokeAction`), that bypasses their timing
+  ([components.md](components.md#memories-mem)). The editor's Memory tab is built on them
+  ([editor.md](editor.md#memory-inspector)); parts and nets are found by reference through the
+  resolver ([circuit.md](circuit.md#resolver)). CPU registers come with R17 _(planned)_.
 - **Reproducible randomness**: `SeededRandom` (mulberry32) and `hashString` (FNV-1a) in core;
   parts seed it from what identifies them (a RAM's random power-on contents from its
   designator), never from `Math.random`.

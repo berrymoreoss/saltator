@@ -22,6 +22,7 @@ the alternatives we rejected. Format: [ADR-0001](0001-record-architecture-decisi
 | [0015](0015-net-labels.md)                        | Net labels are schematic-only parts; VCC and GND join by name               | accepted |
 | [0016](0016-buses.md)                             | Buses are named groups of nets on their own layer                           | accepted |
 | [0017](0017-memories.md)                          | Memories: guaranteed limits with an X window; ROM images in the document    | accepted |
+| [0018](0018-memory-inspector.md)                  | Memory inspector: access stamps, edits through the document or pokes        | accepted |
 
 New ADR: copy [template.md](template.md) to `NNNN-short-title.md` (next free number), fill it in,
 add a row here. Superseding: set the old one's status to `superseded by NNNN`; never delete ADRs.

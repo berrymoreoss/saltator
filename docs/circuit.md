@@ -306,6 +306,34 @@ them) and return the same circuit when nothing changes.
   offset, registry)` adds it moved by `offset`, keeping designators that are free, renumbering
   taken ones with their part's prefix, giving wires fresh ids and keeping labels.
 
+## Resolver
+
+`src/circuit/resolve.ts` (R12b, [ADR-0018](adr/0018-memory-inspector.md)): references as the
+app writes them, turned into the parts and nets of one compiled circuit. The memory inspector
+finds its memories through it; probes (R13), watches and breakpoints (R14) and test benches
+(R15) will too, so instance paths into subcircuits (R11) are added in one place.
+
+```ts
+const resolver = new Resolver(compileCircuit(circuit, registry), registry);
+resolver.resolve('U5'); // { kind: 'part', part: 'U5', type: 'mem/6116' }
+resolver.resolve('U5.A0'); // { kind: 'pin', part: 'U5', pin: 'A0', net: 'A0' }
+resolver.resolve('CLK'); // { kind: 'net', net: 'CLK' } — by any name of the net, or its id
+resolver.resolve('D[0..7]'); // { kind: 'bus', bus: 'D[0..7]', members: ['D0', …, 'D7'] }
+resolver.resolve('U9'); // 'no part or net named U9'
+resolver.memories(); // the parts with `memory`, in designator order (U2 before U10)
+```
+
+- A target carries **netlist ids** (component id, net ids); the simulator maps them to indices
+  (`componentIndex`, `netIndex`). A pin's net is the one the compiler put it on (an open pin is
+  a net of its own).
+- A **bus** reference lists its members bit 0 first; a member no net is named after is
+  `undefined` (it reads `Z`, as on the canvas); a bus none of whose members is named is refused.
+- Parts the compiler left out (design errors) and schematic-only parts (net labels) are not in
+  the simulation and don't resolve.
+- References that name nothing are refused with the reason (`U1 has no pin Q`, `no part U9`);
+  `/` is reserved for instance paths (`U5/D0`: "paths into subcircuits come with R11").
+- `compareDesignators` orders designators as people count them (`U2` before `U10`).
+
 ## Performance
 
 Measured by `pnpm bench` (`tests/bench/circuit.bench.ts`): a 3 600-part, 10 620-wire schematic
@@ -315,5 +343,6 @@ validation costs nothing per instance. Recompiling on every edit is affordable.
 
 ## Planned extensions
 
-- Several circuits per document with subcircuit instances _(R11)_.
+- Several circuits per document with subcircuit instances, and instance paths in the resolver
+  (`U5/D0`) _(R11)_.
 - Unconnected power-pin and fan-out checks _(backlog)_.

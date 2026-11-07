@@ -1,6 +1,7 @@
 import {
   type AnyComponentDefinition,
   DESIGNATOR_PREFIX,
+  type PinDef,
   pinsOf,
   resolveProps,
   validatePins,
@@ -58,7 +59,7 @@ export class Registry implements ComponentRegistry {
       const symbol = symbolOf(definition, props);
       if (symbol) validateSymbol(symbol, pins, type);
       if (definition.functionTable) validateFunctionTable(definition.functionTable, type);
-      validateMemory(definition);
+      validateMemory(definition, pins);
       this.byType.set(type, definition);
     }
     return this;
@@ -78,10 +79,11 @@ export class Registry implements ComponentRegistry {
 }
 
 /**
- * A memory part's size must be whole words of 1–8 bits; an `image` prop needs its size in bytes
- * (`max`), the memory's word count when the part has one.
+ * A memory part's size must be whole words of 1–8 bits, one word per combination of its address
+ * pins, which must be input pins of the part; an `image` prop needs its size in bytes (`max`),
+ * the memory's word count when the part has one.
  */
-function validateMemory(definition: AnyComponentDefinition): void {
+function validateMemory(definition: AnyComponentDefinition, pins: readonly PinDef[]): void {
   const { type, memory } = definition;
   if (memory) {
     if (!Number.isInteger(memory.words) || memory.words < 1) {
@@ -89,6 +91,15 @@ function validateMemory(definition: AnyComponentDefinition): void {
     }
     if (!Number.isInteger(memory.width) || memory.width < 1 || memory.width > 8) {
       throw new Error(`${type}: memory width must be 1 to 8 bits, got ${memory.width}`);
+    }
+    if (2 ** memory.addressPins.length !== memory.words) {
+      throw new Error(
+        `${type}: ${memory.addressPins.length} address pins select ${2 ** memory.addressPins.length} words, the memory has ${memory.words}`,
+      );
+    }
+    for (const name of memory.addressPins) {
+      const pin = pins.find((p) => p.name === name);
+      if (pin?.dir !== 'in') throw new Error(`${type}: address pin "${name}" is not an input pin`);
     }
   }
   for (const prop of definition.props ?? []) {

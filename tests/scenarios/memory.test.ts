@@ -5,14 +5,17 @@
  * 25 ns, tWHZ 16 ns, tOHZ 10 ns; AT28C16: tACC 150 ns); 74HC delays typical (245: ten 11 ns).
  */
 import { describe, expect, it } from 'vitest';
+import { exampleDocument } from '../../src/app/example-files';
+import { compileCircuit, Resolver } from '../../src/circuit';
 import {
   ERASED,
   formatImage,
   isTimingViolation,
   KernelDiagnosticKind,
   ns,
-  type Simulator,
+  Simulator,
 } from '../../src/core';
+import { createDefaultRegistry } from '../../src/library';
 import { levels, set, simulate } from './support';
 
 const DATA = [0, 1, 2, 3, 4, 5, 6, 7];
@@ -186,5 +189,29 @@ describe('sampling a RAM too early', () => {
     late.runFor(ns(100));
     expect(q(late)).toBe('11111111');
     expect(violations(late)).toEqual([]);
+  });
+});
+
+describe('the resolver over RAM by Hand', () => {
+  const registry = createDefaultRegistry();
+  const result = compileCircuit(exampleDocument('ram-by-hand').circuits[0]!, registry);
+  const resolver = new Resolver(result, registry);
+
+  it('finds the 6116 and its address pins', () => {
+    const [ram, ...others] = resolver.memories();
+    expect(others).toEqual([]);
+    expect(ram).toMatchObject({ id: 'U1', type: 'mem/6116' });
+    expect(ram!.memory.addressPins).toEqual(Array.from({ length: 11 }, (_, i) => `A${i}`));
+  });
+
+  it('names the nets the simulator has: a pin, a net label, the data bus', () => {
+    const sim = new Simulator(result.netlist, registry);
+    const pin = resolver.resolve('U1.A0');
+    expect(pin).toMatchObject({ kind: 'pin', net: 'A0' });
+    expect(sim.netIndex((pin as { net: string }).net)).toBe(sim.pinNet('U1', 'A0'));
+    expect(resolver.resolve('D7')).toEqual({ kind: 'net', net: 'D7' });
+    expect(resolver.resolve('D[7..0]')).toMatchObject({
+      members: DATA.map((i) => `D${i}`),
+    });
   });
 });

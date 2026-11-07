@@ -7,6 +7,7 @@
  */
 import {
   busValueText,
+  createAccessStamps,
   Drive,
   type EvalContext,
   Level,
@@ -23,6 +24,9 @@ export interface MemoryState {
   readonly data: Uint8Array;
   /** A set bit is unknown (`X`). */
   readonly unknown: Uint8Array;
+  /** When each cell was last read and written, in ps (`MemoryView`). */
+  readonly readAt: Float64Array;
+  readonly writtenAt: Float64Array;
   /** Event times in ps (`-Infinity`: never), indexed by `T_*`. */
   readonly times: Float64Array;
   /** Generation of the pending "data valid" wake-up; a new one makes older ones stale. */
@@ -73,6 +77,11 @@ export interface MemoryPins {
   readonly we: PinRef;
 }
 
+/** The address pin names of a memory with `bits` address bits, A0 first (`MemoryDef.addressPins`). */
+export function addressPinNames(bits: number): string[] {
+  return Array.from({ length: bits }, (_, i) => `A${i}`);
+}
+
 /** The `PinRef`s of a memory chip with address pins A0… and data pins IO0… (or DQ0…). */
 export function memoryPins(
   pinList: readonly PinDef[],
@@ -81,7 +90,7 @@ export function memoryPins(
   data: 'IO' | 'DQ' = 'IO',
 ): MemoryPins {
   return {
-    address: pinIndices(pinList, Array.from({ length: addressBits }, (_, i) => `A${i}`).join(', ')),
+    address: pinIndices(pinList, addressPinNames(addressBits).join(', ')),
     data: pinIndices(pinList, Array.from({ length: 8 }, (_, i) => `${data}${i}`).join(', ')),
     ce: pinIndex(pinList, ce),
     oe: pinIndex(pinList, 'OE'),
@@ -106,6 +115,7 @@ export function createMemoryState(words: number): MemoryState {
   return {
     data: new Uint8Array(words),
     unknown: new Uint8Array(words),
+    ...createAccessStamps(words),
     times: new Float64Array(TIME_SLOTS).fill(-Infinity),
     gen: 0,
   };
@@ -207,7 +217,10 @@ export class ReadPath {
     this.driveData(ctx);
   }
 
-  /** Drives the cell the address selects; unknown bits merge every cell they could select. */
+  /**
+   * Drives the cell the address selects, stamping it read; unknown bits merge every cell they
+   * could select (and stamp none: no one cell was read).
+   */
   driveData(ctx: EvalContext<MemoryState>): void {
     const { data: cells, unknown } = ctx.state;
     const { address, data } = this.#pins;
@@ -238,6 +251,7 @@ export class ReadPath {
         zeros &= ~value & ~x;
         subset = (subset - unknownBits) & unknownBits;
       } while (subset !== 0);
+      if (count === 0) ctx.state.readAt[known] = ctx.now;
     }
     for (let i = 0; i < data.length; i++) {
       const bit = 1 << i;

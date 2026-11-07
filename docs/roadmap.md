@@ -30,12 +30,13 @@ How to read this file:
 | R10a | `feat/net-labels`            | Net labels                                 | done    |
 | R10b | `feat/buses`                 | Buses, rippers, bus values                 | done    |
 | R12a | `feat/memory-chips`          | Memory chips (EEPROM, SRAM)                | done    |
-| R12b | `feat/memory-inspector`      | Memory inspector, image files              | next    |
-| R13  | `feat/logic-analyzer`        | Waveforms & probes                         | planned |
+| R12b | `feat/memory-inspector`      | Memory inspector, image files              | done    |
+| R13  | `feat/logic-analyzer`        | Waveforms & probes                         | next    |
 | R14  | `feat/debugger`              | Breakpoints, stepping, watches             | planned |
 | R11  | `feat/subcircuits`           | Hierarchical design                        | planned |
 | R15  | `feat/test-benches`          | Circuit test benches ("test before fab")   | planned |
-| R16  | `example/sap-1`              | Ben Eater SAP-1 reference build            | planned |
+| R16a | `example/sap-1-modules`      | SAP-1 modules as tested subcircuits        | planned |
+| R16b | `example/sap-1`              | Ben Eater SAP-1 reference build            | planned |
 | R17  | `feat/cpu-6502`              | W65C02S CPU                                | planned |
 | R18  | `feat/peripherals`           | VIA, LCD, serial, buzzer                   | planned |
 | R19  | `feat/toolchain`             | 6502 assembler & flashing                  | planned |
@@ -149,7 +150,7 @@ tests; File ▸ New from Example… shows them with live thumbnails. Spec:
 **M1 acceptance:** in the browser, build switch → 74HC00 → LED and clock → LED; run; the LED follows
 the logic; save, reload, still works. — **Reached** (`tests/e2e/m1.spec.ts`).
 
-## Phase 2 — Building blocks → **M2 "Modules"**
+## Phase 2 — Building blocks
 
 ### R08 · 74HC combinational MSI — `feat/74hc-msi` — `done`
 
@@ -258,22 +259,32 @@ Part tab shows limits-only timing. Examples: EEPROM 7-Segment Decoder, RAM by Ha
 [components.md](components.md#memories-mem). Decision: [ADR-0017](adr/0017-memories.md). Plan:
 `.ai/plans/feat-memory-chips.md`.
 
-### R12b · Memory inspector, image files — `feat/memory-inspector` — `next`
+Phase 2 ended without its milestone: M2 was "SAP-1 modules built and verified individually".
+On 2026-11-07 (R12b, Q1) the SAP-1 left the phases of tools and parts: every tool needed to
+design and verify a digital device comes first (phase 3, M2 "Tools"), then the SAP-1 is built
+with them — its modules as subcircuits with their own test benches (phase 4, M3), then the
+6502 systems (phase 5, M4).
 
-Memory inspector (hex view, edit, live read/write highlighting, follow address), import/export
-`.bin` and Intel HEX, "programmer" dialog. The inspector, and later R13's probes and R14's
-watches and breakpoints, refer to parts and nets through one resolver over the compiled netlist,
-so R11 adds paths into subcircuit instances (`U5/D0`) in one place. The SAP-1 modules M2 still
-needs (ALU and B register, RAM and memory address register, the output register with its EEPROM
-decoder) as examples.
+## Phase 3 — Design tools → **M2 "Tools"**
 
-**M2 acceptance:** Ben Eater SAP-1 modules (clock, A/B registers, ALU, program counter, RAM and
-memory address register, output register with its EEPROM decoder) built and verified
-individually.
+### R12b · Memory inspector, image files — `feat/memory-inspector` — `done`
 
-## Phase 3 — Debugging, hierarchy, verification → **M3 "SAP-1 runs"**
+The Memory tab: a virtualized hex view of any memory of the circuit (8/16/32 cells a row,
+ASCII, `X` nibbles), live while simulating — cells read since the last frame lit green, written
+orange, from per-cell access stamps the parts keep (`readAt`, `writtenAt`), the address on the
+chip's pins (`MemoryDef.addressPins`) outlined and followed — with bytes typed in place: a ROM's
+image as an undoable, coalesced document edit (a running ROM follows), a simulated RAM poked.
+`.bin` and Intel HEX (records 00–05, checksums, errors with lines) read, placed and written in
+`core`; the programmer is the Load dialog (range, bytes, sum; load address, fill the rest with
+FF), with Save and Erase. One resolver (`circuit`) turns `U5`, `U5.A0`, `CLK`, `D[0..7]` into
+netlist ids for the inspector and later probes, watches, breakpoints and benches; R11 adds
+instance paths there. RAMs stay volatile (Q2): a test bench's setup loads them before t = 0
+(R15). The roadmap was reordered at its start: design tools first (M2 "Tools"), then the SAP-1
+(R16a, R16b). Spec: [editor.md](editor.md#memory-inspector),
+[components.md](components.md#image-files), [circuit.md](circuit.md#resolver). Decision:
+[ADR-0018](adr/0018-memory-inspector.md). Plan: `.ai/plans/feat-memory-inspector.md`.
 
-### R13 · Waveforms & probes — `feat/logic-analyzer`
+### R13 · Waveforms & probes — `feat/logic-analyzer` — `next`
 
 Probe nets/buses, timing diagram with zoom/pan, cursors and Δt measurement, bus decoding, trigger
 conditions, export (VCD).
@@ -294,16 +305,33 @@ unit.
 ### R15 · Circuit test benches — `feat/test-benches`
 
 Test vectors (table of inputs/expected outputs over time) and scripted benches for user circuits;
-run in the app and headless (Node/CI); pass/fail report. The core of "test before fab".
+run in the app and headless (Node/CI); pass/fail report. The core of "test before fab". A
+bench's setup runs like an init script before the simulation starts and loads memories (a RAM's
+program, a ROM image from a file), through R12b's image formats and `poke` (R12b, Q2).
 
-### R16 · SAP-1 reference build — `example/sap-1`
+**M2 acceptance:** on example circuits — a memory inspected live and programmed from a file; a
+bus captured in the waveform view with a trigger and exported; a run stopped at a breakpoint and
+stepped; a design built from subcircuits; a test bench with a memory setup passing in the app
+and headless in CI.
 
-Full Ben Eater 8-bit computer as an example project (microcode EEPROMs, 7-segment output), with
-a test bench running a demo program.
+## Phase 4 — SAP-1 → **M3 "SAP-1 runs"**
+
+### R16a · SAP-1 modules — `example/sap-1-modules`
+
+Ben Eater's SAP-1 modules, each a subcircuit with its own test bench: clock, A and B registers,
+ALU, program counter, RAM and memory address register (on a 6116 or 62256), output register
+with its multiplexed EEPROM decoder. The existing Clock Module, SAP-1 A Register and SAP-1
+Program Counter examples are redone as subcircuits.
+
+### R16b · SAP-1 reference build — `example/sap-1`
+
+Full Ben Eater 8-bit computer from R16a's modules (control logic with microcode EEPROMs,
+7-segment output), with a test bench whose setup loads a demo program into the RAM and checks
+what it outputs.
 
 **M3 acceptance:** SAP-1 runs a program end to end; its test bench passes in CI.
 
-## Phase 4 — CPU systems → **M4 "6502 Hello World"**
+## Phase 5 — CPU systems → **M4 "6502 Hello World"**
 
 ### R17 · W65C02S CPU — `feat/cpu-6502`
 
@@ -377,5 +405,7 @@ Promote to a numbered item when needed.
   wire and label of its net, across labels.
 - Placing VCC/GND symbols by their pin (R10a follow-up), as net labels are placed, so a click on
   a pin tip attaches one; other one-pin parts may follow.
+- Image generators (R12b follow-up): a memory's contents computed by a short script in the app
+  (Ben Eater's Arduino sketch for the decoder EEPROM, microcode tables), kept with the document.
 - Documents (R07 follow-ups): several documents open in one window (tabs); a title, notes and
   simulation settings (speed) stored in the file (schema v2).

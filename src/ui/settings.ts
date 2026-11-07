@@ -6,8 +6,9 @@ import type { GateStyle, WheelMode } from '../editor';
 
 export type ThemeSetting = 'system' | 'dark' | 'light';
 export type PanelId = 'parts' | 'properties' | 'bottom';
-/** Tabs of the bottom dock: design checks, and what happened while simulating. */
-export type BottomTab = 'messages' | 'simulation' | 'part';
+/** Tabs of the bottom dock: design checks, what happened while simulating, the part, memories. */
+export type BottomTab = 'messages' | 'simulation' | 'part' | 'memory';
+const BOTTOM_TABS: readonly BottomTab[] = ['messages', 'simulation', 'part', 'memory'];
 
 export interface PanelSettings {
   readonly visible: boolean;
@@ -22,6 +23,8 @@ export interface Settings {
   readonly wheel: WheelMode;
   readonly panels: Readonly<Record<PanelId, PanelSettings>>;
   readonly bottomTab: BottomTab;
+  /** The Memory tab scrolls to keep the address on the chip's pins in view. */
+  readonly memoryFollow: boolean;
 }
 
 /** Size limits of the docks, in px. */
@@ -42,6 +45,7 @@ export const DEFAULT_SETTINGS: Settings = {
     bottom: { visible: true, size: 148 },
   },
   bottomTab: 'messages',
+  memoryFollow: true,
 };
 
 export const SETTINGS_KEY = 'logic.settings.v1';
@@ -79,7 +83,9 @@ export function parseSettings(value: unknown): Settings {
       properties: panel(panels.properties, 'properties'),
       bottom: panel(panels.bottom, 'bottom'),
     },
-    bottomTab: oneOf(raw.bottomTab, ['messages', 'simulation', 'part'], DEFAULT_SETTINGS.bottomTab),
+    bottomTab: oneOf(raw.bottomTab, BOTTOM_TABS, DEFAULT_SETTINGS.bottomTab),
+    memoryFollow:
+      typeof raw.memoryFollow === 'boolean' ? raw.memoryFollow : DEFAULT_SETTINGS.memoryFollow,
   };
 }
 

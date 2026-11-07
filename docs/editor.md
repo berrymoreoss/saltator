@@ -1,11 +1,12 @@
 # Editor and workbench
 
 Specification of `src/editor` (the canvas engine, no React) and `src/ui` (the React shell around
-it): the workbench and schematic view (R04a), editing (R04b), running the simulation (R05) and
-files (R07).
+it): the workbench and schematic view (R04a), editing (R04b), running the simulation (R05),
+files (R07) and the memory inspector (R12b).
 Rationale: [ADR-0008](adr/0008-desktop-workbench.md) (workbench),
 [ADR-0009](adr/0009-editing-model.md) (editing), [ADR-0010](adr/0010-running-simulations.md)
-(simulation), [ADR-0012](adr/0012-files-and-sessions.md) (files and sessions).
+(simulation), [ADR-0012](adr/0012-files-and-sessions.md) (files and sessions),
+[ADR-0018](adr/0018-memory-inspector.md) (memory inspector).
 
 ## Shell
 
@@ -23,7 +24,7 @@ A desktop CAD-style window (`Workbench`), dense like KiCad or Altium: 12 px UI t
 │ ▾ IO       │                                      │ Delay 1 ns   │
 │ ── preview │                                      │              │
 ├────────────┴──────────────────────────────────────┴──────────────┤
-│ MESSAGES  2  78 · SIMULATION  1 · PART  (Memory, Analyzer later)  │
+│ MESSAGES  2  78 · SIMULATION  1 · PART · MEMORY  (Analyzer later) │
 ├──────────────────────────────────────────────────────────────────┤
 │ X 12  Y 4 │ 100 % │ U1 · NAND │ hint …        14 parts · 20 wires │ ✖ 0 ⚠ 1 │
 └──────────────────────────────────────────────────────────────────┘
@@ -45,7 +46,8 @@ A desktop CAD-style window (`Workbench`), dense like KiCad or Altium: 12 px UI t
   issues, errors first, with code, message and location (`U1.A`, `wire w3`); click selects the
   item and brings it into view, double-click zooms to it; the tab and the status bar show the
   counts. **Simulation** — what happened while running ([Simulation](#simulation)). **Part** —
-  the pins and function table of the last part picked ([Part info](#part-info)).
+  the pins and function table of the last part picked ([Part info](#part-info)). **Memory** —
+  the cells of a memory part, live while simulating ([Memory inspector](#memory-inspector)).
 - **Status bar**: grid position under the pointer, zoom, a one-line selection summary, the
   simulation (state, simulated time, the speed reached when lagging, runtime problems; click opens
   the Simulation tab), a hint for the current tool and gesture (`statusHint`), part/wire counts,
@@ -137,7 +139,8 @@ floating paste), else leaves the Wire or place tool for Select, else clears the 
 
 `Settings` (`src/ui/settings.ts`): theme (`system` · `dark` · `light`), gate style (`ansi` ·
 `iec`), grid on/off, scroll-wheel mode (`pan` · `zoom`), each dock's visibility and size, and
-the bottom dock's tab (`messages` · `simulation`).
+the bottom dock's tab (`messages` · `simulation` · `part` · `memory`) and whether the Memory tab
+follows the address (`memoryFollow`).
 They live in `localStorage` (`logic.settings.v1`), saved with a short debounce; reading repairs
 each invalid field to its default, and blocked storage (private mode) just means nothing is
 remembered.
@@ -401,7 +404,7 @@ focus its designator.
   "Use letters, digits, …"), without the spaces at its ends. A schematic-only part (net label)
   has no **Label** row: its free text would never be drawn. A memory's contents (`image` props)
   show as a summary, `214 of 2048 bytes programmed` or `Erased (2048 bytes)`, not edited here
-  (the memory inspector, R12b _(planned)_). Each commit is one undo step and writes all resolved props. A prop
+  (the Memory tab edits them: [Memory inspector](#memory-inspector)). Each commit is one undo step and writes all resolved props. A prop
   that changes the layout (gate inputs, DIP-switch count) moves pins; attached wires are not
   re-routed.
 
@@ -530,6 +533,80 @@ time to move.
   binary and decimal (when every bit is known; `Simulation.busLive`) and each bit's level, most
   significant first.
 
+## Memory inspector
+
+R12b ([ADR-0018](adr/0018-memory-inspector.md)): the **Memory** tab of the bottom dock shows one
+memory part of the circuit (`MemoryDef` on its definition: EEPROMs, SRAMs) as a hex view, the
+way a programmer's buffer or a debugger's memory window does.
+
+### Memory tab
+
+```text
+ U1 · AT28C16 · 2K × 8 ▾  Address 0x001  ☑ Follow  [Go to]           Load…  Save…  Erase
+ 0000  3F 06 5B 4F 66 6D 7D 07  7F 6F 77 7C 39 5E 79 71  FF FF …   ?.[Ofm}..ow|9^yq....
+```
+
+- **Picker**: the circuit's memories in designator order (`U1 · AT28C16 · 2K × 8`), found
+  through the resolver ([circuit.md](circuit.md#resolver)). Selecting a memory part on the
+  canvas shows it (as the Part tab follows the pick), Edit ▸ Inspect Memory and the part's
+  context menu open the tab on it, and the pick follows renames.
+- **Cells**: while simulating, the instance's cells, read in place every frame; while stopped, a
+  ROM's image (its `contents` prop). A stopped RAM has none: "A RAM holds data only while
+  simulating. Step (F10) powers on at t = 0, paused, to edit or load it before running." (RAMs
+  stay volatile; a test bench's setup loads them before t = 0, R15.)
+- **Hex view** (`MemoryPanel.tsx`, pure pieces in `memory-view.ts`): rows of 8, 16 or 32 cells,
+  as many as fit the dock's width (`bytesPerRow`), with the row address (at least 4 hex digits)
+  and an ASCII column (printable ASCII, else `.`). Unknown bits show as `X` nibbles in the `X`
+  color (`XX`, `3X`); a ROM's erased bytes (`FF`) are dimmed. Only the visible rows (and a few
+  around them) are rendered: a 62256 is 1024 rows of 32.
+- **Live**: cells read since the last frame light up green (level 1), cells written orange
+  (warning), fading over ½ s of wall time (`ACCESS_FADE_MS`); paused, the fade stops, so a Step
+  shows what it touched. The cell at the address on the chip's pins is outlined; the toolbar
+  shows that address (`0x01F`, `X`/`Z` nibbles). **Follow** (on by default, a setting) scrolls to
+  keep it in view; scrolling by hand or Go to turns it off.
+- **Editing**: click a cell (or move with the arrows, Home/End, Page Up/Down), type hex digits —
+  the last digit of a cell writes it and moves on, Enter writes a half-typed cell, Escape or
+  Backspace drops it; Mod+G or the Go to box jumps to an address (`7F0`, `0x7F0`, `$7F0`,
+  `7F0h`). Keys the hex view handles never reach the shortcuts (a typed `B` doesn't arm the Bus
+  tool). A ROM's edit changes its image — one undo step, consecutive bytes of one memory
+  coalesced (`Edit U1 contents`) — stopped or running (a running ROM restarts from the new image
+  with its outputs carried, ADR-0010); a simulated RAM's edit is a debug write (`poke`) at the
+  current instant, not undoable, lost at Reset. Problems show under the toolbar.
+
+### Image files
+
+`.bin` and Intel HEX through `ImageFileAccess` (`src/ui/files.ts`: pickers of their own, so the
+browser remembers the images folder apart from the circuits folder; a file input and a download
+elsewhere); the formats are `core` ([components.md](components.md#image-files)).
+
+- **Load…** — the programmer: the file is read and shown before anything is written — its format
+  (by extension, else by its first line), what it holds (`0x8000–0x8003 · 4 bytes · sum
+  0x000A`: range, byte count, 16-bit sum of the bytes as programmer software shows it), the
+  memory, **Load at** (where the file's lowest address lands: by default that address modulo
+  the memory's size, so a BE6502 ROM assembled for 0x8000 lands at 0 in an AT28C256; the dialog
+  says where the file ends), and **Fill the rest with FF** (on: erase first, as a programmer
+  does; off: keep the other bytes). A file that doesn't fit, or an unreadable one ("line 12:
+  checksum 0x3C, expected 0x4A"), is refused with the reason. **Program** writes a ROM's image
+  (one undo step, `Load image into U1`) or pokes a simulated RAM.
+- **Save…** — binary (`U1.bin`, every byte from address 0) or Intel HEX (`U1.hex`; the address
+  of byte 0 in the file, e.g. 0x8000 for a ROM decoded there, and Leave out lines of FF, on for
+  ROMs); unknown bits of a RAM are written as 0 and the dialog counts the bytes that had them.
+- **Erase** (ROMs): every byte `FF`, one undo step (`Erase U1`).
+
+### Model
+
+`MemoryInspector` (`src/editor/memory-inspector.ts`, `editor.memory`) has no DOM:
+
+- `memories()` from the resolver over the scene's compile result; `cells(id)` (`live` view,
+  `image` bytes, or `none` with the reason); `address(id)` from the definition's `addressPins`.
+- `intensity(stamp)` turns a cell's access stamp (`readAt`, `writtenAt`: simulated time) into
+  0–1: the inspector samples the simulated time against wall time on the host's `revision` and
+  `status` (`AccessClock`, a ring of recent frames); an access is as old as the first frame that
+  reached it. Time going backwards (Reset) clears the samples. `fading` tells the view to keep
+  redrawing.
+- `write`, `load` (an image file's writes from `placeImage`), `erase`, `contents` (the bytes to
+  save, unknown bits as 0).
+
 ## Editor API
 
 `new Editor(registry, circuit?, settings?, options?)` (`src/editor/editor.ts`) owns the circuit,
@@ -547,7 +624,8 @@ focus Properties).
 - Editing: `deleteSelection`, `rotate(clockwise)`, `flip(direction)`, `nudge(dx, dy)`,
   `copySelection`, `cutSelection` (both return clipboard text), `pasteText(text)`, `duplicate`,
   `renamePart`, `setPartLabel`, `setPartProp`, `setPartPlacement` (the last three return an error
-  message instead of editing when the value isn't valid).
+  message instead of editing when the value isn't valid; `setPartProp` takes the undo step's
+  label and a coalesce key, as a memory's byte edits use them).
 - Tools: `setTool`, `placePart(type)`, `dragPart(type, client?)`, `dropPart(type, client)`,
   `swapWirePosture`, `escape`, `cancel`.
 - View and selection: `setSettings`, `setSelection`, `selectAll`, `clearSelection`, `zoomIn`,
@@ -556,6 +634,9 @@ focus Properties).
   `setSpeed`, `action(component, payload)`, `clearDiagnostics`; `state`, `simulator`,
   `signalView()`, `pinStyle`, `wireStyle`, `wiresOfNet`; stores `status`, `diagnostics`,
   `ticks`, `revision`.
+- Memories (`editor.memory`, a `MemoryInspector`): `memories`, `entry`, `cells`, `address`,
+  `intensity`, `fading`, `write`, `load`, `erase`, `contents`
+  ([Memory inspector](#memory-inspector)).
 - Input: the DOM layer converts events into `PointerInput` (canvas pixels, button, Shift, client
   position) and calls `pointerDown`, `pointerMove`, `pointerUp`, `doubleClick`, `pointerLeave` —
   so every gesture runs, and is tested, without a browser.
@@ -705,7 +786,12 @@ edit, and save over the file.
 - Pure modules (camera, scene, text placement, hit-testing, selection, grid, shortcuts, settings,
   command registry, formatting, history, move, operations, wire routing, clipboard, prop input,
   document session, file access with injected pickers, document controller, autosave with a
-  memory store and controlled timers, recent files) — Vitest in Node, next to the code.
+  memory store and controlled timers, recent files, the hex view's layout and keys, the image
+  dialogs' file reading) — Vitest in Node, next to the code.
+- Memory inspector — `src/editor/memory-inspector.test.ts` with a fake clock and real memories:
+  the memories and their labels, cells stopped and live, the address on the pins, highlighting
+  (lit, fading, frozen while paused, cleared by Reset), ROM edits coalesced and followed by a
+  running ROM, RAM pokes, loads, Erase, the bytes to save.
 - Examples — `tests/scenarios/examples.test.ts` keeps every file canonical (listed, bundled as
   on disk, what `serializeDocument` writes, normalized wires, every resolved prop, no design
   issues); `example-circuits.test.ts` and `hello-led.test.ts` run them (truth table, set /
@@ -744,7 +830,10 @@ edit, and save over the file.
   (`autosave.spec.ts`): a reload restores the unsaved circuit, name and view, a reload right
   after an edit, the file kept across a reload, per-tab sessions, `?example=`; the gallery
   (`examples.spec.ts`); **M1** (`m1.spec.ts`): switch → 74HC00 → LED and clock → LED built,
-  run, saved, reloaded, run again. The File System Access pickers are stubbed with handles from
+  run, saved, reloaded, run again; memories (`memory.spec.ts`, R12a–R12b): the EEPROM decoder
+  and RAM by Hand run, a byte edited in the Memory tab and undone, Intel HEX and `.bin` files
+  loaded, a write lit, a poke read back, Save, a 62256 virtualized, the tab following the memory
+  picked on the canvas and Edit ▸ Inspect Memory. The File System Access pickers are stubbed with handles from
   the origin private file system (`tests/e2e/file-system.ts`); specs load the app with
   `openApp`, which waits for the start-up restore. Not part of `pnpm check` (it needs a
   browser); CI runs it after the build.

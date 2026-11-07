@@ -22,6 +22,7 @@ import {
 } from '../../core';
 import { dipPins, type PinRow, pins } from '../74xx/pinout';
 import {
+  addressPinNames,
   createMemoryState,
   enabledByLow,
   memoryPins,
@@ -264,7 +265,13 @@ export function sramDefinition(spec: SramSpec): AnyComponentDefinition {
     props,
     timing: grades.length > 1 ? ({ speed }) => timingOf(speed) : timingOf(spec.defaultGrade),
     functionTable: sramModes(spec),
-    memory: { words: spec.words, width: 8, volatile: true, view: (state) => state },
+    memory: {
+      words: spec.words,
+      width: 8,
+      volatile: true,
+      addressPins: addressPinNames(Math.log2(spec.words)),
+      view: (state) => state,
+    },
     create: ({ speed, powerOn }) => {
       const timing = timingOf(speed ?? spec.defaultGrade);
       const readTiming = sramReadTiming(timing);
@@ -315,7 +322,7 @@ export function sramDefinition(spec: SramSpec): AnyComponentDefinition {
   });
 }
 
-/** Writes `bytes` from `address` on, known, bypassing timing. */
+/** Writes `bytes` from `address` on, known, bypassing timing; they count as written now. */
 function poke(
   ctx: EvalContext<RamState>,
   address: number,
@@ -327,10 +334,11 @@ function poke(
       `${ctx.id}: poke of ${bytes.length} bytes at ${address} is outside 0…${words - 1}`,
     );
   }
-  const { data, unknown } = ctx.state;
+  const { data, unknown, writtenAt } = ctx.state;
   for (let i = 0; i < bytes.length; i++) {
     data[address + i] = bytes[i]! & 0xff;
     unknown[address + i] = 0;
+    writtenAt[address + i] = ctx.now;
   }
 }
 

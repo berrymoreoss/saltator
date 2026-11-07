@@ -42,6 +42,26 @@ export {
   validateFunctionTable,
 } from './function-table';
 export {
+  applyImageWrites,
+  detectImageFormat,
+  formatAddress,
+  type ImageChunk,
+  type ImageFile,
+  ImageFileError,
+  type ImageFormat,
+  type ImageSummary,
+  type IntelHexOptions,
+  memoryBytes,
+  type PlaceOptions,
+  placeImage,
+  readBinaryImage,
+  readImageFile,
+  readIntelHex,
+  suggestedLoadAddress,
+  summarizeImage,
+  writeIntelHex,
+} from './image-files';
+export {
   and,
   DRIVES,
   Drive,
@@ -62,6 +82,7 @@ export {
   xor,
 } from './logic';
 export {
+  createAccessStamps,
   ERASED,
   formatImage,
   IMAGE_HINT,

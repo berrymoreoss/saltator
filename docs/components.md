@@ -28,7 +28,7 @@ the part before the slash (`familyOf(type)`).
 | `net`    | `net/label`, `net/bus-entry`                                       | Schematic-only connections: net and bus labels, bus entries ([below](#net-labels-net)); ports later.   |
 | `74xx`   | `74xx/74hc00`, `74xx/74hc245`, `74xx/74hc574`                      | Real logic chips ([below](#74xx-chips-74xx)). Behavior shared per function; timing per logic family.   |
 | `timer`  | `timer/ne555`                                                      | Analog timers, behavioral: the RC network as props ([below](#timers-timer)).                           |
-| `mem`    | `mem/at28c16`, `mem/6116`                                          | EEPROMs (read as ROMs) and SRAMs ([below](#memories-mem)); the inspector _(planned, R12b)_.            |
+| `mem`    | `mem/at28c16`, `mem/6116`                                          | EEPROMs (read as ROMs) and SRAMs ([below](#memories-mem)); shown in the Memory tab (R12b).             |
 | `cpu`    | `cpu/w65c02s`                                                      | Processors (pin-level) _(planned, R17)_. Later: Z80, AVR, PIC.                                         |
 | `periph` | `periph/w65c22`, `periph/hd44780`                                  | Peripherals _(planned, R18)_.                                                                          |
 | `test`   | `test/driver`                                                      | Test-only parts from `src/core/testing`; not in the default registry.                                  |
@@ -804,8 +804,15 @@ Alliance Memory for the 62256.
 - **Debug write**: a RAM takes the action `{ type: 'poke', address, data: number[] }` at the
   current instant: the cells change at once, outputs reading them follow through the read path
   (`X`, then the data after `tAA`). ROM contents change through the image (a document edit).
-- **Inspection**: `memory: { words, width, volatile, view(state) }` on the definition; the view
-  is the instance's cells (`data`, `unknown`), read without copying.
+- **Inspection**: `memory: { words, width, volatile, addressPins, view(state) }` on the
+  definition (the registry checks that `2 ** addressPins.length` is `words` and that they are
+  input pins); the view is the instance's cells (`data`, `unknown`) and their **access stamps**
+  (`readAt`, `writtenAt`: the simulated time each cell was last read and written, `-Infinity`
+  never), read without copying. A read is stamped when the outputs drive a cell's data for one
+  known address (merged unknown addresses stamp nothing); a write when a write of the circuit
+  stores a cell or makes it `X` (a maybe-write, a violation, data held too short) and on a
+  `poke`. One store per access: the memory benchmark lost ≈ 1 % (R12b). The Memory tab lights
+  up the cells touched since its last frame ([editor.md](editor.md#memory-inspector)).
 - **Tests** (`src/library/mem/*.test.ts`): pinouts by number from the data sheets' figures, every
   read path's limits measured (`changes` lists a pin's changes with their times), the window,
   unknowns, each write requirement just inside (silent, stored) and just outside (reported,
@@ -817,3 +824,35 @@ Alliance Memory for the 62256.
 - **Examples**: EEPROM 7-Segment Decoder (an AT28C16 lighting the hex digit of four switches)
   and RAM by Hand (a 6116 written from switches through a 74HC245 in PROGRAM mode and read back
   onto LEDs).
+
+### Image files
+
+`src/core/image-files.ts` (R12b): memory images as EEPROM programmers and assemblers write them,
+read into chunks of bytes at their addresses and placed into a memory. Pure, so the Memory tab,
+test bench setups (R15) and the toolchain (R19) share it.
+
+- **Binary** (`.bin`, `.rom`): every byte from address 0. An empty file is refused.
+- **Intel HEX** (`.hex`, `.ihx`, `.ihex`, `.mcs`): records 00 (data), 01 (end of file), 02
+  (extended segment address, ×16), 04 (extended linear address, ×65536), 03 and 05 (start
+  address: kept as `start`, not used). Every record's checksum is checked; a record's data wraps
+  within its 64 KB segment, as the format says; blank lines are skipped and anything after the
+  end record ignored. A bad file is refused with its line: `line 1: checksum 0xBE, expected
+  0xBD`, `line 2: overlaps the data of line 1 at 0x0011`, `no end-of-file record`.
+- **Detection** (`detectImageFormat`): Intel HEX by extension, else when the first line is a hex
+  record; binary otherwise.
+- **Summary** (`summarizeImage`): the lowest and highest address, the byte count and the 16-bit
+  sum of the bytes (the checksum programmer software shows).
+- **Placing** (`placeImage(file, words, { at, eraseRest })`): the file's lowest address lands at
+  `at` and the rest keeps its layout; with `eraseRest` the result is the whole memory with the
+  file's bytes on erased (`0xFF`) ground; a file that doesn't fit is refused with the reason.
+  `suggestedLoadAddress` is the lowest address modulo the memory's size — a chip whose upper
+  address lines aren't connected sees it there (a BE6502 ROM assembled for 0x8000 lands at 0 in
+  an AT28C256). The writes go into a ROM's image (`applyImageWrites`) or are poked into a RAM.
+- **Writing**: `writeIntelHex(bytes, { base, omitErased })` — 16 data bytes per record aligned to
+  16, an 04 record whenever the upper address bits change (none below 64 KB), uppercase, `\n`
+  line ends, optionally leaving out records of `0xFF`; `memoryBytes(data, unknown)` gives a
+  memory's bytes with unknown bits as 0 and counts the bytes that had any.
+- **Tests** (`image-files.test.ts`): Wikipedia's Intel HEX example read and written back, every
+  record type, wrapping, errors with their lines, placing and refusing, and a round trip of
+  random sparse images up to 64 KB through Intel HEX (with a base and erased records left out)
+  and binary; mutation-checked.

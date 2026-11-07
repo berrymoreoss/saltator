@@ -60,7 +60,11 @@ describe('settings', () => {
     expect(settings.bottomTab).toBe('messages');
     expect(parseSettings({ bottomTab: 'simulation' }).bottomTab).toBe('simulation');
     expect(parseSettings({ bottomTab: 'part' }).bottomTab).toBe('part');
-    expect(parseSettings({ bottomTab: 'memory' }).bottomTab).toBe('messages');
+    expect(parseSettings({ bottomTab: 'memory' }).bottomTab).toBe('memory');
+    expect(parseSettings({}).memoryFollow).toBe(true);
+    expect(parseSettings({ memoryFollow: false }).memoryFollow).toBe(false);
+    expect(parseSettings({ memoryFollow: 'no' }).memoryFollow).toBe(true);
+    expect(parseSettings({ bottomTab: 'analyzer' }).bottomTab).toBe('messages');
   });
 
   it('follows the OS for the system theme', () => {

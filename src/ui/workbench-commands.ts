@@ -15,6 +15,7 @@ import {
   Keyboard,
   LayoutGrid,
   Maximize,
+  MemoryStick,
   Monitor,
   Moon,
   MousePointer2,
@@ -88,6 +89,14 @@ export function createCommands({
 
   const simulation = editor.simulation;
   const simState = () => simulation.state;
+  /** The memory part selected alone on the canvas, if any. */
+  const selectedMemory = () => {
+    const { selection, circuit } = editor.state.get();
+    if (selection.parts.size !== 1) return undefined;
+    const [id] = selection.parts;
+    const part = circuit.components.find((c) => c.id === id);
+    return part && editor.registry.get(part.type)?.memory ? part.id : undefined;
+  };
 
   return [
     // File commands ask before replacing unsaved changes (DocumentController). Mod+N belongs to
@@ -238,6 +247,22 @@ export function createCommands({
           bottomTab: 'part',
           panels: { ...s.panels, bottom: { ...s.panels.bottom, visible: true } },
         })),
+    },
+    {
+      id: 'edit.inspectMemory',
+      label: 'Inspect Memory',
+      icon: MemoryStick,
+      enabled: () => selectedMemory() !== undefined,
+      run: () => {
+        const id = selectedMemory();
+        if (id === undefined) return;
+        ui.update((s) => ({ ...s, memoryPick: id }));
+        settings.update((s) => ({
+          ...s,
+          bottomTab: 'memory',
+          panels: { ...s.panels, bottom: { ...s.panels.bottom, visible: true } },
+        }));
+      },
     },
     {
       id: 'edit.delete',
@@ -612,6 +637,7 @@ export function workbenchMenus(examples: readonly Example[], recentCount?: numbe
         SEPARATOR,
         'edit.properties',
         'edit.partInfo',
+        'edit.inspectMemory',
         'parts.search',
       ],
     },
@@ -708,6 +734,7 @@ export const ITEM_CONTEXT_MENU: readonly MenuEntry[] = [
   SEPARATOR,
   'edit.properties',
   'edit.partInfo',
+  'edit.inspectMemory',
 ];
 
 export const CANVAS_CONTEXT_MENU: readonly MenuEntry[] = [
