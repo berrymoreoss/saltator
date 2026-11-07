@@ -77,6 +77,17 @@ describe('pins', () => {
     expect(() => validatePins([{ name: '', dir: 'in' }], 'x/y')).toThrow('x/y: empty pin name');
   });
 
+  it('validatePins accepts a label that repeats another pin name, not a blank one', () => {
+    const pins = [
+      { name: 'Y', dir: 'out' as const },
+      { name: 'YN', label: 'Y', dir: 'out' as const, activeLow: true },
+    ];
+    expect(() => validatePins(pins, 'x/y')).not.toThrow();
+    expect(() => validatePins([{ name: 'YN', label: ' ', dir: 'out' }], 'x/y')).toThrow(
+      'x/y: pin "YN" has an empty label',
+    );
+  });
+
   it('validatePins allows sense only on inputs', () => {
     expect(() => validatePins([{ name: 'A', dir: 'in', sense: true }], 'x/y')).not.toThrow();
     expect(() => validatePins([{ name: 'D', dir: 'bidir', sense: true }], 'x/y')).toThrow(

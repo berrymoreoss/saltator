@@ -21,6 +21,12 @@ export type PinDir = 'in' | 'out' | 'tristate' | 'bidir' | 'power' | 'nc';
 export interface PinDef {
   /** Datasheet name: `1A`, `1Y`, `OE`, `VCC`. Unique within the part. */
   readonly name: string;
+  /**
+   * What drawings show instead of the name, when the data sheet's symbol isn't unique: the
+   * 74HC151's complementary output `YN` is drawn `Y` with an overline. Netlists, messages and
+   * test benches keep using the name.
+   */
+  readonly label?: string;
   /** What the pin does, from the datasheet's pin description: `output enable input (active LOW)`. */
   readonly description?: string;
   /** Physical pin number (required when the part has a `package`). */
@@ -223,7 +229,7 @@ export function pinIndex(pins: readonly PinDef[], name: string): PinRef {
 }
 
 /**
- * Throws if pin names are empty or not unique, or a flag doesn't fit the pin: `weak` on a
+ * Throws if pin names are empty or not unique, a label is blank, or a flag doesn't fit the pin: `weak` on a
  * non-driver, `sense` on anything but `in`, `constant` on anything but a strong `out` (or with a
  * level other than 0/1). `where` prefixes the message.
  */
@@ -232,6 +238,9 @@ export function validatePins(pins: readonly PinDef[], where: string): void {
   for (const pin of pins) {
     if (pin.name === '') throw new Error(`${where}: empty pin name`);
     if (seen.has(pin.name)) throw new Error(`${where}: duplicate pin "${pin.name}"`);
+    if (pin.label !== undefined && !/\S/.test(pin.label)) {
+      throw new Error(`${where}: pin "${pin.name}" has an empty label`);
+    }
     const bad = (what: string) =>
       new Error(`${where}: pin "${pin.name}" is "${pin.dir}" and cannot be ${what}`);
     if (pin.weak && !isDriverPin(pin.dir)) throw bad('weak');

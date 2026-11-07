@@ -31,7 +31,10 @@ export const PIN_TYPE_LABEL: Readonly<Record<PinDir, string>> = {
 
 export interface PinInfo {
   readonly number?: number;
+  /** What the drawing shows: the pin's label, else its name (`NC` for n.c. pins). */
   readonly name: string;
+  /** The pin's name when it is drawn with a different label (151's `YN`, drawn `Y`). */
+  readonly id?: string;
   readonly activeLow: boolean;
   readonly type: string;
   readonly description?: string;
@@ -54,7 +57,8 @@ export function pinInfo(
   const rows = pinsOf(definition, resolved).map(
     (pin): PinInfo => ({
       ...(pin.number !== undefined && { number: pin.number }),
-      name: pin.dir === 'nc' ? 'NC' : pin.name,
+      name: pin.dir === 'nc' ? 'NC' : (pin.label ?? pin.name),
+      ...(pin.label !== undefined && { id: pin.name }),
       activeLow: pin.activeLow === true,
       type: PIN_TYPE_LABEL[pin.dir],
       ...(pin.description !== undefined && { description: pin.description }),
@@ -101,6 +105,22 @@ function columnsWhere(
   const table = definition.functionTable;
   const columns = table ? [...table.inputs, ...table.outputs] : [];
   return new Set(columns.filter((column) => generic.includes(column)));
+}
+
+/** Function table columns of pins drawn with a label, and that label (151: `YN` → `Y`). */
+export function columnLabels(definition: AnyComponentDefinition): Map<string, string> {
+  const labels = new Map<string, string>();
+  for (const pin of pinsOf(definition, resolveProps(definition))) {
+    if (pin.label === undefined) continue;
+    const column = pin.name.replace(/\d+/g, 'n');
+    if (
+      definition.functionTable &&
+      [...definition.functionTable.inputs, ...definition.functionTable.outputs].includes(column)
+    ) {
+      labels.set(column, pin.label.replace(/\d+/g, 'n'));
+    }
+  }
+  return labels;
 }
 
 /** Function table columns of active-low pins, drawn overlined. */

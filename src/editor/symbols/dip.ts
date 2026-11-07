@@ -56,14 +56,19 @@ export function drawDip(
       g.stroke();
       inset = 0.55;
     }
-    g.text(def?.dir === 'nc' ? 'NC' : pin.name, onLeft ? left + inset : right - inset, y, {
-      size: NAME_SIZE,
-      align: onLeft ? 'left' : 'right',
-      baseline: 'middle',
-      paint: 'pinText',
-      overline: def?.activeLow === true,
-      minPx: 6,
-    });
+    g.text(
+      def?.dir === 'nc' ? 'NC' : (def?.label ?? pin.name),
+      onLeft ? left + inset : right - inset,
+      y,
+      {
+        size: NAME_SIZE,
+        align: onLeft ? 'left' : 'right',
+        baseline: 'middle',
+        paint: 'pinText',
+        overline: def?.activeLow === true,
+        minPx: 6,
+      },
+    );
   }
 
   g.text(name, cx, body.y + body.height / 2, {
