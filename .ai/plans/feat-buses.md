@@ -185,20 +185,20 @@ single entries vs a multi-bit ripper.
 
 ## Acceptance criteria
 
-- [ ] `pnpm check`, `pnpm build` and `pnpm e2e` are green.
-- [ ] A bus labeled `D[0..7]` with entries `D0`…`D7` on two chips joins their pins bit by bit;
+- [x] `pnpm check`, `pnpm build` and `pnpm e2e` are green.
+- [x] A bus labeled `D[0..7]` with entries `D0`…`D7` on two chips joins their pins bit by bit;
   running, a value driven by one chip arrives at the other (scenario and e2e).
-- [ ] A plain wire touching a bus line doesn't connect to it and is reported dangling with the
+- [x] A plain wire touching a bus line doesn't connect to it and is reported dangling with the
   bus hint; a net label on a bus line and a bus label on a wire are open pins.
-- [ ] While simulating, every bus label shows its value (`0x3F`, `Z`/`X` nibbles); bus lines
+- [x] While simulating, every bus label shows its value (`0x3F`, `Z`/`X` nibbles); bus lines
   show unknown and floating members; Properties lists the members' levels and the value.
-- [ ] An entry whose name isn't a member of its bus gives `bus-entry-member`; two names on one
+- [x] An entry whose name isn't a member of its bus gives `bus-entry-member`; two names on one
   bus give `multiple-net-names`.
-- [ ] Buses are drawn with Place ▸ Bus (`B`) and out of bus pins; entries placed with Place ▸ Bus
+- [x] Buses are drawn with Place ▸ Bus (`B`) and out of bus pins; entries placed with Place ▸ Bus
   Entry (`Z`) continue `D0` → `D1`; moves, rotations, copy/paste and undo keep buses buses.
-- [ ] v1 files (every example, an autosaved session) open unchanged; saved files are v2.
-- [ ] Adding, moving or relabeling a bus line while running keeps the simulator.
-- [ ] Looked at in the browser in both themes, stopped and running.
+- [x] v1 files (every example, an autosaved session) open unchanged; saved files are v2.
+- [x] Adding, moving or relabeling a bus line while running keeps the simulator.
+- [x] Looked at in the browser in both themes, stopped and running.
 
 ## Open questions
 
@@ -245,12 +245,24 @@ single entries vs a multi-bit ripper.
   the example runs clean). Docs: circuit.md (buses, layers, schema v2, checks), components.md,
   editor.md, glossary, architecture, READMEs, ADR-0016; roadmap (R10b done, R11 next, bus
   follow-ups in the backlog); lessons. `pnpm check` (1777), `pnpm build`, `pnpm e2e` (57) green.
+- 2026-11-07 — finished. Acceptance criteria checked one by one: `pnpm check` (1781 tests),
+  `pnpm build`, `pnpm e2e` (57) green; two 74HC245s joined bit by bit over `D[0..7]` (scenario),
+  and in the browser the Data Bus example's LOAD latches 0x2A from the bus into the 74HC574 (e2e
+  reads its Q pins); a wire ending on a bus is dangling with the hint, labels on the wrong layer
+  are open pins (compile tests), and the Wire tool doesn't finish on a bus (e2e); bus values on
+  labels (drawer test, screenshots), bus styles X/Z (signal view tests), Properties' value and
+  bits (e2e: 0x0 → 0x2 → 0x3, `11 = 3`); `bus-entry-member` and `multiple-net-names` on buses
+  (compile and scenario tests); Bus from Place ▸ Bus and `B`, entries with `Z` continuing D0 → D1,
+  buses dragged out of bus pins, moves, duplicate, rotate and undo keep bus lines (gesture tests);
+  v1 documents and an autosaved v1 session open unchanged, files are written as v2; adding,
+  moving and relabeling bus lines keeps the simulator; looked at in both themes, stopped and
+  running. Follow-ups in the roadmap backlog (multi-bit ripper, radix setting, group buses).
 
 ## Handoff
 
-- **State:** all tasks done; acceptance criteria not yet verified one by one.
-- **Next step:** `/finish-branch`: verify the acceptance criteria, set the plan to `done`, ask
-  the user to approve the merge.
+- **State:** done; waiting for the user's approval to merge into `main`.
+- **Next step:** merge (`git merge --no-ff`), then R11 `feat/subcircuits` (bus ports on
+  subcircuits belong there).
 - **Watch out:** the layer check covers tests (`src/circuit/*.test.ts` use `test-parts.ts`,
   library tests can't import `circuit`). 74HC245 pins are 0-based (A0…A7). Gate commits on
   `pnpm check`'s exit code.
