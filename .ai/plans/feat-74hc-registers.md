@@ -4,7 +4,7 @@
 | ---------- | ------------------------------------------------------------------------------------ |
 | Branch     | `feat/74hc-registers`                                                                |
 | Roadmap    | R09a — 74HC flip-flops, registers + timing checks ([roadmap](../../docs/roadmap.md)) |
-| Status     | in-progress                                                                          |
+| Status     | done                                                                                 |
 | Depends on | R06 (74xx specs, 3-state outputs), R08 (stateful chips, per-path delays)             |
 | Created    | 2026-11-07                                                                           |
 
@@ -218,20 +218,28 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 
 Checkable statements; verified one by one in the finish-branch workflow.
 
-- [ ] `pnpm check`, `pnpm build` and `pnpm e2e` are green.
-- [ ] All ten chips are in `createDefaultRegistry()` under `74xx/74hc…` with data sheet pin
+- [x] `pnpm check`, `pnpm build` and `pnpm e2e` are green. (1431 tests, build, 48 e2e.)
+- [x] All ten chips are in `createDefaultRegistry()` under `74xx/74hc…` with data sheet pin
   numbers, names and descriptions, a function table, a data sheet URL, and timing for every
-  delay path and requirement with source and conditions.
-- [ ] Every chip has a test with its function table on every unit through pin numbers, unknown
+  delay path and requirement with source and conditions. (`chips.test.ts`, `registry.test.ts`.)
+- [x] Every chip has a test with its function table on every unit through pin numbers, unknown
   and floating inputs (including uncertain clock edges), a timing assertion for each distinct
   path, and each of its timing checks just inside (silent) and just outside (diagnostic +
-  `X`) its limit.
-- [ ] The 4511 reports LE setup, hold and pulse-width violations.
-- [ ] The carry-over invariance property passes on random networks including the new chips.
-- [ ] The Part tab shows a chip's timing; the Simulation tab shows timing violations as errors
-  with click-to-locate.
-- [ ] The SAP-1 register example opens from File ▸ New from Example, compiles with no design
-  issues and loads and outputs values as intended (test and by hand in the browser).
+  `X`) its limit. (Walking this found gaps in the 107/109/112 suite — set/reset pulse width,
+  floating inputs, the 112's recovery after set — added before ticking.)
+- [x] The 4511 reports LE setup, hold and pulse-width violations. (Set-up and LE width tested
+  at their limits; the data sheet's hold minimum is 0 ns, so a hold violation can't happen — the
+  test shows a code changing right after LE rose is accepted.)
+- [x] The carry-over invariance property passes on random networks including the new chips.
+  (30 networks, timing violations compared too; mutation-checked.)
+- [x] The Part tab shows a chip's timing; the Simulation tab shows timing violations as errors
+  with click-to-locate. (e2e: Timing table; a 30 MHz clock's violation as an error, clicking it
+  selects the chip.)
+- [x] The SAP-1 register example opens from File ▸ New from Example, compiles with no design
+  issues and loads and outputs values as intended (test and by hand in the browser). (Scenario
+  test; e2e opens and runs it clean; operated in the running dev app through
+  `Simulation.action` — clear, load `00101010` from the switches, drive it back onto the bus,
+  LEDs and wires as expected, no diagnostics.)
 
 ## Open questions
 
@@ -340,17 +348,23 @@ Checkable statements; verified one by one in the finish-branch workflow.
   core/library READMEs, architecture, root README status (stale since R01), add-component
   recipe (sequential parts), seven lessons, roadmap text and backlog (worst-case mode, partial
   overlines). The roadmap status flip is left to finish-branch.
+- 2026-11-07 — finish: acceptance walked one by one; the walk found test gaps (JK set/reset
+  pulse width incl. the 107/109's HIGH phase, JK floating inputs, the 112's set recovery,
+  click-to-locate in the e2e), added and mutation-checked; the example operated in the running
+  app. `pnpm check` (1431 tests), `pnpm build`, `pnpm e2e` (48) green.
+- **Summary:** ten 74HC flip-flops and registers (Nexperia) on two engines; timing checks in
+  core against the data sheets' guaranteed minima (`timing.min`), violations reported as errors
+  and making the possibly loaded bits `X`, armed only while the clock matters (ADR-0014); the
+  4511's LE checks; sequential function tables; the Part tab's timing; Ben Eater's A register
+  as an example. Found on the way: `ctx.rose`/`fell` read pins (floating reports), the checker
+  had to set clocks after data, the 74HC74 sheet has no 25 °C minima, the 112's set+reset is
+  H L by design, an R08 test misread hold time 0.
 
 ## Handoff
 
-- **State:** all 13 tasks done and committed; `pnpm check` (≈ 1400 tests), `pnpm build` and
-  `pnpm e2e` (48) green. Plan status still `in-progress`, roadmap R09a `in-progress`.
-- **Next step:** `/finish-branch` — walk the acceptance criteria (each was exercised by a task:
-  chips and tables → tasks 4–7 suites and `chips.test.ts`; 4511 → task 8; carry-over → task 9;
-  Part tab and errors → tasks 10, 12; example → tasks 11, 12), close the plan and roadmap (R09a
-  done, R09b `feat/74hc-counters` next), then ask the user to merge (no remote: local `--no-ff`).
-- **Watch out:** `ctx.rose`/`ctx.fell` read the pin — observe with `prev`; timing checks take
-  `armed`; the function table checker sets `clock` pins after the data; vitest doesn't
-  typecheck — `pnpm check` before committing.
-- **Verify with:** `pnpm check && pnpm build && pnpm e2e`; `pnpm bench` (574 pipeline ≈ 5.5M
-  events/s).
+- **State:** done; waiting for the user's approval to merge into `main` (no remote: local
+  `--no-ff` merge).
+- **Follow-ups:** R09b `feat/74hc-counters` (next: 161, 163, 191, 193, 164, 165, 595, 4040 on
+  this branch's engines and checks; example: 595 driving eight LEDs). Backlog: worst-case timing
+  mode (max delays + −40…+85 °C minima), a "report only" setting, partial overlines for indexed
+  complement pins (the 175's `Q̅0`).
