@@ -203,7 +203,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 1. `core`: `stopBefore` run option and status `before` (pending change times per driver
   slot; resolved with the pending drives due; a cancelled change, several drivers resolving to
   the same level, a zero-delay change not seen); tests; kernel benchmark unchanged.
-- [ ] 2. `library`: `io/clock` schedules its edges ahead (auto and manual mode); a trace test
+- [x] 2. `library`: `io/clock` schedules its edges ahead (auto and manual mode); a trace test
   (same levels at every instant), the carry-over property green; `stopBefore` sees the edges
   of `io/clock`, the NE555 and a gated clock (scenario).
 - [ ] 3. `core`: `DiagnosticLog.onOccurrence`, `Simulator.netChanges` (carried by net id),
@@ -282,13 +282,19 @@ Checkable statements; verified one by one in the finish-branch workflow.
 - 2026-11-07 — task 1: `RunOptions.stopBefore` and run status `before` (`slotPendingTime` per
   driver slot, set where drives are scheduled and carried; `dueLevel` resolves the net with the
   drives due at the next instant). Mutation-checked (5 mutations; a `due` flag turned out
-  equivalent and was removed). Benchmark unchanged (ring oscillator 13.23M events/s vs 13.22M
-  on `main`, the 74HC574 pipeline 5.25M vs 5.52M, the others within ±1 %).
+  equivalent and was removed). Benchmark: noise (three runs: ring oscillator 12.4–13.2M
+  events/s vs 13.2M on `main`, the 74HC574 pipeline 5.25–5.43M vs 5.52M, the others ±1 %).
+- 2026-11-07 — task 2: `io/clock` schedules each edge as a drive a phase ahead, with a timer at
+  the edge (tokens `HIGH`/`LOW`) scheduling the next; every existing test (edges, carry-over
+  property, examples) passes unchanged, a new one stops right before its edges in both modes
+  (fails on the old code). Scenario `step-clock.test.ts`: an `io/clock` gated by a 74HC08 into
+  a 74HC161 stops 1 gate delay ahead of each CLK rise with the count settled (0, 1, 2, 3); an
+  astable NE555 is seen ahead (its OUT has `tpd`).
 
 ## Handoff
 
-- **State:** in progress; task 1 done.
-- **Next step:** task 2 (`io/clock` edges scheduled ahead).
+- **State:** in progress; tasks 1–2 done.
+- **Next step:** task 3 (`onOccurrence`, `netChanges`, repeating `Trigger`).
 - **Watch out:** `io/clock` drives at its wake with zero delay — the lookahead can't see it
   until task 2; a breakpoint during a trigger's post-trigger time must win over `pauseAt`.
 - **Verify with:** `pnpm check`, `pnpm bench`.

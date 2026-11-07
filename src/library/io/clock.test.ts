@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ms, ns, us } from '../../core';
+import { Level, ms, ns, us } from '../../core';
 import { Bench, Trace } from '../../core/testing';
 import { clock, clockPhases } from './clock';
 
@@ -72,6 +72,26 @@ describe('io/clock', () => {
     bench.action({ type: 'step' });
     bench.run(ns(899));
     expect(trace.lines()).toEqual(['0 Y=0', '500000 Y=1']);
+  });
+
+  it('schedules each edge a phase ahead, so a run can stop right before it', () => {
+    const bench = new Bench(clock, { frequency: 1e6, duty: 25 }); // rises at 750 ns, falls at 1 µs
+    const { sim } = bench;
+    const rise = { net: sim.netIndex('Y'), level: Level.L1 };
+    expect(sim.runUntil(us(10), { stopBefore: rise })).toBe('before');
+    expect(sim.now).toBe(0);
+    sim.runUntil(ns(750));
+    expect(sim.runUntil(us(10), { stopBefore: rise })).toBe('before');
+    expect(sim.now).toBe(ns(1000)); // the fall was processed; the next rise is due at 1.75 µs
+    bench.expect({ Y: 0 });
+
+    const manual = new Bench(clock, { frequency: 1e6, mode: 'manual' });
+    const fall = { net: manual.sim.netIndex('Y'), level: Level.L0 };
+    manual.run(us(1));
+    manual.action({ type: 'step' });
+    expect(manual.sim.runUntil(us(10), { stopBefore: fall })).toBe('before');
+    expect(manual.sim.now).toBe(us(1));
+    manual.expect({ Y: 1 });
   });
 
   it('rejects unknown actions and out-of-range props', () => {

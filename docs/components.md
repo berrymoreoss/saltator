@@ -394,7 +394,11 @@ rails change with zero delay, the clock's edges are exact.
   green, yellow, orange, blue, white).
 - **Clock**: period = round(10¹² / frequency) ps, high time = round(period × duty / 100) ps
   (`clockPhases`); the first rising edge comes after the low time. `step` is ignored in `auto`
-  mode and while a pulse is under way.
+  mode and while a pulse is under way. Each edge is scheduled on the output a phase ahead (a
+  pending change, with a timer at the edge that schedules the next one), so the kernel sees the
+  next edge coming (`stopBefore`, [simulation.md](simulation.md#running); R14) — a part whose
+  edges a debugger should step by schedules them as delayed drives too, not as zero-delay
+  drives from a timer.
 - **Actions** are objects with a `type` (`{ type: 'toggle' }`, `{ type: 'set', index: 2, on:
   true }`, …), sent with `sim.action(id, action)`; unknown ones throw (a host bug). Types:
   `SwitchAction`, `ButtonAction`, `DipSwitchAction`, `ClockAction`. In the editor the Interact
