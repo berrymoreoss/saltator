@@ -423,3 +423,229 @@ describe('74HC165', () => {
     });
   });
 });
+
+describe('74HC595', () => {
+  const d = chip('595');
+  const Q_PINS = [15, 1, 2, 3, 4, 5, 6, 7];
+
+  /** Both registers cleared long ago; clocks LOW, outputs enabled, DS LOW. */
+  function bench(): Bench {
+    const b = new Bench(d);
+    b.set({ SHCP: 0, STCP: 0, OE: 0, DS: 0, MR: 0 }).run(us(1));
+    b.set({ STCP: 1 }).run(us(1));
+    b.set({ STCP: 0, MR: 1 }).run(us(1));
+    return b;
+  }
+  const pulse = (b: Bench, pin: 'SHCP' | 'STCP') => {
+    b.set({ [pin]: 1 }).run(us(1));
+    b.set({ [pin]: 0 }).run(us(1));
+  };
+  /** Shifts in `value`, bit 7 first, so stages 0…7 end up holding bit 0…7. */
+  function shiftIn(b: Bench, value: number) {
+    for (let n = 7; n >= 0; n--) {
+      b.set({ DS: (value >> n) & 1 ? 1 : 0 }).run(us(1));
+      pulse(b, 'SHCP');
+    }
+  }
+
+  it.each([0, 3, 7])('follows its function table, by pin number (output %s)', (n) => {
+    const b = bench();
+    const columns = names(d, [11, 12, 13, 10, 14, 9, Q_PINS[n]!]);
+    expect(columns.slice(0, 6)).toEqual(['SHCP', 'STCP', 'OE', 'MR', 'DS', 'Q7S']);
+    // Store the cleared register 4, outputs off 8; NC and the shifting rows are tested below.
+    expect(functionTable(b, checkableRows(d.functionTable!), columns)).toBe(12);
+    expect(b.diagnostics).toEqual([]);
+  });
+
+  it('shifts on SHCP and shows the byte only when STCP stores it', () => {
+    const b = bench();
+    shiftIn(b, 0b1011_0010);
+    b.expect({ ...byte(0), Q7S: 1 });
+    pulse(b, 'STCP');
+    b.expect({ ...byte(0b1011_0010), Q7S: 1 });
+    shiftIn(b, 0x0f);
+    b.expect({ ...byte(0b1011_0010), Q7S: 0 });
+    expect(b.diagnostics).toEqual([]);
+  });
+
+  it('MR̅ clears the shift register only', () => {
+    const b = bench();
+    shiftIn(b, 0xff);
+    pulse(b, 'STCP');
+    expect(b.measure({ MR: 0 }, 'Q7S')).toBe(ns(17));
+    b.expect(byte(0xff));
+    pulse(b, 'STCP');
+    b.expect(byte(0));
+  });
+
+  it('OE̅ HIGH floats the outputs; storing goes on meanwhile', () => {
+    const b = bench();
+    shiftIn(b, 0x81);
+    expect(b.measure({ OE: 1 }, 'Q0')).toBe(ns(15));
+    b.expect({ Q0: 'Z', Q7: 'Z', Q7S: 1 });
+    pulse(b, 'STCP');
+    expect(b.measure({ OE: 0 }, 'Q0')).toBe(ns(17));
+    b.expect(byte(0x81));
+    b.set({ OE: 'X' }).run(us(1));
+    b.expect({ Q0: 'X', Q1: 'X' });
+  });
+
+  it('switches after the delay of each path', () => {
+    const b = bench();
+    b.set({ DS: 1 }).run(us(1));
+    pulse(b, 'SHCP');
+    expect(b.measure({ STCP: 1 }, 'Q0')).toBe(ns(20));
+    b.set({ SHCP: 0 }).run(us(1));
+    shiftIn(b, 0x7f);
+    expect(b.measure({ SHCP: 1 }, 'Q7S')).toBe(ns(19));
+  });
+
+  describe('SHCP and STCP tied together', () => {
+    it('stores the shift register from before the shift: one clock pulse behind', () => {
+      const b = bench();
+      b.set({ DS: 1 }).run(us(1));
+      for (let i = 1; i <= 8; i++) {
+        b.set({ SHCP: 1, STCP: 1 }).run(us(1));
+        b.set({ SHCP: 0, STCP: 0 }).run(us(1));
+        b.expect({ ...byte((1 << (i - 1)) - 1), Q7S: i === 8 ? 1 : 0 });
+      }
+      expect(b.diagnostics).toEqual([]);
+    });
+
+    it('also when STCP rises in a later delta of the same instant', () => {
+      const b = bench();
+      b.set({ DS: 1 }).run(us(1));
+      b.set({ SHCP: 1 }).run(0); // the shift happens now…
+      b.set({ STCP: 1 }).run(us(1)); // …and STCP rises at the same time
+      b.expect({ Q0: 0 });
+      expect(b.diagnostics).toEqual([]);
+    });
+
+    it('STCP within tsu(SHCP to STCP) after SHCP stores X where old and new differ', () => {
+      const store = (after: number) => {
+        const b = bench();
+        shiftIn(b, 0b0000_0101);
+        b.set({ DS: 1 }).run(us(1));
+        b.set({ SHCP: 1 }).run(ns(after)); // → 0000 1011
+        b.set({ STCP: 1 }).run(us(1));
+        return b;
+      };
+      expect(timing(store(15))).toEqual([]);
+      store(15).expect(byte(0b0000_1011));
+      const b = store(14);
+      expect(messages(b)).toEqual(['SHCP rose 14 ns before STCP rose (setup time ≥ 15 ns)']);
+      expect(timing(b)[0]!.kind).toBe(TimingViolation.SETUP);
+      b.expect({ Q0: 1, Q1: 'X', Q2: 'X', Q3: 'X', Q4: 0 }); // 0000 0101 or 0000 1011
+    });
+  });
+
+  it('is unknown from power-on until cleared and stored', () => {
+    const b = new Bench(d);
+    b.set({ SHCP: 0, STCP: 0, OE: 0, DS: 1, MR: 1 }).run(us(1));
+    b.expect({ Q0: 'X', Q7: 'X', Q7S: 'X' });
+    pulse(b, 'STCP');
+    b.expect({ Q0: 'X' });
+    pulse(b, 'SHCP');
+    pulse(b, 'STCP');
+    b.expect({ Q0: 1, Q1: 'X' });
+  });
+
+  it('stores X only where an uncertain STCP edge could change the storage register', () => {
+    const b = bench();
+    shiftIn(b, 0b0000_0011);
+    b.set({ STCP: 'X' }).run(us(1));
+    b.expect({ Q0: 'X', Q1: 'X', Q2: 0 });
+  });
+
+  it('reports a floating serial input when it shifts', () => {
+    const b = bench();
+    b.set({ DS: 'Z' }).run(us(1));
+    expect(b.diagnostics).toEqual([]);
+    pulse(b, 'SHCP');
+    pulse(b, 'STCP');
+    expect(b.diagnostics.map((x) => `${x.kind} ${x.net}`)).toEqual([
+      `${KernelDiagnosticKind.FLOATING_INPUT} DS`,
+    ]);
+    b.expect({ Q0: 'X', Q1: 0 });
+  });
+
+  describe('timing checks', () => {
+    it('set-up and hold of DS to SHCP', () => {
+      const late = (before: number) => {
+        const b = bench();
+        b.set({ DS: 1 }).run(ns(before));
+        pulse(b, 'SHCP');
+        pulse(b, 'STCP');
+        return b;
+      };
+      expect(timing(late(10))).toEqual([]);
+      const b = late(9);
+      expect(messages(b)).toEqual(['DS changed 9 ns before SHCP rose (setup time ≥ 10 ns)']);
+      b.expect({ Q0: 'X' });
+      const early = (after: number) => {
+        const c = bench();
+        c.set({ SHCP: 1 }).run(ns(after));
+        c.set({ DS: 1 }).run(us(1));
+        c.set({ SHCP: 0 }).run(us(1));
+        pulse(c, 'STCP');
+        return c;
+      };
+      expect(timing(early(3))).toEqual([]);
+      const c = early(2);
+      expect(messages(c)).toEqual(['DS changed 2 ns after SHCP rose (hold time ≥ 3 ns)']);
+      c.expect({ Q0: 'X' });
+    });
+
+    it('pulse widths of SHCP, STCP and MR̅', () => {
+      const b = bench();
+      b.set({ DS: 1 }).run(us(1));
+      b.set({ SHCP: 1 }).run(ns(14));
+      b.set({ SHCP: 0 }).run(us(1));
+      pulse(b, 'STCP');
+      expect(messages(b)).toEqual(['SHCP was HIGH for only 14 ns (pulse width ≥ 15 ns)']);
+      b.expect({ Q0: 'X', Q1: 0 });
+      const c = bench();
+      c.set({ DS: 1 }).run(us(1));
+      pulse(c, 'SHCP');
+      c.set({ STCP: 1 }).run(ns(14));
+      c.set({ STCP: 0 }).run(us(1));
+      expect(messages(c)).toEqual(['STCP was HIGH for only 14 ns (pulse width ≥ 15 ns)']);
+      c.expect({ Q0: 'X', Q1: 0 });
+      const e = bench();
+      e.set({ DS: 1 }).run(us(1));
+      pulse(e, 'SHCP');
+      e.set({ MR: 0 }).run(ns(14));
+      e.set({ MR: 1 }).run(us(1));
+      pulse(e, 'STCP');
+      expect(messages(e)).toEqual(['MR was LOW for only 14 ns (pulse width ≥ 15 ns)']);
+      e.expect({ Q0: 'X', Q1: 0 });
+    });
+
+    it('recovery of MR̅ before SHCP', () => {
+      const recover = (after: number) => {
+        const b = bench();
+        b.set({ DS: 1, MR: 0 }).run(us(1));
+        b.set({ MR: 1 }).run(ns(after));
+        pulse(b, 'SHCP');
+        pulse(b, 'STCP');
+        return b;
+      };
+      expect(timing(recover(10))).toEqual([]);
+      recover(10).expect({ Q0: 1 });
+      const b = recover(9);
+      expect(messages(b)).toEqual(['SHCP rose 9 ns after MR was released (recovery time ≥ 10 ns)']);
+      b.expect({ Q0: 'X', Q1: 0 });
+    });
+
+    it('checks nothing on SHCP while MR̅ holds the shift register cleared', () => {
+      const b = bench();
+      b.set({ MR: 0 }).run(us(1));
+      for (let i = 0; i < 4; i++) {
+        b.set({ DS: i & 1 ? 1 : 0, SHCP: 1 }).run(ns(5));
+        b.set({ SHCP: 0 }).run(ns(5));
+      }
+      b.set({ STCP: 1 }).run(ns(5)); // SHCP rose 10 ns before: nothing shifted, no set-up
+      expect(timing(b)).toEqual([]);
+    });
+  });
+});

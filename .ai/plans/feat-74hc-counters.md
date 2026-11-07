@@ -215,7 +215,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   uncertain edges, checks).
 - [x] 6. 74HC164, 165 with tests (shifting, AND of DSA·DSB, asynchronous load, CP/CE̅
   interchangeable, Q̅7, checks).
-- [ ] 7. 74HC595 with tests (shift and storage registers, MR̅ clears only the shift register,
+- [x] 7. 74HC595 with tests (shift and storage registers, MR̅ clears only the shift register,
   tied clocks one pulse behind, `ten`/`tdis`, loading while disabled, Q7S, checks).
 - [ ] 8. Partial overline labels (Q4): label syntax, DIP drawing, Part tab; the 175's `Q̅0`,
   the 165's `Q̅7`, the 191's `U/D̅`; looked at in both themes.
@@ -328,11 +328,18 @@ Checkable statements; verified one by one in the finish-branch workflow.
   have digits (`q7`). The 164 has the first nonzero hold time of this branch (4 ns), tested. 26
   tests, mutation-checked (16 mutations; two survivors — the effect of a DS hold violation, CP
   checks while CE̅ is HIGH — got tests).
+- 2026-11-07 — task 7: the 595 in `shift-registers.ts` (`StorageShiftRegisterState`): the
+  storage register is evaluated before the shift, so tied clocks store the contents from before
+  the shift; a `shiftedAt` time makes STCP in a later delta of the same instant behave the same
+  (the bench reaches that with `run(0)`). The SHCP-to-STCP set-up uses `dataEdge` and
+  `sameInstantAllowed` (task 2), armed only while MR̅ lets the shift register shift. A keyword
+  `led` made the Parts search for "led" list the 595 (a UI test caught it): dropped. 17 tests,
+  mutation-checked (11 mutations).
 
 ## Handoff
 
-- **State:** tasks 1–5 done (timing data; `setupHold` variants; 161, 163, 191, 193, 4040, 164,
-  165 in the registry).
-- **Next step:** task 7 (74HC595 in `shift-registers.ts`: two registers, tied clocks).
+- **State:** tasks 1–5 done (timing data; `setupHold` variants; all eight chips in the
+  registry).
+- **Next step:** task 8 (partial overline labels: `U̅/D`, the 175's `Q̅0`).
 - **Watch out:** pinouts and names in the Parts table are from memory.
 - **Verify with:** `pnpm check`.

@@ -1,11 +1,12 @@
 /**
  * 8-bit shift registers: 74xx164 (serial in, parallel out), 165 (parallel or serial in, serial
- * out). Pinouts and function tables transcribed from the Nexperia data sheets; timing and its
+ * out), 595 (serial in, a storage register, 3-state parallel out). Pinouts and function tables transcribed from the Nexperia data sheets; timing and its
  * requirements in `hc-timing.ts`. Spec: docs/components.md#counters-and-shift-registers.
  */
 import {
   type AnyComponentDefinition,
   and,
+  Drive,
   type EvalContext,
   Level,
   not,
@@ -21,6 +22,7 @@ import {
   type ChipBehavior,
   type ChipSpec,
   chipDefinition,
+  delay,
   type LogicFamily,
   pinIndices,
 } from './chip';
@@ -280,6 +282,132 @@ export function pisoBehavior(spec: ShiftRegisterSpec): ChipBehavior<ShiftRegiste
   };
 }
 
+/** State of a shift register with a storage register (595). */
+export interface StorageShiftRegisterState extends ShiftRegisterState {
+  /** The storage register, driving the parallel outputs; `X` until a store. */
+  storage: Level[];
+  /** The storage register before its last clock edge (timing checks). */
+  beforeStore: Level[];
+  /** When the shift register last shifted (SHCP and STCP at the same instant: one behind). */
+  shiftedAt: number;
+}
+
+/**
+ * 74xx595: a rising SHCP shifts DS into the shift register (MR̅ LOW clears it, asynchronous, and
+ * disarms SHCP's checks); a rising STCP copies the shift register into the storage register,
+ * which drives Q0–Q7 while OE̅ is LOW (`ten`/`tdis`; an unknown OE̅ drives `X`). Q7S is the shift
+ * register's last stage, always driven, for cascading. With both clocks rising at the same
+ * instant the storage register takes the shift register from before the shift (the data sheet's
+ * "one clock pulse behind"); STCP rising later but within `tsu(SHCP to STCP)` is a set-up
+ * violation, and the stages where the old and new contents differ store `X`.
+ */
+export function storageShiftRegisterBehavior(
+  spec: ShiftRegisterSpec,
+): ChipBehavior<StorageShiftRegisterState> {
+  return (pinList, delays, min) => {
+    const checks = new TimingChecks(pinList, min);
+    const outputs = pinIndices(pinList, Q8);
+    const serialOut = pinIndex(pinList, 'Q7S');
+    const shiftClock = pinIndex(pinList, 'SHCP');
+    const storeClock = pinIndex(pinList, 'STCP');
+    const reset = pinIndex(pinList, 'MR');
+    const outputEnable = pinIndex(pinList, 'OE');
+    const serial = pinIndex(pinList, 'DS');
+    const paths = pathDelays(pinList, delays, spec.paths);
+    const ten = delay(delays, 'ten(OE to Qn)');
+    const tdis = delay(delays, 'tdis(OE to Qn)');
+    const dataCheck = checks.setupHold({
+      data: 'DS',
+      clock: 'SHCP',
+      edge: 'rise',
+      setup: 'tsu(DS to SHCP)',
+      hold: 'th(DS to SHCP)',
+    });
+    const storeCheck = checks.setupHold({
+      data: 'SHCP',
+      clock: 'STCP',
+      edge: 'rise',
+      setup: 'tsu(SHCP to STCP)',
+      dataEdge: 'rise',
+      sameInstantAllowed: true,
+    });
+    const shiftWidth = checks.pulseWidth({ pin: 'SHCP', level: 'both', width: 'tW(SHCP)' });
+    const storeWidth = checks.pulseWidth({ pin: 'STCP', level: 'both', width: 'tW(STCP)' });
+    const resetWidth = checks.pulseWidth({ pin: 'MR', level: 'low', width: 'tW(MR)' });
+    const recovery = checks.recovery({
+      pin: 'MR',
+      active: 'low',
+      clock: 'SHCP',
+      edge: 'rise',
+      recovery: 'trec(MR to SHCP)',
+    });
+
+    const evaluate = (ctx: EvalContext<StorageShiftRegisterState>) => {
+      const state = ctx.state;
+      const { q, beforeEdge, storage, beforeStore, times } = state;
+      const armed = toInput(ctx.read(reset)) !== Level.L0;
+      const late = dataCheck.setup(ctx, times, armed);
+      const early = dataCheck.hold(ctx, times, armed);
+      const lateShift = storeCheck.setup(ctx, times, armed);
+      const shortShift = shiftWidth.check(ctx, times, armed);
+      const shortStore = storeWidth.check(ctx, times);
+      const shortReset = resetWidth.check(ctx, times);
+      const recovering = recovery.check(ctx, times);
+      const storeEdge = clockEdge(ctx, storeClock, 'rise');
+      const shiftEdge = clockEdge(ctx, shiftClock, 'rise');
+
+      // The storage register first: it takes the shift register before this instant's shift.
+      if (storeEdge !== ClockEdge.NONE) {
+        const behind = state.shiftedAt === ctx.now;
+        const unsure = storeEdge === ClockEdge.UNCERTAIN || shortStore;
+        for (let n = 0; n < STAGES; n++) {
+          const was = storage[n]!;
+          let value = behind ? beforeEdge[n]! : q[n]!;
+          if (lateShift) value = either(beforeEdge[n]!, q[n]!);
+          storage[n] = unsure ? either(was, value) : value;
+          if (storeEdge === ClockEdge.ACTIVE) beforeStore[n] = was;
+        }
+      } else if (shortStore) {
+        for (let n = 0; n < STAGES; n++) storage[n] = either(storage[n]!, beforeStore[n]!);
+      }
+
+      if (shiftEdge !== ClockEdge.NONE && armed) {
+        const ds = late ? Level.X : toInput(ctx.read(serial));
+        const unsure = shiftEdge === ClockEdge.UNCERTAIN || shortShift || recovering;
+        shift(state, ds, unsure, shiftEdge === ClockEdge.ACTIVE);
+        state.shiftedAt = ctx.now;
+      } else {
+        if (shortShift) undoUncertain(state);
+        if (early !== 0) q[0] = either(q[0]!, toInput(ctx.read(serial)));
+      }
+      applyAsync(ctx, reset, null, 0, shortReset);
+
+      const enabled = toInput(ctx.read(outputEnable));
+      const enableChanged = ctx.changed(outputEnable);
+      for (let n = 0; n < STAGES; n++) {
+        const out = outputs[n]!;
+        if (enabled === Level.L1) ctx.drive(out, Drive.Z, tdis);
+        else {
+          const level = enabled === Level.L0 ? storage[n]! : Level.X;
+          ctx.drive(out, strong(level), enableChanged ? ten : paths.delay(ctx, out));
+        }
+      }
+      ctx.drive(serialOut, strong(q[7]!), paths.delay(ctx, serialOut));
+      checks.track(ctx, times);
+    };
+
+    return () => ({
+      createState: () => ({
+        ...createState(checks),
+        storage: unknown(),
+        beforeStore: unknown(),
+        shiftedAt: -Infinity,
+      }),
+      evaluate,
+    });
+  };
+}
+
 const KEYWORDS = ['shift register', 'serial', 'parallel', 'register'];
 
 export const SR164_SPEC: ShiftRegisterSpec = {
@@ -356,13 +484,51 @@ export const SR165_SPEC: ShiftRegisterSpec = {
   ],
 };
 
+export const SR595_SPEC: ShiftRegisterSpec = {
+  number: '595',
+  title: '8-bit serial-in, serial or parallel-out shift register with output latches; 3-state',
+  keywords: [...KEYWORDS, 'sipo', 'latch', 'storage register', 'output expander', '3-state'],
+  pinCount: 16,
+  pins: [
+    pins('Q1, Q2, Q3, Q4, Q5, Q6, Q7', '1, 2, 3, 4, 5, 6, 7', 'tristate', 'parallel data output'),
+    pins('GND', '8', 'power', 'ground (0 V)'),
+    pins('Q7S', '9', 'out', 'serial data output'),
+    pins('MR', '10', 'in', 'master reset (active LOW)', { activeLow: true }),
+    pins('SHCP', '11', 'in', 'shift register clock input', { clock: true }),
+    pins('STCP', '12', 'in', 'storage register clock input', { clock: true }),
+    pins('OE', '13', 'in', 'output enable input (active LOW)', { activeLow: true }),
+    pins('DS', '14', 'in', 'serial data input'),
+    pins('Q0', '15', 'tristate', 'parallel data output 0'),
+    pins('VCC', '16', 'power', 'supply voltage'),
+  ],
+  functionTable: {
+    inputs: ['SHCP', 'STCP', 'OE', 'MR', 'DS'],
+    outputs: ['Q7S', 'Qn'],
+    rows: [
+      'X X L L X | L NC',
+      'X ↑ L L X | L L',
+      'X X H L X | L Z',
+      '↑ X L H H | Q6S NC',
+      'X ↑ L H X | NC QnS',
+      '↑ ↑ L H X | Q6S QnS',
+    ],
+    note: 'MR̅ LOW clears the shift register only (STCP ↑ then stores it empty); OE̅ HIGH: outputs in the high-impedance OFF-state; SHCP ↑ shifts DS into stage 0 and stage 6 (Q6S) on to Q7S; STCP ↑ stores the shift register stages (QnS); both together: the contents from before the shift are stored. NC: no change',
+  },
+  paths: [
+    { from: 'STCP', to: Q8, delay: 'tpd(STCP to Qn)' },
+    { from: 'SHCP', to: 'Q7S', delay: 'tpd(SHCP to Q7S)' },
+    { from: 'MR', to: 'Q7S', delay: 'tPHL(MR to Q7S)' },
+  ],
+};
+
 /** The shift registers of a family. */
 export function shiftRegisterChips(family: LogicFamily): AnyComponentDefinition[] {
   return [
     chipDefinition(SR164_SPEC, family, sipoBehavior(SR164_SPEC)),
     chipDefinition(SR165_SPEC, family, pisoBehavior(SR165_SPEC)),
+    chipDefinition(SR595_SPEC, family, storageShiftRegisterBehavior(SR595_SPEC)),
   ];
 }
 
-/** 74HC164, 165. */
+/** 74HC164, 165, 595. */
 export const hcShiftRegisters = shiftRegisterChips(HC);

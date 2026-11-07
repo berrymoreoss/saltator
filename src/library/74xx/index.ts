@@ -72,6 +72,8 @@ export {
   type ShiftRegisterState,
   SR164_SPEC,
   SR165_SPEC,
+  SR595_SPEC,
+  type StorageShiftRegisterState,
   shiftRegisterChips,
 } from './shift-registers';
 export { TRANSCEIVER_SPEC, transceiverChip } from './transceiver';
