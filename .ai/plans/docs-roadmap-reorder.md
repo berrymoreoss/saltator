@@ -4,7 +4,7 @@
 | ---------- | ------------------------------------------- |
 | Branch     | `docs/roadmap-reorder`                      |
 | Roadmap    | R11, R12 ([roadmap](../../docs/roadmap.md)) |
-| Status     | in-progress                                 |
+| Status     | done                                        |
 | Depends on | R10b                                        |
 | Created    | 2026-11-07                                  |
 
@@ -35,16 +35,18 @@ test benches (R15) and the full SAP-1 build (R16), which need hierarchy most.
   Phase 2 with the shared-resolver rule, M2 acceptance with the RAM and the output register,
   Phase 3 renamed and reordered, R11 after R14 with what it extends.
 - [x] 2. Vision: M2 lists the RAM and the output display.
-- [ ] 3. Merge to `main` with the user's approval.
+- [x] 3. Merge to `main` with the user's approval.
 
 ## Progress log
 
 - 2026-11-07 — agreed with the user: R11 after R14, R12 into Phase 2 / M2, ids kept.
 - 2026-11-07 — roadmap and vision updated.
+- 2026-11-07 — finished: R11 follows R14, R12 is next and closes Phase 2 / M2; merged with the
+  user's approval.
 
 ## Handoff
 
-- **State:** roadmap and vision updated; waiting for the user's approval to merge.
-- **Next step:** merge, then `/start-branch` R12 `feat/memory`.
+- **State:** merged; nothing pending.
+- **Next step:** `/start-branch` R12 `feat/memory`.
 - **Watch out:** R12's plan must include the shared part/net reference resolver.
 - **Verify with:** `pnpm check`.
