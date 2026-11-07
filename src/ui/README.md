@@ -24,5 +24,7 @@ bottom-dock tabs. R06: `PartInfoPanel` (the Part tab; pure model in `part-info.t
 the unsaved-changes and file-problem dialogs in `Dialogs`. R12b: `MemoryPanel` (the Memory tab;
 pure layout and keys in `memory-view.ts`), `ImageDialogs` (Load…, Save…, Erase; pure parts in
 `image-dialogs.ts`), `ImageFileAccess` in `files` (image files as bytes, pickers of their own).
+R13: `WaveformsPanel` (the Waveforms tab, the Trigger and Export VCD dialogs; pure pieces in
+`waveforms-view.ts` and `vcd-export.ts`), the Probe tool and Add to Waveforms commands.
 
 Spec: [docs/editor.md](../../docs/editor.md#shell).

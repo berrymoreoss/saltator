@@ -31,8 +31,8 @@ How to read this file:
 | R10b | `feat/buses`                 | Buses, rippers, bus values                 | done    |
 | R12a | `feat/memory-chips`          | Memory chips (EEPROM, SRAM)                | done    |
 | R12b | `feat/memory-inspector`      | Memory inspector, image files              | done    |
-| R13  | `feat/logic-analyzer`        | Waveforms & probes                         | next    |
-| R14  | `feat/debugger`              | Breakpoints, stepping, watches             | planned |
+| R13  | `feat/logic-analyzer`        | Waveforms & probes                         | done    |
+| R14  | `feat/debugger`              | Breakpoints, stepping, watches             | next    |
 | R11  | `feat/subcircuits`           | Hierarchical design                        | planned |
 | R15  | `feat/test-benches`          | Circuit test benches ("test before fab")   | planned |
 | R16a | `example/sap-1-modules`      | SAP-1 modules as tested subcircuits        | planned |
@@ -284,15 +284,30 @@ instance paths there. RAMs stay volatile (Q2): a test bench's setup loads them b
 [components.md](components.md#image-files), [circuit.md](circuit.md#resolver). Decision:
 [ADR-0018](adr/0018-memory-inspector.md). Plan: `.ai/plans/feat-memory-inspector.md`.
 
-### R13 · Waveforms & probes — `feat/logic-analyzer` — `next`
+### R13 · Waveforms & probes — `feat/logic-analyzer` — `done`
 
-Probe nets/buses, timing diagram with zoom/pan, cursors and Δt measurement, bus decoding, trigger
-conditions, export (VCD).
+The Waveforms tab: probes — nets, pins, buses and groups of single signals, by the resolver's
+references — saved in the circuit (`Circuit.probes`, schema v3, Q1), added from the canvas with
+a Probe tool (`P`, Q4) or the context menu, or typed; only they are recorded (core `Recorder`,
+one level per instant, bounded, re-attached by reference after every carry-over, Q2). A Canvas2D
+timing diagram: 1-bit rows in the wires' level colors, buses and groups as values in hex,
+decimal, binary or ASCII (`X` nibbles), dense blocks where edges are closer than a pixel; fit,
+follow and free views with zoom and pan; cursors A and B snapping to edges (`[`/`]`, `{`/`}`)
+with Δt and frequency. A single-shot trigger (levels and bus values ANDed with one strict
+edge, evaluated once an instant settles) breaks the kernel at its instant
+(`Simulator.requestBreak`, `onInstant`); the run goes on for the post-trigger part of the
+window (`Simulation.pauseAt`) and pauses (Q3). Export VCD… (core `writeVcd`) of the whole
+record or the cursor span. Probes ship with Clock Module and Data Bus. Spec:
+[editor.md](editor.md#waveforms), [simulation.md](simulation.md#recorder). Decision:
+[ADR-0019](adr/0019-waveforms.md). Plan: `.ai/plans/feat-logic-analyzer.md`.
 
-### R14 · Breakpoints, stepping, watches — `feat/debugger`
+### R14 · Breakpoints, stepping, watches — `feat/debugger` — `next`
 
 Step by clock edge / by time / by event, breakpoints on signal or bus conditions, watch panel,
 run statistics, snapshot & rewind.
+Builds on R13: the kernel's break at an instant (`requestBreak`, `onInstant`), the trigger's
+conditions on signals and bus values for breakpoints, the host's `pauseAt` for stepping by
+time, probes' references for watches.
 
 ### R11 · Hierarchical design — `feat/subcircuits`
 
@@ -407,5 +422,10 @@ Promote to a numbered item when needed.
   a pin tip attaches one; other one-pin parts may follow.
 - Image generators (R12b follow-up): a memory's contents computed by a short script in the app
   (Ben Eater's Arduino sketch for the decoder EEPROM, microcode tables), kept with the document.
+- Waveform follow-ups (R13): serial protocol decoders (UART, SPI, I²C) on probed signals;
+  automatic measurements (period, duty cycle, pulse count over a range); VCD import (a dump from
+  another simulator beside the circuit's); weak levels drawn paler (the recorder keeps levels
+  only); probed wires marked on the canvas; the diagram as SVG/PDF; recording every net in a
+  bounded buffer as an option, if probing before running proves a chore (R13, Q2).
 - Documents (R07 follow-ups): several documents open in one window (tabs); a title, notes and
   simulation settings (speed) stored in the file (schema v2).

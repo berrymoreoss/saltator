@@ -181,7 +181,8 @@ export interface OpenedBytes {
   readonly bytes: Uint8Array;
 }
 
-export type ImageFileKind = 'binary' | 'intel-hex';
+/** Files saved from bytes: memory images (R12b) and waveform dumps (`vcd`, R13). */
+export type ImageFileKind = 'binary' | 'intel-hex' | 'vcd';
 
 /**
  * Memory image files (R12b): opened as bytes and saved from bytes, with pickers of their own
@@ -203,6 +204,7 @@ const IMAGE_ACCEPT = ['.bin', '.rom', '.hex', '.ihx'];
 const IMAGE_TYPES: Readonly<Record<ImageFileKind, PickerType>> = {
   binary: { description: 'Binary image', accept: { 'application/octet-stream': ['.bin', '.rom'] } },
   'intel-hex': { description: 'Intel HEX', accept: { 'text/plain': ['.hex', '.ihx'] } },
+  vcd: { description: 'Value Change Dump', accept: { 'text/plain': ['.vcd'] } },
 };
 
 export function nativeImageAccess(pickers: NativePickers): ImageFileAccess {
@@ -227,7 +229,8 @@ export function nativeImageAccess(pickers: NativePickers): ImageFileAccess {
       let handle: NativeFileHandle;
       try {
         handle = await pickers.showSaveFilePicker({
-          id: 'logic-images',
+          // Waveform dumps go to a folder of their own.
+          id: kind === 'vcd' ? 'logic-waveforms' : 'logic-images',
           types: [IMAGE_TYPES[kind]],
           suggestedName,
         });

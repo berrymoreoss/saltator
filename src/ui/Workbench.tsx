@@ -33,6 +33,7 @@ import {
 import { isMacPlatform } from './shortcuts';
 import { Toolbar } from './Toolbar';
 import type { Example, UiState } from './ui-state';
+import { VcdExportAction, WaveformsPanel, WavesBadge } from './WaveformsPanel';
 import { createCommands, TOOLBAR, workbenchMenus } from './workbench-commands';
 import './styles/tokens.css';
 import './styles/workbench.css';
@@ -159,7 +160,15 @@ export function Workbench({
   const request = useStore(editor.requests);
   useEffect(() => {
     if (request?.kind === 'edit-properties') commands.get('edit.properties').run();
-  }, [request, commands]);
+    // Probing from the canvas shows the Waveforms tab (the tab shows a problem, if any).
+    if (request?.kind === 'probed') {
+      settingsStore.update((s) => ({
+        ...s,
+        bottomTab: 'waves',
+        panels: { ...s.panels, bottom: { ...s.panels.bottom, visible: true } },
+      }));
+    }
+  }, [request, commands, settingsStore]);
 
   const setPanel = (id: PanelId, change: Partial<Settings['panels'][PanelId]>) =>
     settingsStore.update((s) => ({
@@ -324,6 +333,16 @@ export function Workbench({
                   >
                     Memory
                   </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={tab === 'waves'}
+                    className={tab === 'waves' ? 'tab active' : 'tab'}
+                    onClick={() => showTab('waves')}
+                  >
+                    Waveforms
+                    <WavesBadge editor={editor} />
+                  </button>
                 </div>
               }
               actions={
@@ -363,6 +382,21 @@ export function Workbench({
                     ((entry) => (
                       <MemoryImageActions editor={editor} entry={entry} images={images} />
                     ))
+                  }
+                />
+              )}
+              {tab === 'waves' && (
+                <WaveformsPanel
+                  editor={editor}
+                  theme={canvasTheme}
+                  actions={
+                    images && (
+                      <VcdExportAction
+                        editor={editor}
+                        title={() => documents.session.get().name}
+                        files={images}
+                      />
+                    )
                   }
                 />
               )}

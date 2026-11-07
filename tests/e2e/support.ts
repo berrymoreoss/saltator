@@ -4,9 +4,9 @@
  * layouts the app uses (a part placed by a click is centered on it).
  */
 import { expect, type Page } from '@playwright/test';
-import { type Point, partLayout } from '../../src/circuit';
+import { loadDocument, type Point, partLayout } from '../../src/circuit';
 import { resolveProps } from '../../src/core';
-import { layoutBounds } from '../../src/editor';
+import { buildScene, fitRect, layoutBounds } from '../../src/editor';
 import { createDefaultRegistry } from '../../src/library';
 
 const registry = createDefaultRegistry();
@@ -115,4 +115,42 @@ export async function drawHelloLed(page: Page): Promise<(p: Point) => Point> {
   await wire(page, grid, pinOf('io/clock', [-12, 9], 'Y'), pinOf('io/led', [12, 9], 'A'));
   await wire(page, grid, pinOf('io/led', [12, 9], 'K'), pinOf('io/gnd', [18, 12], 'Y'));
   return grid;
+}
+
+/** Opens an example from the gallery; returns where its parts are on screen (it opens fitted). */
+export async function openExample(page: Page, id: string, title: string, document: unknown) {
+  await newCircuit(page);
+  await menu(page, 'File', 'New from Example…');
+  await page.getByTestId('example-gallery').locator(`[data-example="${id}"]`).click();
+  await expect(page).toHaveTitle(`${title} — Logic`);
+  await expect(page.getByTestId('bottom-panel')).toContainText('No problems found');
+  const scene = buildScene(loadDocument(document).circuits[0]!, registry);
+  const box = (await canvas(page).boundingBox())!;
+  const camera = fitRect(scene.bounds!, { width: box.width, height: box.height });
+  const screen = ([x, y]: Point): Point => [
+    box.x + (x - camera.x) * camera.scale,
+    box.y + (y - camera.y) * camera.scale,
+  ];
+  return {
+    /** The middle of a part's body. */
+    center(id: string): Point {
+      const { x, y, width, height } = scene.partById.get(id)!.body;
+      return screen([x + width / 2, y + height / 2]);
+    },
+    /** A pin's tip. */
+    pin(id: string, pin: string): Point {
+      return screen(scene.partById.get(id)!.pins.find((p) => p.name === pin)!.at);
+    },
+    /** The middle of a wire (`bus`: the first bus line). */
+    wire(bus = false): Point {
+      const w = scene.wires.find((x) => x.bus === bus)!;
+      return screen([(w.from[0] + w.to[0]) / 2, (w.from[1] + w.to[1]) / 2]);
+    },
+    /** A DIP switch's lever: the body's middle on the row of its pin. */
+    lever(id: string, pin: string): Point {
+      const part = scene.partById.get(id)!;
+      const at = part.pins.find((p) => p.name === pin)!.at;
+      return screen([part.body.x + part.body.width / 2, at[1]]);
+    },
+  };
 }

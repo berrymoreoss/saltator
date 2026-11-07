@@ -80,9 +80,11 @@ export type CarriedEvent =
  * - `idle`: no events left (nothing will happen without external input);
  * - `reached`: the time limit was reached with events still pending;
  * - `budget`: stopped early because the event budget was used up;
+ * - `break`: stopped after an instant because `requestBreak()` was called (a trigger, a
+ *   breakpoint); `now` is that instant and the next run goes on from there;
  * - `halted`: the simulation stopped for good (oscillation).
  */
-export type RunStatus = 'idle' | 'reached' | 'budget' | 'halted';
+export type RunStatus = 'idle' | 'reached' | 'budget' | 'break' | 'halted';
 
 export interface RunOptions {
   /** Stop (status `budget`) once this many events were processed; checked between timestamps. */
@@ -105,6 +107,9 @@ export interface SimulatorStats {
 
 /** `(time, net index, new level)`; see `Simulator.netId()`. */
 export type NetChangeListener = (time: Time, net: number, level: Level) => void;
+
+/** Called with the instant's time once all its delta cycles ran; see `Simulator.onInstant()`. */
+export type InstantListener = (time: Time) => void;
 
 const EVENT_DRIVE = 0;
 const EVENT_WAKE = 1;
@@ -140,6 +145,7 @@ export class Simulator {
   private readonly netIndexById = new Map<string, number>();
   private readonly componentIndexById = new Map<string, number>();
   private readonly listeners: NetChangeListener[] = [];
+  private readonly instantListeners: InstantListener[] = [];
   private readonly ctx: Context;
 
   // Pins, flattened: component c owns [pinStart[c], pinStart[c + 1]).
@@ -187,6 +193,7 @@ export class Simulator {
   private deltaId = 0;
   private started = false;
   private isHalted = false;
+  private breakRequested = false;
 
   constructor(netlist: Netlist, registry: ComponentRegistry, options: SimulatorOptions = {}) {
     this.maxDeltaCycles = options.maxDeltaCycles ?? 1000;
@@ -414,6 +421,20 @@ export class Simulator {
   }
 
   /**
+   * Calls `listener` after each instant the simulator processes (power-on included) has finished
+   * all its delta cycles, before a run checks for a break: a condition on several nets (a
+   * trigger) sees the instant's final levels there, and can still `requestBreak()` at it.
+   * Returns an unsubscribe function.
+   */
+  onInstant(listener: InstantListener): () => void {
+    this.instantListeners.push(listener);
+    return () => {
+      const i = this.instantListeners.indexOf(listener);
+      if (i >= 0) this.instantListeners.splice(i, 1);
+    };
+  }
+
+  /**
    * Hands this simulation over to the simulator of a recompiled netlist
    * (`new Simulator(netlist, registry, { carry })`), which goes on at the same time. A component
    * found there under the same id (after `renames`, old id → new) and type:
@@ -474,6 +495,17 @@ export class Simulator {
 
   // --- Control ------------------------------------------------------------------------------
 
+  /**
+   * Stops the run in progress once the instant it is processing has finished all its delta
+   * cycles: `runUntil`/`settle` return `break`, with `now` at that instant. Meant for listeners
+   * (a trigger, a breakpoint), so a condition seen in the middle of an instant still lets the
+   * instant settle. Asked between runs, the next run stops after the first instant it
+   * processes.
+   */
+  requestBreak(): void {
+    this.breakRequested = true;
+  }
+
   /** Delivers an external action (button press, switch flip) to a component, at `now`. */
   action(component: string, payload: unknown): void {
     const c = this.componentIndex(component);
@@ -503,7 +535,8 @@ export class Simulator {
    * `maxTime` from now (`reached`, default 1 ms) or `maxEvents` (`budget`, default 1M).
    */
   settle(options: SettleOptions = {}): RunStatus {
-    const limit = this.currentTime + (options.maxTime ?? ms(1));
+    // A negative span would set `now` back to the limit when events are pending.
+    const limit = this.currentTime + Math.max(0, options.maxTime ?? ms(1));
     return this.run(limit, options.maxEvents ?? DEFAULT_SETTLE_MAX_EVENTS, false);
   }
 
@@ -515,6 +548,8 @@ export class Simulator {
       // Power-on: t = 0, or the time a carried simulation had reached.
       this.processTimestamp(this.currentTime, true);
       if (this.isHalted) return 'halted';
+      if (this.instantListeners.length > 0) this.instantEnded();
+      if (this.breakRequested) return this.takeBreak();
     }
     const queue = this.queue;
     for (;;) {
@@ -530,7 +565,23 @@ export class Simulator {
       if (this.stats.events - startEvents >= maxEvents) return 'budget';
       this.processTimestamp(next, false);
       if (this.isHalted) return 'halted';
+      if (this.instantListeners.length > 0) this.instantEnded();
+      if (this.breakRequested) return this.takeBreak();
     }
+  }
+
+  private instantEnded(): void {
+    const listeners = this.instantListeners;
+    for (let i = 0; i < listeners.length; i++) {
+      const listener = listeners[i]!;
+      listener(this.currentTime);
+      if (listeners[i] !== listener) i--; // it unsubscribed (a trigger that fired)
+    }
+  }
+
+  private takeBreak(): RunStatus {
+    this.breakRequested = false;
+    return 'break';
   }
 
   // --- Event loop ---------------------------------------------------------------------------

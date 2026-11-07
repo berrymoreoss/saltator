@@ -58,6 +58,7 @@ describe('loadDocument', () => {
             },
           ],
           wires: [{ id: 'w1', from: [0, 0], to: [0, 5] }],
+          probes: [],
         },
       ],
     });
@@ -104,8 +105,66 @@ describe('loadDocument', () => {
         },
       ],
     };
-    expect(loadDocument(v1)).toEqual({ ...v1, schemaVersion: SCHEMA_VERSION });
-    expect(SCHEMA_VERSION).toBe(2);
+    expect(loadDocument(v1)).toEqual({
+      schemaVersion: SCHEMA_VERSION,
+      circuits: [{ ...v1.circuits[0], probes: [] }],
+    });
+    expect(SCHEMA_VERSION).toBe(3);
+  });
+
+  it('opens a schema v2 document (before probes) with none', () => {
+    const v2 = {
+      schemaVersion: 2,
+      circuits: [{ id: 'main', name: 'Main', components: [], wires: [] }],
+    };
+    expect(loadDocument(v2).circuits[0]!.probes).toEqual([]);
+  });
+
+  it('loads probes: signals by reference, groups of members, radixes', () => {
+    const loaded = loadDocument(
+      doc({
+        probes: [
+          { ref: 'CLK' },
+          { ref: 'D[0..7]', name: 'data', radix: 'bin' },
+          { name: 'PC', members: ['U3.Q0', 'U3.Q1'], radix: 'dec' },
+        ],
+      }),
+    );
+    expect(loaded.circuits[0]!.probes).toEqual([
+      { ref: 'CLK' },
+      { ref: 'D[0..7]', name: 'data', radix: 'bin' },
+      { name: 'PC', members: ['U3.Q0', 'U3.Q1'], radix: 'dec' },
+    ]);
+    expect('name' in loaded.circuits[0]!.probes[0]!).toBe(false);
+  });
+
+  it('reports every problem of a probe with its path', () => {
+    expect(
+      problemsOf(
+        doc({
+          probes: [
+            { ref: '' },
+            { ref: 'A', radix: 'oct' },
+            { name: 'G', members: [] },
+            { members: ['A', 3] },
+            { ref: 'A', members: ['B'] },
+            'CLK',
+          ],
+        }),
+      ),
+    ).toEqual([
+      'circuits[0].probes[0].ref: expected a non-empty string, got ""',
+      'circuits[0].probes[1].radix: expected "hex", "dec", "bin", "ascii", got "oct"',
+      'circuits[0].probes[2].members: expected at least one member',
+      'circuits[0].probes[3].name: missing (expected a non-empty string)',
+      'circuits[0].probes[3].members[1]: expected a non-empty string, got 3',
+      'circuits[0].probes[4]: unknown field "ref"',
+      'circuits[0].probes[4].name: missing (expected a non-empty string)',
+      'circuits[0].probes[5]: expected an object, got "CLK"',
+    ]);
+    expect(problemsOf(doc({ probes: {} }))).toEqual([
+      'circuits[0].probes: expected an array, got {}',
+    ]);
   });
 
   it('loads an empty document', () => {

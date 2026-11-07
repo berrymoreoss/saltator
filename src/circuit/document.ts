@@ -8,9 +8,9 @@ import type { Point, Rotation } from './geometry';
 
 /**
  * Version written into every saved document. Bump it together with a migration.
- * v2 (R10b): bus lines (`Wire.bus`).
+ * v2 (R10b): bus lines (`Wire.bus`). v3 (R13): probes (`Circuit.probes`).
  */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 /**
  * Ids of circuits, components (their designators: `U1`, `SW1`) and wires: a letter or `_`, then
@@ -29,7 +29,36 @@ export interface Circuit {
   readonly name: string;
   readonly components: readonly ComponentInstance[];
   readonly wires: readonly Wire[];
+  /** The signals the Waveforms tab shows, in its order (R13). No part of the netlist. */
+  readonly probes: readonly Probe[];
 }
+
+/** How a probe's value is written: buses and groups default to `hex`, 1-bit signals to levels. */
+export type ProbeRadix = 'hex' | 'dec' | 'bin' | 'ascii';
+
+export const PROBE_RADIXES: readonly ProbeRadix[] = ['hex', 'dec', 'bin', 'ascii'];
+
+/**
+ * A probed signal, by the resolver's reference (docs/circuit.md#resolver): a net by name
+ * (`CLK`), a pin (`U1.Y`, also for an unnamed net), or a bus (`D[0..7]`).
+ */
+export interface SignalProbe {
+  readonly ref: string;
+  /** Display name instead of the reference. */
+  readonly name?: string;
+  readonly radix?: ProbeRadix;
+}
+
+/** Several 1-bit references read as one value, bit 0 first (`U3.Q0`…`U3.Q3` as `PC`). */
+export interface GroupProbe {
+  readonly name: string;
+  readonly members: readonly string[];
+  readonly radix?: ProbeRadix;
+}
+
+export type Probe = SignalProbe | GroupProbe;
+
+export const isGroupProbe = (probe: Probe): probe is GroupProbe => 'members' in probe;
 
 /** A part placed on the grid. */
 export interface ComponentInstance {
@@ -68,5 +97,5 @@ export function emptyDocument(name = 'Main'): CircuitDocument {
 }
 
 export function emptyCircuit(id = 'main', name = 'Main'): Circuit {
-  return { id, name, components: [], wires: [] };
+  return { id, name, components: [], wires: [], probes: [] };
 }

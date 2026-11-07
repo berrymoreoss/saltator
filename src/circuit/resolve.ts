@@ -12,7 +12,9 @@ import {
   type MemoryDef,
   type NetlistComponent,
 } from '../core';
+import type { CircuitNet } from './checks';
 import type { CompileResult } from './compile';
+import { isGroupProbe, type Probe } from './document';
 
 /** What a reference names: netlist ids, which the simulator maps to its indices. */
 export type Target =
@@ -25,6 +27,14 @@ export type Target =
       /** Net ids of the members, bit 0 first; `undefined` where no net has the member's name. */
       readonly members: readonly (string | undefined)[];
     };
+
+/** What a probe shows: nets, bit 0 first. */
+export interface ProbeTarget {
+  /** Net ids, bit 0 first; `undefined` for a bus member no net is named after (it reads `Z`). */
+  readonly nets: readonly (string | undefined)[];
+  /** Read as a value (a bus or a group), not as one level. */
+  readonly vector: boolean;
+}
 
 /** A part holding memory, with its definition's description of it. */
 export interface MemoryPart {
@@ -47,11 +57,13 @@ export class Resolver {
   readonly #pinNets = new Map<string, string>();
   /** Net id by net id and by every name of a net. */
   readonly #nets = new Map<string, string>();
+  readonly #netsById = new Map<string, CircuitNet>();
 
   constructor(result: CompileResult, registry: ComponentRegistry) {
     this.#registry = registry;
     for (const component of result.netlist.components) this.#parts.set(component.id, component);
     for (const net of result.nets) {
+      this.#netsById.set(net.id, net);
       this.#nets.set(net.id, net.id);
       for (const name of net.names) this.#nets.set(name, net.id);
       for (const pin of net.pins) this.#pinNets.set(`${pin.component}.${pin.pin}`, net.id);
@@ -101,5 +113,48 @@ export class Resolver {
     const net = this.#nets.get(text);
     if (net !== undefined) return { kind: 'net', net };
     return `no part or net named ${text}`;
+  }
+
+  /** The nets a signal reference shows — a net, a pin or a bus — or why it shows none. */
+  signal(reference: string): ProbeTarget | string {
+    const target = this.resolve(reference);
+    if (typeof target === 'string') return target;
+    switch (target.kind) {
+      case 'part':
+        return `${target.part} is a part: probe one of its pins`;
+      case 'pin':
+        return { nets: [target.net], vector: false };
+      case 'net':
+        return { nets: [target.net], vector: false };
+      case 'bus':
+        return { nets: target.members, vector: true };
+    }
+  }
+
+  /** The nets a probe shows; a group's members must each be one signal. */
+  probe(probe: Probe): ProbeTarget | string {
+    if (!isGroupProbe(probe)) return this.signal(probe.ref);
+    const nets: string[] = [];
+    for (const member of probe.members) {
+      const target = this.signal(member);
+      if (typeof target === 'string') return `${member}: ${target}`;
+      if (target.vector) return `${member} is a bus: a group's members are single signals`;
+      nets.push(target.nets[0]!);
+    }
+    return { nets, vector: true };
+  }
+
+  /**
+   * The reference to probe a net by: its name, else a pin on it (a driving one first), since an
+   * unnamed net's id changes with the wiring. Undefined for a net no pin is on.
+   */
+  netReference(net: string): string | undefined {
+    const found = this.#netsById.get(net);
+    if (!found) return undefined;
+    if (found.names.length > 0) return found.names[0];
+    const pin =
+      found.pins.find((p) => p.dir === 'out' || p.dir === 'tristate' || p.dir === 'bidir') ??
+      found.pins[0];
+    return pin && `${pin.component}.${pin.pin}`;
   }
 }

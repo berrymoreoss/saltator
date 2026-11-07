@@ -20,8 +20,14 @@ export {
   type ComponentInstance,
   emptyCircuit,
   emptyDocument,
+  type GroupProbe,
   ID_PATTERN,
+  isGroupProbe,
+  PROBE_RADIXES,
+  type Probe,
+  type ProbeRadix,
   SCHEMA_VERSION,
+  type SignalProbe,
   type Wire,
 } from './document';
 export {
@@ -40,7 +46,9 @@ export {
   prefixOfType,
   removeItems,
   renameComponent,
+  renameInProbes,
   sameCircuit,
+  sameProbes,
   translateCircuit,
   updateComponent,
   WIRE_PREFIX,
@@ -83,6 +91,7 @@ export {
 export {
   compareDesignators,
   type MemoryPart,
+  type ProbeTarget,
   Resolver,
   type Target,
 } from './resolve';

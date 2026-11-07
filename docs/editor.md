@@ -2,7 +2,7 @@
 
 Specification of `src/editor` (the canvas engine, no React) and `src/ui` (the React shell around
 it): the workbench and schematic view (R04a), editing (R04b), running the simulation (R05),
-files (R07) and the memory inspector (R12b).
+files (R07), the memory inspector (R12b) and waveforms (R13).
 Rationale: [ADR-0008](adr/0008-desktop-workbench.md) (workbench),
 [ADR-0009](adr/0009-editing-model.md) (editing), [ADR-0010](adr/0010-running-simulations.md)
 (simulation), [ADR-0012](adr/0012-files-and-sessions.md) (files and sessions),
@@ -24,7 +24,7 @@ A desktop CAD-style window (`Workbench`), dense like KiCad or Altium: 12 px UI t
 │ ▾ IO       │                                      │ Delay 1 ns   │
 │ ── preview │                                      │              │
 ├────────────┴──────────────────────────────────────┴──────────────┤
-│ MESSAGES  2  78 · SIMULATION  1 · PART · MEMORY  (Analyzer later) │
+│ MESSAGES  2  78 · SIMULATION  1 · PART · MEMORY · WAVEFORMS  3    │
 ├──────────────────────────────────────────────────────────────────┤
 │ X 12  Y 4 │ 100 % │ U1 · NAND │ hint …        14 parts · 20 wires │ ✖ 0 ⚠ 1 │
 └──────────────────────────────────────────────────────────────────┘
@@ -48,6 +48,7 @@ A desktop CAD-style window (`Workbench`), dense like KiCad or Altium: 12 px UI t
   counts. **Simulation** — what happened while running ([Simulation](#simulation)). **Part** —
   the pins and function table of the last part picked ([Part info](#part-info)). **Memory** —
   the cells of a memory part, live while simulating ([Memory inspector](#memory-inspector)).
+  **Waveforms** — the probed signals over simulated time ([Waveforms](#waveforms)).
 - **Status bar**: grid position under the pointer, zoom, a one-line selection summary, the
   simulation (state, simulated time, the speed reached when lagging, runtime problems; click opens
   the Simulation tab), a hint for the current tool and gesture (`statusHint`), part/wire counts,
@@ -124,7 +125,7 @@ the shortcuts dialog all read the same `CommandRegistry`, which rejects duplicat
 | Step                | `F10`                      | Stop                       | `Shift+F5`                |
 | Reset               | `Mod+Shift+F5`             | New Circuit                | `Mod+Alt+N`               |
 | Open…               | `Mod+O`                    | Save (As…)                 | `Mod+S` (`Mod+Shift+S`)   |
-| Net Label           | `L`                        |                            |                           |
+| Net Label           | `L`                        | Probe tool                 | `P`                       |
 
 Commands marked `global` run while typing in a text field and keep their key from the browser
 even while disabled: F5 never reloads the page, `Mod+S` and `Mod+O` never show the browser's own
@@ -139,7 +140,7 @@ floating paste), else leaves the Wire or place tool for Select, else clears the 
 
 `Settings` (`src/ui/settings.ts`): theme (`system` · `dark` · `light`), gate style (`ansi` ·
 `iec`), grid on/off, scroll-wheel mode (`pan` · `zoom`), each dock's visibility and size, and
-the bottom dock's tab (`messages` · `simulation` · `part` · `memory`) and whether the Memory tab
+the bottom dock's tab (`messages` · `simulation` · `part` · `memory` · `waves`) and whether the Memory tab
 follows the address (`memoryFollow`).
 They live in `localStorage` (`logic.settings.v1`), saved with a short debounce; reading repairs
 each invalid field to its default, and blocked storage (private mode) just means nothing is
@@ -438,6 +439,11 @@ the toolbar group (Run/Pause, Step, Stop, Reset, speed select) and `F5`, `F10`, 
 - **Stop** discards the simulator; the tool goes back to Select. **Reset** powers on again at
   t = 0 (diagnostics and brightness samples cleared), keeping running or paused; a halted
   simulation runs again.
+- **Breaks** (R13): when the kernel returns `break` (a listener called `requestBreak()`), the
+  host pauses there — unless `pauseAt(time)` asks it to run on to a later instant (a trigger's
+  post-trigger end), which it then reaches within the same frame if the budget allows and
+  pauses at exactly; at Max it also pauses there when nothing is left to happen. `pauseAt` is
+  forgotten by Pause, Stop and every power-on.
 - Design errors don't block running: parts the compiler left out are missing.
 - Opening a document stops the simulation first.
 
@@ -606,6 +612,127 @@ elsewhere); the formats are `core` ([components.md](components.md#image-files)).
   redrawing.
 - `write`, `load` (an image file's writes from `placeImage`), `erase`, `contents` (the bytes to
   save, unknown bits as 0).
+
+## Waveforms
+
+R13 ([ADR-0019](adr/0019-waveforms.md)): the circuit's **probes** — nets, pins, buses and
+groups, saved in the document ([circuit.md](circuit.md#document)) — recorded over simulated time
+and shown as a timing diagram, as a logic analyzer does.
+
+### Probing from the canvas
+
+- The **Probe tool** (`P`; View menu, toolbar): hovering highlights what a click would probe —
+  the net's wires (or the bus's lines) and the pin tip pointed at; a click adds it to the
+  waveforms, or removes it when it is probed, without touching the selection, and shows the
+  Waveforms tab; a drag pans; clicks on parts' bodies do nothing (a switch isn't flipped).
+  It stays armed when the simulation starts (probing while running is what it is for);
+  Escape goes back to Interact while simulating, else to Select.
+- The item **context menu** has **Add `ref` to Waveforms** (or Remove) for what the right click
+  pointed at.
+- What a point probes (`probeSpotAt`, `src/editor/probe-target.ts`): a pin of a simulated part
+  by its reference (`U1.A`; a pin wins over a wire ending on it), a wire or a net label by its
+  net (its name, else a driving pin on it: `Resolver.netReference`), a bus line, a bus label or
+  a bus entry's bus end by the bus's name (`D[0..7]`), a bus entry's bit end by its member
+  (`D3`). An unnamed bus or a wire on no pin can't be probed, and the tab says why.
+
+### Waveforms tab
+
+```text
+ [Add signal: CLK, U1.Y, D[0..7]] Add  Group… │ Trigger… │ − + ⤢ Follow   A 1.134 s  B 2.078 s  Δ 944.75 ms · 1.058 Hz
+ Signal          at A │0 ps        500 ms        1 s     A     1.5 s        2 s  B
+ › D[0..7]  hex  0x2A │⟨          0x2A                          ⟩⟨0x2B⟩⟨0x2F⟩⟨0x0F⟩
+   U1.DIR           1 │‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
+```
+
+The fifth bottom-dock tab (`WaveformsPanel.tsx`, pure pieces in `waveforms-view.ts`); its tab
+shows how many signals are probed and `T` while a trigger is armed.
+
+- **Toolbar**: Add signal — a reference with completion from the circuit's net and bus names
+  and, once typed, part pins (`referenceSuggestions`); refused references say why under the
+  toolbar. Group… (the picked single signals, Ctrl/⌘-click to pick, into one value). Trigger…
+  (the dialog below; the button reads `Armed` or `Triggered at 1.5 µs`). Zoom out, in, fit
+  (pressed while fitting), Follow (pressed while following), the cursor readout (`A`, `B`,
+  `Δ` and the frequency `1/Δ`), and the tab's actions (Export VCD…).
+- **Signal list**: one row per probe — expand a vector into its bits (most significant first),
+  the name (double-click renames; a probe that resolves to nothing is struck through, with the
+  reason as its tooltip), a vector's radix (`hex`, `dec`, `bin`, `ascii`), the value at cursor
+  A (else at the record's end), Ungroup, Remove. Click picks a channel (for edge search and
+  Delete).
+- **Plot** (a canvas, HiDPI): click places cursor A — snapped to an edge of the row under the
+  pointer — Shift-click B; drag pans; the wheel zooms about the pointer (Shift or a sideways
+  swipe pans). Keys (`waveKey`, kept from the shortcuts): `+`/`-` zoom, ←/→ pan (Shift: a
+  window), `[`/`]` cursor A to the previous/next edge of the picked channel (`{`/`}` cursor B), Home
+  fit, End follow, ↑/↓ pick,
+  Delete remove, Escape clears the cursors.
+- **Export VCD…** (`vcd-export.ts`): the whole record or the span between cursors A and B (the
+  default when both are placed), every probe that resolves — 1-bit signals as wires, buses and
+  groups as vectors — through core's `writeVcd` (1 ps timescale, the document's name as the
+  scope and file name, `Data Bus.vcd`, the date in the header), saved through the binary file
+  access (`ImageFileAccess`, kind `vcd`: a picker folder of its own, a download elsewhere).
+  Nothing probed or nothing recorded yet is said instead.
+- **Trigger dialog**: terms — a signal and a condition (`rises`, `falls`, `changes`, `is 1`,
+  `is 0`, `is X`, `is Z`; on a vector `=` or `≠` a hex value, `X` for any digit), ANDed; the
+  window (a time, the view's by default) and where the trigger sits in it (10 %…90 %); Arm,
+  Disarm, Cancel; problems are listed and keep Arm disabled.
+
+### Model
+
+`Analyzer` (`src/editor/analyzer.ts`, `editor.analyzer`) has no DOM:
+
+- **Channels** (`channels` store): one per probe, resolved through the resolver on every scene
+  (`label`, `reference`, `vector`, `radix`, `bits` — recorder channels bit 0 first — and the
+  resolver's `problem` when it shows nothing). A bit is keyed by its reference (a bus's members
+  by their net names `D0`…, a group's by theirs), so a signal and a group member on the same
+  pin share one record, and a reordering or regrouping keeps every record.
+- **Probes** are document edits (one undo step each; the simulator isn't touched):
+  `addProbe` (duplicates and references that resolve to nothing refused), `toggleProbe(ref)`
+  (the Probe tool), `removeProbe`, `moveProbe`, `updateProbe` (name, radix), `groupProbes`
+  (single signals only, bit 0 first in the order given), `ungroup`.
+- **Recording** (`recorder`, a core `Recorder`): only the probed bits. A power-on (Run from
+  stopped, Reset) starts a new record at t = 0; a carry-over re-attaches the new simulator by
+  reference and the record goes on; a part rename moves its bits' keys; a probe added while
+  simulating starts at that instant; Stop ends the record where it stopped and keeps it to look
+  at until the next power-on; opening another document forgets it (`clear`).
+- **Values**: `valueAt(channel, t)` — a level letter, or a vector in its radix (`formatValue`:
+  `hex` with `X`/`Z` nibbles, `dec` (`X` while a bit is unknown), `bin`, `ascii` one character
+  a byte).
+- **View** (`view` store): `start` (ps at the left edge), `scale` (ps a pixel, 0.02 … 10¹⁰),
+  `width`, `mode` — `fit` (the whole record, growing; the default), `follow` (`now` at the
+  right edge at a fixed scale; zooming while simulating, `followNow`, and every new run from a
+  free view) or `free` (panned, zoomed while stopped, `scrollTo`, the trigger). `zoom(factor,
+  anchor)`, `pan(dx)`, `zoomToFit`, `zoomToCursors`, `timeAt(x)`, `xOf(t)`.
+- **Cursors** A and B (`setCursor`), snapped within 6 px to the nearest change of the channel
+  under the pointer (`snap`); `select(index)` picks a channel, `edge(±1)` moves A to its next or
+  previous change and brings it into view.
+- **Trigger** (`trigger` store: `off`, `armed`, `triggered` with its time): `arm({ terms,
+  position, window })` — terms on probes (`rise`, `fall`, `edge`, `level` on single signals;
+  `equal`, `notEqual` with hex values on any; ANDed, one edge at most; `conditionProblems`
+  says why not), `position` where the trigger lands in the window (0.1), `window` the capture
+  around it (default: the view's window when armed). At the first instant the condition fires
+  the kernel breaks, the host runs on for `window × (1 − position)` (`pauseAt`) and pauses; the
+  view shows that window with the trigger at its position. Armed while stopped, it waits for
+  the next power-on; Reset re-arms it from t = 0; `disarm` cancels it and the pause it asked
+  for.
+- Redraws follow the host's `revision` (the `revision` store grows with it while simulating).
+
+### Drawing
+
+`src/editor/waveforms.ts` paints the diagram on a Canvas2D context (`WaveCanvas`, the part of
+`CanvasRenderingContext2D` it uses), in the canvas theme's colors (`waveformTheme`):
+
+- A **ruler** (`rulerTicks`): a labelled tick at a round step (1, 2, 5 × 10ⁿ ps) at least 80 px
+  apart, four between, and faint grid lines down the rows.
+- **Rows** (`WaveRow`: a channel, or one bit of an expanded vector) from `rowSegments`, one
+  pixel column at a time: the levels at the column's start, and the changes in it — one starts
+  the next stretch after the column, two or more make the column **dense** (a filled block: a
+  1 MHz clock over 10 ms costs what a slow one does). Stretches merge into runs.
+- A **1-bit** row draws `1` high in the bright level color, `0` low in the dark one, `Z` a blue
+  mid line, `X` a red band — as the wires are colored; a **vector** draws hexagons with the
+  value in its radix where it fits, in the bus color, red where a bit is unknown, a blue mid
+  line where every bit floats. Where the record has no data (before its start, after its end,
+  a probe that lost its net) the row is hatched.
+- **Marks**: `now` (dotted, while simulating), the trigger `T`, cursors `A` and `B`, each with a
+  tag in the ruler.
 
 ## Editor API
 

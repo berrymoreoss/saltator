@@ -10,7 +10,16 @@ import {
   designatorPrefixOf,
   type PropValue,
 } from '../core';
-import { type Circuit, type ComponentInstance, ID_PATTERN, type Wire } from './document';
+import {
+  type Circuit,
+  type ComponentInstance,
+  type GroupProbe,
+  ID_PATTERN,
+  isGroupProbe,
+  type Probe,
+  type SignalProbe,
+  type Wire,
+} from './document';
 import type { Point, Rotation } from './geometry';
 
 /** Prefix of generated wire ids. */
@@ -153,13 +162,14 @@ export function updateComponent(circuit: Circuit, id: string, patch: ComponentPa
   return { ...circuit, components };
 }
 
-/** True if two circuits hold the same parts and wires in the same order (by value). */
+/** True if two circuits hold the same parts, wires and probes in the same order (by value). */
 export function sameCircuit(a: Circuit, b: Circuit): boolean {
   if (a === b) return true;
   if (a.id !== b.id || a.name !== b.name) return false;
   if (a.components.length !== b.components.length || a.wires.length !== b.wires.length) {
     return false;
   }
+  if (!sameProbes(a.probes, b.probes)) return false;
   for (let i = 0; i < a.components.length; i++) {
     const x = a.components[i]!;
     const y = b.components[i]!;
@@ -181,6 +191,26 @@ export function sameCircuit(a: Circuit, b: Circuit): boolean {
     }
   }
   return true;
+}
+
+/** Two probe lists alike, item by item. */
+export function sameProbes(a: readonly Probe[], b: readonly Probe[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  return a.every((x, i) => {
+    const y = b[i]!;
+    if (x === y) return true;
+    if (x.name !== y.name || x.radix !== y.radix) return false;
+    if (isGroupProbe(x) || isGroupProbe(y)) {
+      return (
+        isGroupProbe(x) &&
+        isGroupProbe(y) &&
+        x.members.length === y.members.length &&
+        x.members.every((m, k) => m === y.members[k])
+      );
+    }
+    return x.ref === y.ref;
+  });
 }
 
 function sameComponent(a: ComponentInstance, b: ComponentInstance): boolean {
@@ -221,7 +251,31 @@ export function renameComponent(circuit: Circuit, from: string, to: string): Cir
   if (from === to) return circuit;
   const components = [...circuit.components];
   components[index] = { ...components[index]!, id: to };
-  return { ...circuit, components };
+  return { ...circuit, components, probes: renameInProbes(circuit.probes, from, to) };
+}
+
+/** Probes with the pin references of part `from` (`U5.A0`) rewritten to part `to`. */
+export function renameInProbes(
+  probes: readonly Probe[],
+  from: string,
+  to: string,
+): readonly Probe[] {
+  const prefix = `${from}.`;
+  const rename = (ref: string) =>
+    ref.startsWith(prefix) ? `${to}.${ref.slice(prefix.length)}` : ref;
+  let changed = false;
+  const renamed = probes.map((probe) => {
+    const next = isGroupProbe(probe)
+      ? { ...probe, members: probe.members.map(rename) }
+      : { ...probe, ref: rename(probe.ref) };
+    const same = isGroupProbe(probe)
+      ? (next as GroupProbe).members.every((m, i) => m === probe.members[i])
+      : (next as SignalProbe).ref === probe.ref;
+    if (same) return probe;
+    changed = true;
+    return next;
+  });
+  return changed ? renamed : probes;
 }
 
 /** Moves every part and wire of a circuit by whole cells. */
@@ -442,6 +496,7 @@ export function copyFragment(circuit: Circuit, items: ItemIds): Circuit {
     name: circuit.name,
     components: circuit.components.filter((c) => parts.has(c.id)),
     wires: circuit.wires.filter((w) => wires.has(w.id)),
+    probes: [], // probes belong to the circuit, not to a selection
   };
 }
 

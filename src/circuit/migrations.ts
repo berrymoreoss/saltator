@@ -16,6 +16,8 @@ export type Migrations = Readonly<Record<number, Migration>>;
 export const MIGRATIONS: Migrations = {
   // v2 added bus lines (`"bus": true` on a wire); v1 documents have none.
   1: (doc) => doc,
+  // v3 added probes (`"probes"` on a circuit, R13); v2 documents have none.
+  2: (doc) => doc,
 };
 
 /**

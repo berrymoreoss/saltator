@@ -429,6 +429,13 @@ describe('running', () => {
     expect(s.now).toBe(ns(55));
   });
 
+  it('settle never moves time backwards, whatever maxTime says', () => {
+    const s = clocked();
+    s.runUntil(ns(15));
+    expect(s.settle({ maxTime: -ns(5) })).toBe('reached');
+    expect(s.now).toBe(ns(15));
+  });
+
   it('honours the event budget between timestamps', () => {
     const s = clocked();
     expect(s.runUntil(ns(1000), { maxEvents: 3 })).toBe('budget');
@@ -461,6 +468,71 @@ describe('running', () => {
     off();
     s.runUntil(ns(30));
     expect(seen).toEqual([0, ns(10)]);
+  });
+});
+
+describe('breaking a run', () => {
+  /** The clock, and a zero-delay inverter after it: its output changes one delta later. */
+  const clocked = () =>
+    sim((b) => b.add('C', 'test/clock').add('I', 'test/inv', { delay: 0 }).connect('C.Y', 'I.A'));
+  const breakOnHigh = (s: Simulator) => {
+    const net = s.netIndex('C.Y');
+    return s.onNetChange((_, n, level) => {
+      if (n === net && level === Level.L1) s.requestBreak();
+    });
+  };
+
+  it('stops at the instant a listener asks, and goes on with the next run', () => {
+    const s = clocked();
+    const off = breakOnHigh(s);
+    expect(s.runUntil(ns(100))).toBe('break');
+    expect(s.now).toBe(ns(10));
+    expect(s.runUntil(ns(100))).toBe('break');
+    expect(s.now).toBe(ns(30));
+    off();
+    expect(s.runUntil(ns(100))).toBe('reached');
+    expect(s.now).toBe(ns(100));
+  });
+
+  it('lets the instant finish its delta cycles first', () => {
+    const s = clocked();
+    breakOnHigh(s);
+    expect(s.runUntil(ns(100))).toBe('break');
+    expect(levels(s, 'C.Y', 'I.Y')).toBe('10');
+  });
+
+  it('stops settle too', () => {
+    const s = clocked();
+    breakOnHigh(s);
+    expect(s.settle({ maxTime: ns(100) })).toBe('break');
+    expect(s.now).toBe(ns(10));
+  });
+
+  it('tells instant listeners when an instant has settled, before checking for a break', () => {
+    const s = clocked();
+    const seen: string[] = [];
+    // One that leaves at its first call must not make the next one miss that instant.
+    const once = s.onInstant(() => once());
+    const off = s.onInstant((t) => {
+      seen.push(`${t / 1000}:${levels(s, 'C.Y', 'I.Y')}`);
+      if (t === ns(20)) s.requestBreak();
+    });
+    expect(s.runUntil(ns(100))).toBe('break');
+    expect(seen).toEqual(['0:01', '10:10', '20:01']);
+    off();
+    s.runUntil(ns(40));
+    expect(seen).toHaveLength(3);
+  });
+
+  it('asked between runs, stops after the first instant the next run processes', () => {
+    const s = clocked();
+    s.requestBreak();
+    expect(s.runUntil(ns(100))).toBe('break');
+    expect(s.now).toBe(0); // power-on
+    s.requestBreak();
+    expect(s.runUntil(ns(100))).toBe('break');
+    expect(s.now).toBe(ns(10));
+    expect(s.runUntil(ns(15))).toBe('reached');
   });
 });
 

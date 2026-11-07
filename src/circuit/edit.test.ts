@@ -13,7 +13,9 @@ import {
   pasteFragment,
   removeItems,
   renameComponent,
+  renameInProbes,
   sameCircuit,
+  sameProbes,
   translateCircuit,
   updateComponent,
 } from './edit';
@@ -38,6 +40,7 @@ const circuit = (components: ComponentInstance[] = [], wires: Wire[] = []): Circ
   name: 'Main',
   components,
   wires,
+  probes: [],
 });
 
 describe('designators and ids', () => {
@@ -74,6 +77,30 @@ describe('designators and ids', () => {
     expect(renameComponent(c, 'U1', 'U1')).toBe(c);
     expect(() => renameComponent(c, 'U1', 'U2')).toThrow('"U2" is already used.');
     expect(() => renameComponent(c, 'U9', 'U3')).toThrow('no part "U9"');
+  });
+
+  it('rewrites the pin references of probes to the renamed part', () => {
+    const c = {
+      ...circuit([part('U1'), part('U2')]),
+      probes: [
+        { ref: 'U2.Y', radix: 'bin' as const },
+        { ref: 'U21.Y' },
+        { ref: 'U2' },
+        { name: 'G', members: ['U1.A', 'U2.A'] },
+        { name: 'H', members: ['U1.A'] },
+      ],
+    };
+    const renamed = renameComponent(c, 'U2', 'U7');
+    expect(renamed.probes).toEqual([
+      { ref: 'U7.Y', radix: 'bin' },
+      { ref: 'U21.Y' },
+      { ref: 'U2' }, // a part is no probe: left as it was
+      { name: 'G', members: ['U1.A', 'U7.A'] },
+      { name: 'H', members: ['U1.A'] },
+    ]);
+    expect(renamed.probes[1]).toBe(c.probes[1]);
+    expect(renamed.probes[4]).toBe(c.probes[4]);
+    expect(renameInProbes(c.probes, 'U9', 'U8')).toBe(c.probes);
   });
 });
 
@@ -179,6 +206,19 @@ describe('component operations', () => {
     expect(sameCircuit(c, circuit([part('U1', 'test/and', 1)], c.wires as Wire[]))).toBe(false);
     expect(sameCircuit(c, circuit([], c.wires as Wire[]))).toBe(false);
     expect(sameCircuit(c, { ...c, name: 'Other' })).toBe(false);
+    const probed = { ...c, probes: [{ ref: 'CLK' }, { name: 'G', members: ['A', 'B'] }] };
+    expect(sameCircuit(c, probed)).toBe(false);
+    expect(sameCircuit(probed, { ...probed, probes: [...probed.probes] })).toBe(true);
+    for (const other of [
+      [{ ref: 'CLK', name: 'clock' }, probed.probes[1]!],
+      [{ ref: 'CLK', radix: 'hex' as const }, probed.probes[1]!],
+      [{ ref: 'CLR' }, probed.probes[1]!],
+      [{ ref: 'CLK' }, { name: 'G', members: ['A'] }],
+      [{ ref: 'CLK' }, { name: 'G', members: ['A', 'C'] }],
+      [{ ref: 'CLK' }, { ref: 'G' }],
+    ]) {
+      expect(sameProbes(probed.probes, other)).toBe(false);
+    }
   });
 
   it('translates a whole circuit', () => {
@@ -438,9 +478,13 @@ describe('fragments', () => {
       [part('U1'), part('U2')],
       [wire('w1', [0, 0], [1, 0]), wire('w2', [0, 0], [0, 1])],
     );
-    const fragment = copyFragment(c, { parts: ['U2'], wires: ['w2'] });
+    const fragment = copyFragment(
+      { ...c, probes: [{ ref: 'U2.Y' }] },
+      { parts: ['U2'], wires: ['w2'] },
+    );
     expect(fragment.components).toEqual([c.components[1]]);
     expect(fragment.wires).toEqual([c.wires[1]]);
+    expect(fragment.probes).toEqual([]); // probes belong to the circuit
   });
 
   it('pastes with an offset, keeping free designators and renumbering taken ones', () => {

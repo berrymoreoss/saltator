@@ -245,3 +245,26 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
 - 2026-11-07 (R12b) — A mutation that survives may be equivalent code, not a missing test:
   `high < words ? low : low % words` is `low % words`, and an "after the last sample" shortcut
   matched what the binary search returns anyway. Simplify the code instead of testing around it.
+- 2026-11-07 (R13) — `Simulator.settle({ maxTime })` with a negative span set `now` back to the
+  limit when events were pending (only `runUntil` checked for running backwards); the host
+  passed `pauseAt − now` after overshooting, and a test "passed" because time was rewound onto
+  the expected instant. Clamp spans at 0, and mutation-check exact-time tests: removing the
+  break that made the time exact should fail them.
+- 2026-11-07 (R13) — At Max speed the host runs until its frame budget by wall time: with a
+  `FakeClock` whose `cost` is 0 a free-running circuit never ends the frame (a silent hang of
+  the whole test file). Set `clock.cost` in Max tests, and bound helper loops that wait for
+  simulated time (throw after N frames or when the host isn't running).
+- 2026-11-07 (R13) — Browser tests run a production build: there is no `window.logicEditor`, so
+  anything a test needs exactly (cursors on edges) must be reachable from the UI. Keyboard paths
+  (`]`, `}`) made the period measurable — and help users the same way.
+- 2026-11-07 (R13) — A mutation script that `sed`-patches a file must restore it in `finally`
+  _and_ bound each run: a mutation that loops forever (a cursor at −1 made a merge read `NaN`
+  times) hangs vitest past any test timeout, and killing the script skipped its restore. The
+  scratchpad `mutate.py` now times out runs and the file was put back by hand once.
+- 2026-11-07 (R13) — `Omit<Union, 'key'>` is not distributive (it keeps only common keys), and
+  narrowing a union by `kind === 'a' || kind === 'b'` inside a `map` callback failed under the
+  native TypeScript; `'channels' in term` narrows reliably. Vitest passes either way — only
+  `pnpm check` catches it.
+- 2026-11-07 (R13) — `sameCircuit` decides both "no edit" (`Editor.edit`) and "unsaved"; a new
+  document field it doesn't compare is silently dropped from undo and never marks the file
+  dirty. Add every new field to it (and to `serializeDocument`, the schema and a migration).

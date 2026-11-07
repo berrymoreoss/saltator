@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "circuits": [
     {
       "id": "main",
@@ -115,6 +115,11 @@
         { "id": "w83", "from": [46, 25], "to": [46, 20] },
         { "id": "w84", "from": [46, 20], "to": [40, 20] },
         { "id": "w85", "from": [40, 21], "to": [48, 21] }
+      ],
+      "probes": [
+        { "ref": "U1.OUT", "name": "astable" },
+        { "ref": "U2.OUT", "name": "step" },
+        { "ref": "D1.A", "name": "CLK" }
       ]
     }
   ]

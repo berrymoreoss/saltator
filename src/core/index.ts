@@ -122,10 +122,12 @@ export {
   sameNetlistStructure,
 } from './netlist';
 export { hashString, SeededRandom } from './random';
+export { NO_DATA, Recorder, type RecorderOptions } from './recorder';
 export { type ComponentRegistry, familyOf, Registry } from './registry';
 export {
   type CarriedComponent,
   type CarriedEvent,
+  type InstantListener,
   type NetChangeListener,
   type RunOptions,
   type RunStatus,
@@ -163,3 +165,11 @@ export {
   TimingViolation,
   type TimingViolationKind,
 } from './timing-checks';
+export {
+  conditionProblems,
+  parseHexPattern,
+  Trigger,
+  type TriggerCondition,
+  type TriggerTerm,
+} from './trigger';
+export { type VcdOptions, type VcdSignal, vcdIdentifier, vcdName, writeVcd } from './vcd';

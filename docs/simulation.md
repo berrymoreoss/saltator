@@ -233,17 +233,24 @@ const sim = new Simulator(netlist, registry, { maxDeltaCycles: 1000, maxDiagnost
 - `runFor(dt, options?)` — `runUntil(now + dt)`.
 - `settle({ maxTime?, maxEvents? })` — run until the queue is empty (combinational settling);
   `now` is then the time of the last event. Limits default to 1 ms of simulated time and 1M
-  events.
+  events; a negative `maxTime` counts as 0 (time never runs backwards).
 - `action(componentId, payload)` — deliver an external action at `now`; throws if the part has
   no `action` handler.
 - `nextEventTime` — time of the earliest queued event (`Infinity` if none), for stepping to the
   next event; it may be a cancelled change, after which `stats.events` hasn't moved.
 - `carryOver({ renames? })` — hand the simulation over to a recompiled netlist
   ([below](#editing-while-running-carry-over)).
+- `requestBreak()` (R13) — stop the run in progress once the instant it is processing has
+  finished all its delta cycles (status `break`, `now` at that instant; the next run goes on
+  from there). Called from a net-change listener — a trigger (R13), a breakpoint (R14) — so a
+  condition seen in the middle of an instant still lets the instant settle; asked between
+  runs, the next run stops after the first instant it processes. The hot loop checks one flag
+  per timestamp.
 
 Run status (`RunStatus`): `idle` (nothing left to do), `reached` (time limit reached, events
 still pending — e.g. a clock), `budget` (event budget used up; checked between timestamps),
-`halted` (oscillation; final for this simulator, every later run returns `halted`).
+`break` (`requestBreak()` was called; the editor's host pauses on it), `halted` (oscillation;
+final for this simulator, every later run returns `halted`).
 
 A **simulator host** outside core maps wall-clock to simulation time: the editor's `Simulation`
 (R05, [editor.md](editor.md#simulation)) with speed presets, a frame budget and "can't keep up"
@@ -349,7 +356,9 @@ the net ids.
   `componentCount`, `pinNet(component, pin)`, `level(netIdOrIndex)`, `pinLevel(component, pin)`,
   `stateOf(component)` (inspection only).
 - **Change listeners**: `onNetChange((time, net, level) => …)` returns an unsubscribe function;
-  zero cost when nobody listens.
+  zero cost when nobody listens. `onInstant((time) => …)` (R13) is called after each instant
+  has finished all its delta cycles, before a run checks for a break: a condition on several
+  nets sees the instant's final levels there and can still `requestBreak()` at it.
 - **Diagnostics**: `sim.diagnostics` is a `DiagnosticLog`. Each entry is
   `{ time, kind, message, net?, component?, pin?, count, lastTime }` with kinds `contention`,
   `floating-input`, `oscillation` (`KernelDiagnosticKind`) and component-reported ones
@@ -373,6 +382,120 @@ the net ids.
 - **Reproducible randomness**: `SeededRandom` (mulberry32) and `hashString` (FNV-1a) in core;
   parts seed it from what identifies them (a RAM's random power-on contents from its
   designator), never from `Math.random`.
+
+## Recorder
+
+`Recorder` (`src/core/recorder.ts`, R13) keeps the levels of chosen nets over simulated time —
+the data behind the waveform view ([editor.md](editor.md#waveforms)) and, later, headless test
+benches (R15):
+
+```ts
+const recorder = new Recorder({ budget: 4_000_000 }); // changes kept across every channel
+const clk = recorder.addChannel();
+recorder.attach(sim, new Map([[clk, sim.netIndex('CLK')]])); // channel → net index
+sim.runUntil(ms(1));
+recorder.level(clk, us(500)); // Level at that instant (undefined where there is no data)
+recorder.nextChange(clk, us(500)); // time of the next edge
+```
+
+- **Channels**, not nets: nets have no identity across compiles, so after a carry-over the
+  caller re-resolves what each channel shows and attaches the new simulator; the record goes
+  on. A channel left out of an `attach` gets no data from that instant (`NO_DATA`), one given a
+  net again resumes; `attachChannel` adds one while running; `detach` ends the record at `now`
+  (Stop); `clear` forgets it (power-on). Several channels may show one net.
+- **One instant, one level**: changes at the same instant (delta cycles) collapse into its last
+  level, and a change back to the level before the instant leaves nothing — a zero-delay delta
+  is not a pulse a real circuit makes.
+- **Bounded**: past the budget the oldest changes are dropped (down to three quarters of it),
+  each channel keeping the last change before the cut, and `start` moves forward: the earliest
+  instant every channel still knows.
+- **Queries**: `level(channel, t)`, `indexAt`, `nextChange`/`prevChange` (and `…Of(channels)`
+  for a bus or a group), `lastChange` (O(1)), raw access (`changeCount`, `changeTime`,
+  `changeLevel`). The waveform view draws from them one pixel column at a time
+  (`rowSegments`), a few binary searches a column, so a fast clock zoomed out costs no more
+  than a slow one.
+- **Cost**: no listener without channels; with them, one call per changed net that looks the net
+  up in an `Int32Array`. Ring oscillator benchmark: 13.7M events/s, 13.2M recording 16 of its
+  1001 nets, 8.7M recording all of them (R13).
+
+## Triggers
+
+`Trigger` (`src/core/trigger.ts`, R13) is a logic analyzer's trigger on recorder channels: a
+condition is an AND of terms, at most one of them an edge ("pattern and one edge"):
+
+| Term                   | Holds when                                                                      |
+| ---------------------- | ------------------------------------------------------------------------------- |
+| `rise`, `fall`, `edge` | the channel went exactly 0 → 1 (1 → 0, either) at this instant; `X → 1` is none |
+| `level`                | the channel is at `0`, `1`, `X` or `Z`                                          |
+| `equal`, `notEqual`    | the channels (bit 0 first) read the hex `value`; `X` digits are don't care      |
+
+```ts
+const trigger = new Trigger(
+  recorder,
+  [
+    { kind: 'rise', channel: clk },
+    { kind: 'equal', channels: bus, value: '3F' },
+  ],
+  (time) => sim.requestBreak(),
+);
+trigger.attach(sim); // armed; attach the new simulator after a carry-over
+```
+
+- Evaluated in `onInstant`, only at instants where one of its channels changed, from the
+  recorder's levels: a glitch inside one instant (collapsed by the recorder) never fires it.
+- Fires **once** (single shot) and disarms: at the edge while the other terms hold, or —
+  without an edge term — when the pattern **becomes** true (one already true when armed waits
+  until it has been false).
+- Values: digits not written are 0, as in a number (`5` on eight bits is `0x05`, `X5` leaves the
+  high nibble free); a bit that is `X` or `Z` matches no 0 or 1, so `notEqual` holds while it
+  is. `conditionProblems(condition)` and `parseHexPattern(text, width)` give the reasons a
+  condition can't be armed.
+- The editor's analyzer arms it and turns its firing into a pause ([editor.md](editor.md#waveforms));
+  R14's breakpoints are the same conditions without the analyzer.
+
+## VCD export
+
+`writeVcd(recorder, signals, options)` (`src/core/vcd.ts`, R13) writes a Value Change Dump
+(IEEE 1364 §18), which GTKWave, Surfer, PulseView and HDL tools read:
+
+```ts
+writeVcd(
+  recorder,
+  [
+    { name: 'CLK', channels: [clk] }, // a 1-bit wire
+    { name: 'D[0..7]', channels: bus }, // a vector, bit 0 first
+  ],
+  { from: us(10), to: us(20), scope: 'Data Bus', date, version },
+);
+```
+
+```text
+$timescale 1ps $end
+$scope module Data_Bus $end
+$var wire 1 ! CLK $end
+$var wire 8 " D [7:0] $end
+$upscope $end
+$enddefinitions $end
+#10000000
+$dumpvars
+0!
+b00111111 "
+$end
+#10500000
+1!
+…
+#20000000
+```
+
+- Times are absolute picoseconds (`$timescale 1ps`), as the app shows them; the range defaults
+  to the whole record (`start` … `end`), its values at `from` go in `$dumpvars`, and a last `#to`
+  marks its end.
+- Names are made VCD-safe (`vcdName`): `~{RD}` → `RD_n`, a bus's `[0..7]` dropped (the vector's
+  `[7:0]` says it), `U1.Q0` → `U1_Q0` (readers take `.` for a scope), other characters → `_`;
+  repeated names get `_2`, `_3`. Identifiers count through printable ASCII (`vcdIdentifier`).
+- `0`, `1`, `x`, `z` per bit; no data is `x`; a change that writes what the dump already shows
+  (`X`, then no data) is left out.
+- `date` and `version` come from the caller: core never reads the clock.
 
 ## Test bench
 

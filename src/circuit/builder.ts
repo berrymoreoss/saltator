@@ -17,6 +17,7 @@ import {
   type CircuitDocument,
   type ComponentInstance,
   ID_PATTERN,
+  type Probe,
   SCHEMA_VERSION,
   type Wire,
 } from './document';
@@ -41,6 +42,7 @@ export class CircuitBuilder {
   private readonly name: string;
   private readonly components: ComponentInstance[] = [];
   private readonly wires: Wire[] = [];
+  private readonly probes: Probe[] = [];
   private readonly ids = new Set<string>();
   private readonly pins = new Map<string, Point>(); // 'U1.Y' → grid point
   private nextWire = 1;
@@ -125,6 +127,12 @@ export class CircuitBuilder {
     return this;
   }
 
+  /** Adds a probe for the Waveforms tab (`{ ref: 'CLK' }`, a group `{ name, members }`). */
+  probe(probe: Probe): this {
+    this.probes.push(probe);
+    return this;
+  }
+
   /** The circuit built so far (a snapshot; the builder can keep going). */
   build(): Circuit {
     return {
@@ -132,6 +140,7 @@ export class CircuitBuilder {
       name: this.name,
       components: [...this.components],
       wires: [...this.wires],
+      probes: [...this.probes],
     };
   }
 

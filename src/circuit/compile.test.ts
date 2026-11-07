@@ -37,6 +37,7 @@ const circuit = (components: ComponentInstance[], wires: Wire[] = []): Circuit =
   name: 'Main',
   components,
   wires,
+  probes: [],
 });
 
 const compile = (components: ComponentInstance[], wires: Wire[] = []) =>
@@ -698,7 +699,7 @@ describe('compileDocument', () => {
   it('compiles the first circuit', () => {
     const result = compileDocument(
       {
-        schemaVersion: 2,
+        schemaVersion: 3,
         circuits: [
           circuit([part('H1', 'test/high', 0, 0)]),
           circuit([part('U1', 'test/and', 0, 0)]),

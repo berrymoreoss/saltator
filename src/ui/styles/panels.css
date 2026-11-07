@@ -930,3 +930,193 @@ kbd {
   padding: 0;
   border: 0;
 }
+
+/* ── Waveforms tab (bottom dock) ──────────────────────────────────────────── */
+
+.panel-body:has(> .waves) {
+  overflow: hidden;
+}
+
+.waves {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.waves-toolbar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  height: 30px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.waves-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.waves-add .prop-input {
+  width: 190px;
+  border-color: var(--border);
+  background: var(--input-bg);
+}
+
+.waves-readout {
+  display: inline-flex;
+  gap: 12px;
+  margin-left: 8px;
+  overflow: hidden;
+  color: var(--fg-muted);
+  font-size: var(--text-small);
+  font-variant-numeric: tabular-nums;
+}
+
+.waves-readout .cursor-a {
+  color: var(--accent);
+}
+
+.waves-readout .cursor-b {
+  color: var(--warning);
+}
+
+.waves-actions {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.waves-notice {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: 3px 10px;
+}
+
+.waves-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.waves-list {
+  flex: none;
+  width: 230px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+  scrollbar-width: thin;
+}
+
+.waves-list-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-bg);
+  color: var(--fg-subtle);
+  font-size: var(--text-small);
+}
+
+.waves-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px 0 2px;
+  cursor: default;
+}
+
+.waves-indent {
+  width: 20px;
+  flex: none;
+}
+
+.waves-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.waves-row:nth-child(odd of .waves-row) {
+  background: color-mix(in srgb, var(--fg) 2.5%, transparent);
+}
+
+.waves-row.selected {
+  background: var(--active-bg);
+}
+
+.waves-row.marked .waves-name {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.waves-row.broken .waves-name {
+  color: var(--fg-subtle);
+  text-decoration: line-through dotted;
+}
+
+.waves-row.bit {
+  padding-left: 26px;
+  color: var(--fg-muted);
+}
+
+.waves-rename {
+  flex: 1;
+  min-width: 0;
+}
+
+.waves-value {
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-small);
+}
+
+.waves-radix {
+  height: 18px;
+}
+
+.waves-row-action {
+  visibility: hidden;
+}
+
+.waves-row:hover .waves-row-action {
+  visibility: visible;
+}
+
+.waves-plot {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  outline: none;
+  cursor: crosshair;
+}
+
+.waves-plot:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--focus);
+}
+
+.trigger-term,
+.trigger-window {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0;
+}
+
+.trigger-term .prop-input,
+.trigger-window .prop-input {
+  width: 110px;
+  border-color: var(--border);
+  background: var(--input-bg);
+}

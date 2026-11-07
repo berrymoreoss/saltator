@@ -1,5 +1,6 @@
 /** The commands of the workbench and where they appear: menus and toolbar. */
 import {
+  Activity,
   BookOpen,
   ClipboardPaste,
   Copy,
@@ -386,6 +387,33 @@ export function createCommands({
     ),
 
     {
+      id: 'tool.probe',
+      label: 'Probe',
+      title: 'Click wires, pins and buses to add them to the waveforms',
+      icon: Activity,
+      shortcuts: ['P'],
+      checked: () => editor.tool.get() === 'probe',
+      run: () => editor.setTool('probe'),
+    },
+    {
+      id: 'waves.toggleProbe',
+      label: 'Add to Waveforms',
+      menuLabel: () => {
+        const spot = editor.contextProbe;
+        return spot && editor.analyzer.indexOf(spot.ref) >= 0
+          ? `Remove ${spot.ref} from Waveforms`
+          : spot
+            ? `Add ${spot.ref} to Waveforms`
+            : 'Add to Waveforms';
+      },
+      icon: Activity,
+      enabled: () => editor.contextProbe !== undefined,
+      run: () => {
+        const spot = editor.contextProbe;
+        if (spot) editor.toggleProbe(spot.ref);
+      },
+    },
+    {
       id: 'tool.interact',
       label: 'Interact',
       title: 'Operate switches and buttons while simulating',
@@ -655,6 +683,7 @@ export function workbenchMenus(examples: readonly Example[], recentCount?: numbe
         'tool.wire',
         'tool.bus',
         'tool.interact',
+        'tool.probe',
         SEPARATOR,
         'view.grid',
         { label: 'Theme', items: ['view.theme.system', 'view.theme.dark', 'view.theme.light'] },
@@ -735,6 +764,7 @@ export const ITEM_CONTEXT_MENU: readonly MenuEntry[] = [
   'edit.properties',
   'edit.partInfo',
   'edit.inspectMemory',
+  'waves.toggleProbe',
 ];
 
 export const CANVAS_CONTEXT_MENU: readonly MenuEntry[] = [
@@ -748,7 +778,7 @@ export const CANVAS_CONTEXT_MENU: readonly MenuEntry[] = [
 
 /** Toolbar groups, separated by dividers. */
 export const TOOLBAR: readonly (readonly string[])[] = [
-  ['tool.select', 'tool.pan', 'tool.wire', 'tool.bus', 'tool.interact'],
+  ['tool.select', 'tool.pan', 'tool.wire', 'tool.bus', 'tool.interact', 'tool.probe'],
   ['edit.undo', 'edit.redo'],
   ['edit.rotate', 'edit.flipH', 'edit.delete'],
   ['sim.toggle', 'sim.step', 'sim.stop', 'sim.reset', 'widget:speed'],

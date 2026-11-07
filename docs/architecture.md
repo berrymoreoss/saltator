@@ -72,7 +72,8 @@ flowchart LR
 3. The **simulator** (`core`) instantiates behaviors from the **registry** (`library`) and runs
    the netlist.
 4. The **editor** reads net levels every frame to color wires and draw indicators. UI panels
-   subscribe to change streams (waveforms, memory accesses, diagnostics).
+   subscribe to change streams (memory accesses, diagnostics); the waveform analyzer records
+   the probed nets through a core `Recorder` on the kernel's change listener (R13).
 5. User interaction with parts (pressing a button) goes to the simulator as an external event at
    the current simulation time.
 6. On edit, the document is recompiled. A running simulation goes on: an edit that keeps the
@@ -88,7 +89,8 @@ delays, delta cycles for zero-delay elements, deterministic ordering. Full spec:
 
 Run control (real-time pacing, speed factor, frame budget) is **not** in core: core exposes
 `runUntil(time, budget)`, and the _simulator host_ in the editor layer (`Simulation`, R05)
-drives it from `requestAnimationFrame` with an injected clock. This keeps core pure and makes
+drives it from `requestAnimationFrame` with an injected clock; a listener can break a run at an
+instant (`requestBreak`, R13), which the host turns into a pause. This keeps core pure and makes
 moving the kernel into a Web Worker a host-only change _(planned, backlog)_.
 
 ## Component library
@@ -145,8 +147,10 @@ Implemented in R02. Full spec: [circuit.md](circuit.md). Rationale:
 - **Compiler** (`compileCircuit`): document → `Netlist` with deterministic, readable net ids, plus
   the net of every wire and the junction dots for the editor. It never throws on user mistakes.
 - **Resolver** (R12b): references (`U5`, `U5.A0`, `CLK`, `D[0..7]`) to the compiled parts and
-  nets, for the memory inspector and later probes, watches, breakpoints and test benches; R11
-  adds instance paths there ([circuit.md](circuit.md#resolver)).
+  nets, for the memory inspector, probes (R13) and later watches, breakpoints and test benches;
+  R11 adds instance paths there ([circuit.md](circuit.md#resolver)).
+- **Probes** (R13): the Waveforms tab's signals as resolver references in the circuit
+  (`Circuit.probes`, schema v3), never compiled ([ADR-0019](adr/0019-waveforms.md)).
 - **Design checks** (pre-simulation): unknown part types, invalid props, shorted push-pull
   outputs, undriven inputs, dangling wires, nets with several names, lone net labels, bus
   entries that aren't members of their bus; later power-pin checks.
@@ -196,14 +200,16 @@ Simulation tab with runtime diagnostics, live levels in Properties; R06 added th
 with data sheet descriptions and the function table of the part picked last), R09a its timing
 (delays and the minima the timing checks use); R12b the Memory tab (a live hex view of a
 memory with reads and writes lit, edits, `.bin` and Intel HEX through a programmer-style Load
-dialog, [editor.md](editor.md#memory-inspector)).
+dialog, [editor.md](editor.md#memory-inspector)); R13 the Waveforms tab (the probes over
+simulated time with zoom, cursors, bus values, a trigger and VCD export) and the Probe tool
+([editor.md](editor.md#waveforms), [ADR-0019](adr/0019-waveforms.md)).
 
 ```
 ┌───────────────────────── menu bar · toolbar (tools, zoom, grid, gate style) ─────────────────────────┐
 │ Parts    │                                canvas                                    │ Properties    │
 │ (search, │                                                                          │ (of the       │
 │ preview) │                                                                          │ selection)    │
-├──────────┴──── bottom dock: Messages · Simulation · Part · Memory (later: logic analyzer) ┴────────────┤
+├──────────┴──── bottom dock: Messages · Simulation · Part · Memory · Waveforms ┴──────────────────────┤
 │ status bar: cursor · zoom · selection · simulation · counts · issues                                  │
 ```
 

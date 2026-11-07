@@ -7,8 +7,8 @@ import type { GateStyle, WheelMode } from '../editor';
 export type ThemeSetting = 'system' | 'dark' | 'light';
 export type PanelId = 'parts' | 'properties' | 'bottom';
 /** Tabs of the bottom dock: design checks, what happened while simulating, the part, memories. */
-export type BottomTab = 'messages' | 'simulation' | 'part' | 'memory';
-const BOTTOM_TABS: readonly BottomTab[] = ['messages', 'simulation', 'part', 'memory'];
+export type BottomTab = 'messages' | 'simulation' | 'part' | 'memory' | 'waves';
+const BOTTOM_TABS: readonly BottomTab[] = ['messages', 'simulation', 'part', 'memory', 'waves'];
 
 export interface PanelSettings {
   readonly visible: boolean;

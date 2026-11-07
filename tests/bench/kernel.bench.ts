@@ -5,7 +5,7 @@
  * Results are recorded in the plan of the branch that changed them.
  */
 import { describe, type TestContext, test } from 'vitest';
-import { NetlistBuilder, ns, Simulator, strong, us } from '../../src/core';
+import { NetlistBuilder, ns, Recorder, Simulator, strong, us } from '../../src/core';
 import { testDriver } from '../../src/core/testing';
 import { createDefaultRegistry } from '../../src/library';
 
@@ -211,4 +211,25 @@ describe('kernel', () => {
       sim.runFor(us(100));
     });
   });
+
+  // R13: the waveform recorder's cost. Every net of the ring changes; the listener filters them.
+  for (const probed of [16, 1001]) {
+    test(`ring oscillator ×1001 recording ${probed} nets: 100 µs`, async ({ bench }) => {
+      const sim = ring(1001);
+      sim.action('EN', strong(0));
+      sim.settle();
+      const recorder = new Recorder();
+      const nets = new Map<number, number>();
+      for (let i = 0; i < probed; i++) {
+        const stage = Math.floor((i * 1001) / probed);
+        nets.set(recorder.addChannel(), sim.pinNet(stage === 0 ? 'N0' : `I${stage}`, 'Y'));
+      }
+      recorder.attach(sim, nets);
+      sim.action('EN', strong(1));
+      sim.runFor(us(10));
+      await measure(bench, `ring oscillator ×1001 recording ${probed} nets`, sim, () => {
+        sim.runFor(us(100));
+      });
+    });
+  }
 });

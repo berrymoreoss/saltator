@@ -52,6 +52,8 @@ export interface RenderOptions {
   readonly showGrid: boolean;
   readonly selection: Selection;
   readonly hover?: Hit;
+  /** The Probe tool's spot: its net's (or bus's) wires and the pin pointed at. */
+  readonly probe?: { readonly wires: readonly string[]; readonly pin?: Point };
   readonly box?: { readonly rect: Rect; readonly mode: BoxMode };
   /**
    * Items that are not placed yet — a part being placed, pasted items before they are dropped,
@@ -150,7 +152,23 @@ function drawGrid(ctx: CanvasRenderingContext2D, frame: Frame, theme: CanvasThem
 }
 
 function drawHover(g: CanvasGraphics, scene: Scene, options: RenderOptions): void {
-  const { hover, theme } = options;
+  const { hover, probe, theme } = options;
+  if (probe) {
+    g.world();
+    for (const id of probe.wires) {
+      const wire = scene.wireById.get(id);
+      if (!wire) continue;
+      g.beginPath();
+      g.moveTo(wire.from[0], wire.from[1]);
+      g.lineTo(wire.to[0], wire.to[1]);
+      g.stroke(theme.hover, wire.bus ? 0.7 : 0.5);
+    }
+    if (probe.pin) {
+      g.beginPath();
+      g.arc(probe.pin[0], probe.pin[1], 0.35, 0, Math.PI * 2);
+      g.stroke(theme.hover, 0.15);
+    }
+  }
   if (!hover) return;
   g.world();
   if (hover.kind === 'part') {
