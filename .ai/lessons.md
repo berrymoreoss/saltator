@@ -203,3 +203,29 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
   bus names cap the indices at two digits and the whole name at 32 characters, which bounds the
   members without counting them. The library layer may not import `circuit` either, not even in
   tests: pin positions of a library part are checked in `tests/scenarios/`.
+- 2026-11-07 (R12a) — Memory data sheets give no typical values, only limits: the convention
+  "typical drives the simulation" doesn't apply. Simulate with the maxima of what the part
+  drives and the minima of its holds (ADR-0017), keep `typical` empty, and expect a key with
+  both a min and a max (`tOE`). The Part tab had to learn both.
+- 2026-11-07 (R12a) — `pdftotext -layout` garbles the Renesas 6116 tables (columns shift between
+  rows); read the rendered page (`pdftoppm -r 110`). Microchip's `ww1…/DeviceDoc/docNNNN.pdf`
+  and Renesas PDFs download with curl; Alliance Memory's product table is built by script, so
+  the user downloads the AS6C62256.
+- 2026-11-07 (R12a) — A `Bench` leaves every `in`/`bidir` pin floating until set: a memory test
+  that forgets the address reads all bits unknown (more than 8 unknown address bits merge to
+  `X`), and an `X` against a strong level is no contention. Set every address pin before
+  asserting a bus fight or a value.
+- 2026-11-07 (R12a) — Order inside an instant matters for level-sensitive parts: a RAM treats a
+  change in the same delta as a write's start as before it and one at its end as after it (so
+  data sheet zeros like `tAS = tWR = tDH = 0` hold), which means recording change times only
+  after the checks of that delta ran. A same-instant test with the bench left at the target
+  address passed for the wrong reason — mutation-check these.
+- 2026-11-07 (R12a) — Every gate output starts `X` for its first delay at power-on, so a RAM's
+  `WE̅` driven by a gate looks like a possible write with an unknown address and wipes a
+  `zeros` power-on. Unknown controls count as a possible write only after they were known once.
+- 2026-11-07 (R12a) — `CircuitBuilder` stores props as given; example files must hold every
+  resolved prop (`examples.test.ts`). Re-save a generated example through `resolveProps` and
+  `serializeDocument` instead of editing its JSON by hand.
+- 2026-11-07 (R12a) — A table `<caption>` with a long conditions string widens the Part tab's
+  timing table past the dock (the Min column went off-screen at 1500 px). Keep `conditions`
+  short; check a new part's Part tab in the browser.

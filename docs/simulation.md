@@ -362,8 +362,14 @@ the net ids.
   drivers disagree right now (a short on real hardware), so a renderer can tell contention from
   an `X` that is merely unknown.
 - **Stats**: `sim.stats` = `{ events, deltaCycles, evaluations }`; `sim.now`, `sim.halted`.
-- **Inspection** _(planned, R12+)_: components may expose typed views of internal state (memory
-  arrays, CPU registers) for UI panels, plus debug read/write that bypasses simulated timing.
+- **Inspection** (R12a): a memory part's definition has `memory` (`MemoryDef`: words, width,
+  volatile, `view(state)` → `{ data, unknown }`), a view of the instance's cells read through
+  `sim.stateOf(id)` without copying; RAMs take a debug write, the action `{ type: 'poke',
+  address, data }` (`PokeAction`), that bypasses their timing
+  ([components.md](components.md#memories-mem)). CPU registers come with R17 _(planned)_.
+- **Reproducible randomness**: `SeededRandom` (mulberry32) and `hashString` (FNV-1a) in core;
+  parts seed it from what identifies them (a RAM's random power-on contents from its
+  designator), never from `Math.random`.
 
 ## Test bench
 

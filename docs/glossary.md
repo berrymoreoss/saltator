@@ -3,6 +3,10 @@
 **Active low** — a pin that is asserted at logic 0 (`OE`, `CE`, `WE`); drawn with an overline or
 bubble.
 
+**Access time (tACC, tAA)** — how long after a new address a memory's outputs carry the data;
+a data sheet gives only its guaranteed maximum. Before it, the simulator shows the outputs as
+`X` (after a short hold time `tOH` of the old data): sampling a memory sooner is a bug.
+
 **Astable / monostable / bistable** — the three ways to wire a 555 timer: a free-running
 oscillator (the clock of a breadboard computer), one pulse of a fixed width per trigger (a
 debounced step button), or a set/reset latch (a debounced switch). The RC network sets the times:
@@ -69,6 +73,10 @@ measured. Autosaved per browser tab and restored after a reload (R07).
 **Drive / strength** — what an output contributes to a net: a level plus a strength (`none`,
 `weak`, `strong`). Pull resistors are weak; CMOS outputs are strong.
 
+**EEPROM** — electrically erasable programmable read-only memory (AT28C16, AT28C256): keeps
+its contents without power and is written byte by byte in a slow, self-timed write cycle. Here
+EEPROMs are read as ROMs; their contents (the image) are saved with the circuit.
+
 **Flip-flop / register** — a circuit that stores one bit and takes a new value only on a clock
 edge (74HC74, 107, 109, 112); a register is several flip-flops on one clock (74HC173, 273, 574).
 A JK flip-flop holds, resets, sets or toggles depending on J and K.
@@ -85,6 +93,10 @@ in the editor; the pins are the same either way.
 
 **Interact tool** — the tool that operates parts while simulating: flip a switch or DIP switch,
 hold a push button, step a manual clock (`I`; Run selects it).
+
+**Image (memory image)** — the contents of a ROM, as a programmer writes them into the chip.
+Saved in the circuit as sparse hex runs: `0000:A9FF8D` is three bytes from address 0; bytes not
+listed are erased (`0xFF`).
 
 **Inertial delay** — a delay model in which input pulses shorter than the element's delay do not
 reach the output.
@@ -149,6 +161,13 @@ per stage). Gates decoding its outputs glitch.
 outputs change together (74HC161, 163, 191, 193); it can load a value (**parallel load**) and
 count only when enabled. Its **terminal count** output (TC) signals the last state (15 counting
 up, 0 counting down) so the next counter in a cascade counts on.
+
+**SRAM** — static RAM (6116, 62256): keeps its contents only while powered, reads and writes
+at full speed. A write happens while chip select and write enable are both LOW; the cell takes
+the data present when the first of them rises. It powers on with unknown contents.
+
+**Speed grade** — the same memory chip sold with different guaranteed access times, marked in
+its part number (6116SA**15**, AT28C256-**15**). Slower grades are the safer assumption.
 
 **Shift register** — flip-flops in a chain on one clock, each taking the one before it: bits go
 in one at a time and come out side by side (74HC164, 595), or go in side by side and come out one

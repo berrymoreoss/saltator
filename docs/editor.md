@@ -82,7 +82,10 @@ in the header, its props for prop-dependent pins) or a part clicked in the Parts
 - the definition's **timing** (R09a, under the function table): every delay with its typical and
   maximum value, every timing requirement (set-up, hold, pulse width, recovery) with its typical
   value and the guaranteed minimum the timing checks use, the path's pin names as drawn
-  (`nCP to nQ, nQ̅`), the conditions and the source.
+  (`nCP to nQ, nQ̅`), the conditions and the source. A key with both a minimum and a maximum
+  shows both (a memory's `tOE`); for a data sheet with limits only (memories, R12a) the Typ
+  column stays empty and the legend says how the limits are used. A picked instance shows the
+  timing of its props (a 6116's speed grade).
 
 Parts without descriptions, a function table or timing (`prim/*`, `io/*`) show what they have. Edit ▸ Part Info and the part context menu open the tab. The pure model is
 `src/ui/part-info.ts` (unit-tested); the selection-following lives in `Workbench`.
@@ -396,7 +399,9 @@ focus its designator.
   bare number is nanoseconds; `parseTime` in core), booleans as checkboxes, enums as selects (LED colors with
   a swatch), strings as text — checked as typed against a `pattern` (a net label's **Name**:
   "Use letters, digits, …"), without the spaces at its ends. A schematic-only part (net label)
-  has no **Label** row: its free text would never be drawn. Each commit is one undo step and writes all resolved props. A prop
+  has no **Label** row: its free text would never be drawn. A memory's contents (`image` props)
+  show as a summary, `214 of 2048 bytes programmed` or `Erased (2048 bytes)`, not edited here
+  (the memory inspector, R12b _(planned)_). Each commit is one undo step and writes all resolved props. A prop
   that changes the layout (gate inputs, DIP-switch count) moves pins; attached wires are not
   re-routed.
 
@@ -670,6 +675,14 @@ title and a description, in gallery order):
   by a 74HC04 into DS: a Johnson counter, the eight LEDs fill and empty by themselves, one step
   behind the Q7S LED (the storage register takes the contents from before each shift). CLEAR
   (a button with a pull-up) first; OUTPUTS floats the outputs while it keeps counting.
+- **EEPROM 7-Segment Decoder** — an AT28C16 in place of decoding logic, as in Ben Eater's EEPROM
+  video: four ADDRESS switches (A4–A10 tied to GND by labels) pick a byte of its image, which
+  lights the hex digit on a common-cathode display 150 ns later; everything joined by net
+  labels.
+- **RAM by Hand** — a 6116 written by hand: PROGRAM (a changeover with pull-ups) enables a
+  74HC245 that puts the DATA switches on the bus and turns the RAM's outputs off 10 ns before
+  the 245 drives; WRITE (a button with a pull-up) stores the byte at ADDRESS; out of PROGRAM the
+  RAM drives the bus and the LEDs show what it holds (`X` where nothing was written).
 - **SAP-1 Program Counter** — Ben Eater's program counter: a 74HC161 (CLR, CE, J) loading from a
   4-bit bus, a 74HC245 putting it on the bus (CO); the bus has pull-downs, a BUS bar and a
   DATA switch stand-in through another 74HC245. Unknown until CLR.
