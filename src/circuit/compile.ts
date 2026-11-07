@@ -15,8 +15,10 @@ import {
   type CircuitNet,
   type DesignIssue,
   danglingWires,
+  multipleNetNames,
   type PlacedPin,
   shortedOutputs,
+  singleNetLabels,
   undrivenInputs,
 } from './checks';
 import { connect } from './connectivity';
@@ -135,6 +137,8 @@ export function compileCircuit(circuit: Circuit, registry: ComponentRegistry): C
     ...shortedOutputs(nets),
     ...undrivenInputs(nets),
     ...danglingWires(connectivity.danglingEnds, circuit.wires),
+    ...multipleNetNames(nets),
+    ...singleNetLabels(nets),
   );
   issues.sort((a, b) => severityRank(a) - severityRank(b));
 

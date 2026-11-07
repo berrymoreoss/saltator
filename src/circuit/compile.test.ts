@@ -281,6 +281,52 @@ describe('compileCircuit', () => {
       expect(result.nets.map((n) => n.id)).toEqual(['H1.Y']);
     });
 
+    it('warn about a label whose name nothing else uses', () => {
+      const result = compile(
+        [part('H1', 'test/high', 0, 0), label('NL1', 'CKL', 5, 1), label('NL2', 'HI', 30, 30)],
+        [wire('w1', 5, 1, 9, 1)],
+      );
+      expect(result.issues.filter((i) => i.code === 'single-net-label')).toEqual([
+        {
+          severity: 'warning',
+          code: 'single-net-label',
+          message:
+            'net label NL1 "CKL" is the only one with this name, so it joins nothing (a typo?)',
+          net: 'CKL',
+          component: 'NL1',
+          pin: 'N',
+          at: [5, 1],
+        },
+        expect.objectContaining({ component: 'NL2' }),
+      ]);
+      // A rail of the same name or a second label is a partner.
+      const partnered = compile([
+        part('R1', 'test/hi', 0, 0),
+        label('NL1', 'HI', 20, 20),
+        label('NL2', 'B', 30, 30),
+        label('NL3', 'B', 40, 40),
+      ]);
+      expect(codes(partnered)).toEqual([]);
+    });
+
+    it('warn about a net with several names, at the pin giving the second', () => {
+      const result = compile(
+        [label('NL1', 'CLOCK', 0, 0), label('NL2', 'CLK', 5, 0), label('NL3', 'CLK', 9, 9)],
+        [wire('w1', 0, 0, 5, 0), wire('w2', 9, 9, 9, 12)],
+      );
+      expect(result.issues.filter((i) => i.code === 'multiple-net-names')).toEqual([
+        {
+          severity: 'warning',
+          code: 'multiple-net-names',
+          message: 'net "CLK" has several names: CLK, CLOCK (it is called CLK)',
+          net: 'CLK',
+          component: 'NL1',
+          pin: 'N',
+          at: [0, 0],
+        },
+      ]);
+    });
+
     it('make an input on a label part of a net, not unconnected', () => {
       const result = compile([part('U1', 'test/and', 0, 0), label('NL1', 'A', 0, 1)]);
       expect(result.issues.find((i) => i.pin === 'A')!.message).toBe(
