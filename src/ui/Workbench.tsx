@@ -10,6 +10,7 @@ import { documentTitle, hasUnsavedChanges } from './document-session';
 import { ExampleGalleryDialog } from './ExampleGallery';
 import { droppedFile } from './files';
 import { useMediaQuery, useStore, useStoreValue } from './hooks';
+import { MemoryPanel } from './MemoryPanel';
 import { MenuBar } from './MenuBar';
 import { MessagesBadges, MessagesPanel } from './MessagesPanel';
 import { Panel, Splitter } from './Panel';
@@ -131,10 +132,17 @@ export function Workbench({
   // The Part tab follows the last part picked: a single part selected on the canvas…
   useEffect(() => {
     const follow = () => {
-      const { selection, circuit } = editor.state.get();
+      const { selection, circuit, renames } = editor.state.get();
+      // The Memory tab follows its memory through renames.
+      const memory = ui.get().memoryPick;
+      const renamed = memory === undefined ? undefined : renames?.get(memory);
+      if (renamed !== undefined) ui.update((s) => ({ ...s, memoryPick: renamed }));
       if (selection.parts.size !== 1 || selection.wires.size !== 0) return;
       const [id] = selection.parts;
       const part = circuit.components.find((c) => c.id === id);
+      if (part && editor.registry.get(part.type)?.memory && ui.get().memoryPick !== part.id) {
+        ui.update((s) => ({ ...s, memoryPick: part.id }));
+      }
       const current = ui.get().partPick;
       if (!part || (current?.id === part.id && current.type === part.type)) return;
       ui.update((s) => ({ ...s, partPick: { type: part.type, id: part.id } }));
@@ -303,6 +311,15 @@ export function Workbench({
                   >
                     Part
                   </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={tab === 'memory'}
+                    className={tab === 'memory' ? 'tab active' : 'tab'}
+                    onClick={() => showTab('memory')}
+                  >
+                    Memory
+                  </button>
                 </div>
               }
               actions={
@@ -328,6 +345,15 @@ export function Workbench({
                   pick={uiState.partPick}
                   theme={canvasTheme}
                   gateStyle={settings.gateStyle}
+                />
+              )}
+              {tab === 'memory' && (
+                <MemoryPanel
+                  editor={editor}
+                  pick={uiState.memoryPick}
+                  onPick={(id) => ui.update((s) => ({ ...s, memoryPick: id }))}
+                  follow={settings.memoryFollow}
+                  onFollow={(memoryFollow) => settingsStore.update((s) => ({ ...s, memoryFollow }))}
                 />
               )}
             </Panel>

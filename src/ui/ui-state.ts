@@ -35,6 +35,8 @@ export interface UiState {
   readonly propertiesRequest: number;
   /** The part the Part tab shows: the last one picked on the canvas or in the Parts panel. */
   readonly partPick?: PartPick;
+  /** The memory the Memory tab shows: the last one picked on the canvas or in its picker. */
+  readonly memoryPick?: string;
   readonly unsavedQuestion?: UnsavedQuestion;
   /** A file that didn't open or save, shown until dismissed. */
   readonly fileProblem?: FileProblem;

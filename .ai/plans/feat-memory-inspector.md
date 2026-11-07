@@ -214,7 +214,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 4. `editor`: `MemoryInspector` — memories, cells (live, stopped ROM, stopped RAM),
   address, highlighting frames, edits (ROM image with coalescing, RAM poke), renames; headless
   tests with the fake clock.
-- [ ] 5. `ui`: the Memory tab — picker, virtualized hex view, ASCII, `X`, highlighting, follow,
+- [x] 5. `ui`: the Memory tab — picker, virtualized hex view, ASCII, `X`, highlighting, follow,
   editing and Go to, selection-following, settings; commands (Edit ▸ Inspect Memory, context
   menu, View); unit tests for the pure pieces (rows per width, cell text, key handling).
 - [ ] 6. `ui`: binary `FileAccess`; Load Image (programmer) and Save Image dialogs, Erase; tests
@@ -296,10 +296,19 @@ Checkable statements; verified one by one in the finish-branch workflow.
   (ROM: image prop, coalesced `Edit U1 contents`; RAM: poke), `load`, `erase`, `contents`.
   `setPartProp` takes a label and a coalesce key. Mutation-checked (two survivors: one line
   removed as equivalent, a test added for sampling while paused).
+- 2026-11-07 — task 5: the Memory tab (`MemoryPanel.tsx`, pure pieces in `memory-view.ts`):
+  picker, live address, Follow (a setting, `memoryFollow`; scrolling by hand or Go to turns it
+  off), Go to (hex, `0x`/`$`/`h`), a virtualized hex view (8/16/32 cells a row by the dock's
+  width, ASCII column, `X` nibbles, erased ROM bytes dimmed, reads green and writes orange
+  fading, the address outlined), keyboard editing (`hexKey`: digits, Enter, Escape, arrows,
+  Home/End, Page Up/Down; handled keys don't reach shortcuts); problems in a notice line under
+  the toolbar (not the status hint). `memoryPick` follows the canvas selection and renames;
+  Edit ▸ Inspect Memory and the part context menu. Looked at in both themes (EEPROM decoder
+  running with the read lit; RAM by Hand stopped and running).
 
 ## Handoff
 
-- **State:** tasks 1–4 done (stamps, image codecs, resolver, `MemoryInspector`).
-- **Next step:** task 5 (the Memory tab in `ui`).
+- **State:** tasks 1–5 done (stamps, image codecs, resolver, `MemoryInspector`, Memory tab).
+- **Next step:** task 6 (binary `FileAccess`, Load Image / Save Image dialogs, Erase).
 - **Watch out:** —
 - **Verify with:** `pnpm check`.

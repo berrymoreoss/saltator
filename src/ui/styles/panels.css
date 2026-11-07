@@ -753,3 +753,136 @@ kbd {
   font-family: inherit;
   text-align: left;
 }
+
+/* ── Memory tab (bottom dock) ─────────────────────────────────────────────── */
+
+.panel-body:has(> .memory) {
+  overflow: hidden;
+}
+
+.memory {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.memory-toolbar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  height: 28px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.memory-picker {
+  max-width: 260px;
+}
+
+.memory-now {
+  min-width: 96px;
+  color: var(--fg-muted);
+  font-size: var(--text-small);
+}
+
+.memory-follow {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--fg-muted);
+}
+
+.memory-goto .prop-input {
+  width: 72px;
+  border-color: var(--border);
+  background: var(--input-bg);
+}
+
+.memory-actions {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.memory-notice {
+  flex: none;
+  padding: 3px 10px;
+}
+
+.memory-grid {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  outline: none;
+  font-size: var(--text-ui);
+  line-height: 18px;
+  user-select: none;
+}
+
+.memory-grid:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--focus);
+}
+
+.memory-measure {
+  position: absolute;
+  visibility: hidden;
+  white-space: pre;
+}
+
+.memory-rows {
+  position: relative;
+}
+
+.memory-row {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  height: 18px;
+  padding: 0 8px;
+  white-space: pre;
+}
+
+.memory-row-address {
+  margin-right: 2ch;
+  color: var(--fg-subtle);
+}
+
+.memory-cell {
+  margin-right: 1ch;
+  border-radius: 2px;
+  cursor: text;
+}
+
+.memory-cell.group {
+  margin-left: 1ch;
+}
+
+.memory-cell.erased {
+  color: var(--fg-subtle);
+}
+
+.memory-cell.unknown {
+  color: var(--level-x);
+}
+
+.memory-cell.current {
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.memory-cell.cursor {
+  box-shadow: 0 0 0 1px var(--fg-subtle);
+}
+
+.memory-grid:focus .memory-cell.cursor {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+
+.memory-ascii {
+  margin-left: 1ch;
+  color: var(--fg-muted);
+}
