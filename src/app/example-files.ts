@@ -73,6 +73,18 @@ export const EXAMPLE_FILES: readonly ExampleFile[] = [
       'A 74HC595 with both clocks tied and Q7S inverted into DS: the LEDs fill and empty by themselves. CLEAR first.',
   },
   {
+    id: 'eeprom-7-segment',
+    title: 'EEPROM 7-Segment Decoder',
+    description:
+      'An AT28C16 replaces the decoding logic: the ADDRESS switches pick a byte that lights a hex digit, 150 ns later.',
+  },
+  {
+    id: 'ram-by-hand',
+    title: 'RAM by Hand',
+    description:
+      'A 6116 written from switches: PROGRAM puts the DATA switches on the bus through a 74HC245, WRITE stores them at ADDRESS; the LEDs show the bus.',
+  },
+  {
     id: 'sap-1-program-counter',
     title: 'SAP-1 Program Counter',
     description:

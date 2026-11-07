@@ -302,3 +302,55 @@ describe('SAP-1 Program Counter', () => {
     expect(sim.diagnostics.entries).toEqual([]);
   });
 });
+
+describe('EEPROM 7-Segment Decoder', () => {
+  it('shows the hex digit of the ADDRESS switches, 150 ns after they change', () => {
+    const sim = run('eeprom-7-segment');
+    sim.runFor(ns(100)); // 200 ns: address 0 read
+    const lit = () => {
+      const state = sim.stateOf('DS1') as LightsState;
+      return SEGMENTS.filter((_, i) => state.light[i] === Light.ON).join('');
+    };
+    expect(lit()).toBe('abcdef'); // 0
+    const flip = (index: number) => {
+      sim.action('SW1', { type: 'toggle', index });
+      sim.runFor(ns(200));
+    };
+    flip(0); // 1
+    expect(lit()).toBe('bc');
+    flip(1); // 3
+    expect(lit()).toBe('abcdg');
+    flip(3); // 0xB
+    expect(lit()).toBe('cdefg');
+    flip(2); // 0xF
+    expect(lit()).toBe('aefg');
+    expect(sim.diagnostics.entries).toEqual([]);
+  });
+});
+
+describe('RAM by Hand', () => {
+  it('stores the DATA switches at ADDRESS on WRITE in PROGRAM mode and shows them after', () => {
+    const sim = run('ram-by-hand');
+    const leds = () => lightsOf(sim, 'D1');
+    const act = (id: string, action: object) => {
+      sim.action(id, action);
+      sim.runFor(ns(200));
+    };
+    expect(leds()).toBe('????????'); // the RAM powers on unknown
+    act('SW3', { type: 'toggle' }); // PROGRAM: the 245 puts the DATA switches on the bus
+    expect(leds()).toBe('00000000');
+    act('SW2', { type: 'toggle', index: 0 });
+    act('SW2', { type: 'toggle', index: 5 });
+    expect(leds()).toBe('00100001');
+    act('SW1', { type: 'toggle', index: 1 }); // address 2
+    act('SW4', { type: 'press' });
+    act('SW4', { type: 'release' });
+    act('SW3', { type: 'toggle' }); // read: the RAM drives the bus
+    expect(leds()).toBe('00100001');
+    act('SW1', { type: 'toggle', index: 0 }); // address 3: never written
+    expect(leds()).toBe('????????');
+    act('SW1', { type: 'toggle', index: 0 }); // back to 2
+    expect(leds()).toBe('00100001');
+    expect(sim.diagnostics.entries).toEqual([]);
+  });
+});
