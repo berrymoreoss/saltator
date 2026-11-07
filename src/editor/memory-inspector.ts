@@ -81,10 +81,11 @@ class AccessClock {
   /** Accesses at or before this simulated time are older than every sample kept. */
   #forgotten = -Infinity;
 
-  clear(): void {
+  /** Forgets the samples; accesses at or before `forgotten` (a rewind's instant) stay unlit. */
+  clear(forgotten = -Infinity): void {
     this.#count = 0;
     this.#start = 0;
-    this.#forgotten = -Infinity;
+    this.#forgotten = forgotten;
   }
 
   get last(): number {
@@ -143,6 +144,8 @@ export class MemoryInspector {
     const simulation = editor.simulation;
     simulation.revision.subscribe(() => this.sample());
     simulation.status.subscribe(() => this.sample());
+    // After a rewind the cells' stamps are as they were then: none of them is news.
+    simulation.onRewind(({ time }) => this.#accesses.clear(time));
   }
 
   /** The memories of the circuit, in designator order. */

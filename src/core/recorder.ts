@@ -251,7 +251,7 @@ export class Recorder {
 
   /** A rewound run is behind the record's end: the record after `now` is its future. */
   get replaying(): boolean {
-    return this.#replaying;
+    return this.#replaying && (this.#sim?.now ?? this.#present) < this.#present;
   }
 
   // ── Rewinding ────────────────────────────────────────────────────────────────────────────

@@ -200,6 +200,17 @@ export class Analyzer {
       this.#follow();
       if (this.#sim) this.revision.update((n) => n + 1);
     });
+    // A rewind: the record after `now` is the future a run repeats; acting there cuts it.
+    editor.simulation.onRewind(({ time, present }) => {
+      if (!this.#sim) return;
+      this.recorder.seek(time, present);
+      this.#core?.resync(time);
+      this.revision.update((n) => n + 1);
+    });
+    editor.simulation.onDiverge((time) => {
+      this.recorder.cut(time);
+      this.revision.update((n) => n + 1);
+    });
     this.#sync();
   }
 
@@ -342,6 +353,11 @@ export class Analyzer {
   /** The end of the record: now while simulating, where it stopped after. */
   get end(): Time {
     return this.recorder.end;
+  }
+
+  /** Where the simulation is while simulating; behind `end` after a rewind (the future). */
+  get now(): Time | undefined {
+    return this.#sim?.now;
   }
 
   /** Time at a plot x (pixels from the left). */

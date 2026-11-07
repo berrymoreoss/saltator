@@ -137,6 +137,8 @@ export interface BackSearch {
   watch(sim: Simulator, at: (time: Time) => TimelinePosition, before: TimelinePosition): () => void;
   /** Where to go, once known: a position, or a time as it ended. */
   target(): TimelinePosition | Time | undefined;
+  /** The reason once found, when it says more than `label` (which breakpoint). */
+  readonly reason?: string;
 }
 
 /** A search under way: the segments left. */
@@ -733,7 +735,7 @@ export class Simulation {
       if (found !== undefined) {
         const target = typeof found === 'number' ? timeline.asEnded(found) : found;
         if (timeline.reachable(target)) {
-          this.#reach(target, search.label);
+          this.#reach(target, search.reason ?? search.label);
           return;
         }
       }
@@ -1058,7 +1060,14 @@ export class Simulation {
     if (goal.kind === 'time') {
       const limit = Math.max(sim.now, Math.min(goal.until, pauseAt));
       const result = this.#advance(sim, limit, (l) => sim.runUntil(l, { maxEvents: CHUNK_EVENTS }));
-      if ((result === 'reached' || result === 'idle') && sim.now >= goal.until) {
+      // At its time it is done — before a recorded action there, as the original run stopped
+      // there and the action came after.
+      if (
+        result !== 'budget' &&
+        result !== 'break' &&
+        result !== 'halted' &&
+        sim.now >= goal.until
+      ) {
         step.done = goal.label;
       }
       return result;

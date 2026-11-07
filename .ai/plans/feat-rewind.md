@@ -220,7 +220,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   that replay logged actions, `rewindTo`, Step Back, backward searches over frames (Pause
   cancels), divergence on actions, resets on power-on/Stop/edits, `timeline` store and
   reasons; fake-clock tests.
-- [ ] 6. `editor`: the tools follow — analyzer (recorder seek/confirm/cut, trigger state),
+- [x] 6. `editor`: the tools follow — analyzer (recorder seek/confirm/cut, trigger state),
   debugger (hits by time, triggers resynced, Step Back Clock, Reverse Continue scanner,
   watches' stops, activity), memory inspector (highlights); headless tests; mutation-checked.
 - [ ] 7. `ui`: commands, shortcuts, toolbar and Debug tab buttons, status bar, Run To a past
@@ -353,6 +353,21 @@ Checkable statements; verified one by one in the finish-branch workflow.
   two equivalent: a separate "already at the start" case, a remembered first-instant time).
   Benchmark (host chunks of 20K events, a checkpoint every 200K): ring oscillator 12.45–12.76M
   vs 12.57–12.89M events/s without; 16 × 6116 swept 7.42–7.52M vs 7.56–7.61M.
+- 2026-11-08 — task 6: the tools follow `onRewind`/`onDiverge`. Analyzer: `recorder.seek`, an
+  armed trigger `resync`ed, `cut` on divergence, `now` beside `end` (the present) for the
+  drawing. Debugger: its recorder seeks and cuts the same way, triggers resync, hits are hit
+  times (a rewind forgets those after it; the replay counts them again), activity restarts,
+  "last run" counters restart; `stepBackClock()` (`edgeSearch`: the newest edge at or before
+  the start, then the last instant with events before it, across segments), `reverseContinue()`
+  (a scanner per segment in the replica: the enabled breakpoints' conditions as fresh repeating
+  triggers on a recorder numbered like the debugger's, the break-on toggles through
+  `onOccurrence`; hit counts aside; the reason names the breakpoint — `BackSearch.reason`).
+  Step Clock on a manual clock behind the present replays the next recorded press of that
+  clock (to its time + one period). Memory inspector: a rewind clears the access clock with
+  the rewound instant as "forgotten", so restored stamps light nothing. Found on the way: a
+  time goal ending exactly at a recorded action delivered it (the original run had stopped
+  before it) — it is done first now; `Recorder.replaying` is false once the run is at the
+  present. Mutation-checked (21; one equivalent removed: a separate `found` in the hit search).
 
 ## Handoff
 
