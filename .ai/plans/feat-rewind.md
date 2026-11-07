@@ -225,7 +225,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   watches' stops, activity), memory inspector (highlights); headless tests; mutation-checked.
 - [x] 7. `ui`: commands, shortcuts, toolbar and Debug tab buttons, status bar, Run To a past
   time; Waveforms: the future dimmed, ruler click/drag; looked at in both themes.
-- [ ] 8. e2e: Clock Module / Data Bus — Step Back and Step return to the same state, a ruler
+- [x] 8. e2e: Clock Module / Data Bus — Step Back and Step return to the same state, a ruler
   click rewinds and the waveform keeps its future; SAP-1 Program Counter — Step Back Clock
   counts 3, 2, 1 and Step Clock replays 2, 3; Reverse Continue stops at the previous breakpoint
   hit; a switch toggled while running happens again on replay, a click at a rewound point
@@ -380,6 +380,12 @@ Checkable statements; verified one by one in the finish-branch workflow.
   Run To past its end, the history's start at most; one go per animation frame while
   dragging), the pointer `ew-resize` over the ruler. Looked at in the browser (Data Bus, dark
   and light): the veil, the now mark, the status, the Debug tab's buttons.
+- 2026-11-08 — task 8: `tests/e2e/rewind.spec.ts` — SAP-1 Program Counter counted to 3 by
+  Step Clock: Step Back Clock (Alt+F8) 0x2, 0x1, behind the present; Step Clock replays 0x2,
+  0x3 and is at the present again; Step Back (Alt+F10) and Step (F10) come back; a breakpoint
+  `= 1` found by Reverse Continue (Alt+F5), again "no earlier hit"; a click on CLR behind the
+  present starts a new future. Data Bus: a click in the ruler rewinds there, Go to Present comes
+  back. `pnpm e2e`: 73 passed.
 
 ## Handoff
 
