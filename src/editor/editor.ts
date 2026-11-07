@@ -102,7 +102,7 @@ export interface PlaceTool {
  * What a left-button press does: select/move, pan the view, draw a wire, place a part, or
  * operate parts of the running simulation (switches, buttons).
  */
-export type Tool = 'select' | 'pan' | 'wire' | 'interact' | PlaceTool;
+export type Tool = 'select' | 'pan' | 'wire' | 'bus' | 'interact' | PlaceTool;
 
 /** What is going on right now (for the status-bar hint). */
 export type EditorMode = 'idle' | 'moving' | 'boxing' | 'panning' | 'wiring' | 'floating';
@@ -211,7 +211,7 @@ type Gesture =
       readonly startWorld: Point;
       readonly hit: Hit;
       /** Pin tip or free wire end under the press: a drag draws a wire from here. */
-      readonly wireFrom?: Point;
+      readonly wireFrom?: WireStart;
       /** Select the hit on release (a press on a pin tip leaves the selection until then). */
       readonly selectOnClick: boolean;
     }
@@ -229,9 +229,17 @@ type Gesture =
   /** Interact tool, holding a momentary part (a push button) until the press ends. */
   | { readonly kind: 'hold'; readonly component: string; readonly release: unknown };
 
+/** Where a wire or a bus line can start: a pin tip or a dangling end, and its layer. */
+interface WireStart {
+  readonly at: Point;
+  readonly bus: boolean;
+}
+
 /** The wire being drawn: fixed points so far, the leg to the pointer follows `posture`. */
 interface WireDraft {
   readonly points: Point[];
+  /** A bus line (the Bus tool, or dragged out of a bus pin or bus end). */
+  readonly bus: boolean;
   /** Posture of the leg to the pointer, once known; `swapped` flips it (Tab). */
   posture?: Posture;
   swapped: boolean;
@@ -292,7 +300,7 @@ export class Editor {
   #dragType: string | undefined;
   #preview: Preview | undefined;
   #previewScene: Scene | undefined;
-  #index: { scene: Scene; index: ConnectionIndex } | undefined;
+  #index: { scene: Scene; wires: ConnectionIndex; buses: ConnectionIndex } | undefined;
   #requestSeq = 0;
   #space = false;
   #canvas: HTMLCanvasElement | undefined;
@@ -750,7 +758,8 @@ export class Editor {
 
   #startFloating(fragment: Circuit, label: string): void {
     this.#cancelGesture();
-    if (typeof this.tool.get() === 'object' || this.tool.get() === 'wire') this.setTool('select');
+    const tool = this.tool.get();
+    if (typeof tool === 'object' || tool === 'wire' || tool === 'bus') this.setTool('select');
     const scene = buildScene(fragment, this.registry, { layouts: this.#layouts });
     const bounds = selectionBounds(scene, selectAll(scene));
     const anchor: Point = bounds
@@ -803,8 +812,9 @@ export class Editor {
   // ── Placing parts ───────────────────────────────────────────────────────────────────────
 
   /**
-   * A new instance of `type` centered on `at` with the place tool's orientation — a net label
-   * with its connection point on `at`, so a click on a pin tip or wire end attaches it.
+   * A new instance of `type` centered on `at` with the place tool's orientation — a
+   * schematic-only part (a net label, a bus entry) with its first pin on `at`, so a click on a
+   * pin tip or wire end attaches it.
    */
   #newPart(type: string, at: Point, orientation = this.#place): ComponentInstance | undefined {
     const definition = this.registry.get(type);
@@ -812,10 +822,10 @@ export class Editor {
     const props = this.#nextProps(type);
     const layout = partLayout(definition, props);
     const placement = { origin: [0, 0] as Point, ...orientation };
-    const only = layout.pins.length === 1 ? layout.pins[0] : undefined;
+    const first = layout.pins[0];
     let center: Point;
-    if (definition.schematicOnly && only) {
-      center = transformPoint(only.at, placement);
+    if (definition.schematicOnly && first) {
+      center = transformPoint(first.at, placement);
     } else {
       const placed = transformRect(layoutBounds(layout), placement);
       center = [Math.round(placed.x + placed.width / 2), Math.round(placed.y + placed.height / 2)];
@@ -897,14 +907,21 @@ export class Editor {
 
   // ── Wires ───────────────────────────────────────────────────────────────────────────────
 
-  #connectionIndex(): ConnectionIndex {
+  /** What a new wire (or, with `bus`, a new bus line) would connect to. */
+  #connectionIndex(bus = false): ConnectionIndex {
     const scene = this.scene;
-    if (this.#index?.scene !== scene) this.#index = { scene, index: new ConnectionIndex(scene) };
-    return this.#index.index;
+    if (this.#index?.scene !== scene) {
+      this.#index = {
+        scene,
+        wires: new ConnectionIndex(scene),
+        buses: new ConnectionIndex(scene, true),
+      };
+    }
+    return bus ? this.#index.buses : this.#index.wires;
   }
 
-  #startWire(from: Point): void {
-    this.#wire = { points: [from], swapped: false, index: this.#connectionIndex() };
+  #startWire(from: Point, bus: boolean): void {
+    this.#wire = { points: [from], bus, swapped: false, index: this.#connectionIndex(bus) };
     this.#setMode('wiring');
     this.#updatePreview();
   }
@@ -952,8 +969,8 @@ export class Editor {
     if (wire) {
       const segments = polylineSegments(wire.points);
       if (segments.length > 0) {
-        const { circuit } = addWires(this.state.get().circuit, segments);
-        this.edit('Wire', circuit, { selection: EMPTY_SELECTION });
+        const { circuit } = addWires(this.state.get().circuit, segments, wire.bus);
+        this.edit(wire.bus ? 'Bus' : 'Wire', circuit, { selection: EMPTY_SELECTION });
       }
     }
     this.#updatePreview();
@@ -973,7 +990,11 @@ export class Editor {
     const gesture = this.#gesture;
     if (gesture?.kind === 'move') return { circuit: gesture.circuit, ghost: EMPTY_SELECTION };
     if (this.#wire) {
-      const { circuit: next, wires } = addWires(circuit, polylineSegments(this.#wirePath()));
+      const { circuit: next, wires } = addWires(
+        circuit,
+        polylineSegments(this.#wirePath()),
+        this.#wire.bus,
+      );
       return {
         circuit: next,
         ghost: selectionOf(
@@ -998,19 +1019,20 @@ export class Editor {
   /** Where the ghost touches what is drawn (it will connect there). */
   #ghostConnections(scene: Scene, ghost: Selection): Point[] {
     if (selectionSize(ghost) === 0) return [];
-    const index = this.#connectionIndex();
+    // Each layer connects only to itself: bus pins and bus lines to bus lines and bus pins.
+    const index = (bus: boolean) => this.#connectionIndex(bus);
     const out: Point[] = [];
     for (const id of ghost.parts) {
       for (const pin of scene.partById.get(id)?.pins ?? []) {
-        if (index.connectsEnd(pin.at)) out.push(pin.at);
+        if (index(pin.bus).connectsEnd(pin.at)) out.push(pin.at);
       }
     }
     const wire = this.#wire;
-    if (wire) out.push(...pathConnections(index, this.#wirePath()));
+    if (wire) out.push(...pathConnections(wire.index, this.#wirePath()));
     else {
       for (const id of ghost.wires) {
         const w = scene.wireById.get(id);
-        if (w) out.push(...pathConnections(index, [w.from, w.to]));
+        if (w) out.push(...pathConnections(index(w.bus), [w.from, w.to]));
       }
     }
     return out;
@@ -1277,8 +1299,11 @@ export class Editor {
     return hitTest(this.scene, toWorld(camera, screen), HIT_TOLERANCE / camera.scale);
   }
 
-  /** A pin tip or a free (dangling) wire end near the pointer: where a wire can start. */
-  #wireStartAt(screen: Point): Point | undefined {
+  /**
+   * A pin tip or a free (dangling) wire end near the pointer: where a wire can start — a bus
+   * line out of a bus pin or a bus line's end.
+   */
+  #wireStartAt(screen: Point): WireStart | undefined {
     const { camera } = this.view.get();
     const world = toWorld(camera, screen);
     const tolerance = HIT_TOLERANCE / camera.scale;
@@ -1287,9 +1312,12 @@ export class Editor {
     const scene = this.scene;
     for (let i = scene.parts.length - 1; i >= 0; i--) {
       const part = scene.parts[i]!;
-      for (const pin of part.pins) if (near(pin.at)) return pin.at;
+      for (const pin of part.pins) if (near(pin.at)) return { at: pin.at, bus: pin.bus };
     }
-    return scene.danglingEnds.find(near);
+    const end = scene.danglingEnds.find(near);
+    if (!end) return undefined;
+    const bus = scene.wires.some((w) => w.bus && (samePoint(w.from, end) || samePoint(w.to, end)));
+    return { at: end, bus };
   }
 
   /** Records the grid point under the pointer; true if it changed. */
@@ -1329,9 +1357,9 @@ export class Editor {
       this.#placeAt(tool.type, here);
       return;
     }
-    if (tool === 'wire') {
+    if (tool === 'wire' || tool === 'bus') {
       if (this.#wire) this.#wireClick(here);
-      else this.#startWire(here);
+      else this.#startWire(here, tool === 'bus');
       return;
     }
 
@@ -1409,7 +1437,7 @@ export class Editor {
       if (moved < DRAG_THRESHOLD) return;
       if (gesture.wireFrom) {
         this.#gesture = { kind: 'wire-drag' };
-        this.#startWire(gesture.wireFrom);
+        this.#startWire(gesture.wireFrom.at, gesture.wireFrom.bus);
       } else {
         this.#gesture = {
           kind: 'move',
@@ -1584,8 +1612,9 @@ export class Editor {
       const hit = at && this.simulation.active ? this.#hitAt(at) : undefined;
       cursor =
         hit?.kind === 'part' && this.#pokeAt(hit.id, this.#world(at!)) ? 'pointer' : 'default';
-    } else if (tool === 'wire' || typeof tool === 'object' || this.#wire) cursor = 'crosshair';
-    else if (at && this.#wireStartAt(at)) cursor = 'crosshair';
+    } else if (tool === 'wire' || tool === 'bus' || typeof tool === 'object' || this.#wire) {
+      cursor = 'crosshair';
+    } else if (at && this.#wireStartAt(at)) cursor = 'crosshair';
     else if (at) {
       const hit = this.#hitAt(at);
       if (hit && isSelected(this.state.get().selection, hit)) cursor = 'move';

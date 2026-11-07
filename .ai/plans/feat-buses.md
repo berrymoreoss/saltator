@@ -174,7 +174,7 @@ single entries vs a multi-bit ripper.
 - [x] 6. `editor`: scene and renderer for buses (thick lines, bus dots, marks), the bus-entry
   drawer, bus label outline; live bus colors and the value tag (signal map members); Symbol
   Gallery entries; tests.
-- [ ] 7. `editor`: the Bus tool, buses dragged out of bus pins and ends, layer-aware routing and
+- [x] 7. `editor`: the Bus tool, buses dragged out of bus pins and ends, layer-aware routing and
   moves, schematic-only parts placed by their first pin; gesture tests.
 - [ ] 8. `ui`: Place menu and shortcuts (`B`, `Z`), Parts panel, Properties for buses (members,
   levels, value), the label name hint with bus names; tests.

@@ -24,7 +24,8 @@ export function selectionSummary(selection: Selection, scene: Scene): string {
   if (parts === 0 && wires === 1) {
     const [id] = selection.wires;
     const wire = scene.wireById.get(id!);
-    return wire ? `Wire ${wire.id} · net ${wire.net}` : id!;
+    if (!wire) return id!;
+    return wire.bus ? `Bus line ${wire.id} · bus ${wire.net}` : `Wire ${wire.id} · net ${wire.net}`;
   }
   const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
   return [parts > 0 && plural(parts, 'part'), wires > 0 && plural(wires, 'wire')]
@@ -70,6 +71,8 @@ export function statusHint(
       return 'Drag to pan · V to select';
     case 'wire':
       return 'Click to start a wire · Esc for Select';
+    case 'bus':
+      return 'Click to start a bus line · Bus entries and bus labels connect to it · Esc for Select';
     case 'interact':
       return simulating
         ? 'Click switches and DIP switches · Hold buttons · Click a manual clock to step · Drag to pan · V to edit'
