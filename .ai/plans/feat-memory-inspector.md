@@ -4,7 +4,7 @@
 | ---------- | ------------------------------------------------------------------------------------------ |
 | Branch     | `feat/memory-inspector`                                                                    |
 | Roadmap    | R12b — Memory inspector, image files ([roadmap](../../docs/roadmap.md))                    |
-| Status     | in-progress                                                                                |
+| Status     | done                                                                                       |
 | Depends on | R12a (memory chips, `MemoryDef`, `poke`, `image` props), R05 (simulator host), R07 (files) |
 | Created    | 2026-11-07                                                                                 |
 
@@ -231,22 +231,30 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 
 Checkable statements; verified one by one in the finish-branch workflow.
 
-- [ ] `pnpm check`, `pnpm build` and `pnpm e2e` are green.
-- [ ] The Memory tab lists every memory of the circuit; selecting one on the canvas shows it; a
-  62256 (2048 rows) scrolls with only the visible rows rendered.
-- [ ] While running, every cell read or written since the last frame is highlighted (a RAM read
-  at real time from a fast clock stays lit), the cell at the address on the chip's pins is
-  outlined and followed; while paused, a step shows what it touched.
-- [ ] Editing a ROM byte is one undoable document edit (consecutive bytes coalesced) and a
-  running ROM's outputs follow it; editing a simulated RAM pokes it without changing the
-  document; a stopped RAM is read-only and says why.
-- [ ] `.bin` and Intel HEX load and save round-trip (property test); bad Intel HEX is reported
-  with its line; a hex file assembled for 0x8000 loads into an AT28C256 with the suggested
-  offset; the dialog shows range, size and checksum before writing.
-- [ ] The resolver resolves parts, pins, nets and buses of a compiled circuit and explains
-  references that don't resolve; the inspector finds memories through it.
-- [ ] Memory benchmark within 5 % of R12a's (≈ 7.5M events/s with stamps).
-- [ ] The roadmap has the tools before the SAP-1 (phase 3 → M2 "Tools", phase 4 → M3 with R16a
+- [x] `pnpm check` (1998 tests), `pnpm build` and `pnpm e2e` (64) are green.
+- [x] The Memory tab lists every memory of the circuit; selecting one on the canvas shows it
+  (`Memory tab: follows the memory picked on the canvas`, two memories); a 62256 (1024 rows of
+  32) renders fewer than 40 rows and reaches its last cell by scrolling (e2e).
+- [x] While running, every cell read or written since the last frame is highlighted (`keeps
+  cells read in every frame lit`: the address flipping every frame keeps both cells above 0.9;
+  RAM by Hand's write lit orange and the decoder's read lit green in the browser), the cell at
+  the address on the chip's pins is outlined and followed (e2e: `current`, Address 0x001);
+  while paused, a step shows what it touched (`while paused, keeps what the last step touched
+  lit`).
+- [x] Editing a ROM byte is one undoable document edit (consecutive bytes coalesced:
+  `Edit U1 contents` once) and a running ROM's outputs follow it (unit and e2e); editing a
+  simulated RAM pokes it without changing the document (history empty); a stopped RAM is
+  read-only and says why (unit, e2e).
+- [x] `.bin` and Intel HEX load and save round-trip (property test, 40 random images up to
+  64 KB); bad Intel HEX is reported with its line; a hex file assembled for 0x8000 lands at 0
+  (`suggestedLoadAddress` for an AT28C256's 32 KB; in the browser into an AT28C16); the dialog
+  shows range, size and checksum before writing (e2e `image-summary`).
+- [x] The resolver resolves parts, pins, nets and buses of a compiled circuit and explains
+  references that don't resolve (`resolve.test.ts`, RAM by Hand scenario); the inspector finds
+  memories through it (`MemoryInspector.memories`).
+- [x] Memory benchmark within 5 % of R12a's: 7.82M events/s with stamps vs 7.92M on `main`
+  (−1.2 %).
+- [x] The roadmap has the tools before the SAP-1 (phase 3 → M2 "Tools", phase 4 → M3 with R16a
   and R16b), R15 lists the memory setup; vision.md's milestones agree.
 
 ## Open questions
@@ -323,11 +331,17 @@ Checkable statements; verified one by one in the finish-branch workflow.
   API, testing), components.md (inspection with stamps and address pins; Image files),
   simulation.md, circuit.md (Resolver), architecture.md, glossary (Intel HEX, memory
   inspector, programmer, resolver), READMEs, ADR-0018, roadmap entry, lessons.
+- 2026-11-07 — finished. Acceptance criteria checked one by one (above); two tests added while
+  checking: the tab following the canvas pick with two memories (e2e) and cells read every
+  frame staying lit (unit). R12b delivered the Memory tab (live hex view, access stamps,
+  follow, editing), `.bin`/Intel HEX with the Load (programmer), Save and Erase, the resolver,
+  ADR-0018, and the roadmap reordered (tools first, M2 "Tools"; SAP-1 as R16a/R16b).
+  Follow-ups: R15's memory setup (RAM programs before t = 0); backlog: image generators.
 
 ## Handoff
 
-- **State:** tasks 1–8 done.
-- **Next step:** finish-branch: verify the acceptance criteria, close the plan and roadmap item,
-  ask to merge.
-- **Watch out:** —
-- **Verify with:** `pnpm check`.
+- **State:** done; waiting for the user's approval to merge into `main`.
+- **Next step:** merge (`git merge --no-ff`), then R13 `feat/logic-analyzer`.
+- **Watch out:** RAMs have no cells while stopped by design (Q2); R15 must give bench setups a
+  way to load memories before t = 0 (`placeImage`, `poke`).
+- **Verify with:** `pnpm check`, `pnpm e2e tests/e2e/memory.spec.ts`.

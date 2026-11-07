@@ -119,6 +119,20 @@ describe('MemoryInspector: access highlighting', () => {
     expect(inspector.intensity(view.readAt[0]!)).toBe(0);
   });
 
+  it('keeps cells read in every frame lit', () => {
+    const { clock, inspector, simulation } = setup();
+    simulation.run();
+    clock.frame(16);
+    const view = (inspector.cells('U1') as { view: { readAt: Float64Array } }).view;
+    for (let frame = 0; frame < 20; frame++) {
+      simulation.action('SW1', { type: 'toggle' }); // the address flips 0 ↔ 1 every frame
+      clock.frame(16);
+      if (frame === 0) continue;
+      expect(inspector.intensity(view.readAt[0]!)).toBeGreaterThan(0.9);
+      expect(inspector.intensity(view.readAt[1]!)).toBeGreaterThan(0.9);
+    }
+  });
+
   it('while paused, keeps what the last step touched lit', () => {
     const { clock, inspector, simulation } = setup();
     simulation.step(); // power-on at t = 0
