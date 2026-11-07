@@ -248,7 +248,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   every size's mapping with shifts, 4-bit transfers and the nibble phase, BF/AC and data reads
   (`tDDR`, `tDHR` measured), first-read-invalid, CGRAM characters, execution times and the
   oscillator.
-- [ ] 3. `library`: bus timing checks and unknowns — each requirement just inside (silent) and
+- [x] 3. `library`: bus timing checks and unknowns — each requirement just inside (silent) and
   just outside (the diagnostic and its `X`), busy, power-on 15 ms, uncertain `E`, unknown bits
   in data and instructions, unknown `AC`; mutation-checked.
 - [ ] 4. (Q1) `powerOn: unknown` — interface hypotheses, the init waits; tests: Figures 23 and 24
@@ -355,14 +355,21 @@ mode), 15 `LED+` (anode, +5 V via an on-board resistor), 16 `LED−` (cathode); 
   DDRAM cells: 1-line address `a` is cell `a`, 2-line `0x40 + k` is cell `40 + k` (so 1-line
   0x28–0x4F is 2-line 0x40–0x67). RS/R/W̅ changing while `E` is HIGH: `hold-violation`.
   Blink: 409.6 ms is one phase (a period of 819.2 ms at 250 kHz).
+- 2026-11-08 — task 3: `hd44780-timing.test.ts` — tAS, tAH (and RS changing while E is HIGH),
+  tDSW, tH, PWEH, tcycE each at the limit and 1 ns past it; busy (write ignored, data read X),
+  power-on 15 ms (ignored before 10 ms), CGRAM unknown at power-on, unknown data and address
+  bits, uncertain E (reported only once E was known), uncertain R/W̅ on a read. The merge is
+  as precise as hoped: a late RS on a data write leaves AC known (Set CGRAM 0x01 and "write
+  at 0, move to 1" agree) and only CGRAM-or-DDRAM unknown. 20 more mutations: two survived
+  (DB0–3 changing late in 4-bit mode, "the transfer may not have happened") until the tests
+  checked exactly that.
 
 ## Handoff
 
-- **State:** tasks 1–2 done: the part works (instructions, 8/4-bit, reads, busy, sizes); the
-  bus checks and unknowns are coded in `hd44780.ts`/`hd44780-controller.ts` but only lightly
-  tested.
-- **Next step:** task 3 — tests for every bus requirement (inside/outside), busy, power-on
-  15 ms, uncertain `E`, unknown bits; mutation-check.
+- **State:** tasks 1–3 done: the part, its bus checks and unknowns, tested and
+  mutation-checked.
+- **Next step:** task 4 — `powerOn: unknown`: tests that Figures 23/24 resolve every interface
+  mode, short waits and missing steps stay unknown (the controller code already merges modes).
 - **Watch out:** the data sheet copy is in the session scratchpad only; download it again if
   the scratchpad is gone.
 - **Verify with:** `pnpm check`.
