@@ -121,8 +121,44 @@ function contacts(g: SymbolGraphics, body: Rect, contact: unknown, on: boolean):
   }
 }
 
+/**
+ * A changeover whose common is tied to a rail (`0` for GND, `1` for VCC, on the left) and whose
+ * throws are the pins, `ON` on top and `OFF` below; the lever touches the closed one.
+ */
+function changeover(g: SymbolGraphics, body: Rect, rail: '0' | '1', on: boolean): void {
+  const x0 = body.x;
+  const y0 = body.y;
+  const common: [number, number] = [x0 + 0.7, y0 + 1];
+  const throwOn: [number, number] = [x0 + 2.3, y0 + 0.45];
+  const throwOff: [number, number] = [x0 + 2.3, y0 + 1.55];
+  g.beginPath();
+  g.moveTo(...throwOn);
+  g.lineTo(x0 + 2.3, y0);
+  g.lineTo(x0 + 3, y0);
+  g.moveTo(...throwOff);
+  g.lineTo(x0 + 2.3, y0 + 2);
+  g.lineTo(x0 + 3, y0 + 2);
+  g.moveTo(...common);
+  g.lineTo(...(on ? throwOn : throwOff));
+  g.stroke();
+  for (const point of [common, throwOn, throwOff]) contactDot(g, ...point);
+  g.text(rail, common[0] - 0.25, common[1], {
+    size: 0.45,
+    align: 'right',
+    baseline: 'middle',
+    paint: 'pinText',
+    font: 'mono',
+    minPx: 6,
+  });
+}
+
 const toggleSwitch: Drawer = (g, { body, props, live }) => {
-  contacts(g, body, props.contact, stateFlag(live, 'on') ?? props.on === true);
+  const on = stateFlag(live, 'on') ?? props.on === true;
+  if (props.contact === 'spdt-gnd' || props.contact === 'spdt-vcc') {
+    changeover(g, body, props.contact === 'spdt-vcc' ? '1' : '0', on);
+  } else {
+    contacts(g, body, props.contact, on);
+  }
 };
 
 /** A momentary button: contacts under a push plunger, released unless pressed while running. */

@@ -16,6 +16,14 @@ describe('pins', () => {
     expect(pins('OE', '19', 'in', 'output enable', { activeLow: true }).activeLow).toBe(true);
   });
 
+  it('keeps a label on a one-pin row and passes it to the pin', () => {
+    const row = pins('YN', '6', 'out', 'complementary output', { activeLow: true, label: 'Y' });
+    expect(dipPins(1, [{ ...row, numbers: [1] }])[0]).toMatchObject({ name: 'YN', label: 'Y' });
+    expect(() => pins('A, B', '1, 2', 'in', '', { label: 'A' })).toThrow(
+      'pin row "A, B": a label needs a row of one pin',
+    );
+  });
+
   it('rejects rows whose symbols and numbers do not match', () => {
     expect(() => pins('1A, 2A', '1', 'in', '')).toThrow('pin row "1A, 2A": 2 names for pins "1"');
     expect(() => pins('1A', 'x', 'in', '')).toThrow('pin row "1A": 1 names for pins "x"');

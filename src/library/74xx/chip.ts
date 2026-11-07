@@ -9,6 +9,7 @@ import {
   defineComponent,
   type FunctionTable,
   type PinDef,
+  pinIndex,
   type Time,
   type TimingDef,
   type UnitDef,
@@ -46,24 +47,25 @@ export interface LogicFamily {
 /**
  * Makes a behavior for one instance. Called once per chip definition with the pin list and the
  * typical delays, so it can precompute pin indices; the returned function runs per instance.
+ * `State` is the instance's mutable state (a latch's stored bits); stateless chips use `undefined`.
  */
-export type ChipBehavior = (
+export type ChipBehavior<State = undefined> = (
   pins: readonly PinDef[],
   delays: Readonly<Record<string, Time>>,
-) => () => Behavior<undefined>;
+) => () => Behavior<State>;
 
 /** The definition of `spec` in `family`: type `74xx/74hc00`, name `74HC00`, a DIP package. */
-export function chipDefinition(
+export function chipDefinition<State = undefined>(
   spec: ChipSpec,
   family: LogicFamily,
-  behavior: ChipBehavior,
+  behavior: ChipBehavior<State>,
 ): AnyComponentDefinition {
   const made = family.chips[spec.number];
   if (!made) throw new Error(`74${family.name}${spec.number}: no timing in the family`);
   const name = `74${family.name}${spec.number}`;
   const pinList = dipPins(spec.pinCount, spec.pins);
   const create = behavior(pinList, made.timing.typical);
-  return defineComponent<Record<string, never>, undefined>({
+  return defineComponent<Record<string, never>, State>({
     type: `74xx/${name.toLowerCase()}`,
     name,
     title: spec.title,
@@ -76,6 +78,16 @@ export function chipDefinition(
     functionTable: spec.functionTable,
     create,
   });
+}
+
+/** The `PinRef`s of comma-separated pin names, in order: `pinIndices(pins, 'A0, A1, A2')`. */
+export function pinIndices(pinList: readonly PinDef[], names: string): Int32Array {
+  return Int32Array.from(pinNames(names), (name) => pinIndex(pinList, name));
+}
+
+/** Comma-separated pin names as a list. */
+export function pinNames(names: string): string[] {
+  return names.split(',').map((s) => s.trim());
 }
 
 /** A delay the behavior needs; throws at definition time if the family's timing lacks it. */

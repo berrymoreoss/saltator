@@ -33,6 +33,12 @@ near-identical parts such as gates). Use `defineComponent<Props, State>({ … })
 - **Timing** (`timing.typical`, optional `max`, `conditions`, `source`): for 74HC, typical at
   VCC = 4.5 V, CL = 50 pF and max at −40 °C to +85 °C (docs/components.md#timing). Never zero
   for real chips.
+  Several delay paths (MSI): one key per path in the data sheet's wording (`tpd(An to Yn)`) and
+  `pathDelays` in `src/library/74xx/paths.ts`. Nexperia first; else the current TI sheet (check
+  it gives typical values at 4.5 V / 50 pF; ex-Harris CD74HC sheets don't).
+- **Data sheet traps**: `pdftotext` drops overlines — look at the pinning figure (`pdftoppm -png`)
+  for active-low pins; a pin table can disagree with the figure (TI CD74HC147 pin 9); two pins
+  with the same symbol get distinct names and a `label`.
 - **Datasheet data** (real chips): `description` on every pin (the datasheet's pin description)
   and `functionTable` with the datasheet's generic columns (`nA nB | nY`) — Part Info shows them
   and the test checks the behavior against the table (docs/components.md#function-tables).

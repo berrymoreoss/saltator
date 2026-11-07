@@ -23,6 +23,9 @@ branch:
 - **Source**: the Nexperia product data sheets for the 74HC family — pin names (0-based bus
   pins, like a computer's bus bits), pin descriptions, function tables and timing. Every chip
   cites document, revision and table (`timing.source`).
+  _Amended in R08:_ chips Nexperia doesn't document (147, 148, 283) follow the current TI data
+  sheets, with typical values from the Philips sheets where TI gives none at 4.5 V / 50 pF
+  (docs/components.md#74xx-chips-74xx).
 - **Timing**: every 74HC delay at VCC = 4.5 V, CL = 50 pF: the typical value at 25 °C drives the
   simulation, the maximum at −40 °C to +85 °C is recorded for a future worst-case mode.
 - **Structure**: a chip's function (pinout, units, function table, behavior) is a `ChipSpec`

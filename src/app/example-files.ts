@@ -36,6 +36,18 @@ export const EXAMPLE_FILES: readonly ExampleFile[] = [
     description:
       'A NAND enable and two 74HC04 inverters in a ring: 54 ns period. Run at 10 ns/s to watch.',
   },
+  {
+    id: 'bcd-7-segment',
+    title: 'BCD to 7-Segment',
+    description:
+      'A DIP switch sets a BCD digit; a 74HC4511 lights a common-cathode display (10–15 blank).',
+  },
+  {
+    id: 'clock-module',
+    title: 'Clock Module',
+    description:
+      'Ben Eater’s clock: a 555 oscillator, a debounced STEP button, a MANUAL switch, and HLT.',
+  },
 ];
 
 // Not a JSON import: the text is kept as saved and parsed (migrated, validated) like any file.

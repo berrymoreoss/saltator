@@ -12,6 +12,7 @@ export interface PartGroup {
 /** Display names and order of part families; unknown families follow, alphabetically. */
 const FAMILIES: readonly (readonly [string, string])[] = [
   ['74xx', '74HC Logic'],
+  ['timer', 'Timers'],
   ['prim', 'Primitives'],
   ['io', 'Input / Output'],
   ['dev', 'Developer Fixtures'],

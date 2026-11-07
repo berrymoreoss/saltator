@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ns, type PropDef } from '../core';
-import { parsePropText, propText } from './prop-input';
+import { formatSi, parsePropText, parseSi, propText } from './prop-input';
 
 const integer: PropDef = {
   key: 'inputs',
@@ -24,6 +24,58 @@ const options = [
   { value: 'green', label: 'Green' },
 ];
 const choice: PropDef = { key: 'color', label: 'Color', type: 'enum', default: 'red', options };
+
+const resistance: PropDef = {
+  key: 'ra',
+  label: 'RA',
+  type: 'number',
+  default: 1000,
+  min: 1,
+  max: 10e6,
+  unit: 'Ω',
+  si: true,
+};
+
+describe('SI prefixes', () => {
+  it('formats with a prefix and 4 significant digits', () => {
+    expect(formatSi(4700, 'Ω')).toBe('4.7 kΩ');
+    expect(formatSi(1e-7, 'F')).toBe('100 nF');
+    expect(formatSi(1e-6, 'F')).toBe('1 µF');
+    expect(formatSi(1, 'Hz')).toBe('1 Hz');
+    expect(formatSi(0.001, 'Hz')).toBe('1 mHz');
+    expect(formatSi(1_234_567, 'Ω')).toBe('1.235 MΩ');
+    expect(formatSi(999.99, 'Ω')).toBe('1 kΩ');
+    expect(formatSi(0, 'F')).toBe('0 F');
+    expect(formatSi(1e-15, 'F')).toBe('0.001 pF');
+  });
+
+  it('reads a number with an optional prefix and unit, exactly', () => {
+    expect(parseSi('4.7k')).toBe(4700);
+    expect(parseSi('4.7 kΩ', 'Ω')).toBe(4700);
+    expect(parseSi('100n', 'F')).toBe(1e-7);
+    expect(parseSi('1u', 'F')).toBe(1e-6);
+    expect(parseSi('1 µF', 'F')).toBe(1e-6);
+    expect(parseSi('2.2M')).toBe(2.2e6);
+    expect(parseSi('1m', 'Hz')).toBe(0.001);
+    expect(parseSi('1e3 k')).toBe(1e6);
+    expect(parseSi('22', 'Ω')).toBe(22);
+    expect(parseSi('k')).toBeUndefined();
+    expect(parseSi('1 x')).toBeUndefined();
+    expect(parseSi('1 kF', 'Ω')).toBeUndefined();
+  });
+
+  it('is how Properties shows and reads props marked si', () => {
+    expect(propText(resistance, 100_000)).toBe('100 kΩ');
+    expect(parsePropText(resistance, '1M')).toEqual({ value: 1e6 });
+    expect(parsePropText(resistance, '100 kΩ')).toEqual({ value: 1e5 });
+    expect(parsePropText(resistance, '20M')).toEqual({
+      error: 'Enter a number between 1 Ω and 10 MΩ.',
+    });
+    expect(parsePropText(resistance, 'lots')).toEqual({
+      error: 'Enter a value such as 4.7k or 100n.',
+    });
+  });
+});
 
 describe('prop input', () => {
   it('shows values as editable text', () => {

@@ -11,6 +11,7 @@ import {
   NetlistBuilder,
   ns,
   pinsOf,
+  resolveProps,
   Simulator,
   type Time,
   us,
@@ -190,6 +191,56 @@ describe('recompiling an unchanged netlist is invisible', () => {
       total += expectInvisible(netlist, us(2), pokes, at).changes.length;
     }
     expect(total).toBeGreaterThan(3000); // the networks really switch
+  });
+
+  it('in random networks of MSI chips and 555 timers, stateful ones included (seeded)', () => {
+    const chips = ['85', '138', '139', '147', '148', '151', '153', '157', '158', '283', '4511'];
+    const modes = ['astable', 'monostable', 'bistable'] as const;
+    let total = 0;
+    for (let seed = 1; seed <= 30; seed++) {
+      const random = rng(1000 + seed);
+      const pick = <T>(items: readonly T[]): T => items[Math.floor(random() * items.length)]!;
+      const b = new NetlistBuilder();
+      const outputs: string[] = [];
+      const inputs: string[] = [];
+      for (let i = 0; i < 2; i++) {
+        b.add(`X${i}`, 'io/clock', { frequency: 10e6 + Math.floor(random() * 40e6), duty: 50 });
+        b.add(`T${i}`, 'test/driver');
+        outputs.push(`X${i}.Y`, `T${i}.Y`);
+      }
+      const parts: [string, string, Record<string, string | number>][] = [];
+      for (let i = 0; i < 5; i++) parts.push([`U${i}`, `74xx/74hc${pick(chips)}`, {}]);
+      for (let i = 0; i < 2; i++) {
+        // Fast timers (100 Ω – 1 kΩ, 1 nF: well under a microsecond) so they act within 2 µs.
+        const props = {
+          mode: pick(modes),
+          ra: 100 + Math.floor(random() * 900),
+          rb: 100 + Math.floor(random() * 900),
+          c: 1e-9,
+        };
+        parts.push([`N${i}`, 'timer/ne555', props]);
+      }
+      for (const [id, type, props] of parts) {
+        b.add(id, type, props);
+        const definition = registry.get(type)!;
+        for (const pin of pinsOf(definition, resolveProps(definition, props))) {
+          if (pin.dir === 'in' || pin.dir === 'bidir') inputs.push(`${id}.${pin.name}`);
+          if (pin.dir === 'out' || pin.dir === 'tristate' || pin.dir === 'bidir') {
+            outputs.push(`${id}.${pin.name}`);
+          }
+        }
+      }
+      for (const input of inputs) if (random() < 0.85) b.connect(pick(outputs), input);
+      const netlist = b.build();
+      const pokes: Poke[] = Array.from({ length: 8 }, () => ({
+        time: Math.floor(random() * us(2)),
+        component: pick(['T0', 'T1']),
+        action: pick([Drive.STRONG_0, Drive.STRONG_1, Drive.Z]),
+      }));
+      const at = Array.from({ length: 10 }, () => Math.floor(random() * us(2)));
+      total += expectInvisible(netlist, us(2), pokes, at).changes.length;
+    }
+    expect(total).toBeGreaterThan(3000);
   });
 });
 

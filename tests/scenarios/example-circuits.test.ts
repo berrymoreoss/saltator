@@ -5,8 +5,8 @@
 import { describe, expect, it } from 'vitest';
 import { exampleDocument } from '../../src/app/example-files';
 import { compileCircuit } from '../../src/circuit';
-import { ns, Simulator } from '../../src/core';
-import { createDefaultRegistry, Light, type LightsState } from '../../src/library';
+import { ms, ns, Simulator } from '../../src/core';
+import { createDefaultRegistry, Light, type LightsState, SEGMENTS } from '../../src/library';
 
 const registry = createDefaultRegistry();
 const light = (sim: Simulator, id: string) => (sim.stateOf(id) as LightsState).light[0];
@@ -101,5 +101,68 @@ describe('Ring Oscillator', () => {
     const stopped = edges.length;
     sim.runFor(ns(1000));
     expect(edges.length).toBe(stopped);
+  });
+});
+
+describe('BCD to 7-Segment', () => {
+  it('shows the digit set on the DIP switch (5 at power-on), blank for 10–15', () => {
+    const sim = run('bcd-7-segment');
+    const lit = () => {
+      const state = sim.stateOf('DS1') as LightsState;
+      return SEGMENTS.filter((_, i) => state.light[i] === Light.ON).join('');
+    };
+    expect(lit()).toBe('acdfg'); // 5
+    const flip = (index: number) => {
+      sim.action('SW1', { type: 'toggle', index });
+      sim.runFor(ns(200));
+    };
+    flip(0); // 4
+    expect(lit()).toBe('bcfg');
+    flip(3); // 12: blank
+    expect(lit()).toBe('');
+    flip(2); // 8
+    expect(lit()).toBe('abcdefg');
+    expect(sim.diagnostics.entries).toEqual([]);
+  });
+});
+
+describe('Clock Module', () => {
+  // U1: tH = 0.693 × 471 kΩ × 1 µF ≈ 326 ms, tL ≈ 326 ms, the first high 1.1 × 471 kΩ × 1 µF ≈ 518 ms.
+  // U2: a 1.1 × 100 kΩ × 1 µF = 110 ms pulse per press.
+  it('runs on the 555 oscillator in auto mode', () => {
+    const sim = run('clock-module');
+    sim.runFor(ms(300));
+    expect(light(sim, 'D1')).toBe(Light.ON); // the first, long high
+    sim.runFor(ms(400)); // 0.7 s
+    expect(light(sim, 'D1')).toBe(Light.OFF);
+    sim.runFor(ms(300)); // 1.0 s
+    expect(light(sim, 'D1')).toBe(Light.ON);
+    expect(sim.diagnostics.entries).toEqual([]);
+  });
+
+  it('in manual mode gives one pulse per STEP press, unknown before the first one', () => {
+    const sim = run('clock-module');
+    sim.action('SW2', { type: 'toggle' }); // MANUAL
+    sim.runFor(ms(1));
+    // The monostable 555 has not been triggered yet: its output, and the clock, are unknown.
+    expect(light(sim, 'D1')).toBe(Light.UNKNOWN);
+    sim.action('SW1', { type: 'press' });
+    sim.runFor(ms(20));
+    sim.action('SW1', { type: 'release' });
+    sim.runFor(ms(50));
+    expect(light(sim, 'D1')).toBe(Light.ON);
+    sim.runFor(ms(100)); // past 110 ms
+    expect(light(sim, 'D1')).toBe(Light.OFF);
+    sim.runFor(ms(1000));
+    expect(light(sim, 'D1')).toBe(Light.OFF); // no oscillator in manual mode
+  });
+
+  it('stops while HLT is on', () => {
+    const sim = run('clock-module');
+    sim.action('SW3', { type: 'toggle' }); // HLT
+    for (let t = 0; t < 20; t++) {
+      sim.runFor(ms(100));
+      expect(light(sim, 'D1')).toBe(Light.OFF);
+    }
   });
 });

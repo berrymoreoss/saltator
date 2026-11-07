@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createDefaultRegistry } from '../library';
 import {
   activeLowColumns,
+  columnLabels,
   datasheetName,
   functionTableInfo,
   outputsHeading,
@@ -49,6 +50,40 @@ describe('pinInfo', () => {
       { name: 'A', activeLow: false, type: 'input' },
       { name: 'K', activeLow: false, type: 'input' },
     ]);
+  });
+});
+
+describe('pins that are not simulated', () => {
+  it('keeps their names: a 555 in astable mode draws its timing pins', () => {
+    const rows = pinInfo(part('timer/ne555'), { mode: 'astable' });
+    expect(rows.find((r) => r.number === 2)).toEqual(
+      expect.objectContaining({ name: 'TRIG', type: 'not simulated' }),
+    );
+    const bistable = pinInfo(part('timer/ne555'), { mode: 'bistable' });
+    expect(bistable.find((r) => r.number === 2)?.type).toBe('input');
+    expect(pinInfo(part('74xx/74hc20')).find((r) => r.number === 3)).toEqual(
+      expect.objectContaining({ name: 'NC', type: 'not connected' }),
+    );
+  });
+});
+
+describe('pin labels', () => {
+  it('shows a labelled pin under its label, with its name as the id', () => {
+    const rows = pinInfo(part('74xx/74hc151'));
+    expect(rows.find((r) => r.number === 5)).toEqual(
+      expect.objectContaining({ name: 'Y', activeLow: false }),
+    );
+    expect(rows.find((r) => r.number === 5)!.id).toBeUndefined();
+    expect(rows.find((r) => r.number === 6)).toEqual(
+      expect.objectContaining({ name: 'Y', id: 'YN', activeLow: true }),
+    );
+  });
+
+  it('heads the function table column of a labelled pin with its label, overlined', () => {
+    const hc151 = part('74xx/74hc151');
+    expect([...columnLabels(hc151)]).toEqual([['YN', 'Y']]);
+    expect(activeLowColumns(hc151)).toEqual(new Set(['E', 'YN']));
+    expect(columnLabels(part('74xx/74hc00')).size).toBe(0);
   });
 });
 

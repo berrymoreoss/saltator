@@ -11,6 +11,8 @@ export interface PinRow {
   readonly dir: PinDir;
   readonly description: string;
   readonly activeLow?: boolean;
+  /** Drawn instead of the name (one-pin rows only): see `PinDef.label`. */
+  readonly label?: string;
 }
 
 /**
@@ -22,13 +24,16 @@ export function pins(
   numbers: string,
   dir: PinDir,
   description: string,
-  flags: { readonly activeLow?: boolean } = {},
+  flags: { readonly activeLow?: boolean; readonly label?: string } = {},
 ): PinRow {
   const list = (text: string) => text.split(',').map((s) => s.trim());
   const nums = list(numbers).map(Number);
   const symbols = names === 'n.c.' ? nums.map((n) => `NC${n}`) : list(names);
   if (symbols.length !== nums.length || nums.some((n) => !Number.isInteger(n))) {
     throw new Error(`pin row "${names}": ${symbols.length} names for pins "${numbers}"`);
+  }
+  if (flags.label !== undefined && symbols.length !== 1) {
+    throw new Error(`pin row "${names}": a label needs a row of one pin`);
   }
   return { names: symbols, numbers: nums, dir, description, ...flags };
 }
@@ -51,6 +56,7 @@ export function dipPins(count: number, rows: readonly PinRow[]): PinDef[] {
         dir: row.dir,
         description: row.description,
         ...(row.activeLow ? { activeLow: true } : {}),
+        ...(row.label !== undefined ? { label: row.label } : {}),
       };
     });
   }

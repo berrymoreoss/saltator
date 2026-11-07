@@ -95,8 +95,9 @@ moving the kernel into a Web Worker a host-only change _(planned, backlog)_.
 
 Each part is a definition object: identity, pins (with physical numbers), package, properties,
 timing with datasheet source, optional unit (gate section) grouping, symbol geometry as data, and
-a behavior factory. 74xx chips are modeled as **packages** (DIP with real pinout); power pins exist
-but are not simulated in the MVP. Spec: [components.md](components.md). Rationale:
+a behavior factory. 74xx chips and timers are modeled as **packages** (DIP with real pinout); power
+pins exist but are not simulated in the MVP. Analog timing networks are props
+([ADR-0013](adr/0013-behavioral-timer.md)). Spec: [components.md](components.md). Rationale:
 [ADR-0004](adr/0004-chips-as-packages.md).
 
 Real chips (R06: 74HC gates and bus buffers) come from the Nexperia data sheets: a chip's

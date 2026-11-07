@@ -40,9 +40,21 @@ export interface PartLayout {
   readonly pins: readonly PinLayout[];
 }
 
-/** DIP body width in cells: narrow (0.3") packages up to 20 pins, wide (0.6") above. */
-export function dipBodyWidth(pinCount: number): number {
-  return pinCount <= 20 ? 4 : 6;
+/**
+ * DIP body width in cells: narrow (0.3") packages up to 20 pins, wide (0.6") above; two cells
+ * wider when a row's two pin names (in pin order, `pins[i]` and `pins[N − 1 − i]`) have more than
+ * 7 characters together, so they leave room for the part name down the middle (the NE555's
+ * `RESET` and `CONT`). Pin names never change, so neither does a part's width.
+ */
+export function dipBodyWidth(pinCount: number, pins: readonly PinDef[] = []): number {
+  const base = pinCount <= 20 ? 4 : 6;
+  const shown = (pin: PinDef | undefined) =>
+    pin === undefined ? 0 : /^NC\d+$/.test(pin.name) ? 2 : (pin.label ?? pin.name).length;
+  const byNumber = [...pins].sort((a, b) => (a.number ?? 0) - (b.number ?? 0));
+  for (let i = 0; i < pinCount / 2; i++) {
+    if (shown(byNumber[i]) + shown(byNumber[pinCount - 1 - i]) > 7) return base + 2;
+  }
+  return base;
 }
 
 /**
@@ -100,7 +112,7 @@ function dipLayout(type: string, count: number, pins: readonly PinDef[]): PartLa
     throw new Error(`${type}: DIP-${count} package but ${pins.length} pins defined`);
   }
   const rows = count / 2;
-  const width = dipBodyWidth(count);
+  const width = dipBodyWidth(count, pins);
   const seen = new Set<number>();
   const layout = pins.map((pin): PinLayout => {
     const n = pin.number;

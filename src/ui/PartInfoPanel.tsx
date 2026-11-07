@@ -4,6 +4,7 @@ import { useStoreValue } from './hooks';
 import { PartPreview } from './PartPreview';
 import {
   activeLowColumns,
+  columnLabels,
   datasheetName,
   type FunctionTableInfo,
   functionTableInfo,
@@ -82,7 +83,10 @@ export function PartInfoPanel({ editor, pick, theme, gateStyle }: PartInfoPanelP
                 {pins.map((pin, i) => (
                   <tr key={pin.number ?? i}>
                     {numbered && <td className="num">{pin.number}</td>}
-                    <td className={pin.activeLow ? 'mono overline' : 'mono'}>{pin.name}</td>
+                    <td className="mono">
+                      <span className={pin.activeLow ? 'overline' : undefined}>{pin.name}</span>
+                      {pin.id && <span className="muted"> ({pin.id})</span>}
+                    </td>
                     <td className="muted">{pin.type}</td>
                     {described && <td>{pin.description}</td>}
                   </tr>
@@ -95,6 +99,7 @@ export function PartInfoPanel({ editor, pick, theme, gateStyle }: PartInfoPanelP
               <FunctionTableView
                 table={table}
                 overlined={activeLowColumns(definition)}
+                labels={columnLabels(definition)}
                 outputs={outputsHeading(definition)}
               />
             ) : (
@@ -110,10 +115,13 @@ export function PartInfoPanel({ editor, pick, theme, gateStyle }: PartInfoPanelP
 function FunctionTableView({
   table,
   overlined,
+  labels,
   outputs,
 }: {
   readonly table: FunctionTableInfo;
   readonly overlined: ReadonlySet<string>;
+  /** Columns shown under another text (a pin's label). */
+  readonly labels: ReadonlyMap<string, string>;
   /** Heading of the output columns. */
   readonly outputs: string;
 }) {
@@ -124,7 +132,7 @@ function FunctionTableView({
         .filter(Boolean)
         .join(' ')}
     >
-      {name}
+      {labels.get(name) ?? name}
     </th>
   );
   return (

@@ -4,7 +4,7 @@ import { formatTime, type PropDef, type PropValue, pinsOf } from '../core';
 import { type Editor, LED_COLORS, type Scene, type ScenePart, type SceneWire } from '../editor';
 import { useStore } from './hooks';
 import { LiveLevel } from './LiveLevel';
-import { parsePropText, propText } from './prop-input';
+import { formatSi, parsePropText, propText } from './prop-input';
 
 /** A prop value as shown to the user: units, enum labels, time in ns/µs/ms. */
 export function formatProp(def: PropDef, value: PropValue | undefined): string {
@@ -17,6 +17,7 @@ export function formatProp(def: PropDef, value: PropValue | undefined): string {
     case 'enum':
       return def.options?.find((o) => o.value === value)?.label ?? String(value);
     default:
+      if (def.type === 'number' && def.si) return formatSi(Number(value), def.unit);
       return def.unit ? `${value} ${def.unit}` : String(value);
   }
 }

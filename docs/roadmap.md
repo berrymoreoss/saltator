@@ -24,8 +24,8 @@ How to read this file:
 | R05  | `feat/sim-ui`                | Running simulations in the editor        | done    |
 | R06  | `feat/74hc-gates`            | 74HC gates & bus buffers                 | done    |
 | R07  | `feat/persistence`           | Save, load, examples                     | done    |
-| R08  | `feat/74hc-msi`              | 74HC combinational MSI                   | next    |
-| R09  | `feat/74hc-sequential`       | 74HC sequential parts + timing checks    | planned |
+| R08  | `feat/74hc-msi`              | 74HC combinational MSI                   | done    |
+| R09  | `feat/74hc-sequential`       | 74HC sequential parts + timing checks    | next    |
 | R10  | `feat/nets-and-buses`        | Net labels, tunnels, buses               | planned |
 | R11  | `feat/subcircuits`           | Hierarchical design                      | planned |
 | R12  | `feat/memory`                | ROM / RAM + memory inspector             | planned |
@@ -148,12 +148,21 @@ the logic; save, reload, still works. — **Reached** (`tests/e2e/m1.spec.ts`).
 
 ## Phase 2 — Building blocks → **M2 "Modules"**
 
-### R08 · 74HC combinational MSI — `feat/74hc-msi` — `next`
+### R08 · 74HC combinational MSI — `feat/74hc-msi` — `done`
 
-74HC138, 139, 151, 153, 157, 158, 283, 85, 147/148, 4511 (BCD → 7-segment). Behavioral NE555
-(astable/monostable/bistable as a digital clock/pulse source) for Ben Eater's clock module.
+74HC85, 138, 139, 147, 148, 151, 153, 157, 158, 283 and 4511 from the Nexperia data sheets, and
+from TI where Nexperia has none (147, 148, 283; typical delays of the 147 and 283 from the
+Philips sheets): one delay per data sheet path (`tpd(An to Yn)`, the longest changed path wins),
+4-state results as precise as cheap, the 4511 as the first stateful chip; exhaustive tests for
+283, 85 and 4511, cascades (two 85s, two 148s). Behavioral NE555 (`timer/ne555`, TI pinout):
+astable, monostable and bistable modes, RA, RB, C as props with SI-prefixed entry, the RC
+network's pins drawn but not simulated, `X` until the first trigger or reset. Pin labels (the
+151's `Y̅`), changeover switch contacts (`spdt-gnd`), wider DIP bodies for crowded pin names.
+Examples: BCD to 7-Segment and Ben Eater's Clock Module. Spec:
+[components.md](components.md#74xx-chips-74xx), [timers](components.md#timers-timer). Decision:
+[ADR-0013](adr/0013-behavioral-timer.md). Plan: `.ai/plans/feat-74hc-msi.md`.
 
-### R09 · 74HC sequential + timing checks — `feat/74hc-sequential`
+### R09 · 74HC sequential + timing checks — `feat/74hc-sequential` — `next`
 
 74HC74, 107/109/112, 161, 163, 173, 175, 191/193, 273, 374, 377, 574, 595, 164, 165, 4040.
 Setup/hold violation diagnostics for edge-triggered parts.
@@ -274,5 +283,11 @@ Promote to a numbered item when needed.
   placing, Escape leaves); Wire switches to the Wire tool. Shortcuts can follow (KiCad uses `P`
   for power and `L` for a label; both are free). Everything but Net Label and Port can land any
   time.
+- Passive parts (R08 follow-up): resistors, capacitors and potentiometers drawn on the schematic
+  but not simulated (BOM, breadboard view), a 555 reading its R and C from them, and turning a
+  potentiometer with the Interact tool (Ben's clock speed knob); a read-only hint of a 555's
+  resulting frequency in Properties. CMOS 555s (TLC555, ICM7555) and the 556 with the same model.
+- Setup/hold and pulse-width checks for latches (R08 follow-up, with R09): the 4511's LE (tsu 12,
+  th 0, tW 16 ns at 4.5 V) records them in its data sheet but not in `timing` yet.
 - Documents (R07 follow-ups): several documents open in one window (tabs); a title, notes and
   simulation settings (speed) stored in the file (schema v2).

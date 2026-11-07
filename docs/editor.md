@@ -68,12 +68,16 @@ in the header, its props for prop-dependent pins) or a part clicked in the Parts
 
 - the part drawn by the canvas drawers (DIP for chips), name, title, type and a link to the
   datasheet named after its document (`Datasheet 74HC_HCT00`);
-- the pins in pin-number order: number, name (overlined when active-low, `NC` for n.c.), type
-  (`input`, `output`, `3-state output`, `input/output`, `power`, `not connected`) and the
-  datasheet's description;
+- the pins in pin-number order: number, name (the pin's `label` where it has one, with the
+  name after it: `Y̅ (YN)` on the 74HC151; overlined when active-low; `NC` for n.c. pins), type
+  (`input`, `output`, `3-state output`, `input/output`, `power`, `not connected`, and `not
+  simulated` for `nc` pins that are not n.c., such as a 555's timing pins in astable mode) and
+  the datasheet's description;
 - the definition's `functionTable` (docs/components.md#function-tables) with its note
-  (`each gate (n = 1 to 4)`), columns of active-low pins overlined, the output group headed
-  `Inputs/outputs` for bus ports (245), and the letters' legend.
+  (`each gate (n = 1 to 4)`), columns of active-low pins overlined (a column named like a pin or
+  like its generic name), labelled pins' columns under their label, text cells spaced out
+  (`A3 > B3`), the output group headed `Inputs/outputs` for bus ports (245), and the letters'
+  legend.
 
 Parts without descriptions or a function table (`prim/*`, `io/*`) show what they have. Timing is
 not shown (R06, Q3). Edit ▸ Part Info and the part context menu open the tab. The pure model is
@@ -214,14 +218,17 @@ editor doesn't know.
   Pull resistors follow the style too: zigzag (ANSI) or rectangle (IEC).
 - **Kinds**: `gate-and|nand|or|nor|xor|xnor`, `buffer`, `not`, `tristate-buffer`, `constant`,
   `pull-up`, `pull-down`, `vcc`, `gnd`, `switch` and `button` (SPDT/SPST contacts with `1`/`0`
-  throws; switches show their power-on position, buttons a plunger), `dip-switch`, `clock`
+  throws; a changeover switch draws its rail on the left and its `ON`/`OFF` throws as the two
+  pins; switches show their power-on position, buttons a plunger), `dip-switch`, `clock`
   (square wave, or a single pulse in manual mode), `led` and `led-bar` (diodes tinted with the LED
   color), `seven-segment`, `hex-display`, `probe`. Stopped, drawers show the idle look
   (power-on switch positions, unlit lights); while simulating they get `DrawContext.live`
   ([Simulation](#live-drawing)).
 - **DIP**: body with the notch at the top, pin numbers outside next to each stub, pin names
-  inside (overlined when `activeLow`, after a clock triangle when `clock`, `NC` for `nc` pins),
-  the part name down the middle.
+  inside (the pin's `label` where it has one; overlined when `activeLow`, after a clock triangle
+  when `clock`, `NC` for n.c. pins named `NC<number>`, other `nc` pins under their names), the
+  part name down the middle. A body is two cells wider when a row's names would crowd the name
+  ([circuit.md](circuit.md#part-layouts)).
 
 ## Text
 
@@ -349,8 +356,10 @@ focus its designator.
 - **Label** (empty removes it), **position** (whole cells), **rotation** (0/90/180/270) and
   **flipped**: placement changes go through the move transforms, so wires follow.
 - **Props** by `PropDef.type` (`src/ui/prop-input.ts`): numbers and integers checked against
-  `min`/`max` (the unit may be typed), times with units (`10 ns`, `1.5us`, `2 µs`; a bare number
-  is nanoseconds; `parseTime` in core), booleans as checkboxes, enums as selects (LED colors with
+  `min`/`max` (the unit may be typed), numbers marked `si` with SI prefixes, shown as `4.7 kΩ`
+  and typed as `4.7k`, `4.7 kΩ`, `100n`, `1u` or `1µ` (`formatSi`/`parseSi`: exact, `100n` is
+  1e-7; the NE555's R and C, the clock frequency), times with units (`10 ns`, `1.5us`, `2 µs`; a
+  bare number is nanoseconds; `parseTime` in core), booleans as checkboxes, enums as selects (LED colors with
   a swatch), strings as text. Each commit is one undo step and writes all resolved props. A prop
   that changes the layout (gate inputs, DIP-switch count) moves pins; attached wires are not
   re-routed.
@@ -594,9 +603,16 @@ title and a description, in gallery order):
   lesson of 4-state logic).
 - **Ring Oscillator** — a 74HC00 NAND (EN switch) and two 74HC04 inverters in a ring: three
   inversions, period 2 × (9 + 9 + 9) = 54 ns; at 10 ns/s the OSC LED blinks visibly.
+- **BCD to 7-Segment** — a 4-way DIP switch (to VCC, with pull-downs; 5 at power-on) into a
+  74HC4511 (LT, BI high, LE low: transparent) driving a common-cathode display; codes 10–15 blank.
+- **Clock Module** — Ben Eater's clock module: an astable NE555 (1 kΩ, 470 kΩ, 1 µF: ≈ 1.5 Hz), a
+  monostable NE555 debouncing the STEP button (110 ms), a bistable NE555 on the MANUAL changeover
+  switch, and 74HC04/08/32 for CLK = (clock · /select + step · select) · /HLT on a blue LED. In
+  manual mode the clock is unknown until the first STEP (the monostable starts at `X`).
 
 Two examples stay built in code (`src/app/examples.ts`): **Symbol Gallery** (every registered
-part with prop variants and placements, the 74HC chips and a 74HC245 in every orientation; dev
+part with prop variants and placements, the 74HC chips, the NE555 in each mode and a 74HC245 in
+every orientation; dev
 builds add the `dev/*` renderer fixtures — a DIP-14 with a clock pin, DIP-28, generic box,
 unknown kind — and two broken parts) and, in dev builds, a **Stress Test** (3 600 NANDs,
 `nandGrid`, shared with the circuit benchmark). `?example=<id>` (or `?gallery`) in the URL opens

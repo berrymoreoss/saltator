@@ -31,7 +31,10 @@ export const PIN_TYPE_LABEL: Readonly<Record<PinDir, string>> = {
 
 export interface PinInfo {
   readonly number?: number;
+  /** What the drawing shows: the pin's label, else its name (`NC` for n.c. pins). */
   readonly name: string;
+  /** The pin's name when it is drawn with a different label (151's `YN`, drawn `Y`). */
+  readonly id?: string;
   readonly activeLow: boolean;
   readonly type: string;
   readonly description?: string;
@@ -54,9 +57,13 @@ export function pinInfo(
   const rows = pinsOf(definition, resolved).map(
     (pin): PinInfo => ({
       ...(pin.number !== undefined && { number: pin.number }),
-      name: pin.dir === 'nc' ? 'NC' : pin.name,
+      // n.c. pins (`NC3`) show as NC; other `nc` pins are drawn but not simulated (a 555's
+      // timing pins in astable mode).
+      name: /^NC\d+$/.test(pin.name) ? 'NC' : (pin.label ?? pin.name),
+      ...(pin.label !== undefined && { id: pin.name }),
       activeLow: pin.activeLow === true,
-      type: PIN_TYPE_LABEL[pin.dir],
+      type:
+        pin.dir === 'nc' && !/^NC\d+$/.test(pin.name) ? 'not simulated' : PIN_TYPE_LABEL[pin.dir],
       ...(pin.description !== undefined && { description: pin.description }),
     }),
   );
@@ -72,10 +79,10 @@ export interface FunctionTableInfo {
   readonly note?: string;
 }
 
-/** The definition's function table split into cells (datasheet text like `A=B` spaced out). */
+/** The definition's function table split into cells (datasheet text like `A=B`, `A3>B3` spaced out). */
 export function functionTableInfo(table: FunctionTable | undefined): FunctionTableInfo | undefined {
   if (!table) return undefined;
-  const spaced = (cell: string) => cell.replace(/=/g, ' = ');
+  const spaced = (cell: string) => cell.replace(/([=<>])/g, ' $1 ');
   return {
     inputs: table.inputs,
     outputs: table.outputs,
@@ -88,19 +95,36 @@ export function functionTableInfo(table: FunctionTable | undefined): FunctionTab
 }
 
 /**
- * Function table columns naming pins that match `test`: a column is the datasheet's generic name
- * of a pin, its numbers replaced by `n` (`1OE` → `nOE`, `1A0` → `nAn`).
+ * Function table columns naming pins that match `test`: a column is a pin's name (`Y7`, `EI`) or
+ * the datasheet's generic name of a pin, its numbers replaced by `n` (`1OE` → `nOE`, `1A0` →
+ * `nAn`).
  */
 function columnsWhere(
   definition: AnyComponentDefinition,
   test: (pin: PinDef) => boolean,
 ): Set<string> {
-  const generic = pinsOf(definition, resolveProps(definition))
+  const named = pinsOf(definition, resolveProps(definition))
     .filter(test)
-    .map((pin) => pin.name.replace(/\d+/g, 'n'));
+    .flatMap((pin) => [pin.name, pin.name.replace(/\d+/g, 'n')]);
   const table = definition.functionTable;
   const columns = table ? [...table.inputs, ...table.outputs] : [];
-  return new Set(columns.filter((column) => generic.includes(column)));
+  return new Set(columns.filter((column) => named.includes(column)));
+}
+
+/** Function table columns of pins drawn with a label, and that label (151: `YN` → `Y`). */
+export function columnLabels(definition: AnyComponentDefinition): Map<string, string> {
+  const labels = new Map<string, string>();
+  for (const pin of pinsOf(definition, resolveProps(definition))) {
+    if (pin.label === undefined) continue;
+    const column = pin.name.replace(/\d+/g, 'n');
+    if (
+      definition.functionTable &&
+      [...definition.functionTable.inputs, ...definition.functionTable.outputs].includes(column)
+    ) {
+      labels.set(column, pin.label.replace(/\d+/g, 'n'));
+    }
+  }
+  return labels;
 }
 
 /** Function table columns of active-low pins, drawn overlined. */

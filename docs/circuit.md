@@ -108,7 +108,9 @@ power pins included (DIP parts draw them; the kernel ignores them).
 
 **DIP** (definitions with `package`): vertical, notch up, pin pitch one cell, numbered as in the
 datasheet drawing — pins 1…N/2 down the left side, N/2+1…N up the right side. Body width 4 cells
-up to 20 pins (0.3" packages), 6 above (0.6"). A 74HC00 at (0, 0):
+up to 20 pins (0.3" packages), 6 above (0.6"), two more when a row's two pin names have more than
+7 characters together (the NE555's `RESET` and `CONT`), to leave room for the part name.
+A 74HC00 at (0, 0):
 
 ```
  x: 0 1  2  3  4 5 6

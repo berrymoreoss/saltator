@@ -49,6 +49,11 @@ describe('DIP layout', () => {
   it('uses a wider body for wide packages', () => {
     expect(dipBodyWidth(20)).toBe(4);
     expect(dipBodyWidth(24)).toBe(6);
+    // A crowded row (5 + 4 characters) widens the body, for the part name to fit between.
+    const pin = (name: string, number: number) => ({ name, number, dir: 'in' as const });
+    expect(dipBodyWidth(4, [pin('RESET', 1), pin('A', 2), pin('B', 3), pin('CONT', 4)])).toBe(6);
+    expect(dipBodyWidth(4, [pin('GND', 1), pin('A', 2), pin('B', 3), pin('COUT', 4)])).toBe(4);
+    expect(dipBodyWidth(4, [pin('NC1', 1), pin('A', 2), pin('B', 3), pin('RESET', 4)])).toBe(4);
     const pins = Array.from(
       { length: 28 },
       (_, i): PinDef => ({
