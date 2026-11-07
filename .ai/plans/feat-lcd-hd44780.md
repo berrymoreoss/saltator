@@ -238,7 +238,7 @@ pure frame function, the blink from simulated time.
 
 Small, ordered, each committable on its own with its tests (`pnpm check` green).
 
-- [ ] 1. Data sheets: a module data sheet for the header pinout and backlight (16×2, e.g.
+- [x] 1. Data sheets: a module data sheet for the header pinout and backlight (16×2, e.g.
   Hitachi LM016L / a current maker); record the numbers below. `scripts/extract-hd44780-font.ts`
   and the generated `hd44780-font.ts` (A00, A02); font tests.
 - [ ] 2. `core`: `*-violation` kinds are errors; test. `library`: `periph` family,
@@ -293,17 +293,17 @@ Checkable statements; verified one by one in the finish-branch workflow.
   instruction checked)? — _proposed:_ both, `reset` by default (Ben Eater's code relies on the
   internal reset and works on the bench; `unknown` tests that an init routine also survives a
   bad supply). — **answer:** both, `reset` by default (2026-11-08).
-- [ ] Q2. Examples — _proposed:_ two. **LCD Hello, World**: a 10 kHz clock steps a 74HC4040
+- [x] Q2. Examples — _proposed:_ two. **LCD Hello, World**: a 10 kHz clock steps a 74HC4040
   through an AT28C16 whose bytes are latched by a 74HC574 into the LCD's 4-bit bus (`DB7`–`DB4`,
   `RS`, `E`: three steps per nibble, so data never changes with `E`), running the data sheet's
   4-bit initialization with its waits and printing "Hello, world!"; a RESET button clears the
   counter (it powers on unknown), and the counter's `Q11` stops the clock at the end. **LCD by
   Hand**: 8-bit, DIP switches on `DB0`–`DB7`, switches on `RS` and `R/W̅`, a button on `E` (Ben
   Eater's first LCD video). — **answer:** both (2026-11-08).
-- [ ] Q3. DDRAM/CGRAM in the Memory tab — _proposed:_ backlog (the `MemoryDef` needs address
+- [x] Q3. DDRAM/CGRAM in the Memory tab — _proposed:_ backlog (the `MemoryDef` needs address
   pins and one memory per part; a core and inspector change of its own). — **answer:** backlog
   (2026-11-08).
-- [ ] Q4. Type id and family — _proposed:_ `periph/hd44780` (docs/components.md already lists it
+- [x] Q4. Type id and family — _proposed:_ `periph/hd44780` (docs/components.md already lists it
   for R18; one part with a `size` prop). — **answer:** `periph/hd44780` (2026-11-08).
 
 ## Data sheet numbers
@@ -320,15 +320,31 @@ HD44780U, ADE-207-272(Z) Rev. 0.0 (1999-09):
   (page 53, Figure 28). Init by instruction (Figures 23, 24): > 15 ms, `0x3`, > 4.1 ms, `0x3`,
   > 100 µs, `0x3`, (`0x2`), function set, display off, clear, entry mode.
 - Pull-up MOS current (5 V): 50 / 125 / 250 µA on DB0–DB7, RS, R/W (page 51).
+- Table 4 (pages 17–18) is vector art; rendered at 400 dpi (`pdftoppm -r 400 -gray`) a dot
+  pitch is 17 px. A00's columns A and B sit a third of a pitch right of the others (each
+  column gets its own lattice origin); A00's 5 × 8 glyphs use rows 0–6 (row 7 is the cursor
+  row), A02's use rows 0–7 (accents in row 0, capitals from row 1); A00 0xE0–0xFF are 5 × 10
+  (rows 0–9; in 5 × 8 mode rows 0–7 show, descenders cut). Checked by eye against the
+  rendered cells: `0`, `A`, `¥`, `→`, `ｱ`, `°`, A02 `Б`, `Л` (tests).
+
+Module: Newhaven NHD-0216K1Z-FL-YBW product specification, rev. 13 (2022-11-09), driver
+ST7066U (HD44780-compatible): pins 1 `VSS`, 2 `VDD`, 3 `V0` (contrast, ≈ 1.3 V), 4 `RS`,
+5 `R/W`, 6 `E` ("falling edge triggered"), 7–14 `DB0`–`DB7` (`DB0`–`DB3` unused in 4-bit
+mode), 15 `LED+` (anode, +5 V via an on-board resistor), 16 `LED−` (cathode); Clear display
+1.52 ms at 270 kHz (Table of Commands). From newhavendisplay.com/content/specs/.
 
 ## Progress log
 
 - 2026-11-08 — plan drafted; Q1–Q4 answered as proposed; started.
+- 2026-11-08 — task 1: module data sheet (Newhaven NHD-0216K1Z, pinout, Clear display time);
+  `scripts/extract-hd44780-font.ts` reads A00 and A02 off Table 4 (per-column lattice origin:
+  A00's columns A/B are shifted; a 6 px margin had clipped the edge rows), `hd44780-font.ts`,
+  `hd44780-rom.ts` with spot-check tests.
 
 ## Handoff
 
-- **State:** plan approved (Q1–Q4 answered), nothing implemented yet.
-- **Next step:** task 1 (module data sheet, font extraction script, `hd44780-font.ts`).
+- **State:** task 1 done (font extracted, ROM module tested); no part definition yet.
+- **Next step:** task 2 (`core` severity rule and `TimingChecks.cycle`, `periph/hd44780`).
 - **Watch out:** the data sheet copy is in the session scratchpad only; download it again if
   the scratchpad is gone.
 - **Verify with:** `pnpm check`.
