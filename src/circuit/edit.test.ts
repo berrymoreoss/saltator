@@ -42,6 +42,7 @@ const circuit = (components: ComponentInstance[] = [], wires: Wire[] = []): Circ
   components,
   wires,
   probes: [],
+  testScript: [],
 });
 
 describe('designators and ids', () => {
@@ -226,6 +227,12 @@ describe('component operations', () => {
     expect(sameCircuit(c, circuit([part('U1', 'test/and', 1)], c.wires as Wire[]))).toBe(false);
     expect(sameCircuit(c, circuit([], c.wires as Wire[]))).toBe(false);
     expect(sameCircuit(c, { ...c, name: 'Other' })).toBe(false);
+    const tested = { ...c, testScript: ["bench('a', (b) => {", '});'] };
+    expect(sameCircuit(c, tested)).toBe(false);
+    expect(sameCircuit(tested, { ...tested, testScript: [...tested.testScript] })).toBe(true);
+    expect(sameCircuit(tested, { ...tested, testScript: ["bench('b', (b) => {", '});'] })).toBe(
+      false,
+    );
     const probed = { ...c, probes: [{ ref: 'CLK' }, { name: 'G', members: ['A', 'B'] }] };
     expect(sameCircuit(c, probed)).toBe(false);
     expect(sameCircuit(probed, { ...probed, probes: [...probed.probes] })).toBe(true);
@@ -499,12 +506,13 @@ describe('fragments', () => {
       [wire('w1', [0, 0], [1, 0]), wire('w2', [0, 0], [0, 1])],
     );
     const fragment = copyFragment(
-      { ...c, probes: [{ ref: 'U2.Y' }] },
+      { ...c, probes: [{ ref: 'U2.Y' }], testScript: ['// tests'] },
       { parts: ['U2'], wires: ['w2'] },
     );
     expect(fragment.components).toEqual([c.components[1]]);
     expect(fragment.wires).toEqual([c.wires[1]]);
-    expect(fragment.probes).toEqual([]); // probes belong to the circuit
+    expect(fragment.probes).toEqual([]); // probes and tests belong to the circuit
+    expect(fragment.testScript).toEqual([]);
   });
 
   it('pastes with an offset, keeping free designators and renumbering taken ones', () => {

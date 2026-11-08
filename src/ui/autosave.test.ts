@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { type CircuitDocument, emptyDocument, parseDocument, serializeDocument } from '../circuit';
+import {
+  type CircuitDocument,
+  emptyDocument,
+  parseDocument,
+  SCHEMA_VERSION,
+  serializeDocument,
+} from '../circuit';
 import { ns } from '../core';
 import { Editor } from '../editor';
 import { toggleDesign } from '../editor/test-documents';
@@ -378,7 +384,7 @@ describe('restoring a session', () => {
 
   it('a session stored before buses (schema v1) comes back unchanged', () => {
     const text = serializeDocument(nandDocument(4)).replace(
-      '"schemaVersion": 4',
+      `"schemaVersion": ${SCHEMA_VERSION}`,
       '"schemaVersion": 1',
     );
     expect(text).toContain('"schemaVersion": 1');

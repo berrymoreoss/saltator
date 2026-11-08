@@ -81,6 +81,10 @@ describe('circuit operations', () => {
     expect(id).toBe('pair-copy');
     expect(ids(document)).toEqual(['main', 'pair', 'pair-copy', 'cell']);
     expect(document.circuits[2]).toEqual({ ...pair, id: 'pair-copy', name: 'PAIR copy' });
+    const tested = doc(circuit('cell', [], { testScript: ["bench('and', (b) => {});"] }));
+    expect(duplicateCircuit(tested, 'cell').document.circuits[1]!.testScript).toEqual([
+      "bench('and', (b) => {});",
+    ]);
   });
 
   it('removes a circuit with its instances, never the last one', () => {
@@ -176,6 +180,14 @@ describe('copying instances between documents', () => {
     expect(clip.circuits[0]!.components).toEqual(fragment.components);
     expect(ids(fragmentDocument(design, circuit('main', [part('U1', 'test/and')])))).toEqual([
       'clipboard',
+    ]);
+    // The circuits carried keep their test scripts.
+    const script = ["bench('and', (b) => {});"];
+    const tested = doc(main, pair, { ...cell, testScript: script });
+    expect(fragmentDocument(tested, fragment).circuits.map((c) => c.testScript)).toEqual([
+      [],
+      [],
+      script,
     ]);
     // A carried circuit called `clipboard` keeps its id; the fragment takes another.
     const odd = doc(circuit('main', [part('A1', 'sub/clipboard')]), circuit('clipboard'));

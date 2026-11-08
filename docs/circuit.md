@@ -12,7 +12,7 @@ produce new values.
 
 ```ts
 interface CircuitDocument {
-  schemaVersion: 4;
+  schemaVersion: 5;
   circuits: Circuit[]; // at least one; the first is the top circuit (R11a)
 }
 
@@ -22,6 +22,7 @@ interface Circuit {
   components: ComponentInstance[];
   wires: Wire[];
   probes: Probe[]; // the Waveforms tab's signals, in its order (R13); left out of files when empty
+  testScript: string[]; // the circuit's test script, one line each (R15a); left out when empty
 }
 
 type Probe =
@@ -103,14 +104,16 @@ interface Wire {
   (`"probes"` on a circuit), so both migrations change nothing; v4 (R11a) gave the circuits after
   the first a meaning (subcircuits) and made circuit ids slugs: its migration turns other ids
   into slugs (only `main` was ever written). The bump makes an older app refuse a document whose
-  subcircuits it would ignore.
+  subcircuits it would ignore. v5 (R15a) added test scripts (`"testScript"` on a circuit, its
+  lines; a line break inside one is a load error); its migration changes nothing.
 - `serializeDocument(doc)` writes stable JSON: fixed key order, defaults omitted, one line per
-  component, per wire and per probe (no `probes` key without any), so a saved file diffs well in
-  git. Round trip is lossless: `parseDocument(serializeDocument(doc))` equals `doc`.
+  component, per wire, per probe and per line of the test script (no `probes` or `testScript`
+  key without any), so a saved file diffs well in git. Round trip is lossless:
+  `parseDocument(serializeDocument(doc))` equals `doc`.
 
 ```text
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "circuits": [
     {
       "id": "main",
@@ -126,6 +129,11 @@ interface Wire {
       "probes": [
         { "ref": "U1.Y" },
         { "name": "PC", "members": ["U3.Q0", "U3.Q1", "U3.Q2", "U3.Q3"], "radix": "dec" }
+      ],
+      "testScript": [
+        "bench('inverts', (b) => {",
+        "  b.row({ SW1: 1 }, { 'U2.Y': 0 });",
+        "});"
       ]
     }
   ]

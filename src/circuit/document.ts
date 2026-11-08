@@ -9,9 +9,10 @@ import type { Point, Rotation } from './geometry';
 /**
  * Version written into every saved document. Bump it together with a migration.
  * v2 (R10b): bus lines (`Wire.bus`). v3 (R13): probes (`Circuit.probes`). v4 (R11a): several
- * circuits with subcircuit instances; circuit ids are slugs (`CIRCUIT_ID`).
+ * circuits with subcircuit instances; circuit ids are slugs (`CIRCUIT_ID`). v5 (R15a): test
+ * scripts (`Circuit.testScript`).
  */
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 /**
  * Ids of components (their designators: `U1`, `SW1`) and wires: a letter or `_`, then
@@ -44,6 +45,11 @@ export interface Circuit {
   readonly wires: readonly Wire[];
   /** The signals the Waveforms tab shows, in its order (R13). No part of the netlist. */
   readonly probes: readonly Probe[];
+  /**
+   * The circuit's test script (R15a): JavaScript registering benches with `bench(name, fn)`, one
+   * string per line (no line breaks inside); empty when it has none. Never compiled.
+   */
+  readonly testScript: readonly string[];
 }
 
 /** How a probe's value is written: buses and groups default to `hex`, 1-bit signals to levels. */
@@ -110,7 +116,7 @@ export function emptyDocument(name = 'Main'): CircuitDocument {
 }
 
 export function emptyCircuit(id = 'main', name = 'Main'): Circuit {
-  return { id, name, components: [], wires: [], probes: [] };
+  return { id, name, components: [], wires: [], probes: [], testScript: [] };
 }
 
 /**

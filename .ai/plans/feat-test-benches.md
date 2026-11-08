@@ -260,7 +260,7 @@ examples/two-digit-counter.logic.json
 
 Small, ordered, each committable on its own with its tests (`pnpm check` green).
 
-- [ ] 1. `circuit`: `Circuit.testScript`, schema v5 + migration, `serializeDocument`, schema
+- [x] 1. `circuit`: `Circuit.testScript`, schema v5 + migration, `serializeDocument`, schema
   validation, `sameCircuit`; copy/paste carries it.
 - [ ] 2. `core`: `testDriver` into core proper (`core/testing` re-exports it).
 - [ ] 3. `circuit`: bench values — expected and input values (numbers, BigInt, text with `X`

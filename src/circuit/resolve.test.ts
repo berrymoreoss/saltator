@@ -47,6 +47,7 @@ const circuit: Circuit = {
     wire('w4', 40, 20, 42, 20),
   ],
   probes: [],
+  testScript: [],
 };
 
 const resolver = new Resolver(compileCircuit(circuit, registry), registry);
@@ -206,6 +207,7 @@ describe('Resolver over a design', () => {
     ],
     wires: [{ id: 'b1', from: [23, 3], to: [23, 8], bus: true }],
     probes: [],
+    testScript: [],
   };
   const pair: Circuit = {
     id: 'pair',
@@ -213,6 +215,7 @@ describe('Resolver over a design', () => {
     components: [part('B1', 'sub/cell', 0, 0), part('B2', 'sub/cell', 0, 30)],
     wires: [],
     probes: [],
+    testScript: [],
   };
   const shell = (components: ComponentInstance[]): Circuit => ({
     id: 'main',
@@ -220,6 +223,7 @@ describe('Resolver over a design', () => {
     components,
     wires: [],
     probes: [],
+    testScript: [],
   });
   const base = [
     part('H1', 'test/high', -20, 0),

@@ -147,7 +147,7 @@ const bool: Parser<boolean> = {
 };
 
 const ROOT_KEYS = ['schemaVersion', 'circuits'];
-const CIRCUIT_KEYS = ['id', 'name', 'components', 'wires', 'probes'];
+const CIRCUIT_KEYS = ['id', 'name', 'components', 'wires', 'probes', 'testScript'];
 const SIGNAL_PROBE_KEYS = ['ref', 'name', 'radix'];
 const GROUP_PROBE_KEYS = ['name', 'members', 'radix'];
 const COMPONENT_KEYS = ['id', 'type', 'label', 'x', 'y', 'rotation', 'flip', 'props'];
@@ -187,7 +187,8 @@ class Checker {
     );
     const rawProbes = value.probes === undefined ? [] : (this.array(value, 'probes', path) ?? []);
     const probes = rawProbes.map((p, i) => this.probe(p, join(join(path, 'probes'), i)));
-    if (ownId === undefined || name === undefined) return undefined;
+    const testScript = this.script(value, path);
+    if (ownId === undefined || name === undefined || testScript === undefined) return undefined;
     if (components.some((c) => !c) || wires.some((w) => !w) || probes.some((p) => !p)) {
       return undefined;
     }
@@ -197,7 +198,25 @@ class Checker {
       components: components as ComponentInstance[],
       wires: wires as Wire[],
       probes: probes as Probe[],
+      testScript,
     };
+  }
+
+  /** A test script's lines: strings without line breaks; missing is none. */
+  private script(value: Obj, path: string): string[] | undefined {
+    if (value.testScript === undefined) return [];
+    const lines = this.array(value, 'testScript', path);
+    if (!lines) return undefined;
+    let ok = true;
+    lines.forEach((line, i) => {
+      if (typeof line === 'string' && !/[\r\n]/.test(line)) return;
+      this.fail(
+        join(join(path, 'testScript'), i),
+        `expected a line of text (a string without line breaks), got ${show(line)}`,
+      );
+      ok = false;
+    });
+    return ok ? (lines as string[]) : undefined;
   }
 
   /** `{ ref, name?, radix? }` or a group `{ name, members, radix? }`; references unchecked. */

@@ -59,6 +59,7 @@ describe('loadDocument', () => {
           ],
           wires: [{ id: 'w1', from: [0, 0], to: [0, 5] }],
           probes: [],
+          testScript: [],
         },
       ],
     });
@@ -107,9 +108,9 @@ describe('loadDocument', () => {
     };
     expect(loadDocument(v1)).toEqual({
       schemaVersion: SCHEMA_VERSION,
-      circuits: [{ ...v1.circuits[0], probes: [] }],
+      circuits: [{ ...v1.circuits[0], probes: [], testScript: [] }],
     });
-    expect(SCHEMA_VERSION).toBe(4);
+    expect(SCHEMA_VERSION).toBe(5);
   });
 
   it('opens a schema v2 document (before probes) with none', () => {
@@ -130,6 +131,26 @@ describe('loadDocument', () => {
       ],
     };
     expect(loadDocument(v3).circuits.map((c) => c.id)).toEqual(['main', 'adder-4-2', 'adder-4']);
+  });
+
+  it('opens a schema v4 document (before test scripts) with none', () => {
+    const v4 = {
+      schemaVersion: 4,
+      circuits: [{ id: 'main', name: 'Main', components: [], wires: [] }],
+    };
+    expect(loadDocument(v4).circuits[0]!.testScript).toEqual([]);
+  });
+
+  it('loads a test script line by line and rejects lines that are no lines', () => {
+    const script = ["bench('x', (b) => {", '  b.wait(us(1));', '});', ''];
+    expect(loadDocument(doc({ testScript: script })).circuits[0]!.testScript).toEqual(script);
+    expect(problemsOf(doc({ testScript: 'bench()' }))).toEqual([
+      'circuits[0].testScript: expected an array, got "bench()"',
+    ]);
+    expect(problemsOf(doc({ testScript: ['ok', 'a\nb', 3] }))).toEqual([
+      'circuits[0].testScript[1]: expected a line of text (a string without line breaks), got "a\\nb"',
+      'circuits[0].testScript[2]: expected a line of text (a string without line breaks), got 3',
+    ]);
   });
 
   it('requires circuit ids to be slugs', () => {
