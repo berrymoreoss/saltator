@@ -103,6 +103,12 @@ export const EXAMPLE_FILES: readonly ExampleFile[] = [
       'Ben Eater’s first 6502 step: a W65C02S whose data bus reads $EA (NOP) through resistors. After RESET it reads the vector $EAEA and counts up; the hex displays show the buses.',
   },
   {
+    id: '6502-rom-ram',
+    title: '6502 ROM and RAM',
+    description:
+      'A W65C02S runs a program from an AT28C256, its stack and data in a 62256, decoded by a 74HC00 as in Ben Eater’s 6502: it counts at $0010 and $0200 — watch the Memory tab. RESET first.',
+  },
+  {
     id: 'sap-1-program-counter',
     title: 'SAP-1 Program Counter',
     description:

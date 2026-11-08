@@ -422,3 +422,8 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
   address after the branch (`target − (pc + 2)`); an off-by-one sent a test program into an
   operand byte, which looked like a RAM bug for a while. Biome rewrites hex object keys as
   decimal: write programs as `[address, bytes]` tuples.
+- 2026-11-08 (R17a) — A 74HC574 output port on a 65C02's data bus can't meet the data sheets:
+  the W65C02S holds write data only tDHW = 10 ns after PHI2 falls, and any strobe through a gate
+  or decoder rises later (a 74HC138: 17 ns), so the latch samples a floating bus. Breadboards
+  get away with it on bus capacitance, which a 4-state simulator doesn't have; latch 6502 writes
+  with a part made for the bus (the VIA) or a strobe that ends before PHI2 falls.

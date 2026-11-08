@@ -127,6 +127,7 @@ describe('the examples’ probes', () => {
     }
     expect(probed.sort()).toEqual([
       '6502-nop-sled',
+      '6502-rom-ram',
       'clock-module',
       'data-bus',
       'lcd-hello-world',

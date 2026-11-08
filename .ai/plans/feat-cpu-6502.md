@@ -280,7 +280,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 10. Scenarios (ROM/RAM program, lost and reset), carry-over property with the CPU, rewind
   coverage, benchmark recorded.
 - [x] 11. Example: 6502 NOP Sled with its bench; looked at in the browser.
-- [ ] 12. Example: 6502 program from ROM with its bench; looked at in the browser; an e2e check
+- [x] 12. Example: 6502 program from ROM with its bench; looked at in the browser; an e2e check
   that it runs.
 - [ ] 13. Docs: components.md (`cpu` family, W65C02S), simulation.md (CPU inspection),
   architecture.md, glossary, editor.md examples, ADR-0028, library README, lessons, the
@@ -385,18 +385,27 @@ Checkable statements; verified one by one in the finish-branch workflow.
   and data buses, probes (PHI2, RESB, SYNC, VPB, RWB, A[0..15], D[0..7]); its bench checks the
   vector reads ($FFFC/$FFFD with VPB), then $EAEA, $EAEB… with SYNC on the fetches. Design
   checks clean; looked at in the browser (layout readable).
+- 2026-11-08 — task 12: the risk came true — a 74HC574 port at $6000 (74HC138 strobe from PHI2
+  and RWB) latches `X`: CP rises 17 ns after PHI2 falls, the CPU holds write data 10 ns, so the
+  574 sees the bus float (`setup-violation` 7 ns before CP, `floating-input`). On a breadboard
+  the bus capacitance usually hides it; the data sheet doesn't promise it. Q8: example **6502 ROM
+  and RAM** instead (`examples/6502-rom-ram.logic.json`): the scenario computer as a schematic
+  (W65C02S, AT28C256 with the program in its image, 62256, 74HC00, 1 kHz clock, RESET, address
+  bus on hex displays, probes), a program counting at $0010 and $0200 through a subroutine; its
+  bench checks the stack and ten counts in 340 ms. `tests/e2e/cpu.spec.ts`: both examples'
+  benches pass in the Tests tab; looked at in the browser.
 
 ## Handoff
 
-- **State:** tasks 1–11 done: the core (all of SingleStepTests), the part `cpu/w65c02s`,
+- **State:** tasks 1–12 done: the core (all of SingleStepTests), the part `cpu/w65c02s`,
   scenarios with ROM/RAM, the carry-over property with a CPU (which fixed a memory read-stamp
-  bug), the benchmark, the NOP Sled example.
-- **Next step:** task 12 — the program-from-ROM example: `computer-6502.ts`'s circuit plus a
-  74HC574 output port with LEDs (decode a write strobe at $6000 with the 74HC00's spare gates or
-  a second chip; watch the 574's hold time against the CPU's tDHW = 10 ns), a hand-assembled
-  light-walking program, its bench, an e2e check; then task 13 (docs). Pattern for examples: a
-  throwaway vitest generator with `CircuitBuilder`, labels at pin points (left DIP pins rotation
-  180, right 0), `resolveProps` before `serializeDocument`, `compileDesign(...).issues` empty.
+  bug), the benchmark, the examples 6502 NOP Sled and 6502 ROM and RAM with an e2e spec.
+- **Next step:** task 13 — docs: components.md (a `cpu` section for the W65C02S: pins, timing,
+  the bus cycle, control lines, unknowns, deviations from SingleStepTests; families table),
+  simulation.md (CPU inspection — done in task 2; `cpu-lost` severity), architecture.md (CPUs no
+  longer planned), glossary (65C02 terms: PHI2, SYNC, VPB, MLB, RDY, BE, RESB…), editor.md
+  (the two examples in Examples), ADR-0028 (+ index row), `src/library/README.md` (`cpu/`), the
+  track file (R17a: what was built, links), lessons (Q8: the 574 port). Then finish-branch.
 - **Watch out:** component state must stay plain data (snapshots freeze it: no closures,
   generators, `Map`s); `evaluate` idempotent with nothing changed (carry-over); enumerate
   nothing per unknown bit in the CPU (masks, not outcomes).
