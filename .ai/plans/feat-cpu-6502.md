@@ -266,12 +266,12 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   `in-progress`.
 - [x] 2. `core`: `CpuDef`, `CpuView`, `ComponentDefinition.cpu`, registry checks; tests.
 - [x] 3. Opcode table from Table 5-2 (and the reserved NOPs); tests.
-- [ ] 4. Core, known values: registers, every addressing mode and instruction with its bus
+- [x] 4. Core, known values: registers, every addressing mode and instruction with its bus
   cycles; hand-written tests per mode.
-- [ ] 5. SingleStepTests: `scripts/test-65c02.ts` (download cache, run all), the sample
+- [x] 5. SingleStepTests: `scripts/test-65c02.ts` (download cache, run all), the sample
   generator, the committed sample in `pnpm check`; the full suite green, result recorded.
-- [ ] 6. Core: reset sequence, `IRQB`/`NMIB`/`BRK`/`RTI`, `WAI`/`STP`, `SOB`, `RDY` halt; tests.
-- [ ] 7. Core: unknown masks through the ALU and addressing, losing the state, power-on; tests.
+- [x] 6. Core: reset sequence, `IRQB`/`NMIB`/`BRK`/`RTI`, `WAI`/`STP`, `SOB`, `RDY` halt; tests.
+- [x] 7. Core: unknown masks through the ALU and addressing, losing the state, power-on; tests.
 - [ ] 8. The part: pins, package, timing, `PHI2` edges, output windows, write data, read
   sampling, `PHI1O`/`PHI2O` (Q7 delay sourced); registered (family `cpu`, Parts panel
   group); pin tests and measured windows.
@@ -345,14 +345,28 @@ Checkable statements; verified one by one in the finish-branch workflow.
   the rendered page: the text extraction shifts columns), bytes by mode (Table 4-1; `BBR`/`BBS`
   get a mode of their own, `zp,r`, 3 bytes), the 44 reserved NOPs from Table 7-1, base cycles
   by instruction class. Cycles get checked against SingleStepTests in task 5.
+- 2026-11-08 — tasks 4–7: the pure core (`w65c02s-core.ts`) with every opcode's bus cycles,
+  reset, IRQ/NMI/BRK/RTI, `WAI`/`STP`, `SOB`, unknown masks and losing the CPU; written with the
+  SingleStepTests harness (`single-step.ts`, `pnpm test:65c02`, cache in
+  `node_modules/.cache/65x02`, 955 MB): **all 2,540,000 cases pass, every cycle compared** (13 s).
+  Found on the way: `JMP (a)` across a page reads the high byte's address without the carry
+  first (the NMOS address), then with it — Table 7-1's extra cycle; `INC`/`DEC a,x` always take
+  7 cycles (Table 7-1's "six in the same page" holds for the shifts only); the cases keep P's B
+  bit as given (compared without bits 4, 5). Deviations from the cases, by the data sheet: `5C`
+  is 8 cycles (Table 7-1; the cases say 4); the decimal extra cycle of `ADC #`/`SBC #` reads at
+  PC (the cases read `$7F` / `$0000`, no rule). The committed sample (`w65c02s-sst-sample.ts`,
+  2032 cases, 308 KB, `scripts/sample-65c02.ts`) misses rare paths (decimal boundary, `JMP ($xxFF)`),
+  so hand-written tests (`w65c02s-core.test.ts`) cover them, MLB, VPB, reset, interrupts and
+  unknowns; 8 mutations all killed.
 
 ## Handoff
 
-- **State:** tasks 1–3 done: the plan started, `CpuDef` in `core`, the opcode table in
-  `src/library/cpu/` (no CPU part or core yet).
-- **Next step:** task 4 — the pure core with known values (`w65c02s-core.ts`); doing task 5's
-  SingleStepTests harness alongside it pays off (the per-cycle bus is the spec).
+- **State:** tasks 1–7 done: `CpuDef`, the opcode table, the pure core passing all of
+  SingleStepTests (`pnpm test:65c02`), hand-written core tests. No part yet.
+- **Next step:** task 8 — the part `cpu/w65c02s` (`w65c02s.ts`): pins, timing, `PHI2` edges and
+  wake-ups around the core (`holdReset`, `startReset`, `setOverflow`, `core.irq`/`core.nmi` set
+  by the part; RDY low = don't call `endCycle`; `Mode.waiting` → drive RDY LOW).
 - **Watch out:** component state must stay plain data (snapshots freeze it: no closures,
   generators, `Map`s); `evaluate` idempotent with nothing changed (carry-over); enumerate
   nothing per unknown bit in the CPU (masks, not outcomes).
-- **Verify with:** `pnpm check`; `pnpm test:65c02` once task 5 lands.
+- **Verify with:** `pnpm check`; `pnpm test:65c02` (downloads ≈ 1 GB once).
