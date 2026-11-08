@@ -4,7 +4,7 @@
 | ---------- | -------------------------------------------------------------------------------------- |
 | Branch     | `feat/cpu-6502`                                                                        |
 | Roadmap    | R17a — W65C02S CPU, track [MOS 6502](../../docs/roadmap/mos6502.md)                    |
-| Status     | in-progress                                                                            |
+| Status     | done                                                                                   |
 | Depends on | R09a (timing checks), R12a (limits-only timing, `X` windows), LIB-1 (merging outcomes) |
 | Created    | 2026-11-08                                                                             |
 
@@ -290,27 +290,38 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 
 Checkable statements; verified one by one in the finish-branch workflow.
 
-- [ ] `pnpm check` and `pnpm build` are green.
-- [ ] `cpu/w65c02s` is in the Parts panel and draws as a DIP-40 with Figure 3-1's pinout; the
-  Part tab shows every pin's description and the 5 V timing with its source.
-- [ ] The core passes the full SingleStepTests `wdc65c02` suite — final state and every cycle's
+- [x] `pnpm check` and `pnpm build` are green. — 3023 tests; build green; `pnpm e2e` 88/88.
+- [x] `cpu/w65c02s` is in the Parts panel and draws as a DIP-40 with Figure 3-1's pinout; the
+  Part tab shows every pin's description and the 5 V timing with its source. — the CPUs group
+  (`parts-filter.test.ts`), the pinout by number (`w65c02s.test.ts`), drawn in both examples
+  (screenshots), the Part tab with `tADS`, "Table 6-3" and "vector pull" (`cpu.spec.ts`).
+- [x] The core passes the full SingleStepTests `wdc65c02` suite — final state and every cycle's
   address, data and read/write — by `pnpm test:65c02`; the committed sample passes in
-  `pnpm check`.
-- [ ] On the pins, every window and delay is what Table 6-3 / Figure 6-3 give (measured), and
-  every requirement is silent just inside its limit and reported (with `X`) 1 ns outside.
-- [ ] Power-on: outputs `X` until `RESB` has been low ≥ 2 cycles; then the seven-cycle reset
-  sequence reads `0xFFFC`/`0xFFFD` with `VPB` low and the program starts at the vector.
-- [ ] `IRQB`, `NMIB`, `BRK`, `WAI`, `STP`, `SOB`, `RDY` (halt and single cycle) and `BE` behave
+  `pnpm check`. — 2,540,000 of 2,540,000 (5C by Table 7-1, decimal `ADC #`/`SBC #` extra cycle
+  at PC: documented exceptions).
+- [x] On the pins, every window and delay is what Table 6-3 / Figure 6-3 give (measured), and
+  every requirement is silent just inside its limit and reported (with `X`) 1 ns outside. —
+  tAH/tADS, tMDS/tDHW, tBVD, PHI1O/PHI2O measured; tDSR, tDHR (bits `X`), tPCS, tPCH (input
+  sampled `X`), SOB's tPCS, tPWL, tPWH, tCYC (CPU lost), RESB two cycles at their limits.
+- [x] Power-on: outputs `X` until `RESB` has been low ≥ 2 cycles; then the seven-cycle reset
+  sequence reads `0xFFFC`/`0xFFFD` with `VPB` low and the program starts at the vector. —
+  bench, core tests, the NOP Sled bench and in the app (`cpu.spec.ts`).
+- [x] `IRQB`, `NMIB`, `BRK`, `WAI`, `STP`, `SOB`, `RDY` (halt and single cycle) and `BE` behave
   as §3 describes; `WAI` with `RDY` tied to VCC is reported as contention, with a pull-up it
-  is not.
-- [ ] Unknown bits: masked logic stays known, arithmetic goes unknown upward; an unknown opcode
-  or branch loses the CPU with an error naming why and where; `RESB` recovers it.
-- [ ] The ROM/RAM scenario runs its program and ends with the expected registers and RAM;
-  the carry-over and rewind properties hold with the CPU.
-- [ ] Both examples open from File ▸ Examples, run in the browser, and their benches pass
-  headless and in the Tests tab.
-- [ ] The benchmark's numbers are recorded in this plan.
-- [ ] Docs, ADR-0028, lessons and the track file are updated; plan status `done`.
+  is not. — core and pin tests; the pull-up case in `cpu-6502.test.ts`.
+- [x] Unknown bits: masked logic stays known, arithmetic goes unknown upward; an unknown opcode
+  or branch loses the CPU with an error naming why and where; `RESB` recovers it. — core tests,
+  pin test and the uninitialized-RAM scenario ("U1 fetched an opcode with unknown bits at
+  0x0300: its state is unknown until RESB").
+- [x] The ROM/RAM scenario runs its program and ends with the expected registers and RAM;
+  the carry-over and rewind properties hold with the CPU. — at 1 and 4 MHz; the carry-over
+  property with two resets (it found the memories' read-stamp bug); rewind over every part.
+- [x] Both examples open from File ▸ Examples, run in the browser, and their benches pass
+  headless and in the Tests tab. — `example-benches.test.ts`, `cpu.spec.ts` (gallery, Tests
+  tab, the NOP Sled run and reset in the app). The second example is ROM and RAM (Q8).
+- [x] The benchmark's numbers are recorded in this plan. — 4339 events per 100 cycles,
+  7.9–8.0M events/s, 18 % of real time at 1 MHz.
+- [x] Docs, ADR-0028, lessons and the track file are updated; plan status `done`.
 
 ## Open questions
 
@@ -398,15 +409,22 @@ Checkable statements; verified one by one in the finish-branch workflow.
   (`cpu-lost` an error), architecture.md, glossary (opcode fetch, PHI2, RDY, reset vector,
   SingleStepTests), editor.md (both examples), ADR-0028 (CPU model) and its index row, library
   README, the track file (R17a built), lessons. All 13 tasks done.
+- 2026-11-08 — finished: `main` hadn't moved. Walking the acceptance criteria found gaps in the
+  requirement tests (tPCS/tPCH, SOB, tPWH, tCYC; IRQB on the pins; WAI against a real pull-up;
+  a run in the app) — added, and they found the part's clock checks joined with `||` (a short
+  HIGH phase hid the cycle-time violation): fixed. Two pre-existing e2e flakes seen in full
+  runs: `subcircuits.spec.ts` read a level during the NOT's first delay (fixed: waits for 0/1);
+  `lcd.spec.ts` "the text appears after RESET" polls 5 s of wall time at real-time pacing and
+  failed once under load (passed 15/15 alone; left as is). Final: `pnpm check` 3023 tests,
+  `pnpm build`, `pnpm e2e` 88/88, `pnpm test:65c02` 2,540,000/2,540,000, benchmark 18 % of real
+  time at 1 MHz. Summary: the W65C02S as a pin-level, cycle-accurate part — a pure core checked
+  against SingleStepTests behind the data sheet's 5 V timing, unknown bits per bit and a CPU
+  lost until reset, `CpuDef` for tools, two examples; a memory read-stamp bug fixed on the way.
 
 ## Handoff
 
-- **State:** all 13 tasks done and committed; `pnpm check` green (3012 tests), `pnpm test:65c02`
-  green (2.54M cases), `tests/e2e/cpu.spec.ts` green. Plan status still `in-progress`.
-- **Next step:** the finish-branch workflow — merge `main` in, `pnpm check`, `pnpm build`,
-  `pnpm test:65c02`, `pnpm e2e`, walk the acceptance criteria (tick them), plan status `done`,
-  track status `done`, then merge with the user's approval.
-- **Watch out:** component state must stay plain data (snapshots freeze it: no closures,
-  generators, `Map`s); `evaluate` idempotent with nothing changed (carry-over); enumerate
-  nothing per unknown bit in the CPU (masks, not outcomes).
-- **Verify with:** `pnpm check`; `pnpm test:65c02` (downloads ≈ 1 GB once).
+- **State:** merged; nothing pending.
+- **Follow-ups:** R17b (CPU tab, disassembly, Step Instruction, registers in watches and
+  benches — `CpuDef` is ready), R18 (the VIA: an output port that latches 6502 writes
+  correctly), MOS ideas (other 6502s, voltage grades), Parts idea (a reset supervisor). The
+  LCD e2e test's wall-time poll may flake under load.

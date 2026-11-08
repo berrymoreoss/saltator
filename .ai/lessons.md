@@ -427,3 +427,11 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
   or decoder rises later (a 74HC138: 17 ns), so the latch samples a floating bus. Breadboards
   get away with it on bus capacitance, which a 4-state simulator doesn't have; latch 6502 writes
   with a part made for the bus (the VIA) or a strobe that ends before PHI2 falls.
+- 2026-11-08 (R17a) — Joining timing checks with `||` short-circuits: the first violation found
+  hides the next check's report (a short PHI2 HIGH phase hid the cycle-time violation at the
+  same edge). Run every check, then combine the results. A test of each requirement at its
+  limit, written while verifying the acceptance criteria, found it.
+- 2026-11-08 (R17a) — e2e tests that read a live level right after Run can land in a gate's
+  first delay after power-on (`X`) and then wait for `X` to come back: wait for a known level
+  first. Tests polling a real-time simulation against wall time (the LCD's 5 s) can fail under
+  load; prefer conditions that don't depend on how fast the machine is.
