@@ -280,7 +280,7 @@ describe('compileCircuit', () => {
       ]);
       expect(codes(result)).toEqual(['invalid-props', 'invalid-props']);
       expect(result.issues[0]!.message).toBe(
-        'NL1: prop "name" must be capital letters and digits, got "a b"',
+        'NL1: prop "name" must be capital letters, digits and /, got "a b"',
       );
       expect(result.nets.map((n) => n.id)).toEqual(['H1.Y']);
     });

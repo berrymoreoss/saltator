@@ -428,12 +428,12 @@ them) and return the same circuit when nothing changes.
 ## Resolver
 
 `src/circuit/resolve.ts` (R12b, [ADR-0018](adr/0018-memory-inspector.md)): references as the
-app writes them, turned into the parts and nets of one compiled circuit. The memory inspector
-finds its memories through it; probes (R13), watches and breakpoints (R14) and test benches
-(R15) will too, so instance paths into subcircuits (R11) are added in one place.
+app writes them, turned into the parts and nets of a compiled design (or of one compiled
+circuit). The memory inspector, probes (R13), watches and breakpoints (R14) and test benches
+(R15) find what they show through it; R11a added instance paths in this one place.
 
 ```ts
-const resolver = new Resolver(compileCircuit(circuit, registry), registry);
+const resolver = new Resolver(compileDesign(document, registry), registry); // or a CompileResult
 resolver.resolve('U5'); // { kind: 'part', part: 'U5', type: 'mem/6116' }
 resolver.resolve('U5.A0'); // { kind: 'pin', part: 'U5', pin: 'A0', net: 'A0' }
 resolver.resolve('CLK'); // { kind: 'net', net: 'CLK' } — by any name of the net, or its id
@@ -444,6 +444,9 @@ resolver.memories(); // the parts with `memory`, in designator order (U2 before 
 resolver.signal('D[0..7]'); // { nets: ['D0', …, 'D7'], vector: true } — what a probe shows
 resolver.probe({ name: 'PC', members: ['U3.Q0', 'U3.Q1'] }); // a group: { nets, vector: true }
 resolver.netReference('U1.Y'); // how to probe a net: its name, else a (driving) pin on it
+resolver.resolve('A1/U3.Q0'); // { kind: 'pin', part: 'A1/U3', pin: 'Q0', net: 'BUS0' } — inside A1
+resolver.resolve('A1/CLK'); // a net by a name it has inside A1: { kind: 'net', net: 'A1/CLK' }
+resolver.resolve('A1.CLK'); // instance A1's pin: the net it is on, { kind: 'net', net: 'CLOCK' }
 ```
 
 - A target carries **netlist ids** (component id, net ids); the simulator maps them to indices
@@ -459,8 +462,22 @@ resolver.netReference('U1.Y'); // how to probe a net: its name, else a (driving)
   the text is a bus name.
 - Parts the compiler left out (design errors) and schematic-only parts (net labels) are not in
   the simulation and don't resolve.
-- References that name nothing are refused with the reason (`U1 has no pin Q`, `no part U9`);
-  `/` is reserved for instance paths (`U5/D0`: "paths into subcircuits come with R11").
+- References that name nothing are refused with the reason (`U1 has no pin Q`, `no part U9`).
+- **Instance paths** (R11a): a reference starting with designators of instances and `/`
+  (`A1/U3.Q0`, `A2/B1/U1[2..3]`, `A1/D[0..7]`) names a part, pin, net, bus or cells of that
+  instance's circuit; targets carry flat ids (`A1/U3`, the flat net the local net is in), so
+  a port's name inside is the outer net (`A1/IN` → `HIGH`). An instance's pin (`A1.CLK`) is the
+  net it is on, a bus pin (`A1.Q[0..3]`) its port's bits inside. The instance itself isn't a
+  part (`A1 is a subcircuit: name a part or a signal inside it (A1/…)`). Net names may contain
+  `/` (`R/W`): the leading segments are walked while they name instances, and a rest that names
+  nothing there is tried further out; a path that goes nowhere says where (`no instance B9 in
+  A2`, `U1 is not a subcircuit`). `memories()` lists every memory by path, in designator order
+  (`A1/U3`, `U2`); `netReference(net)` names a flat net from the outermost circuit it is in
+  (`HIGH`, `A1/LOCAL`, `A2/B1/U2.Y`).
+- **Renames** (`renameReference(ref, from, to, scopes)`): a part's pins (`U5.A0` → `U7.A0`), the
+  paths through a renamed instance (`A1/U3.Q0` → `A3/U3.Q0`), and with `scopes` — the instance
+  paths of the circuit the part was renamed in — the part in every instance (`A1/U1.Q`,
+  `A2/U1.Q`).
 - **Probes** (R13): `signal(reference)` gives the nets a net, pin or bus reference shows (a part
   is refused: "U5 is a part: probe one of its pins"), `probe(probe)` also groups, whose members
   must each be one signal ("D[0..7] is a bus: a group's members are single signals"; a failing

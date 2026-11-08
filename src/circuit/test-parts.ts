@@ -145,7 +145,7 @@ export const testLamp = defineComponent<Record<string, never>, undefined>({
 
 /**
  * `test/label`: a schematic-only net label; its pin `N` joins the net named by `name` (capital
- * letters and digits). At (x, y): N (x, y).
+ * letters, digits and `/`, as in `R/W`). At (x, y): N (x, y).
  */
 export const testLabel = defineComponent<{ name: string }, undefined>({
   type: 'test/label',
@@ -158,7 +158,7 @@ export const testLabel = defineComponent<{ name: string }, undefined>({
       label: 'Name',
       type: 'string',
       default: 'N',
-      pattern: { regex: /^[A-Z0-9]+$/, hint: 'capital letters and digits' },
+      pattern: { regex: /^[A-Z0-9/]+$/, hint: 'capital letters, digits and /' },
     },
   ],
   pins: ({ name }) => [{ name: 'N', dir: 'nc', net: name }],

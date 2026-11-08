@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { compileCircuit } from './compile';
-import type { Circuit, ComponentInstance, Wire } from './document';
+import { compileDesign } from './design';
+import { type Circuit, type ComponentInstance, SCHEMA_VERSION, type Wire } from './document';
+import { partLayout, placementOf, placePins } from './layout';
 import { compareDesignators, parseAddress, Resolver } from './resolve';
+import { documentRegistry } from './subcircuit';
 import { testRegistry } from './test-parts';
 
 const registry = testRegistry();
@@ -79,7 +82,8 @@ describe('Resolver', () => {
     ['U1.Q', 'U1 has no pin Q'],
     ['NL1', 'no part or net named NL1'], // net labels are not simulated
     ['Q[0..7]', 'no net of Q[0..7] is named on this circuit'],
-    ['U5/D0', '"U5/D0": paths into subcircuits come with R11'],
+    ['U1/D0', 'U1 is not a subcircuit'],
+    ['A9/D0', 'no instance A9'],
   ])('explains %j: %s', (reference, message) => {
     expect(resolver.resolve(reference)).toBe(message);
   });
@@ -176,5 +180,136 @@ describe('compareDesignators', () => {
       'U2',
       'U10',
     ]);
+  });
+});
+
+describe('Resolver over a design', () => {
+  // `cell`: a ROM U1 (A0 on the port IN, Y on the port OUT), an AND U2 (A on the label LOCAL),
+  // the bus port D[0..1] with entries D0 → U2.B. The top: H1 → A1.IN; A1.OUT → A2.IN by a label
+  // LINK; a top-level label R/W and a ROM U3; nested: A2 is a `pair` holding cells B1, B2.
+  const port = (id: string, name: string, x: number, y: number, direction = 'in') =>
+    part(id, 'test/port', x, y, { name, direction, side: 'auto' });
+  const label = (id: string, name: string, x: number, y: number) =>
+    part(id, 'test/label', x, y, { name });
+  const cell: Circuit = {
+    id: 'cell',
+    name: 'Cell',
+    components: [
+      part('U1', 'test/rom', 0, 0),
+      port('P1', 'IN', 0, 1),
+      port('P2', 'OUT', 5, 1, 'out'),
+      part('U2', 'test/and', 20, 0),
+      label('NL1', 'LOCAL', 20, 1),
+      label('NL2', 'LOCAL', 30, 30),
+      part('BE1', 'test/bus-entry', 20, 2, { name: 'D0' }),
+      port('P3', 'D[0..1]', 23, 8),
+    ],
+    wires: [{ id: 'b1', from: [23, 3], to: [23, 8], bus: true }],
+    probes: [],
+  };
+  const pair: Circuit = {
+    id: 'pair',
+    name: 'Pair',
+    components: [part('B1', 'sub/cell', 0, 0), part('B2', 'sub/cell', 0, 30)],
+    wires: [],
+    probes: [],
+  };
+  const shell = (components: ComponentInstance[]): Circuit => ({
+    id: 'main',
+    name: 'Main',
+    components,
+    wires: [],
+    probes: [],
+  });
+  const base = [
+    part('H1', 'test/high', -20, 0),
+    part('A1', 'sub/cell', 0, 0),
+    part('A2', 'sub/pair', 0, 40),
+    part('U3', 'test/rom', 60, 0),
+  ];
+  const draft = { schemaVersion: SCHEMA_VERSION, circuits: [shell(base), cell, pair] } as const;
+  const pinAt = (ref: string) => {
+    const [id, pin] = [ref.slice(0, ref.indexOf('.')), ref.slice(ref.indexOf('.') + 1)];
+    const docRegistry = documentRegistry(draft, registry);
+    const instance = base.find((c) => c.id === id)!;
+    const placed = placePins(
+      partLayout(docRegistry.get(instance.type)!, instance.props),
+      placementOf(instance),
+    );
+    return placed.find((p) => p.name === pin)!.at;
+  };
+  const [hx, hy] = [-15, 1];
+  const top = shell([
+    ...base,
+    label('NLH', 'HIGH', hx, hy),
+    label('NLA', 'HIGH', ...pinAt('A1.IN')),
+    label('NLL1', 'LINK', ...pinAt('A1.OUT')),
+    label('NLRW', 'R/W', 70, 70),
+  ]);
+  const design = compileDesign(
+    { schemaVersion: SCHEMA_VERSION, circuits: [top, cell, pair] },
+    registry,
+  );
+  const r = new Resolver(design, registry);
+
+  it('resolves parts, pins and nets inside instances by path', () => {
+    expect(r.resolve('A1/U1')).toEqual({ kind: 'part', part: 'A1/U1', type: 'test/rom' });
+    expect(r.resolve('A1/U1.A0')).toEqual({ kind: 'pin', part: 'A1/U1', pin: 'A0', net: 'HIGH' });
+    expect(r.resolve('A1/LOCAL')).toEqual({ kind: 'net', net: 'A1/LOCAL' });
+    expect(r.resolve('A1/U1.Y')).toEqual({ kind: 'pin', part: 'A1/U1', pin: 'Y', net: 'LINK' });
+    expect(r.resolve('A2/B2/U2.A')).toEqual({
+      kind: 'pin',
+      part: 'A2/B2/U2',
+      pin: 'A',
+      net: 'A2/B2/LOCAL',
+    });
+    // The port's name inside is the outer net it joins.
+    expect(r.resolve('A1/IN')).toEqual({ kind: 'net', net: 'HIGH' });
+  });
+
+  it('resolves an instance pin as the net it is on, a bus pin as its bits inside', () => {
+    expect(r.resolve('A1.IN')).toEqual({ kind: 'net', net: 'HIGH' });
+    expect(r.resolve('A1.D[0..1]')).toEqual({
+      kind: 'bus',
+      bus: 'A1.D[0..1]',
+      members: ['A1/D0', undefined], // nothing names D1 inside, and the pin is open
+    });
+    expect(r.resolve('A1/D[0..1]')).toMatchObject({ kind: 'bus', bus: 'A1/D[0..1]' });
+    expect(r.resolve('A1.NOPE')).toBe('A1 has no pin NOPE');
+  });
+
+  it('resolves memory cells inside instances, and lists every memory by path', () => {
+    expect(r.resolve('A2/B1/U1[2..3]')).toMatchObject({
+      kind: 'cells',
+      part: 'A2/B1/U1',
+      from: 2,
+      to: 3,
+    });
+    expect(r.resolve('A1/U1[9]')).toBe('A1/U1[9]: The last address is 3.');
+    expect(r.memories().map((m) => m.id)).toEqual(['A1/U1', 'A2/B1/U1', 'A2/B2/U1', 'U3']);
+  });
+
+  it('keeps a name with a slash a top-level net, and explains paths that go nowhere', () => {
+    expect(r.resolve('R/W')).toEqual({ kind: 'net', net: 'R/W' });
+    expect(r.resolve('A1')).toBe('A1 is a subcircuit: name a part or a signal inside it (A1/…)');
+    expect(r.resolve('A2/B1')).toBe(
+      'A2/B1 is a subcircuit: name a part or a signal inside it (A2/B1/…)',
+    );
+    expect(r.resolve('A1/U9')).toBe('no part or net named A1/U9');
+    expect(r.resolve('A1/U9.Y')).toBe('no part A1/U9');
+    expect(r.resolve('A2/B9/U1')).toBe('no instance B9 in A2');
+    expect(r.resolve('A1/U1/X')).toBe('U1 is not a subcircuit');
+  });
+
+  it('names each flat net from its outermost circuit', () => {
+    expect(r.netReference('HIGH')).toBe('HIGH');
+    expect(r.netReference('A1/LOCAL')).toBe('A1/LOCAL');
+    expect(r.netReference('A2/B2/LOCAL')).toBe('A2/B2/LOCAL');
+    // An unnamed net inside: a driving pin there.
+    expect(r.netReference(design.netOf('A2/B1', 'U2.Y')!)).toBe('A2/B1/U2.Y');
+    // An open instance pin's net: the pin.
+    expect(r.netReference('A2.B1')).toBeUndefined();
+    expect(r.netReference(design.netOf('A1', 'OUT')!)).toBe('LINK');
+    expect(r.signal('A1/U1.Y')).toEqual({ nets: ['LINK'], vector: false });
   });
 });

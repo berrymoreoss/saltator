@@ -272,7 +272,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   bus-port joins, global power names, net ids, `recursive-subcircuit`, `bus-port-width`,
   `netOf`/`busOf`; scenario tests with real chips (two instances of one module, two levels);
   bench.
-- [ ] 5. `circuit`: resolver over a design — instance paths for parts, pins, nets, buses, cells;
+- [x] 5. `circuit`: resolver over a design — instance paths for parts, pins, nets, buses, cells;
   `memories()` with paths; `netReference`; `renameReference` for instance and inner renames.
 - [ ] 6. `circuit`: document edit operations — add, rename, duplicate, delete (with instances),
   set top; part renames rewriting references across circuits; copy/paste carrying circuits.
@@ -353,7 +353,17 @@ Checkable statements; verified one by one in the finish-branch workflow.
 
 ## Handoff
 
-- **State:** plan approved; no code yet.
-- **Next step:** task 1 (schema v4).
-- **Watch out:** —
-- **Verify with:** `pnpm check`.
+- **State:** tasks 1–4 done and committed (schema v4, `net/port`, `DocumentRegistry` +
+  subcircuit symbol, `compileDesign` in `src/circuit/design.ts`). The editor still edits and
+  simulates one circuit with the library registry: nothing in the app places instances yet.
+- **Next step:** task 5 — `Resolver` over a `Design` (instance paths). Today `Resolver` takes a
+  `CompileResult` (`src/circuit/resolve.ts`); users: memory inspector, analyzer, debugger,
+  probe-target (all via `scene.compiled`). Plan: accept a `Design` (or keep a `CompileResult`
+  constructor for a flat circuit), resolve `A1/U3`, `A1/U3.Q0`, `A1/CLK`, `A1/D[0..7]`,
+  `A1/U5[1F]`; net names may contain `/` (`R/W`): walk designator segments while they are
+  instances, the rest is a reference inside.
+- **Watch out:** the simulation host's `signalMap` finds sim nets through simulated pins only
+  (a top net between two instances has none) — task 8 must map by flat net id via the design.
+  Visual check script: scratchpad `look.mjs` (Vite on port 5207, sets `logicEditor.registry`
+  to a `documentRegistry`).
+- **Verify with:** `pnpm check`; `pnpm bench tests/bench/circuit.bench.ts` for the design bench.

@@ -109,6 +109,19 @@ describe('designators and ids', () => {
     expect(renameReference('U5', 'U5', 'U7')).toBe('U5'); // a net could be called so
     expect(renameReference('D1[0..7]', 'D1', 'D3')).toBe('D1[0..7]'); // a bus
   });
+
+  it('renames the paths through an instance, and a part in every instance of its circuit', () => {
+    expect(renameReference('A1/U3.Q0', 'A1', 'A3')).toBe('A3/U3.Q0');
+    expect(renameReference('A1/A2/CLK', 'A1', 'ALU')).toBe('ALU/A2/CLK');
+    expect(renameReference('A10/U3.Q0', 'A1', 'A3')).toBe('A10/U3.Q0');
+    expect(renameReference('A1.CLK', 'A1', 'A3')).toBe('A3.CLK');
+    // U1 renamed inside the circuit placed as A1 and as B/A2.
+    const scopes = ['A1', 'B/A2'];
+    expect(renameReference('A1/U1.Q', 'U1', 'U5', scopes)).toBe('A1/U5.Q');
+    expect(renameReference('B/A2/U1.Q', 'U1', 'U5', scopes)).toBe('B/A2/U5.Q');
+    expect(renameReference('U1.Q', 'U1', 'U5', scopes)).toBe('U1.Q'); // the top's own U1
+    expect(renameReference('A3/U1.Q', 'U1', 'U5', scopes)).toBe('A3/U1.Q');
+  });
 });
 
 describe('component operations', () => {
