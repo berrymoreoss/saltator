@@ -32,7 +32,8 @@ undo, Properties — is built for those two.
   a label name nothing else uses a `single-net-label` warning (as in KiCad's ERC).
 - **Names** are letters, digits, `_ + - / #` and KiCad's `~{…}` overline, at most 32
   characters; `.` (netlist pin references) and `[` `]` (bus ranges, R10b) are kept out.
-- **Scope**: the whole circuit, until R11 decides local and global labels.
+- **Scope**: the whole circuit, until R11 decides local and global labels (R11a: local to their
+  circuit, the power names global — [ADR-0023](0023-subcircuits.md)).
 
 Details: [circuit.md](../circuit.md#connectivity), [components.md](../components.md#net-labels-net).
 

@@ -288,7 +288,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   thumbnails; clipboard across documents.
 - [x] 11. Example (Q6) with probes into its instances; examples test; e2e test that adds a
   circuit, places ports, places an instance in Main, wires it, runs it and sees the LED.
-- [ ] 12. Docs: circuit.md, editor.md, components.md, simulation.md (paths), architecture.md,
+- [x] 12. Docs: circuit.md, editor.md, components.md, simulation.md (paths), architecture.md,
   glossary (subcircuit, instance, port, top circuit, instance path), ADR-0023, roadmap (R11
   split into R11a/R11b, backlog items), lessons.
 

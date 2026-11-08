@@ -399,10 +399,14 @@ touches connects); the design checks report what came loose or got shorted.
 
 ### Copy and paste
 
-- **Copy** puts the selected parts and the selected wires on the clipboard as a one-circuit
-  document in the file format (`fragmentText`, `serializeDocument`), so it is plain text: it
-  pastes into another tab, and any document's text pastes too (`parseFragment` validates and
-  migrates it like a file). **Cut** copies, then deletes.
+- **Copy** puts the selected parts and the selected wires on the clipboard as a document in the
+  file format (`fragmentText`, `serializeDocument`), so it is plain text: it pastes into another
+  tab, and any document's text pastes too (`parseFragment` validates and migrates it like a
+  file). Its first circuit is the copy; the circuits its subcircuit instances place follow
+  (R11a, `fragmentDocument`). **Cut** copies, then deletes.
+- A paste brings those circuits into the document with the drop (`importCircuits`: the same
+  circuit is reused, a differing one under a taken id comes in as `cell-2`, its instances
+  retargeted) — one undo step; an instance of a circuit that contains the open one isn't pasted.
 - **Paste** and **Duplicate** float: the items follow the pointer as ghosts until a click drops
   them (one undo step, selected), Escape or right click cancels; `R`/`F` orient them meanwhile.
   Pasted parts keep their designators where they are free and are renumbered with their prefix
@@ -438,13 +442,17 @@ focus its designator.
 
 ### Undo and redo
 
-`src/editor/history.ts`: an entry is the circuit and the selection before and after one action,
-labelled (`Move`, `Place NAND`, `Rename U1`, `Change Delay`); documents are immutable, so
-snapshots share every unchanged part and wire ([ADR-0009](adr/0009-editing-model.md)). A new
+`src/editor/history.ts`: an entry is the document, the circuit open and the selection before and
+after one action, labelled (`Move`, `Place NAND`, `Rename U1`, `Change Delay`); documents are
+immutable, so snapshots share every unchanged circuit, part and wire
+([ADR-0009](adr/0009-editing-model.md)). One history for the whole document (R11a): undoing an
+edit made in another circuit opens that circuit; opening a circuit is no edit. A new
 edit clears the redo stack; 200 entries are kept; consecutive entries with the same `coalesce`
 key merge (nudges of one selection). Undo and redo restore the selection too and report the
-renames they undo or redo in `state.renames`. Opening a document (New, Open, an example, a
-dropped file) loads it with `setCircuit`, which clears the history ([Files](#files)).
+renames they undo or redo in `state.renames` — as renames of the flattened design's parts: in
+every instance of the circuit (`A1/U1` → `A1/U2`), an instance's path and every part in it
+(`A1` → `A3`, `A1/U1` → `A3/U1`). Opening a document (New, Open, an example, a dropped file)
+loads it with `setDocument`, which clears the history ([Files](#files)).
 
 ## Simulation
 
@@ -507,6 +515,17 @@ the toolbar group (Run/Pause, Step Back, Step, Step Clock, Stop, Reset, speed se
   circuit).
 
 ### Editing while running
+
+What simulates is the document's **design** (R11a): the top circuit flattened, its instances'
+parts by path (`A1/U3`). The host gets a `SimulationModel` — the design's netlist, the open
+circuit's scene, and how the scene's ids map to the netlist's (the top circuit open: one to one;
+another circuit open: nothing, so it is drawn as when stopped and the status bar says what
+simulates; R11b shows an instance's levels). An edit in any circuit, the top's or a
+subcircuit's, changes the design, so editing a module while running carries the run over and
+every instance of it keeps its state. The Interact and Probe tools act on the top circuit; the
+Memory tab lists every memory by path (`A1/U3`; a ROM's image edited inside an instance is its
+circuit's, shared by every instance), the Waveforms tab shows the top circuit's probes, and
+watches, breakpoints and probes take paths (`A1/U3.Q0`).
 
 Every committed edit, undo and redo is followed (`Simulation.sync`, from `editor.state`):
 
@@ -954,18 +973,24 @@ counting and the "last run" counters restart; on a divergence its recorder cuts 
 
 ## Editor API
 
-`new Editor(registry, circuit?, settings?, options?)` (`src/editor/editor.ts`) owns the circuit,
-its scene, the selection, the undo history, the camera, the tool and the simulator host
+`new Editor(library, circuitOrDocument?, settings?, options?)` (`src/editor/editor.ts`) owns the
+document, the circuit open and its scene, the flattened design, the selection, the undo history,
+the cameras, the tool and the simulator host
 (`editor.simulation`; `options.simulation` injects its clock in tests). The UI mounts it with
 `editor.mount(canvas)` (returns the detach function) and reads through `useSyncExternalStore`:
-`editor.state` (circuit, scene, selection, renames), `editor.view` (camera, viewport, pointer
+`editor.state` (document, circuit, scene, design, selection, renames), `editor.view` (camera, viewport, pointer
 position, last redraw time — changes often, keep consumers small), `editor.tool`, `editor.mode`,
 `editor.history` and `editor.requests` (the editor asking the UI to open the context menu or to
 focus Properties).
 
-- Document: `setCircuit(circuit, { fit?, camera? })` (load; clears history; `camera` restores a
-  view instead of zooming to fit), `edit(label, circuit, options)`, `undo`, `redo`,
-  `undoLabel`, `redoLabel`.
+- Document: `setDocument(document, { open?, fit?, camera? })` (load; clears history; `camera`
+  restores a view instead of zooming to fit; `setCircuit(circuit, …)` loads a one-circuit
+  document), `openCircuit(id)`, `cameras`, `edit(label, circuit, options)` (the open circuit),
+  `editDocument(label, document, { open?, … })`, `undo`, `redo`, `undoLabel`, `redoLabel`;
+  `registry` (the document registry: library parts and `sub/<id>`), `library`; `partAt(id)` and
+  `setPartPropAt(id, …)` for a part of the design by netlist id (`A1/U3`: its circuit's part),
+  `flatPart(id)` (a part of the open circuit as the simulator calls it, if it simulates as
+  drawn).
 - Editing: `deleteSelection`, `rotate(clockwise)`, `flip(direction)`, `nudge(dx, dy)`,
   `copySelection`, `cutSelection` (both return clipboard text), `pasteText(text)`, `duplicate`,
   `renamePart`, `setPartLabel`, `setPartProp`, `setPartPlacement` (the last three return an error

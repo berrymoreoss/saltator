@@ -799,7 +799,7 @@ Alliance Memory for the 62256.
 | `mem/62256`    | AS6C62256-55       | 32K × 8 SRAM   | DIP-28  | tAA 55, tACE 55, tOE 30 ns     | `powerOn`; Alliance's names `DQ0`…`DQ7`, `VSS`   |
 
 - **Pins**: data sheet names, the data pins named `IO0`…`IO7` and drawn `I/O0`… (no `/` in pin
-  names: R11's instance paths will use it), `DQ0`…`DQ7` on the AS6C62256; `CE̅`/`CS̅`, `OE̅`, `WE̅` active LOW, data pins `bidir`.
+  names: instance paths use it), `DQ0`…`DQ7` on the AS6C62256; `CE̅`/`CS̅`, `OE̅`, `WE̅` active LOW, data pins `bidir`.
   The mode tables are `functionTable`s with text cells (`Dout`, `Din`), checked by hand.
 - **Reads** (`ReadPath` in `memory.ts`), with the outputs driving while `CE̅` and `OE̅` are LOW
   (and, for a RAM, `WE̅` HIGH):

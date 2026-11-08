@@ -360,8 +360,17 @@ drawn. The compiler flattens the hierarchy into the kernel's flat netlist with i
 (`A1/U3`); net labels join only within their circuit, the power names everywhere. The resolver
 (R12b) takes instance paths (`A1/U3.Q0`, `A1/CLK`, `A1/U5[1F]`), so the memory inspector,
 probes, watches and breakpoints reach into instances, and test benches (R15) can test a
-subcircuit as a unit. A CIRCUITS list, subcircuits in the Parts panel, Place ▸ Port, one undo
-history per document. Example: Two-Digit Counter. Plan: `.ai/plans/feat-subcircuits.md`.
+subcircuit as a unit. Schema v4 (circuit ids are slugs, following the name until placed); a
+document registry generating `sub/<id>` definitions; checks `duplicate-port`,
+`recursive-subcircuit`, `bus-port-width`. The editor holds the whole document (one undo history,
+a camera per circuit, flat renames for carry-over); the simulation runs the flattened top
+circuit, drawn live only where it is the circuit open. A CIRCUITS list above Parts and a Circuit
+menu, subcircuits in the Parts panel (never one that would contain the open circuit),
+double-click to open an instance's circuit, Place ▸ Port (`Shift+L`), copies that carry their
+circuits. Example: Two-Digit Counter (Decade Counter inside Counter Digit, twice). Spec:
+[circuit.md](circuit.md#subcircuits), [editor.md](editor.md#shell),
+[components.md](components.md#ports-net-port). Decision:
+[ADR-0023](adr/0023-subcircuits.md). Plan: `.ai/plans/feat-subcircuits.md`.
 
 ### R11b · Navigation into instances — `feat/subcircuit-navigation`
 
@@ -505,6 +514,11 @@ Promote to a numbered item when needed.
   another simulator beside the circuit's); weak levels drawn paler (the recorder keeps levels
   only); probed wires marked on the canvas; the diagram as SVG/PDF; recording every net in a
   bounded buffer as an option, if probing before running proves a chore (R13, Q2).
+- Subcircuit follow-ups (R11a): a drawn symbol for a subcircuit (a symbol editor, a DIP-like
+  module); global net labels (joining by name across the hierarchy); parameters per instance
+  (props, a ROM image per instance); a static shorted-outputs check across the hierarchy (the
+  kernel's `contention` reports it while running); importing circuits from another file (a
+  module library); a confirmation before deleting a circuit with instances (it is undoable).
 - Debugger follow-ups (R14a): breakpoints on memory accesses (break when `U5[0x0F]` is written
   or read; with R17, on the CPU's program counter and instructions); log points (report instead
   of pausing); breakpoint and watch marks on the canvas; break on chosen diagnostic kinds

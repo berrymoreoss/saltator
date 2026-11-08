@@ -1,8 +1,8 @@
 # src/circuit — circuit document model
 
 The editable, serializable description of a schematic (component instances, wires, labels,
-later: buses, subcircuits), its versioned JSON schema, and the compiler that turns a document
-into a flat `Netlist` for the kernel.
+buses, several circuits with subcircuit instances), its versioned JSON schema, and the compiler
+that turns a document into a flat `Netlist` for the kernel.
 
 - **Depends on:** `core`.
 - **Pure:** no DOM, no React. Component definitions are injected via a registry, never imported
@@ -14,7 +14,10 @@ Modules: `document.ts` (types), `schema.ts` + `migrations.ts` (loading), `serial
 as `U5`, `U5.A0`, `CLK`, `D[0..7]` to the compiled parts and nets; the memories, R12b; what a
 probe shows and how to probe an unnamed net, R13; memory cells `U5[1F]` and
 `renameReference`, R14),
-`builder.ts` (code-first documents). Net labels are parts like any other (`schematicOnly`, a pin with a `net` name): the
+`builder.ts` (code-first documents), `subcircuit.ts` (the document registry: a generated
+`sub/<id>` definition per circuit, pins from its ports, R11a), `design.ts` (`compileDesign`:
+the top circuit flattened with instance paths), `document-edit.ts` (circuits added, renamed,
+removed, set as top; renames across circuits; clipboard documents). Net labels are parts like any other (`schematicOnly`, a pin with a `net` name): the
 compiler joins pins by name and leaves those parts out of the netlist. Bus lines (`Wire.bus`)
 and bus pins (`PinDef.bus`) are a second layer, connected apart from wires and pins
 (`CompileResult.buses`); `addWires` and `normalizeWires` keep the layers apart. Probes

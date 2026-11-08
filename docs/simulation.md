@@ -115,6 +115,9 @@ interface Netlist {
 }
 ```
 
+- Flat: subcircuits never reach the kernel. The compiler expands them (R11a,
+  [circuit.md](circuit.md#flattening)); an inner part's id is its instance path (`A1/U3`), which
+  carry-over, actions, snapshots and the tools use like any id.
 - Produced by the circuit compiler ([circuit.md](circuit.md#compiler)) or, in code, by a
   `NetlistBuilder`:
 

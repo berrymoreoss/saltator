@@ -203,8 +203,9 @@ pin it passes over. Route around pins.
 - **Dangling ends**: a wire end that touches nothing else. **Open pins**: a pin that touches
   nothing at its point — geometric, so a lone VCC symbol or a net label away from any wire is
   open though its name puts it on a net with others.
-- **Joining by name**: pins with the same `net` name (net labels, the VCC and GND symbols) are
-  one net wherever they are, across the whole circuit (local and global names come with R11).
+- **Joining by name**: pins with the same `net` name (net labels, ports, the VCC and GND
+  symbols) are one net wherever they are, across the whole circuit; across circuits only the
+  power names are ([Flattening](#flattening)).
   It adds no junction dots: it isn't a connection on the drawing.
 - **Two layers** (R10b): bus lines (`Wire.bus`) and bus pins (`PinDef.bus`: a bus entry's bus
   end, a bus label's pin) connect only among themselves, by the same rules; wires and the other
@@ -518,6 +519,6 @@ validation costs nothing per instance. Recompiling on every edit is affordable.
 
 ## Planned extensions
 
-- Several circuits per document with subcircuit instances, and instance paths in the resolver
-  (`U5/D0`) _(R11)_.
 - Unconnected power-pin and fan-out checks _(backlog)_.
+- Subcircuit follow-ups _(backlog)_: drawn symbols, global labels, parameters per instance, a
+  static shorted-outputs check across the hierarchy, circuits imported from other files.
