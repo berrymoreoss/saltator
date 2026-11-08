@@ -83,6 +83,8 @@ describe('validateSymbol', () => {
       { ...withPins({ Y: { side: 'bottom', offset: 2 } }), centered: true },
       'x/y: pin "Y" is on the bottom side of a centered symbol',
     ],
+    [{ ...symbol, raise: -1 }, 'x/y: symbol raise must be a whole number of cells ≥ 0, got -1'],
+    [{ ...symbol, raise: 0.5 }, 'x/y: symbol raise must be a whole number of cells ≥ 0, got 0.5'],
   ])('rejects %#', (bad, message) => {
     expect(() => validateSymbol(bad as SymbolDef, pins, 'x/y')).toThrow(message);
   });

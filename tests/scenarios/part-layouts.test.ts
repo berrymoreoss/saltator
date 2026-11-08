@@ -40,6 +40,18 @@ describe('part layouts of every built-in part', () => {
     for (const d of parts) expect(d.symbol ?? d.package, d.type).toBeDefined();
   });
 
+  it('keeps an LCD module’s pins on the same points for every size: taller bodies rise', () => {
+    const lcd = parts.find((d) => d.type === 'periph/hd44780')!;
+    const at = (size: string) => partLayout(lcd, resolveProps(lcd, { size })).pins;
+    const base = at('16x2');
+    expect(base.find((p) => p.name === 'VSS')!.at).toEqual([1, 7]);
+    for (const option of lcd.props!.find((p) => p.key === 'size')!.options!) {
+      expect(at(option.value), option.value).toEqual(base);
+    }
+    const tall = partLayout(lcd, resolveProps(lcd, { size: '20x4' })).body;
+    expect([tall.y, tall.y + tall.height]).toEqual([-3, 6]);
+  });
+
   it("puts a net label's pin at its origin, the tag centered on that row", () => {
     const label = parts.find((d) => d.type === 'net/label')!;
     const layout = partLayout(label, resolveProps(label, { name: 'CLK' }));

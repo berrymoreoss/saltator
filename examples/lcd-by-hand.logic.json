@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 3,
+  "circuits": [
+    {
+      "id": "main",
+      "name": "Main",
+      "components": [
+        { "id": "DS1", "type": "periph/hd44780", "x": 0, "y": 0, "props": { "size": "16x2", "backlight": "yellow-green", "rom": "A00", "oscillator": 270000, "powerOn": "reset" } },
+        { "id": "SW1", "type": "io/dip-switch", "label": "DATA (S1 = DB0)", "x": 6, "y": 17, "rotation": 270, "props": { "count": 8, "contact": "spdt", "on": 56 } },
+        { "id": "NL1", "type": "net/label", "x": 1, "y": 7, "rotation": 90, "props": { "name": "GND" } },
+        { "id": "NL2", "type": "net/label", "x": 2, "y": 7, "rotation": 90, "props": { "name": "VCC" } },
+        { "id": "NL3", "type": "net/label", "x": 3, "y": 7, "rotation": 90, "props": { "name": "GND" } },
+        { "id": "NL4", "type": "net/label", "x": 4, "y": 7, "rotation": 90, "props": { "name": "RS" } },
+        { "id": "NL5", "type": "net/label", "x": 5, "y": 7, "rotation": 90, "props": { "name": "GND" } },
+        { "id": "NL6", "type": "net/label", "x": 6, "y": 7, "rotation": 90, "props": { "name": "E" } },
+        { "id": "NL7", "type": "net/label", "x": 15, "y": 7, "rotation": 90, "props": { "name": "VCC" } },
+        { "id": "NL8", "type": "net/label", "x": 16, "y": 7, "rotation": 90, "props": { "name": "GND" } },
+        { "id": "PWR1", "type": "io/vcc", "x": -15, "y": 2 },
+        { "id": "PWR2", "type": "io/gnd", "x": -10, "y": 2 },
+        { "id": "SW2", "type": "io/switch", "label": "RS (on = data)", "x": -14, "y": 10, "props": { "contact": "spdt", "on": false } },
+        { "id": "NL9", "type": "net/label", "x": -10, "y": 11, "props": { "name": "RS" } },
+        { "id": "SW3", "type": "io/button", "label": "E (write on release)", "x": -14, "y": 16, "props": { "contact": "spdt" } },
+        { "id": "NL10", "type": "net/label", "x": -10, "y": 17, "props": { "name": "E" } }
+      ],
+      "wires": [
+        { "id": "w1", "from": [7, 13], "to": [7, 7] },
+        { "id": "w2", "from": [8, 13], "to": [8, 7] },
+        { "id": "w3", "from": [9, 13], "to": [9, 7] },
+        { "id": "w4", "from": [10, 13], "to": [10, 7] },
+        { "id": "w5", "from": [11, 13], "to": [11, 7] },
+        { "id": "w6", "from": [12, 13], "to": [12, 7] },
+        { "id": "w7", "from": [13, 13], "to": [13, 7] },
+        { "id": "w8", "from": [14, 13], "to": [14, 7] }
+      ]
+    }
+  ]
+}

@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { type Circuit, emptyCircuit, type Rect } from '../../circuit';
-import { type PropValue, Registry } from '../../core';
-import { createDefaultRegistry } from '../../library';
+import { Level, levelChar, type PropValue, Registry } from '../../core';
+import {
+  createDefaultRegistry,
+  createHd44780Controller,
+  type Hd44780Controller,
+} from '../../library';
 import { DEV_PARTS } from '../dev-parts';
 import { RecordingGraphics } from '../recording-graphics';
 import { buildScene } from '../scene';
-import { DRAWERS, drawPartBody, GATE_STYLES, type GateStyle } from '.';
+import { DRAWERS, drawPartBody, GATE_STYLES, type GateStyle, LCD_GLASS } from '.';
 
 const registry = new Registry([...createDefaultRegistry().list(), ...DEV_PARTS]);
 
@@ -120,5 +124,53 @@ describe('power drawers', () => {
 
   it('shows the value of a constant', () => {
     expect(draw('prim/constant', { value: 'X' }, 'ansi').texts[0]?.text).toBe('X');
+  });
+});
+
+describe('LCD drawer', () => {
+  const levels = (over: Record<string, Level>) => (pin: string) =>
+    over[pin] ?? { A: Level.L1, K: Level.L0, V0: Level.L0 }[pin] ?? Level.Z;
+
+  /** The module drawn with a controller showing `text` and the given pin levels. */
+  function drawLcd(over: Record<string, Level> = {}, edit?: (c: Hd44780Controller) => void) {
+    const ctl = createHd44780Controller('reset', 0);
+    ctl.d = 1;
+    ctl.n = 1;
+    for (const [i, ch] of [...'Hi'].entries()) ctl.ddram[i] = ch.charCodeAt(0);
+    edit?.(ctl);
+    const g = new RecordingGraphics();
+    drawPartBody(g, part('periph/hd44780', { backlight: 'blue' }), 'ansi', 'red', {
+      part: { state: { ctl }, level: levels(over), light: () => 0, time: 0 },
+      levelColor: (level) => `level-${levelChar(level)}`,
+    });
+    return g;
+  }
+
+  const glass = LCD_GLASS.blue;
+
+  it('lights the glass while A is HIGH and K LOW, like an LED', () => {
+    expect(drawLcd().paints).toContain(glass.lit);
+    expect(drawLcd({ A: Level.Z }).paints).toEqual(expect.arrayContaining([glass.dark]));
+    expect(drawLcd({ K: Level.L1 }).paints).not.toContain(glass.lit);
+  });
+
+  it('shows the characters only with V0 LOW (contrast)', () => {
+    expect(drawLcd().paints).toContain(glass.on);
+    expect(drawLcd({ V0: Level.Z }).paints).not.toContain(glass.on);
+    expect(drawLcd({ V0: Level.L1 }).paints).not.toContain(glass.on);
+  });
+
+  it('marks unknown characters in the X color', () => {
+    expect(drawLcd({}, (c) => c.ddramX.fill(1, 2, 3)).paints).toContain('level-Xaa');
+    expect(drawLcd().paints).not.toContain('level-Xaa');
+  });
+
+  it('is a dark module before power-on, its pins named along the bottom', () => {
+    const g = draw('periph/hd44780', {}, 'ansi');
+    expect(g.paints).toContain(LCD_GLASS['yellow-green'].dark);
+    expect(g.paints).not.toContain(LCD_GLASS['yellow-green'].on);
+    const texts = Object.fromEntries(g.texts.map((t) => [t.text, t.style.overline ?? false]));
+    expect(Object.keys(texts)).toEqual(expect.arrayContaining(['VSS', 'V0', 'E', 'DB7', 'K']));
+    expect(texts['R/W']).toEqual([[2, 3]]);
   });
 });

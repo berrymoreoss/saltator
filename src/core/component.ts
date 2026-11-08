@@ -228,6 +228,12 @@ export interface ComponentDefinition<
    * and test benches.
    */
   readonly memory?: MemoryDef<State>;
+  /**
+   * The part's look changes as simulated time passes, without an event (an LCD's blinking
+   * cursor): the length in ps of one look of an instance in `state`, or undefined while it stays
+   * as it is. The editor redraws whenever the time crosses into the next one.
+   */
+  readonly animation?: (state: State, props: Props) => Time | undefined;
   /** Creates the behavior of one instance. `props` are validated and defaulted. */
   create(props: Props): Behavior<State>;
 }

@@ -14,8 +14,12 @@ and `ripple-counter.ts` (4040), shift registers in `shift-registers.ts` (164, 16
 R08: the behavioral NE555), `net/` (`net/*`: R10a the schematic-only net label, which is a
 bus label when named like a bus; R10b the bus entry) and
 `mem/` (`mem/*`, R12a: EEPROMs read as ROMs in `eeproms.ts`, SRAMs in `srams.ts`, on the read
-path with its `X` window in `memory.ts` and the write path in `write.ts`) and `registry.ts`
-(`createDefaultRegistry()`); planned: `cpu/`, `peripherals/`. One part per file (or one factory file for a
+path with its `X` window in `memory.ts` and the write path in `write.ts`), `periph/`
+(`periph/*`, the LCD branch: the HD44780 module — bus side in `hd44780.ts`, the pure controller
+in `hd44780-controller.ts`, glass wiring per size in `hd44780-modules.ts`, the frame and text in
+`hd44780-frame.ts`, the character ROMs generated from the data sheet into `hd44780-font.ts` by
+`scripts/extract-hd44780-font.ts`) and `registry.ts` (`createDefaultRegistry()`); planned:
+`cpu/`. One part per file (or one factory file for a
 family of near-identical parts, like `primitives/gates.ts`), with a colocated `*.test.ts` built
 from the datasheet function table. Recipe: `.ai/workflows/add-component.md`.
 

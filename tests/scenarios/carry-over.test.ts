@@ -8,6 +8,7 @@ import {
   Drive,
   isTimingViolation,
   levelChar,
+  ms,
   type Netlist,
   NetlistBuilder,
   ns,
@@ -17,6 +18,7 @@ import {
   type Time,
   us,
 } from '../../src/core';
+import { hd44780Controller } from '../../src/library';
 import { rng, scenarioRegistry } from './support';
 
 const registry = scenarioRegistry();
@@ -406,6 +408,68 @@ describe('recompiling memories mid-run', () => {
     }
     expect(changes).toBeGreaterThan(5000);
     expect(violations).toBeGreaterThan(50);
+  });
+});
+
+describe('recompiling LCD modules mid-run', () => {
+  it('is invisible in random networks of them, accepted and rejected transfers included (seeded)', () => {
+    let changes = 0;
+    let written = 0;
+    let rejected = 0;
+    for (let seed = 1; seed <= 8; seed++) {
+      const random = rng(5000 + seed);
+      const pick = <T>(items: readonly T[]): T => items[Math.floor(random() * items.length)]!;
+      const b = new NetlistBuilder();
+      const outputs: string[] = [];
+      for (let i = 0; i < 2; i++) {
+        b.add(`X${i}`, 'io/clock', { frequency: 2e4 + Math.floor(random() * 2e5), duty: 50 });
+        b.add(`T${i}`, 'test/driver');
+        outputs.push(`X${i}.Y`, `T${i}.Y`);
+      }
+      // A counter for changing RS, R/W̅ and data.
+      b.add('C', '74xx/74hc4040');
+      b.connect('X0.Y', 'C.CP').connect('T0.Y', 'C.MR');
+      for (let q = 0; q < 12; q++) outputs.push(`C.Q${q}`);
+      const lcds = ['L0', 'L1'];
+      for (const id of lcds) {
+        b.add(id, 'periph/hd44780', {
+          size: pick(['16x2', '20x4', '8x1', '40x2']),
+          powerOn: pick(['reset', 'unknown']),
+          oscillator: pick([190_000, 270_000, 350_000]),
+        });
+        b.connect(pick(['X0.Y', 'X1.Y']), `${id}.E`);
+        b.connect(pick(outputs), `${id}.RS`);
+        b.connect(pick([...outputs, 'T1.Y']), `${id}.RW`);
+        for (let i = 0; i < 8; i++) if (random() < 0.8) b.connect(pick(outputs), `${id}.DB${i}`);
+      }
+      const netlist = b.build();
+      const end = ms(10) + us(400);
+      // The counter is reset first (a floating bus makes every transfer unknown), then the
+      // drivers do what they like.
+      const pokes: Poke[] = [
+        { time: 0, component: 'T0', action: Drive.STRONG_1 },
+        { time: us(1), component: 'T0', action: Drive.STRONG_0 },
+        ...Array.from({ length: 12 }, () => ({
+          time: us(2) + Math.floor(random() * end),
+          component: pick(['T0', 'T1']),
+          action: pick([Drive.STRONG_0, Drive.STRONG_1, Drive.Z]),
+        })),
+      ];
+      const at = [
+        ...Array.from({ length: 4 }, () => Math.floor(random() * end)),
+        ...Array.from({ length: 6 }, () => ms(10) + Math.floor(random() * us(400))),
+      ];
+      const { changes: list, sim } = expectInvisible(netlist, end, pokes, at);
+      changes += list.length;
+      for (const id of lcds) {
+        const ctl = hd44780Controller(sim.stateOf(id))!;
+        written += ctl.ddram.filter((cell, i) => cell !== 0x20 || ctl.ddramX[i]).length;
+      }
+      rejected += sim.diagnostics.entries.filter((d) => d.kind === 'busy-violation').length;
+    }
+    expect(changes).toBeGreaterThan(5000);
+    expect(written).toBeGreaterThan(20);
+    expect(rejected).toBeGreaterThan(0);
   });
 });
 

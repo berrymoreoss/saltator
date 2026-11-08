@@ -145,6 +145,10 @@ describe('runtime diagnostics', () => {
     expect(diagnosticSeverity(d({ kind: 'oscillation' }))).toBe('error');
     expect(diagnosticSeverity(d({ kind: 'setup-violation' }))).toBe('error');
     expect(diagnosticSeverity(d({ kind: 'pulse-width-violation' }))).toBe('error');
+    // Any part's `*-violation` is an error: an instruction sent to a busy LCD is lost.
+    expect(diagnosticSeverity(d({ kind: 'cycle-violation' }))).toBe('error');
+    expect(diagnosticSeverity(d({ kind: 'busy-violation' }))).toBe('error');
+    expect(diagnosticSeverity(d({ kind: 'write-ignored' }))).toBe('warning');
     expect(diagnosticSeverity(d({}))).toBe('warning');
   });
 });

@@ -300,9 +300,11 @@ const recovery = checks.recovery({
 | `hold`             | a data input changes less than `th` after the last active edge             | bit mask of the data pins |
 | `pulseWidth.check` | the pin ends a HIGH and/or LOW phase shorter than `tW`                     | true                      |
 | `recovery.check`   | the active edge comes less than `trec` after the pin left its active level | true                      |
+| `cycle.check`      | the pin makes its active edge less than `tcyc` after its previous one      | true                      |
 
 - Each reports a diagnostic (`TimingViolation`: `setup-violation`, `hold-violation`,
-  `pulse-width-violation`, `recovery-violation`; `isTimingViolation(kind)`) on the pin at fault
+  `pulse-width-violation`, `recovery-violation`, `cycle-violation` — the LCD's `tcycE`, later a
+  CPU's `tCYC`; `isTimingViolation(kind)`) on the pin at fault
   and returns what failed, so the part can make the bits it may have loaded `X`
   ([ADR-0014](adr/0014-timing-checks.md)). Data and clock changing at the same instant is one
   set-up violation.
@@ -422,6 +424,8 @@ sim.restore(copy.snapshot());
   from the [timing checks](#timing-checks), …). Repeats with the same kind/net/component/pin are
   merged (`count`, `lastTime`); at most `maxDiagnostics` distinct entries are kept, the rest are
   counted in `dropped`. `subscribe(listener)` is called for each new entry.
+  `diagnosticSeverity` makes `contention`, `oscillation` and every kind ending in `-violation`
+  errors (the timing checks', an LCD's `busy-violation`), the rest warnings.
   `contention` is reported when a net starts to conflict and again (merged) after it cleared.
   `onOccurrence(listener)` (R14) is called for every report — repeats of a merged entry and
   dropped ones included — so a debugger can break on each.

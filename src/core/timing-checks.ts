@@ -16,6 +16,7 @@ export const TimingViolation = {
   HOLD: 'hold-violation',
   PULSE_WIDTH: 'pulse-width-violation',
   RECOVERY: 'recovery-violation',
+  CYCLE: 'cycle-violation',
 } as const;
 export type TimingViolationKind = (typeof TimingViolation)[keyof typeof TimingViolation];
 
@@ -25,12 +26,14 @@ export function isTimingViolation(kind: string): kind is TimingViolationKind {
 }
 
 /**
- * Short circuits, oscillations and timing violations break the circuit (a violated set-up time
- * is an intermittent failure on a real board); the rest are warnings.
+ * Short circuits, oscillations and violations of a part's requirements break the circuit (a
+ * violated set-up time is an intermittent failure on a real board, an instruction sent to a busy
+ * LCD is lost): every kind ending in `-violation` is an error, whichever part reports it. The
+ * rest are warnings.
  */
 export function diagnosticSeverity(diagnostic: { readonly kind: string }): 'error' | 'warning' {
   const { kind } = diagnostic;
-  return kind === 'contention' || kind === 'oscillation' || isTimingViolation(kind)
+  return kind === 'contention' || kind === 'oscillation' || kind.endsWith('-violation')
     ? 'error'
     : 'warning';
 }
@@ -95,6 +98,14 @@ export interface RecoverySpec {
   readonly recovery: string;
 }
 
+/** The shortest time between two active edges of a pin: an enable's or a clock's cycle time. */
+export interface CycleSpec {
+  readonly pin: string;
+  readonly edge: Edge;
+  /** Key of the cycle time in the minima: `tcycE`. */
+  readonly cycle: string;
+}
+
 /** A declared setup/hold check. */
 export interface SetupHoldCheck {
   /**
@@ -118,6 +129,15 @@ export interface PulseWidthCheck {
   /**
    * True (and reported) when the pin just ended a checked phase shorter than the minimum; false
    * when not `armed` (a clock the part ignores now).
+   */
+  check(ctx: EvalContext<unknown>, times: PinTimes, armed?: boolean): boolean;
+}
+
+/** A declared cycle-time check. */
+export interface CycleCheck {
+  /**
+   * True (and reported) when the pin made its active edge (in this delta) less than the cycle
+   * time after its previous one; false when not `armed`. Edges from or to `X`/`Z` don't count.
    */
   check(ctx: EvalContext<unknown>, times: PinTimes, armed?: boolean): boolean;
 }
@@ -261,6 +281,28 @@ export class TimingChecks {
         ctx.report({
           kind: TimingViolation.PULSE_WIDTH,
           message: `${name} was ${was === Level.L1 ? 'HIGH' : 'LOW'} for only ${formatTime(width)} (pulse width ≥ ${formatTime(tw)})`,
+          pin,
+        });
+        return true;
+      },
+    };
+  }
+
+  cycle(spec: CycleSpec): CycleCheck {
+    const pin = this.#pin(spec.pin);
+    const tcyc = this.#limit(spec.cycle);
+    const name = this.#pins[pin]!.name;
+    const rise = spec.edge === 'rise';
+    // The previous active edge: when the pin last left the level before it.
+    const edgeSlot = rise ? LEFT_LOW : LEFT_HIGH;
+    return {
+      check(ctx, times, armed = true) {
+        if (!armed || !(rise ? ctx.rose(pin) : ctx.fell(pin))) return false;
+        const elapsed = ctx.now - times[pin * 3 + edgeSlot]!;
+        if (elapsed >= tcyc) return false;
+        ctx.report({
+          kind: TimingViolation.CYCLE,
+          message: `${name} ${edgeVerb(spec.edge)} again ${formatTime(elapsed)} after it last ${edgeVerb(spec.edge)} (cycle time ≥ ${formatTime(tcyc)})`,
           pin,
         });
         return true;

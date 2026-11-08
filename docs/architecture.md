@@ -124,7 +124,10 @@ have them since R12a (`ComponentDefinition.memory`, the `poke` action; a ROM's c
 `image` prop), CPUs _(planned, R17)_. Memories simulate with their data sheets' limits and show
 `X` until their access time ([ADR-0017](adr/0017-memories.md)); they stamp when each cell was
 last read and written, which the Memory tab lights up (R12b,
-[ADR-0018](adr/0018-memory-inspector.md)).
+[ADR-0018](adr/0018-memory-inspector.md)). The first peripheral, the HD44780 character LCD,
+models its controller at instruction level with a pure state machine beside the bus code, works
+out uncertain transfers by running every outcome and merging them, and gives the editor a pure
+frame of its glass to draw ([ADR-0022](adr/0022-character-lcd.md)).
 
 ## Circuit model
 

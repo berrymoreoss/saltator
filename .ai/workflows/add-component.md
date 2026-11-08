@@ -69,6 +69,12 @@ near-identical parts such as gates). Use `defineComponent<Props, State>({ … })
     timing per speed grade with a `speed` prop where the data sheet sells several; the shared
     `ReadPath` (the `X` window) and `WritePath` (level-sensitive writes and their checks)
     rather than new behaviors (docs/components.md#memories-mem, ADR-0017).
+  - Parts with a controller (`src/library/periph`, ADR-0022): keep the controller a pure state
+    machine beside the bus code (testable without a bench); work out uncertainty by running
+    every outcome exactly and merging them, and cap what you enumerate (≤ 3 unknown bits);
+    read an enable only when it changes (a 3-state output off at power-on isn't floating); keep
+    an uncertain transfer open until its strobe is known again (acting on every `X` can ring);
+    a look that changes with time alone (a blink) is `animation`, not a timer event.
 
 ## 3. Register it
 

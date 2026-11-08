@@ -13,7 +13,8 @@ How parts are described in `src/library`. Rationale for modeling chips as packag
 > packages; R10a added the `net` family (net labels), the `net` pin field, `schematicOnly`,
 > `nextProps`, prop `pattern`s and `centered` symbols; R10b bus labels, bus entries and the
 > `bus` pin field; R12a the `mem` family, `image` props, `memory` definitions and timing as a
-> function of props (speed grades).
+> function of props (speed grades); the LCD branch (off the roadmap) the `periph` family with
+> the HD44780 character LCD, cycle-time checks and `animation`.
 
 ## Families and type ids
 
@@ -30,7 +31,7 @@ the part before the slash (`familyOf(type)`).
 | `timer`  | `timer/ne555`                                                      | Analog timers, behavioral: the RC network as props ([below](#timers-timer)).                           |
 | `mem`    | `mem/at28c16`, `mem/6116`                                          | EEPROMs (read as ROMs) and SRAMs ([below](#memories-mem)); shown in the Memory tab (R12b).             |
 | `cpu`    | `cpu/w65c02s`                                                      | Processors (pin-level) _(planned, R17)_. Later: Z80, AVR, PIC.                                         |
-| `periph` | `periph/w65c22`, `periph/hd44780`                                  | Peripherals _(planned, R18)_.                                                                          |
+| `periph` | `periph/hd44780`, `periph/w65c22`                                  | Peripherals: the HD44780 character LCD ([below](#peripherals-periph)); the VIA, ACIA _(planned, R18)_. |
 | `test`   | `test/driver`                                                      | Test-only parts from `src/core/testing`; not in the default registry.                                  |
 
 ## Definition shape
@@ -54,6 +55,7 @@ interface ComponentDefinition<Props, State> {
   schematicOnly?: boolean; // drawn and connected, never simulated: left out of the netlist
   nextProps?: (props: Props) => Props; // props of the next instance placed after this one
   memory?: MemoryDef<State>; // a memory's size and a view of its cells (inspectors, test benches)
+  animation?: (state: State, props: Props) => Time | undefined; // look changes with time alone
 
   create(props: Props): Behavior<State>; // see docs/simulation.md
 }
@@ -121,6 +123,11 @@ net label's pin has its `name` prop (its pins are a function of props).
 A pin with `bus: true` connects on the bus layer: to bus lines and other bus pins only, never
 to wires or other pins ([circuit.md](circuit.md#connectivity)) — a bus entry's bus end, a bus
 label's pin. Only `nc` pins can be bus pins.
+
+`animation` is for a part whose look changes as simulated time passes without an event — an
+LCD's blinking cursor: it returns how long one look lasts for an instance's state (undefined
+while it stays as it is), and the editor redraws whenever the time crosses into the next one
+([editor.md](editor.md#pacing)). The canvas otherwise redraws only on events and light changes.
 
 A `schematicOnly` part is drawn and connects but is never simulated: the compiler leaves it out
 of the netlist and keeps its pins apart from the simulated ones, so adding, moving or renaming
@@ -344,6 +351,7 @@ interface SymbolDef {
   height: number;
   pins: Record<string, { side: PinSide; offset: number }>; // every pin, power and nc too
   centered?: boolean; // the body sits half a cell higher (net labels): left/right pins only
+  raise?: number; // the body and pins sit this many whole cells higher (a part that grows up)
 }
 type PinSide = 'left' | 'top' | 'right' | 'bottom';
 ```
@@ -355,6 +363,9 @@ type PinSide = 'left' | 'top' | 'right' | 'bottom';
   the row of its pins at offset 0, and such parts stack on adjacent pins at a one-cell pitch
   (net labels on a chip's data pins). Its bounding box then reaches half a cell above the
   origin.
+- A symbol that grows taller with a prop sets `raise` to what it grew: its body and pins move
+  up by that many cells, so the pins on its bottom side stay on the same points and the wires
+  on them stay connected when the prop changes (an LCD module's 4-line sizes rise by 3).
 - `partLayout` in `src/circuit` turns the symbol into connection points
   ([circuit.md](circuit.md#part-layouts)). A `package` wins over a `symbol` (chips are drawn as
   packages, ADR-0004); parts with neither get the generic box (none of the built-in parts).
@@ -617,9 +628,11 @@ R09a adds the flip-flops and registers, from the Nexperia data sheets (typical d
 
 Edge-triggered chips check the circuit against their data sheet's minima (`TimingChecks` in
 `core`, [simulation.md](simulation.md#timing-checks)) and report `setup-violation`,
-`hold-violation`, `pulse-width-violation` and `recovery-violation` diagnostics on the pin at
-fault: `1D changed 9 ns before 1CP rose (setup time ≥ 15 ns)`. They are **errors** in the
-Simulation tab: on a board they are intermittent failures.
+`hold-violation`, `pulse-width-violation`, `recovery-violation` and (the LCD's `tcycE`)
+`cycle-violation` diagnostics on the pin at fault: `1D changed 9 ns before 1CP rose (setup time
+≥ 15 ns)`. They are **errors** in the Simulation tab: on a board they are intermittent failures.
+So is every other `*-violation` a part reports (the LCD's `busy-violation`,
+`power-on-violation`): `diagnosticSeverity` makes the suffix the rule.
 
 A violation also makes the bits the edge may have loaded **`X`**, until a set/reset or a clean
 load — a chip that may go metastable, and the same rule as an uncertain edge
@@ -860,3 +873,121 @@ test bench setups (R15) and the toolchain (R19) share it.
   record type, wrapping, errors with their lines, placing and refusing, and a round trip of
   random sparse images up to 64 KB through Intel HEX (with a base and erased records left out)
   and binary; mutation-checked.
+
+## Peripherals (`periph/*`)
+
+Parts with a controller inside, in `src/library/periph`. The VIA and the ACIA follow in R18.
+
+### HD44780
+
+`periph/hd44780` (off the roadmap, ahead of R18): a character LCD module with the Hitachi
+HD44780U controller — one part for every size, drawn as the module ([ADR-0022](adr/0022-character-lcd.md)).
+Data sheets: Hitachi HD44780U, ADE-207-272(Z) Rev. 0.0 (controller, Table 4 fonts, Table 6
+instructions, 5 V bus timing); Newhaven NHD-0216K1Z-FL-YBW rev. 13 (module pinout, Clear
+display time).
+
+**Pins** — the module's 16-pin header, along the bottom of the symbol at offsets 1–16 whatever
+the size (resizing never moves a wire):
+
+| No.   | Pin      | Dir       | What                                                                     |
+| ----- | -------- | --------- | ------------------------------------------------------------------------ |
+| 1–2   | VSS, VDD | power     | not simulated                                                            |
+| 3     | V0       | in, sense | contrast: the characters show only while it is LOW (the drawer reads it) |
+| 4     | RS       | in        | register select (0 instruction/busy flag, 1 data); pulled up inside      |
+| 5     | RW (R/W̅) | in        | 0 write, 1 read; pulled up inside (floating = read: the module drives)   |
+| 6     | E        | in        | a read while HIGH, a write when it falls; no pull-up                     |
+| 7–14  | DB0–DB7  | bidir     | data bus, weak 1 while not driving (pull-ups); DB0–DB3 unused in 4-bit   |
+| 15–16 | A, K     | in, sense | backlight LED: lit while A = 1 and K = 0                                 |
+
+**Props**:
+
+| Prop         | Default        | Values                                                                                                       |
+| ------------ | -------------- | ------------------------------------------------------------------------------------------------------------ |
+| `size`       | `16x2`         | `8x1`, `8x2`, `16x1`, `16x1-8x2`, `16x2`, `16x4`, `20x1`, `20x2`, `20x4`, `24x1`, `24x2`, `40x1`, `40x2`     |
+| `backlight`  | `yellow-green` | `yellow-green`, `blue`, `white`, `black`, `amber`, `red` (dark or light dots, as the glass type has them)    |
+| `rom`        | `A00`          | `A00` (Japanese standard: ASCII with ¥ → ←, katakana, Greek), `A02` (European: Latin-1, Greek, Cyrillic)     |
+| `oscillator` | 270 kHz        | 190–350 kHz (the data sheet's Rf oscillator min/typ/max): execution times and the blink scale by 270 kHz / f |
+| `powerOn`    | `reset`        | `reset` (the internal reset worked), `unknown` (it didn't: initialize by instruction)                        |
+
+**Glass** (`hd44780-modules.ts`): the controller drives two lines of 40 characters; a module
+wires each glass character to a line and a segment column. With 2 lines (`N = 1`) a character
+shows DDRAM `(shift + column) mod 40` from 0x00 or 0x40; with 1 line (`N = 0`) line 1 is 80
+characters from 0x00 and line 2 of the glass stays blank (a 16 × 2 left in the power-on 1-line
+mode shows only its top line). 4-line modules continue lines 1 and 2: a 20 × 4's rows start at
+0x00, 0x40, 0x14, 0x54, a 16 × 4's at 0x00, 0x40, 0x10, 0x50. `16x1-8x2` is the 16 × 1 wired
+as 8 × 2 (0x00–0x07, then 0x40–0x47: it needs `N = 1`). DDRAM address `a` is cell `a` in 1-line
+mode and `0x40 + k` is cell `40 + k` in 2-line mode.
+
+**Controller** (`hd44780-controller.ts`, pure): DDRAM (80 bytes), CGRAM (64), the address
+counter, display shift, `DL N F D C B I/D S`, the data register.
+
+- Table 6's instructions take effect when the transfer completes, `tAH` = `tH` = 10 ns after E
+  falls; BF stays 1 for the execution time — 37 µs, Return home and Clear display 1.52 ms (the
+  data sheet leaves Clear's blank; module data sheets give 1.52 ms) — scaled by 270 kHz / f.
+  Clear writes spaces, sets address 0, unshifts and sets I/D = 1 (S unchanged).
+- After a data write or read the address counter moves; a busy-flag read shows the old address
+  until `tADD` after BF clears (Figure 10's 1.5 / f, 5.6 µs at 270 kHz; Table 6 says 4 µs).
+- Reads: the busy flag and address (RS 0, allowed while busy), or the data register (RS 1),
+  loaded by an address set or cursor shift and after each data read; a read after a data write
+  without one is invalid (`invalid-read`, a warning, the bus `X`).
+- 2-line addresses wrap 0x27 → 0x40 → … → 0x67 → 0x00, 1-line 0x4F → 0x00, CGRAM 6 bits; a DDRAM
+  address the mode lacks is reported (`invalid-address`) and stores nothing visible. `F = 1`
+  with `N = 0` (5 × 10 dots) is accepted with a warning (`unsupported-font`): the glass has 5 × 8
+  dots, so the top 8 rows show.
+- 4-bit (`DL = 0`): two transfers on DB7–DB4, high nibble first, writes and reads alike; the
+  nibble phase is state, so a CPU reset mid-byte leaves the module out of step until the
+  program resynchronizes (0x3 three times, 0x2).
+- Power-on `reset`: the internal reset — spaces, 8-bit, 1 line, 5 × 8, display off, increment,
+  no shift — busy for 10 ms; CGRAM unknown (RAM). `unknown`: every register and cell unknown,
+  the interface any of 8-bit / 4-bit high / 4-bit low; the data sheet's initialization by
+  instruction (Figures 23, 24) resolves it after the third 0x3.
+
+**Bus** (`hd44780.ts`) — the 5 V Bus Timing Characteristics as timing checks, and the LCD's own
+requirements; every violation is an error:
+
+| Requirement                  | Check                                                   | On violation                                           |
+| ---------------------------- | ------------------------------------------------------- | ------------------------------------------------------ |
+| `tcycE` ≥ 500 ns             | E rise to rise (`cycle-violation`)                      | the transfer's byte unknown                            |
+| `PWEH` ≥ 230 ns              | E HIGH (`pulse-width-violation`)                        | the byte unknown                                       |
+| `tAS` ≥ 40 ns                | RS, R/W̅ before E rises (`setup-violation`)              | instruction or data, read or write: uncertain          |
+| `tAH` ≥ 10 ns                | RS, R/W̅ after E falls, or changing while E HIGH         | uncertain (`hold-violation`)                           |
+| `tDSW` ≥ 80 ns, `tH` ≥ 10 ns | DB before/after E falls, writes only (DB4–DB7 in 4-bit) | those bits unknown                                     |
+| busy                         | a write or data read while BF = 1                       | `busy-violation`: not accepted (a read: `X`)           |
+| power-on                     | a write or data read before 15 ms                       | `power-on-violation`; still ignored while busy (10 ms) |
+
+Reads drive `X` from E rising until `tDDR` (160 ns), then the data, held `tDHR` (5 ns) after E
+falls, then the pull-ups. E is read only when it changes (a 3-state output still off at
+power-on is no floating E); an E changing to or from `X`/`Z` once it was known is reported
+(`uncertain-enable`, a warning) and leaves the transfer open, uncertain, until E is known LOW.
+
+**Unknowns** (ADR-0014: `X` where the outcome differs): every possible outcome of a transfer —
+R/W̅ and RS when uncertain, the interface modes it may be in, accepted or not while it may be
+busy, happened or not — runs exactly and the outcomes merge: registers that differ become
+unknown, cell bits `X`; busy is certain until the earliest deadline, possible until the latest.
+An instruction with up to 3 unknown bits runs once per value; with more, any instruction may
+have run (every register, the cells a Clear would blank, the interface 8-bit or awaiting a high
+nibble, maybe busy 1.52 ms).
+
+**Glass and text** (`hd44780-frame.ts`): `hd44780Frame(controller, size, rom, blink)` gives each
+glass character's 8 rows of 5 dots — ROM patterns, CGRAM for codes 0x00–0x0F (0x08–0x0F mirror
+0x00–0x07; 5 × 10 mode: 4 characters 16 rows apart), the cursor in row 8, the blinking
+character all on in its on phase (409.6 ms a phase at 250 kHz, scaled) — and which are unknown
+(a code or CGRAM row with unknown bits; every character when D, N, F or the shift is unknown;
+the cursor's when C or B is). `hd44780Text` gives the lines as text (ASCII, A00's ¥ → ← and
+katakana; `·` for CGRAM and other codes, `?` unknown) for tests. The blink needs no kernel
+event: the part's `animation` gives the phase length while B is on.
+
+**Character ROMs** (`hd44780-font.ts`, generated): A00 and A02 read off Table 4 of the data
+sheet by `scripts/extract-hd44780-font.ts` (`pdftoppm -r 400 -gray`, then dots on a lattice per
+column — A00's columns A and B sit a third of a pitch right). A00's 0xE0–0xFF are 5 × 10 (in
+5 × 8 mode their top 8 rows show, descenders cut); A02 uses the top row (accents, capitals from
+row 1).
+
+**Tests** (`src/library/periph/*.test.ts`): ROM spot checks against the rendered table; every
+instruction, every size's addresses with shift, 4-bit transfers and the nibble phase, reads and
+their window, the oscillator; each bus requirement at its limit and 1 ns past it, busy,
+power-on, unknown bits and E; both power-on modes through Figures 23 and 24; mutation-checked.
+Scenarios: a 74HC574 on the bus (a late latch, a read fighting it, 4-bit with DB0–DB3 open), a
+data pin on E's own net (holds `X`, no ring), the carry-over property over random LCD networks,
+both examples headless (`lcd-examples.test.ts`, the program in `lcd-program.ts`), and in the
+browser (`tests/e2e/lcd.spec.ts`).

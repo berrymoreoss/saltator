@@ -167,6 +167,15 @@ export interface NameView {
 }
 
 /** One timing parameter: `tpd` from `nCP` to `nQ, nQ̅`, typical 17 ns, max 44 ns. */
+/**
+ * A timing symbol as data sheets set it: `t` (or the HD44780's `PW`) and a subscript — `tpd`,
+ * `tsu`, `PWEH` — or a key that names what it times (`Clear display`), shown as it is.
+ */
+export function symbolParts(symbol: string): { readonly base: string; readonly sub: string } {
+  const match = /^(t|PW)(\w+)$/.exec(symbol);
+  return match ? { base: match[1]!, sub: match[2]! } : { base: symbol, sub: '' };
+}
+
 export interface TimingRow {
   /** `tpd`, `tsu`, `tW`: the letter t and its subscript. */
   readonly symbol: string;
