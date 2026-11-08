@@ -1,588 +1,129 @@
 # Roadmap
 
-How to read this file:
+What gets built and in which order. The work is split into **tracks** — lines of work that move
+in parallel, each with its own ordered items — and **milestones**, goals across tracks that say
+the product has got somewhere. Why it is built: [vision.md](vision.md).
 
-- Each **item** (`R01`, `R02`, …) is delivered by exactly **one branch** with **one plan**
-  (`.ai/plans/<branch-with-slash-replaced-by-dash>.md`, e.g. `feat/engine-core` →
-  `.ai/plans/feat-engine-core.md`). If an item turns out too big, split it (`R09a`, `R09b`) and
-  update this file.
-- **Status**: `done` · `in-progress` · `next` (exactly one item) · `planned` · `idea`.
-- Agents update the status when starting (`in-progress`) and finishing (`done`, then mark the
-  following item `next`). See `.ai/workflows/`.
-- Order within a phase is the intended order; dependencies are listed where they are not obvious.
+## Tracks
 
-## Overview
+| Track                           | Prefix | Goal                                                        |
+| ------------------------------- | ------ | ----------------------------------------------------------- |
+| [Platform](roadmap/platform.md) | `PLT`  | The kernel, the circuit model, the editor, the design tools |
+| [Parts](roadmap/parts.md)       | `LIB`  | Real chips and IO parts, each following its data sheet      |
+| [SAP-1](roadmap/sap-1.md)       | `SAP`  | Ben Eater's SAP-1 from tested modules (M3)                  |
+| [MOS 6502](roadmap/mos6502.md)  | `MOS`  | 65C02 systems with their companion chips and toolchain (M4) |
 
-| ID   | Branch                       | Title                                      | Status  |
-| ---- | ---------------------------- | ------------------------------------------ | ------- |
-| R00  | — (initial commit on `main`) | Foundation                                 | done    |
-| R01  | `feat/engine-core`           | Simulation kernel                          | done    |
-| R02  | `feat/circuit-model`         | Circuit document & netlist compiler        | done    |
-| R03  | `feat/io-basic`              | Basic IO parts (headless)                  | done    |
-| R04a | `feat/editor-canvas`         | App shell & schematic view                 | done    |
-| R04b | `feat/editor-tools`          | Schematic editing                          | done    |
-| R05  | `feat/sim-ui`                | Running simulations in the editor          | done    |
-| R06  | `feat/74hc-gates`            | 74HC gates & bus buffers                   | done    |
-| R07  | `feat/persistence`           | Save, load, examples                       | done    |
-| R08  | `feat/74hc-msi`              | 74HC combinational MSI                     | done    |
-| R09a | `feat/74hc-registers`        | 74HC flip-flops, registers + timing checks | done    |
-| R09b | `feat/74hc-counters`         | 74HC counters & shift registers            | done    |
-| R10a | `feat/net-labels`            | Net labels                                 | done    |
-| R10b | `feat/buses`                 | Buses, rippers, bus values                 | done    |
-| R12a | `feat/memory-chips`          | Memory chips (EEPROM, SRAM)                | done    |
-| R12b | `feat/memory-inspector`      | Memory inspector, image files              | done    |
-| R13  | `feat/logic-analyzer`        | Waveforms & probes                         | done    |
-| R14a | `feat/debugger`              | Breakpoints, stepping, watches             | done    |
-| R14b | `feat/rewind`                | Snapshots & rewind                         | done    |
-| R11a | `feat/subcircuits`           | Subcircuits                                | done    |
-| R11b | `feat/subcircuit-navigation` | Navigation into instances                  | done    |
-| R15a | `feat/test-benches`          | Test benches: scripts, headless runner     | done    |
-| R15b | `feat/test-bench-ui`         | Test benches in the app                    | done    |
-| R16a | `example/sap-1-modules`      | SAP-1 modules as tested subcircuits        | next    |
-| R16b | `example/sap-1`              | Ben Eater SAP-1 reference build            | planned |
-| R17  | `feat/cpu-6502`              | W65C02S CPU                                | planned |
-| R18  | `feat/peripherals`           | VIA, serial, buzzer, keypad                | planned |
-| R19  | `feat/toolchain`             | 6502 assembler & flashing                  | planned |
-| R20  | `example/be6502`             | Ben Eater 6502 reference build             | planned |
+Where every track stands — its current item, what that waits for, whether its branch exists —
+and the milestones' progress: `pnpm roadmap`. Item statuses live only in the track files.
 
----
+## Milestones
 
-## Phase 0 — Foundation
+| ID  | Milestone          | Needs                                               | Status  |
+| --- | ------------------ | --------------------------------------------------- | ------- |
+| M1  | "Hello, LED"       | R01, R02, R03, R04a, R04b, R05, R06, R07            | reached |
+| M2  | "Tools"            | R12a, R12b, R13, R14a, R14b, R11a, R11b, R15a, R15b | reached |
+| M3  | "SAP-1 runs"       | R16a, R16b                                          | open    |
+| M4  | "6502 Hello World" | R17, R18, R19, R20                                  | open    |
+| M5  | "My computer"      | —                                                   | open    |
 
-### R00 · Foundation — `done`
+### M1 "Hello, LED"
 
-Repository, tooling (Vite, TS strict, React, Vitest, Biome, CI), layered source tree with enforced
-boundaries, docs (vision, architecture, simulation, components, ADRs), AI workflow (`AGENTS.md`,
-`.ai/`), roadmap, plan for R01.
-
-## Phase 1 — Kernel & sandbox → **M1 "Hello, LED"**
-
-### R01 · Simulation kernel — `feat/engine-core` — `done`
-
-Headless event-driven kernel per [simulation.md](simulation.md): time, 4-state levels with drive
-strengths, resolution, event queue, inertial delays, delta cycles, oscillation guard, netlist +
-builder, component runtime API, diagnostics (contention, floating input, oscillation), test bench.
-Abstract primitives (`prim/*` gates, buffers, tri-state buffer, constant, pull resistor).
-Kernel benchmark. Plan: `.ai/plans/feat-engine-core.md`.
-
-### R02 · Circuit document & netlist compiler — `feat/circuit-model` — `done`
-
-Document schema (components with display labels, wires) with `schemaVersion` and migrations;
-geometric connectivity (union-find over grid points, T-junctions); compiler to `Netlist`; design
-checks (unconnected inputs, shorted outputs, unknown types); code-first builder API for tests and
-examples. Spec: [circuit.md](circuit.md). Plan: `.ai/plans/feat-circuit-model.md`.
-
-### R03 · Basic IO parts — `feat/io-basic` — `done`
-
-Headless behavior + symbol geometry for: VCC/GND rails, toggle switch, push button (momentary),
-DIP switch bank, pull-up/pull-down resistor, LED (color prop), LED bar, clock generator
-(frequency, duty cycle, manual step), 7-segment display (common anode/cathode), hex display, probe.
-Symbols as data (`SymbolDef`); `prim/*` parts got gate-shaped symbols. Real contacts (SPDT /
-SPST to a rail) and two-terminal LEDs ([ADR-0007](adr/0007-io-electrical-model.md)); indicator
-on-time accounting for multiplexed displays. Spec: [components.md](components.md#io-parts-io).
-Plan: `.ai/plans/feat-io-basic.md`.
-
-### R04a · App shell & schematic view — `feat/editor-canvas` — `done`
-
-R04 was split at its start into a view (R04a) and editing (R04b). Desktop CAD-style React shell
-(menu bar, toolbar, Parts panel with search and preview, Properties panel, tabbed bottom dock
-with Messages, status bar; fixed regions with splitters), dark and light themes following the OS,
-command registry for menus/toolbar/shortcuts. Canvas2D renderer (HiDPI, grid, layers, culling),
-camera pan/zoom (Figma-style with a KiCad-style wheel setting), symbol renderers keyed by
-`symbol.kind` (gates in ANSI or IEC style, LEDs, switches, displays), generic DIP renderer,
-designator and label placement, selection (click, box), design-check messages with
-click-to-locate, demo documents (Hello LED, symbol gallery), Playwright browser tests in CI.
-Spec: [editor.md](editor.md). Decision: [ADR-0008](adr/0008-desktop-workbench.md). Plan:
-`.ai/plans/feat-editor-canvas.md`.
-
-### R04b · Schematic editing — `feat/editor-tools` — `done`
-
-Sticky place tool armed from the Parts panel (or drag-and-drop) with a ghost and R/F before
-placing; designator prefixes in part definitions (KiCad/IEEE: `U`, `R`, `SW`, `D`, `DS`, `X`,
-`TP`, `PWR`), lowest free number; Wire tool (click corners, L preview, Tab swaps the bend) and
-wires dragged out of pin tips, with connection marks; drag-move, rotate, flip, delete and nudges
-with rubber-banded wires; wires normalized into straight runs without changing connectivity;
-cut/copy/paste through the system clipboard as document text, floating paste and duplicate;
-snapshot undo/redo with labels and recorded renames; editable Properties (designator with
-validation, label, placement, every prop type, times with units); context menu, Edit and Place
-menus, status hints. Gestures run on plain `PointerInput`s and are unit-tested headless.
-Spec: [editor.md](editor.md#editing). Decision: [ADR-0009](adr/0009-editing-model.md). Plan:
-`.ai/plans/feat-editor-tools.md`.
-
-### R05 · Running simulations in the editor — `feat/sim-ui` — `done`
-
-Simulator host in the editor (`Simulation`): stopped until Run; run/pause, step to the next
-event, stop, reset (F5, F10, Shift+F5, Mod+Shift+F5, never reloading the page); speed presets
-from 1 ns/s to real time and Max with a frame budget and the speed reached shown when lagging.
-Wires and junctions colored by level (weak levels paler, contention flashing) in both themes;
-parts drawn from their live state, indicators at their average brightness from on-time; an
-Interact tool (switches, held buttons, DIP switches in any orientation, manual clock step).
-Editing while running: same-structure edits keep the simulator, others continue in the
-recompiled netlist with every unchanged part's state, drives, pending changes and timers carried
-by designator through renames (`Simulator.carryOver`, invisible for an unchanged netlist — a
-property test). Simulation tab with runtime diagnostics and click-to-locate; live levels in
-Properties. Spec: [editor.md](editor.md#simulation). Decision:
-[ADR-0010](adr/0010-running-simulations.md). Plan: `.ai/plans/feat-sim-ui.md`.
-
-### R06 · 74HC gates & bus buffers — `feat/74hc-gates` — `done`
-
-74HC00, 02, 04, 08, 10, 11, 14, 20, 21, 27, 30, 32, 86 (gates), 125, 126, 240, 244 (3-state
-buffers) and 245 (bus transceiver) from the Nexperia data sheets: pinouts with pin
-descriptions, units, function tables as definition data, timing (`tpd`, `ten`, `tdis`) at
-4.5 V / 50 pF citing document, revision and table; function shared per chip number, timing per
-logic family. Tests check every function table through physical pin numbers, every delay and
-unknown/floating inputs; the carry-over property runs random 74xx networks; a bus scenario shows
-contention, the 1 ns fight of a same-instant handover and the 245 both ways. A Part tab in the
-bottom dock (drawing, pins with descriptions, function table, datasheet link) follows the part
-picked last; Hello, LED runs on a 74HC00. Spec: [components.md](components.md#74xx-chips-74xx).
-Decision: [ADR-0011](adr/0011-real-chips.md). Plan: `.ai/plans/feat-74hc-gates.md`.
-
-### R07 · Save, load, examples — `feat/persistence` — `done`
-
-`.logic.json` files: New, Open, Save, Save As through the File System Access API in Chromium
-(Save writes back through the file's handle) and a file input / download elsewhere; Open
-Recent; a dropped file opens; "Save changes?" before replacing unsaved changes (opening is no
-longer an undoable edit); the name and an unsaved mark in the title and the menu bar. The
-session — unsaved changes, file and view — is autosaved to IndexedDB (and synchronously on
-unload) and restored after a reload, per browser tab. Example files in `examples/` (Hello, LED,
-Half Adder, SR Latch, Ring Oscillator; Biome ignores `*.logic.json`), kept canonical and run by
-tests; File ▸ New from Example… shows them with live thumbnails. Spec:
-[editor.md](editor.md#files). Decision: [ADR-0012](adr/0012-files-and-sessions.md). Plan:
-`.ai/plans/feat-persistence.md`.
-
-**M1 acceptance:** in the browser, build switch → 74HC00 → LED and clock → LED; run; the LED follows
+**Acceptance:** in the browser, build switch → 74HC00 → LED and clock → LED; run; the LED follows
 the logic; save, reload, still works. — **Reached** (`tests/e2e/m1.spec.ts`).
 
-## Phase 2 — Building blocks
+### M2 "Tools"
 
-### R08 · 74HC combinational MSI — `feat/74hc-msi` — `done`
+**Acceptance:** on example circuits — a memory inspected live and programmed from a file; a bus
+captured in the waveform view with a trigger and exported; a run stopped at a breakpoint and
+stepped; a design built from subcircuits; a test bench with a memory setup passing in the app and
+headless in CI. — **Reached** (`memory.spec.ts`, `waveforms.spec.ts`, `debugger.spec.ts`,
+`subcircuits.spec.ts`, `tests.spec.ts`; `pnpm test:circuits` in CI).
 
-74HC85, 138, 139, 147, 148, 151, 153, 157, 158, 283 and 4511 from the Nexperia data sheets, and
-from TI where Nexperia has none (147, 148, 283; typical delays of the 147 and 283 from the
-Philips sheets): one delay per data sheet path (`tpd(An to Yn)`, the longest changed path wins),
-4-state results as precise as cheap, the 4511 as the first stateful chip; exhaustive tests for
-283, 85 and 4511, cascades (two 85s, two 148s). Behavioral NE555 (`timer/ne555`, TI pinout):
-astable, monostable and bistable modes, RA, RB, C as props with SI-prefixed entry, the RC
-network's pins drawn but not simulated, `X` until the first trigger or reset. Pin labels (the
-151's `Y̅`), changeover switch contacts (`spdt-gnd`), wider DIP bodies for crowded pin names.
-Examples: BCD to 7-Segment and Ben Eater's Clock Module. Spec:
-[components.md](components.md#74xx-chips-74xx), [timers](components.md#timers-timer). Decision:
-[ADR-0013](adr/0013-behavioral-timer.md). Plan: `.ai/plans/feat-74hc-msi.md`.
+### M3 "SAP-1 runs"
 
-R09 (74HC sequential parts + timing checks) was split at its start into flip-flops and
-registers with the timing checks (R09a) and counters and shift registers (R09b).
+**Acceptance:** SAP-1 runs a program end to end; its test bench passes in CI.
 
-### R09a · 74HC flip-flops, registers + timing checks — `feat/74hc-registers` — `done`
+### M4 "6502 Hello World"
 
-74HC74, 107, 109, 112 (flip-flops) and 173, 175, 273, 374, 377, 574 (registers) from the
-Nexperia data sheets, on two engines (`FlipFlopSpec`, `RegisterSpec`): `X` until reset or
-loaded, uncertain clock edges `X` only where they could change a bit, set and reset together as
-each data sheet says. Timing checks in core (`TimingChecks`: set-up, hold, pulse width,
-recovery) against the guaranteed minima at 25 °C in `timing.min`; a violation is an error in the
-Simulation tab and makes the bits the edge may have loaded `X`, armed only while the clock
-matters. The 74HC4511 checks its LE. Sequential function tables (`↑`, `h`, `q̅`); the Part tab
-shows a chip's delays and minima. Example: Ben Eater's A register (two 173s, two 245s, a bus).
-Spec: [components.md](components.md#edge-triggered-chips),
-[simulation.md](simulation.md#timing-checks). Decision:
-[ADR-0014](adr/0014-timing-checks.md). Plan: `.ai/plans/feat-74hc-registers.md`.
+**Acceptance:** BE6502 prints "Hello, world!" on the LCD from code assembled in the app.
 
-### R09b · 74HC counters & shift registers — `feat/74hc-counters` — `done`
+### M5 "My computer"
 
-74HC161, 163 (synchronous counters), 191, 193 (up/down, asynchronous parallel load), 4040
-(12-stage ripple counter: each output one stage delay after the one below, so decoding gates
-see the intermediate counts), 164, 165, 595 (shift registers; the 595's storage register one
-pulse behind when both clocks are tied, as its data sheet says) from the Nexperia data sheets, on
-R09a's timing checks and `X` policy: unknown or late controls merge every mode they allow;
-the data sheets' prose usage rules (191 CE̅ and U̅/D, 193's other clock) checked like timing
-requirements. `TimingChecks.setupHold` got edge-to-edge and hold-only forms. Pin labels are
-overlined as the data sheets draw them — letters, not digits (`1R̅D̅`, `E̅1`), labels can mark
-exceptions (`U̅/D`, `Q̅0̅`). Examples: Shift Register LEDs (a self-running Johnson counter) and
-Ben Eater's Program Counter. Spec: [components.md](components.md#counters-and-shift-registers).
-Plan: `.ai/plans/feat-74hc-counters.md`.
+Not a branch: the goal. The author's own 8-bit computer with a 16-bit address bus, designed and
+verified in the simulator, then built. Items needed along the way get added to their tracks and
+to this milestone's needs.
 
-R10 (net labels, tunnels, buses) was split at its start into net labels (R10a) and buses
-(R10b). Junction dots, also listed for R10, are derived and drawn since R02/R04a; "tunnel" is
-Logisim's name for a net label.
+## How it works
 
-### R10a · Net labels — `feat/net-labels` — `done`
+**Tracks.** A track is a line of work with a goal: a file in `docs/roadmap/` and a row in the
+table above with the prefix of its ids. Tracks move in parallel. A new line of work (another CPU
+architecture, programmable logic, video) gets a track of its own when its first item is planned:
+a file with the same parts as the others — title, goal and what does not belong in it,
+`## Items`, a section per item, `## Ideas` — and a row above. A track whose items would need to
+move at the same time is too wide: split it.
 
-Net labels (`net/label`; KiCad's net label, Logisim's tunnel): a flag with a name and one
-connection point; every label of one name is one net across the circuit, so blocks connect
-without wires running between them. Schematic-only parts (`schematicOnly`: drawn and connected,
-left out of the netlist, so a label that joins nothing new keeps a running simulation as it
-is); joining by name is a pin property (`PinDef.net`), which also puts every VCC and GND symbol
-on the nets `VCC` and `GND`. A named net is called by its name everywhere; design warnings for
-a net with several names and a label nothing else uses. Names with KiCad's `~{…}` overline,
-`[ ]` kept for buses. Drawn as an outlined tag, `centered` on its pin's row so labels stack on
-adjacent DIP pins, its outline in the net's color while running; placed by its point, each named
-after the last (`D0` → `D1`, `nextProps`). The Place menu and the canvas Place submenu (Power,
-Ground, Pull-up, Pull-down, Wire, Net Label `L`, Find Part); open pins found by what touches
-them. Example: Net Labels. Spec: [circuit.md](circuit.md#connectivity),
-[components.md](components.md#net-labels-net). Decision: [ADR-0015](adr/0015-net-labels.md).
-Plan: `.ai/plans/feat-net-labels.md`.
+**Items.** An item is delivered by exactly one branch with one plan
+(`.ai/plans/<branch with / → ->.md`).
 
-### R10b · Buses, rippers, bus values — `feat/buses` — `done`
+- Ids are `<prefix>-<n>`, numbered within the track from 1 (`LIB-2`), and never change or get
+  reused, also when an item moves or a track is split. Items from before the tracks keep their
+  ids (`R00`–`R20`). An item found too big at its start is split into `LIB-2a`, `LIB-2b`, with a
+  note at the top of the first part's section.
+- The status is in the track's items table: `done` · `in-progress` · `next` · `planned`. The
+  table is the order of the work: done items first, then at most one **head** — `next`, the one
+  to start, or `in-progress` — then planned items in the intended order. A track without a head
+  is idle; marking one of its items `next` resumes it.
+- Within a track the order is the dependency; **Needs** names the items of other tracks that
+  must be done first.
+- Each item has a section `` ## <id> · <title> — `<branch>` ``: what it delivers and, once done,
+  what was built, with links to the spec, the decision and the plan.
+- Ideas are unnumbered bullets under `## Ideas`; promoting one gives it the track's next free id
+  and a row. Ideas for tracks that don't exist yet are [below](#track-ideas).
 
-Buses as KiCad has them: a bus is a group of ordinary nets named by its members (`D[0..7]` →
-`D0`…`D7`; names with indices 0…99 either way round), so the kernel and the netlist don't
-change. Bus lines (`Wire.bus`, document schema v2 with an identity migration) and bus pins
-(`PinDef.bus`) are a second connectivity layer that never touches wires: a wire ending on a bus
-is dangling ("use a bus entry"); bus junction dots only where bus lines meet. A net label named
-like a bus is a bus label; `net/bus-entry` (KiCad's 45° entry, `BE`, `Z`) carries its member's
-name and joins it like a label, placed by its bit end so clicking down a chip's data pins gives
-`D0`…`D7`. Checks `bus-entry-member`, `multiple-net-names` on buses, `single-net-label` for
-entries. Bus lines heavy in a bus color, `X`/`Z` when members are; the value (`0x3F`, `X`/`Z`
-nibbles) on bus labels while simulating; Properties lists a bus's bits with hex, binary and
-decimal. The Bus tool (`B`), buses dragged out of bus pins, rubber-banding and normalization per
-layer. Example: Data Bus (74HC245 → bus → 74HC574 → LEDs). Spec:
-[circuit.md](circuit.md#buses), [components.md](components.md#net-labels-net). Decision:
-[ADR-0016](adr/0016-buses.md). Plan: `.ai/plans/feat-buses.md`.
+**Milestones** are goals across tracks: the items they need, an acceptance test and a status,
+`open` or `reached`. The branch that finishes a milestone's last item checks its acceptance and
+marks it reached.
 
-R11 (hierarchical design) was moved after R14 on 2026-11-07, keeping its id: memory, waveforms
-and the debugger are useful on the flat circuits that net labels and buses already make
-workable, and the SAP-1 modules need R12's chips anyway; hierarchy lands right before the test
-benches and the full SAP-1 build, which need it most.
+**Branches outside items** — `fix/`, `chore/`, `docs/` — have plans but no ids. Work asked for
+between items becomes an item of its track first.
 
-R12 (ROM / RAM + memory inspector) was split at its start into the chips with their contents
-(R12a) and the inspector with image files (R12b). The 74LS189 went to the backlog with the 74LS
-family (TTL inputs, no current data sheet); the SAP-1's RAM is built on a 6116 or 62256.
+**Working in parallel.** Branches of different tracks can be open at the same time; a track has
+one at a time. What keeps their merges clean:
 
-### R12a · Memory chips — `feat/memory-chips` — `done`
+- A branch edits its own track's file; this file changes only when tracks or milestones do.
+- A head's `in-progress` lives on its branch until the merge, so `start-branch` checks that no
+  other branch of the track exists.
+- `finish-branch` merges `main` into the branch and runs the checks before verifying, and
+  renumbers an ADR whose number another branch took meanwhile.
+- `.ai/lessons.md` is append-only and merges as the union of both sides (`.gitattributes`).
 
-AT28C16, AT28C64B, AT28C256 (EEPROMs, read as ROMs for now: a write the circuit attempts is
-reported) from the Atmel/Microchip data sheets, the 6116 (Renesas, speed grades 15/20/25 ns as a
-prop) and the 62256 (Alliance AS6C62256-55) SRAMs: the data sheets' guaranteed limits (no typical
-values exist), reads that keep the old data for `tOH`, show `X` until the access time and keep
-driving until their release time (a driver turning on sooner fights them), level-sensitive RAM
-writes checked against `tAS`, `tAW`, `tWP`, `tCW`, `tDW`, `tDH`, `tWR` (`X` where a violation may
-have written). ROM contents in the document (an `image` prop in sparse hex runs), RAM powering on
-`X`, zeros or random (seeded by the designator); a memory view (`ComponentDefinition.memory`) and
-a debug write (`poke`) for the inspector and test benches; timing as a function of props. The
-Part tab shows limits-only timing. Examples: EEPROM 7-Segment Decoder, RAM by Hand. Spec:
-[components.md](components.md#memories-mem). Decision: [ADR-0017](adr/0017-memories.md). Plan:
-`.ai/plans/feat-memory-chips.md`.
+**Checks.** `pnpm check:roadmap`, part of `pnpm check`, reads this file and the track files and
+fails on: a track file missing or a prefix used twice; an id or a branch used twice; an id that
+is neither `<prefix>-<n>` of its track nor an `R` id; an unknown status; statuses out of order or
+two heads in a track; `Needs` naming an unknown item; a reached milestone with items not done; an
+item row without its section or a section without its row; a done or in-progress item without
+its plan file.
+
+## Track ideas
+
+Lines of work that get a track when their first item is planned:
+
+- CPUs and MCUs, a track each: AVR (ATmega328P, ATtiny85), Z80, 8080/8085, 6800/6809, PIC.
+- Programmable logic: GAL and CPLD (ATF22V10, ATF1504) programmed from JEDEC fuse maps — the
+  address decoders of homebrew computers — and later FPGAs.
+- Video output: VGA (Ben Eater's video card), composite.
+
+## History
+
+Until 2026-11-08 the roadmap was one ordered list in phases, each ending in a milestone:
+Phase 0 — Foundation (R00); Phase 1 — Kernel & sandbox → M1 (R01–R07); Phase 2 — Building blocks
+(R08–R12a); Phase 3 — Design tools → M2 (R12b, R13, R14a, R14b, R11a, R11b, R15a, R15b);
+Phase 4 — SAP-1 → M3 (R16a, R16b); Phase 5 — CPU systems → M4 (R17–R20). Its items moved into
+the tracks with their ids and texts ([ADR-0027](adr/0027-roadmap-tracks.md)); the notes on how
+items were split or moved are at the top of the items they concern.
 
 Phase 2 ended without its milestone: M2 was "SAP-1 modules built and verified individually".
 On 2026-11-07 (R12b, Q1) the SAP-1 left the phases of tools and parts: every tool needed to
 design and verify a digital device comes first (phase 3, M2 "Tools"), then the SAP-1 is built
 with them — its modules as subcircuits with their own test benches (phase 4, M3), then the
 6502 systems (phase 5, M4).
-
-## Phase 3 — Design tools → **M2 "Tools"**
-
-### R12b · Memory inspector, image files — `feat/memory-inspector` — `done`
-
-The Memory tab: a virtualized hex view of any memory of the circuit (8/16/32 cells a row,
-ASCII, `X` nibbles), live while simulating — cells read since the last frame lit green, written
-orange, from per-cell access stamps the parts keep (`readAt`, `writtenAt`), the address on the
-chip's pins (`MemoryDef.addressPins`) outlined and followed — with bytes typed in place: a ROM's
-image as an undoable, coalesced document edit (a running ROM follows), a simulated RAM poked.
-`.bin` and Intel HEX (records 00–05, checksums, errors with lines) read, placed and written in
-`core`; the programmer is the Load dialog (range, bytes, sum; load address, fill the rest with
-FF), with Save and Erase. One resolver (`circuit`) turns `U5`, `U5.A0`, `CLK`, `D[0..7]` into
-netlist ids for the inspector and later probes, watches, breakpoints and benches; R11 adds
-instance paths there. RAMs stay volatile (Q2): a test bench's setup loads them before t = 0
-(R15). The roadmap was reordered at its start: design tools first (M2 "Tools"), then the SAP-1
-(R16a, R16b). Spec: [editor.md](editor.md#memory-inspector),
-[components.md](components.md#image-files), [circuit.md](circuit.md#resolver). Decision:
-[ADR-0018](adr/0018-memory-inspector.md). Plan: `.ai/plans/feat-memory-inspector.md`.
-
-### R13 · Waveforms & probes — `feat/logic-analyzer` — `done`
-
-The Waveforms tab: probes — nets, pins, buses and groups of single signals, by the resolver's
-references — saved in the circuit (`Circuit.probes`, schema v3, Q1), added from the canvas with
-a Probe tool (`P`, Q4) or the context menu, or typed; only they are recorded (core `Recorder`,
-one level per instant, bounded, re-attached by reference after every carry-over, Q2). A Canvas2D
-timing diagram: 1-bit rows in the wires' level colors, buses and groups as values in hex,
-decimal, binary or ASCII (`X` nibbles), dense blocks where edges are closer than a pixel; fit,
-follow and free views with zoom and pan; cursors A and B snapping to edges (`[`/`]`, `{`/`}`)
-with Δt and frequency. A single-shot trigger (levels and bus values ANDed with one strict
-edge, evaluated once an instant settles) breaks the kernel at its instant
-(`Simulator.requestBreak`, `onInstant`); the run goes on for the post-trigger part of the
-window (`Simulation.pauseAt`) and pauses (Q3). Export VCD… (core `writeVcd`) of the whole
-record or the cursor span. Probes ship with Clock Module and Data Bus. Spec:
-[editor.md](editor.md#waveforms), [simulation.md](simulation.md#recorder). Decision:
-[ADR-0019](adr/0019-waveforms.md). Plan: `.ai/plans/feat-logic-analyzer.md`.
-
-R14 (breakpoints, stepping, watches, run statistics, snapshot & rewind) was split at its start
-into the debugger (R14a) and stepping backwards (R14b): rewind needs the whole kernel state
-saved and restored, user actions replayed, and the recorder and the memory inspector kept in
-step — a layer of its own on top of R14a's stepping and breakpoints.
-
-### R14a · Breakpoints, stepping, watches — `feat/debugger` — `done`
-
-The Debug tab: breakpoints on any signal — the trigger's terms (edges, levels, bus and group
-values) as repeating core triggers on a recorder of their own, hit counts, enable/disable — and
-breaks on every error or warning the simulation reports (`DiagnosticLog.onOccurrence`); the host
-pauses on requests with a reason that wins over a trigger's run-on (`requestPause`,
-`status.reason`). Steps run at Max as jumps (`Simulation.runTo`): **Step Clock** (`F8`) pauses
-right before the step clock's next active edge but one, the cycle settled, through a kernel
-lookahead (`stopBefore`; `io/clock` now schedules its edges a phase ahead), and gives a manual
-clock one pulse and one period (Ben Eater's step button); **Run For** (`Shift+F8`) and **Run
-To**. Watches of signals, groups and memory cells (`U5[1F]` in the resolver) marked when they
-changed since the last stop; a Watch button in the Memory tab; context-menu Break When … Rises,
-Add Breakpoint on …, Watch …; run statistics and the most active nets (measured on request) in
-the Simulation tab. The debug setup is kept with the session, not the file (Q2). Fixes on the
-way: `runUntil(NaN)` looped forever; a trigger never fires twice at one instant; a fresh
-recorder channel records its first level 1 ps early. Spec: [editor.md](editor.md#debugger),
-[simulation.md](simulation.md#running). Decision: [ADR-0020](adr/0020-debugger.md). Plan:
-`.ai/plans/feat-debugger.md`.
-
-### R14b · Snapshots & rewind — `feat/rewind` — `done`
-
-Snapshot and restore of the whole simulator (`Simulator.snapshot`/`restore`): levels, drives,
-contention, pending changes, the event queue with its seq counter, component states — frozen
-plain data in 4 KiB pages shared with the previous snapshot, restored into the live objects —
-and the diagnostics; replicas of a simulator to replay in. The host's timeline: checkpoints
-every 200K events within 64 MiB (thinned, then the start moves), a log of the user's actions,
-positions (a time and the actions delivered), so any instant since power-on or the last
-structural edit is reached again in a replica the tools don't watch. Step Back (`Alt+F10`),
-Step Back Clock (`Alt+F8`), Reverse Continue to the previous breakpoint hit or error (`Alt+F5`)
-as backward searches over the history; Run To a past time; Go to Present; a click or drag in
-the waveforms' ruler. Behind the present, forward runs replay the recording (Q1) and the
-waveforms veil the future; acting there starts a new future; an edit starts the history anew
-(Q2). The recorder seeks and confirms, triggers resync, breakpoint hits follow by time, the
-memory inspector's highlights restart. Property test: a rewound simulation is the straight run
-on every example and every part. Spec: [simulation.md](simulation.md#snapshots),
-[editor.md](editor.md#rewinding). Decision: [ADR-0021](adr/0021-rewind.md). Plan:
-`.ai/plans/feat-rewind.md`.
-
-R11 (hierarchical design) was split at its start into the hierarchy itself (R11a) and going
-into instances while simulating (R11b): the compiler, the document model, editing several
-circuits and the tools' instance paths are one layer; live levels, interaction and probing
-inside an instance build on it.
-
-### R11a · Subcircuits — `feat/subcircuits` — `done`
-
-Several circuits per document, the first one the top circuit that simulates; subcircuit
-instances (`sub/<circuit id>`, designators `A1`, …) with a generated box symbol whose pins are
-the circuit's ports (`net/port`: name, direction, side; bus ports), ordered as the ports are
-drawn. The compiler flattens the hierarchy into the kernel's flat netlist with instance paths
-(`A1/U3`); net labels join only within their circuit, the power names everywhere. The resolver
-(R12b) takes instance paths (`A1/U3.Q0`, `A1/CLK`, `A1/U5[1F]`), so the memory inspector,
-probes, watches and breakpoints reach into instances, and test benches (R15a) can test a
-subcircuit as a unit. Schema v4 (circuit ids are slugs, following the name until placed); a
-document registry generating `sub/<id>` definitions; checks `duplicate-port`,
-`recursive-subcircuit`, `bus-port-width`. The editor holds the whole document (one undo history,
-a camera per circuit, flat renames for carry-over); the simulation runs the flattened top
-circuit, drawn live only where it is the circuit open. A CIRCUITS list above Parts and a Circuit
-menu, subcircuits in the Parts panel (never one that would contain the open circuit),
-double-click to open an instance's circuit, Place ▸ Port (`Shift+L`), copies that carry their
-circuits. Example: Two-Digit Counter (Decade Counter inside Counter Digit, twice). Spec:
-[circuit.md](circuit.md#subcircuits), [editor.md](editor.md#shell),
-[components.md](components.md#ports-net-port). Decision:
-[ADR-0023](adr/0023-subcircuits.md). Plan: `.ai/plans/feat-subcircuits.md`.
-
-### R11b · Navigation into instances — `feat/subcircuit-navigation` — `done`
-
-Going into an instance while simulating: the open circuit is seen in one instance of the design
-(`EditorState.path`: `''` the top, `A2`, `A2/A1`), its scene mapped to that instance's flat nets
-and parts, so wires, buses, labels, lights, part states and Properties' badges show its levels,
-the Interact tool presses its buttons (`A2/SW1`) and the Probe tool probes by path, named as read
-inside (`A1/MID`, Q4). Double-click, Go Into (`Mod+↓`), Go Up (`Mod+↑`, the instance left
-selected), Go to Top; the Circuits list opens a circuit in its first instance (Q1); a breadcrumb
-bar floats over the canvas — Up, the crumbs, the instance switcher, "edits change all N
-instances" (Q2); the history and autosave keep the path; the Simulation tab locates into
-instances. Found on the way: Step Clock after a button pressed while paused stopped before the
-same edge (fixed). Spec: [editor.md](editor.md#instances). Decision:
-[ADR-0024](adr/0024-instance-navigation.md). Plan: `.ai/plans/feat-subcircuit-navigation.md`.
-
-R15 (circuit test benches) was split at its start into the scripts and their headless runner
-(R15a) and running them in the app (R15b): the document field, the bench API and the runner are
-pure and fully testable in Node; the Tests tab, the browser sandbox a script needs and the
-results view build on them.
-
-### R15a · Test benches: scripts and headless runner — `feat/test-benches` — `done`
-
-A test script per circuit in the document (`Circuit.testScript`, schema v5): JavaScript with
-`bench(name, fn)` calls on a synchronous API `b` (the user chose JavaScript over the proposed
-text DSL, Q3) — drive ports and interactive parts (by symbol kind, as Interact does), pulse
-clocks and step rows of test vectors in fixed steps (inputs at the start, a pulse LOW → HIGH at
-¼ → LOW at ¾, checks at the end; text tables `` b.table`A B | Y …` `` inside the script), wait,
-check signals and memory cells, load memories before power-on (RAM `poke`, a ROM's image,
-Intel HEX). A pure runner in `circuit` tests a circuit as the top (a subcircuit through its
-ports, drivers on its inputs); soft failures with the script line, instant, signal, expected
-and actual value; simulation errors fail, warnings are listed. Script hosts make the text code:
-`node:vm` in Node (no `Math.random`, `Date`, `console`; a time limit), `new Function` where
-trusted. Benches for Half Adder, RAM by Hand (a memory loaded before power-on) and the
-Two-Digit Counter's three circuits run in `pnpm check`; `pnpm test:circuits` runs any document's
-(exit codes; a CI step). Spec: [circuit.md](circuit.md#test-benches). Decision:
-[ADR-0025](adr/0025-test-benches.md). Plan: `.ai/plans/feat-test-benches.md`.
-
-### R15b · Test benches in the app — `feat/test-bench-ui` — `done`
-
-The Tests tab: the open circuit's test script in a CodeMirror 6 editor (Q3; highlighting in the
-app's colors, completion of the bench API and the circuit's references, search and replace),
-its error marked as it is typed; the benches run — Run (`Mod+Enter`), Run All, one at a time —
-in a sandbox (Q1): a Worker started from a blob inside an opaque-origin iframe whose CSP allows
-no network, so a document's script reaches neither the app's storage nor anything outside, off
-the UI thread with progress, Cancel and time limits (5 s a script's top level, 60 s a bench);
-no prompt before running a file's scripts (Q2). Results by circuit, stale once the circuit or
-its script changes; a failure is a click from its line and its signal on the canvas (Q4).
-Insert Image… writes `b.memory`/`b.loadIntelHex` from a `.bin`/`.hex` file. Under it: a pure
-bench service in `circuit` (the protocol), the runner bundled into one script by a Vite plugin
-(`virtual:bench-runner`, a lazy chunk), `Editor.setTestScript` (one undo step while typing, the
-run and its history untouched). Spec: [editor.md](editor.md#tests). Decision:
-[ADR-0026](adr/0026-test-bench-sandbox.md). Plan: `.ai/plans/feat-test-bench-ui.md`.
-
-**M2 acceptance:** on example circuits — a memory inspected live and programmed from a file; a
-bus captured in the waveform view with a trigger and exported; a run stopped at a breakpoint and
-stepped; a design built from subcircuits; a test bench with a memory setup passing in the app
-and headless in CI. — **Reached** (`memory.spec.ts`, `waveforms.spec.ts`, `debugger.spec.ts`,
-`subcircuits.spec.ts`, `tests.spec.ts`; `pnpm test:circuits` in CI).
-
-## Phase 4 — SAP-1 → **M3 "SAP-1 runs"**
-
-### R16a · SAP-1 modules — `example/sap-1-modules` — `next`
-
-Ben Eater's SAP-1 modules, each a subcircuit with its own test bench: clock, A and B registers,
-ALU, program counter, RAM and memory address register (on a 6116 or 62256), output register
-with its multiplexed EEPROM decoder. The existing Clock Module, SAP-1 A Register and SAP-1
-Program Counter examples are redone as subcircuits.
-
-### R16b · SAP-1 reference build — `example/sap-1`
-
-Full Ben Eater 8-bit computer from R16a's modules (control logic with microcode EEPROMs,
-7-segment output), with a test bench whose setup loads a demo program into the RAM and checks
-what it outputs.
-
-**M3 acceptance:** SAP-1 runs a program end to end; its test bench passes in CI.
-
-## Phase 5 — CPU systems → **M4 "6502 Hello World"**
-
-### R17 · W65C02S CPU — `feat/cpu-6502`
-
-Pin-level, cycle-accurate 65C02 (PHI2, RWB, A0–A15, D0–D7, IRQB, NMIB, RESB, RDY, SYNC), CPU state
-panel, disassembly in the memory inspector.
-
-### R18 · Peripherals — `feat/peripherals`
-
-W65C22 VIA (ports, timers, interrupts), 6551 ACIA + serial terminal panel, buzzer (Web Audio),
-keypad/matrix keyboard. The HD44780 LCD came early, off the roadmap
-([below](#off-the-roadmap)); the VIA drives it in R20.
-
-### R19 · 6502 assembler & flashing — `feat/toolchain`
-
-Built-in assembler (ca65/vasm-compatible subset), listing and symbol map, "assemble & flash to
-ROM", symbols in debugger.
-
-### R20 · Ben Eater 6502 reference build — `example/be6502`
-
-65C02 + 28C256 + 62256 + 65C22 + LCD with 74HC00 address decoding, running "Hello, world!".
-
-**M4 acceptance:** BE6502 prints "Hello, world!" on the LCD from code assembled in the app.
-
-## M5 — "My computer"
-
-Not a branch: the goal. The author's own 8-bit computer with a 16-bit address bus, designed and
-verified in the simulator, then built. Items needed along the way get added to this roadmap.
-
-## Off the roadmap
-
-Branches the author asked for between items, to try the engine on something new. Not numbered;
-listed here so the roadmap stays the map of what exists.
-
-### Character LCD (HD44780) — `feat/lcd-hd44780` — `done`
-
-`periph/hd44780`: a character LCD module with the HD44780U controller, 8 × 1 to 40 × 2 (13
-sizes), six backlight colors, ROM codes A00 and A02 read off the data sheet's Table 4 by a
-script, the oscillator as a prop. The controller at instruction level — 8- and 4-bit transfers
-with the nibble phase, busy flag and execution times, `tADD`, reads with their `X` window,
-internal pull-ups, the internal reset or (`powerOn: unknown`) an unknown state that only the
-data sheet's initialization by instruction resolves — and the 5 V bus timing as timing checks;
-writes while busy and before 15 ms are errors (every `*-violation` is, now); uncertain transfers
-run every outcome and merge them. Drawn as the module with its glass and dots, backlight on
-A/K, contrast on V0, the blink redrawn by a new `animation` hook; the Part tab sets non-`t`
-symbols right. Examples: LCD by Hand, LCD Hello, World (74HC4040, AT28C16, 74HC574). Spec:
-[components.md](components.md#hd44780), [editor.md](editor.md#symbol-drawing). Decision:
-[ADR-0022](adr/0022-character-lcd.md). Plan: `.ai/plans/feat-lcd-hd44780.md`.
-
-## Backlog — `idea`
-
-Promote to a numbered item when needed.
-
-- Symbol view: Proteus/KiCad-style multi-unit symbols (U1A…), hidden power pins, per-part toggle.
-- Simulation in a Web Worker with SharedArrayBuffer levels; fast mode for synchronous designs.
-- Seeded random power-on state as a simulator option (default stays `X`; decided in R01, Q2).
-- Contact bounce for buttons and switches (deterministic pattern), to catch missing debouncing
-  before fab (R03 switches change cleanly).
-- Bussed resistor network part (SIP-9: 8 pull resistors with a common pin) for DIP switch banks
-  and buses.
-- Design checks: unconnected power pins, fan-out/load limits, worst-case timing corner.
-- More CPUs/MCUs: Z80, 8080/8085, 6800/6809, AVR (ATmega328P, ATtiny85), PIC.
-- Video output: VGA (Ben Eater's video card), composite.
-- Export: KiCad netlist, BOM, SVG/PDF schematic; breadboard layout view.
-- Sharing via URL, embed mode, PWA/offline, desktop packaging.
-- Editing extras (R04b follow-ups): editing a prop of several selected parts at once, re-annotate
-  designators, align/distribute, wire auto-routing around parts, a modifier to move parts without
-  dragging their wires (KiCad "move"), dragging a single wire end.
-- Worst-case timing mode (R09a follow-up): the recorded `max` delays with the −40 °C to +85 °C
-  minima (not recorded yet: add them as a third requirement column); a "report only" setting
-  that keeps bits known after a timing violation, if `X` gets in the way.
-- More logic families (R06 follow-up): 74HCT and 74AC as timing tables for the existing chip
-  specs; 74LS/74F also need TTL inputs (a floating input reads high). The 74LS189 (16 × 4 RAM,
-  inverted 3-state outputs; Ben Eater's SAP-1 RAM) comes with them (R12a, Q2); its data sheet
-  is the archived Fairchild DM74LS189.
-- EEPROM writes from the circuit (R12a follow-up): byte and page writes, the self-timed write
-  cycle with DATA polling and toggle bit, the power-on write delay and noise filter, software
-  data protection (AT28C64B/256). Until then an EEPROM is a ROM and a write attempt is reported.
-- Kernel: mark the forced evaluation (power-on, after a recompile) so multi-section chips can
-  re-evaluate only the sections whose inputs changed (a 74HC04 chain runs at ≈ 8.4M events/s
-  against ≈ 13.2M for `prim/not`, R06).
-- Simulation view extras (R05 follow-ups): LED colors that stay visible on the light theme's
-  cream when dim (a dim yellow LED is hard to see); a "toggling" wire style for nets that change
-  faster than the frame rate, which now flicker between 0 and 1 from frame to frame.
-- Passive parts (R08 follow-up): resistors, capacitors and potentiometers drawn on the schematic
-  but not simulated (BOM, breadboard view), a 555 reading its R and C from them, and turning a
-  potentiometer with the Interact tool (Ben's clock speed knob); a read-only hint of a 555's
-  resulting frequency in Properties. CMOS 555s (TLC555, ICM7555) and the 556 with the same model.
-- Bus follow-ups (R10b): a multi-bit ripper (one part fanning a bus out to N adjacent pins);
-  a radix setting for bus values (decimal, binary on the canvas); KiCad group buses (`{A B}`)
-  and bus aliases if ever needed.
-- Net highlighting (R10a follow-up): selecting or hovering a wire or net label highlights every
-  wire and label of its net, across labels.
-- Placing VCC/GND symbols by their pin (R10a follow-up), as net labels are placed, so a click on
-  a pin tip attaches one; other one-pin parts may follow.
-- LCD follow-ups (the LCD branch): 40 × 4 modules (two controllers, `E1`/`E2`); 5 × 10 dot
-  glass; compatible controllers and their ROMs (ST7066U, KS0066, Winstar's Cyrillic font), the
-  I²C backpack (PCF8574); graphic LCDs (KS0108, ST7920); DDRAM/CGRAM in the Memory tab (a
-  `MemoryDef` without address pins, several memories per part); a PWM-dimmed backlight at its
-  average brightness; an input-pull-up pin flag, so the design check doesn't say an unconnected
-  RS "reads as X" (it reads HIGH — still a mistake for R/W̅).
-- Image generators (R12b follow-up): a memory's contents computed by a short script in the app
-  (Ben Eater's Arduino sketch for the decoder EEPROM, microcode tables), kept with the document.
-- Waveform follow-ups (R13): serial protocol decoders (UART, SPI, I²C) on probed signals;
-  automatic measurements (period, duty cycle, pulse count over a range); VCD import (a dump from
-  another simulator beside the circuit's); weak levels drawn paler (the recorder keeps levels
-  only); probed wires marked on the canvas; the diagram as SVG/PDF; recording every net in a
-  bounded buffer as an option, if probing before running proves a chore (R13, Q2).
-- Subcircuit follow-ups (R11a): a drawn symbol for a subcircuit (a symbol editor, a DIP-like
-  module); global net labels (joining by name across the hierarchy); parameters per instance
-  (props, a ROM image per instance); a static shorted-outputs check across the hierarchy (the
-  kernel's `contention` reports it while running); importing circuits from another file (a
-  module library); a confirmation before deleting a circuit with instances (it is undoable).
-- Navigation follow-ups (R11b): a hierarchy tree of instances (a navigator in the Circuits
-  panel, Q2); live levels on an instance's box at the parent (its pin stubs, Properties' badges
-  for its ports, a "peek" of the inside); the Memory tab and the Debug tab following the instance
-  open (preselecting `A1/U3`); a camera per instance if modules grow large.
-- Debugger follow-ups (R14a): breakpoints on memory accesses (break when `U5[0x0F]` is written
-  or read; with R17, on the CPU's program counter and instructions); log points (report instead
-  of pausing); breakpoint and watch marks on the canvas; break on chosen diagnostic kinds
-  rather than all errors or warnings; a shared end-of-instant listener for many breakpoints
-  (each costs ≈ 15 % on a ring of 1-instant events now); Step Clock by a gated manual clock (a
-  manual `io/clock` driving the net through gates is not recognized and has no edge coming).
-- Rewind follow-ups (R14b): bookmarks — snapshots the user takes and names, kept beyond the
-  history's reach and marked on the ruler (Q3); re-running the past with an edited circuit and
-  the same inputs ("what if", Q2); hit counts in Reverse Continue; the history's start marked on
-  the waveforms' ruler.
-- Test bench follow-ups (R15a): rewriting a script's references when a part is renamed (they
-  are strings in code; a find-and-replace at least); `b.settle()` (run until quiet) if fixed
-  steps prove a chore; JUnit/JSON reports for CI dashboards; coverage (which nets a bench
-  toggled); forcing a net against its driver (an injector); the examples' TypeScript scenario
-  tests moved into their documents' scripts; line numbers from non-V8 engines' stacks.
-- Test bench UI follow-ups (R15b): the waveforms of a bench's run — its signals recorded in the
-  sandbox, shown in the Waveforms tab with a cursor at the failure (Q4); running the open
-  circuit's benches on every edit (a watch mode); progress inside a long bench (its simulated
-  time); a bench's time limit as a setting; Insert Image… as a constant shared by benches.
-- Documents (R07 follow-ups): several documents open in one window (tabs); a title, notes and
-  simulation settings (speed) stored in the file (schema v2).
