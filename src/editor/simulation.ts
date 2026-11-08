@@ -293,11 +293,22 @@ class LivePart implements PartLive {
   readonly #sim: Simulator;
   readonly #id: string;
   readonly #lights: ReadonlyMap<string, LightSample>;
+  readonly #rewinds: { readonly count: number };
 
-  constructor(sim: Simulator, id: string, lights: ReadonlyMap<string, LightSample>) {
+  constructor(
+    sim: Simulator,
+    id: string,
+    lights: ReadonlyMap<string, LightSample>,
+    rewinds: { readonly count: number },
+  ) {
     this.#sim = sim;
     this.#id = id;
     this.#lights = lights;
+    this.#rewinds = rewinds;
+  }
+
+  get epoch(): number {
+    return this.#rewinds.count;
   }
 
   get state(): unknown {
@@ -415,6 +426,8 @@ export class Simulation {
   readonly #divergeListeners = new Set<(time: Time) => void>();
   /** Brightness samples of the indicators, by component id. */
   readonly #lights = new Map<string, LightSample>();
+  /** Rewinds so far: the live parts' `epoch`. */
+  readonly #rewinds = { count: 0 };
   /** Parts whose look changes with time alone (an LCD's blink), and the look shown last. */
   #animated: {
     readonly id: string;
@@ -825,6 +838,7 @@ export class Simulation {
     this.#search = undefined;
     this.#step = undefined;
     timeline.reach(target);
+    this.#rewinds.count++;
     this.#pauseAt = undefined;
     this.#pauseRequest = undefined;
     this.#collectLights(sim);
@@ -980,7 +994,10 @@ export class Simulation {
       this.#sim = sim;
       this.#timeline = new Timeline(sim, this.#historyOptions);
       this.#parts = new Map(
-        this.#netlist.components.map((c) => [c.id, new LivePart(sim, c.id, this.#lights)]),
+        this.#netlist.components.map((c) => [
+          c.id,
+          new LivePart(sim, c.id, this.#lights, this.#rewinds),
+        ]),
       );
       this.#collectLights(sim);
       this.#animated = this.#netlist.components.flatMap(({ id, type, props }) => {

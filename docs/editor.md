@@ -257,6 +257,12 @@ editor doesn't know.
   (mirror, rotate, move) as a canvas transform and draws the pin stubs from the layout, so drawn
   pins always end where the compiler connects wires. The same drawers draw the Parts preview, and
   a recording `SymbolGraphics` lets tests check every part draws inside its layout.
+- **Images** (`SymbolGraphics.image(image, x, y, width, height)`, a TFT's glass): a
+  `RasterImage` (RGBA pixels) scaled into a box of local cells and turned with the part. The
+  canvas copies each image object into an offscreen canvas once (a `WeakMap`), so a drawer that
+  keeps handing the same object while nothing changed costs a `drawImage`; magnified, pixels stay
+  sharp squares (no smoothing at one device pixel per image pixel or more), reduced they are
+  smoothed. A changed picture is a new object.
 - **Gate style** (a view setting): ANSI/IEEE 91 distinctive shapes or IEC 60617 rectangles with
   a qualifying symbol (`&`, `≥1`, `=1`, `1`, `▽` for tri-state). ANSI shapes keep a 4-cell height
   centered on the output; gates with more inputs extend their input side with straight lines,
@@ -273,7 +279,9 @@ editor doesn't know.
   bus stub, its name above the bus stub), `lcd` (a character LCD module: the board, a dark
   bezel, the glass in its backlight's colors with every 5 × 8 dot of every character, unlit dots
   faintly visible as on real glass, the pin names along the bottom edge as Proteus draws its
-  LM016L; stopped: dark glass, no characters), `text` (a schematic text: its lines from the
+  LM016L; stopped: dark glass, no characters), `tft` (a TFT module: the board, a dark bezel, the
+  glass one CSS pixel per glass pixel at 100 % — a 240 × 320 glass is 15 × 20 cells — the pin
+  names along the header strip at the bottom; stopped: dark glass), `text` (a schematic text: its lines from the
   top-left of its box, no outline, [below](#schematic-text)).
   Stopped, drawers show the idle look
   (power-on switch positions, unlit lights); while simulating they get `DrawContext.live`
@@ -629,14 +637,21 @@ per flat part, so each instance's lights have their own.
   (`sim.contended`) flashing red twice a second while running. Wires the simulation doesn't know
   (new ones during a gesture) keep the plain color; ghosts the selection color; a selected wire
   keeps its level color over a selection halo. Pin stubs keep the part color.
-- **Parts** get `DrawContext.live` (`PartLive`: `state`, `level(pin)`, `light(i)`, `time`) and
+- **Parts** get `DrawContext.live` (`PartLive`: `state`, `level(pin)`, `light(i)`, `time`,
+  `epoch` — a count of rewinds, since a rewind restores the state into the same objects,
+  counters included, and a drawer caching what it made from `state` keys it by this too) and
   `levelColor`: switches, buttons and DIP switches show their positions; LEDs, LED bars and
   7-segment segments their brightness, with a glow; an unknown light is drawn in the `X` color;
   the clock's wave takes its output's level color; the hex display shows its digit (unknown: a
   dash in the `X` color); the probe its level letter in the level color; an LCD module its glass
   (`hd44780Frame` of its controller: characters, cursor, the blink by simulated time), lit while
   its backlight LED (A, K) is forward biased, its characters visible only with V0 LOW (an open
-  contrast pin shows nothing, as on the bench), unknown characters filled in the `X` color.
+  contrast pin shows nothing, as on the bench), unknown characters filled in the `X` color; a TFT
+  module its glass while BLK is HIGH or open (`st7789Frame` of its controller as an image: the
+  memory "set randomly" at power-on and pixels written with unknown bits as a fixed noise in the
+  `X` color, pixels whose look is uncertain under a diagonal hatch of it — the veil), cached per
+  controller by its version, the epoch, the panel and the `X` color (an unchanged glass is one
+  `drawImage`; a changed 240 × 320 frame ≈ 0.4 ms).
 - **Net labels**, which the simulator doesn't have (schematic-only), get `DrawContext.pinColor`
   instead: the wire color of the net at their point (the signal map includes label points), so
   the tag's outline shows its net's level like the wires do.
@@ -1336,6 +1351,16 @@ title and a description, in gallery order):
   counter at 2048 through a 74HC32. RESET first (the counter powers on unknown). Its waits are
   counted for 10 kHz: clocked faster, the LCD reports instructions sent while busy. Probes on
   CLK, E, RS and DB4–DB7.
+- **TFT Color Bars** (LIB-2) — no CPU: SMPTE color bars on an ST7789 240 × 320 turned to
+  landscape (MADCTL 60h), streamed at 500 kHz from two EEPROMs. Two 74HC4040s count SPI bits; an
+  AT28C256 holds the rows (CASET 0–511 makes a row 1024 bytes — the columns past 319 are
+  ignored — so a block of 8 rows is one 1 KB), an AT28C64B gives D/CX and CS̅ for the
+  initialization in block 0 (SLPOUT 121 ms after RESET, CS HIGH for the 5 ms after it); a
+  74HC273 and a 74HC74 register the EEPROMs' outputs on CLK, a 74HC165 shifts each byte out on
+  CLK rising while the module samples on CLK falling, its load window closing before the counter
+  moves. The program is `tests/scenarios/tft-program.ts`. RESET first; the picture takes 4.1 s
+  of simulated time and builds top to bottom over the power-on noise. Clocked at 1 MHz, the
+  module reports its waits broken. Probes on CLKN, SDA, DC, CSN and RESN.
 - **6502 NOP Sled** (R17a) — Ben Eater's first 6502 step: a W65C02S whose data bus reads $EA
   (`NOP`) through pull resistors, a 10 Hz clock, RESET (a button with a pull-up), pull-ups on
   RDY, IRQB, NMIB, BE and SOB, the address and data buses on hex displays and probed. After

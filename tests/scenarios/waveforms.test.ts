@@ -131,6 +131,7 @@ describe('the examples’ probes', () => {
       'clock-module',
       'data-bus',
       'lcd-hello-world',
+      'tft-color-bars',
       'two-digit-counter',
     ]);
   });

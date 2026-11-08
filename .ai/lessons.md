@@ -448,3 +448,31 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
   Properties' fields applied what Escape should have dropped (since R04b; the docs said
   "reverts", no test pressed it). Mark the revert in a ref and skip the commit on that blur;
   test the keys a doc promises.
+- 2026-11-09 (LIB-2) — Before deciding what a part does when a data sheet requirement is broken
+  ("it will be necessary to wait" with no stated outcome), read vendor code for real modules:
+  LCDWiki's MSP2008 program skips the ST7789's SLPOUT waits and works on the bench, so "not
+  accepted" would have blanked working code. The ST7789 runs such a command uncertainly and
+  draws its outcome under a veil (ADR-0031).
+- 2026-11-09 (LIB-2) — Panel offsets for a TFT controller come from module vendor programs, not
+  from the controller data sheet. The MSP1141/MSP1308 `LCD_direction` offsets for four
+  orientations pinned down how MADCTL maps: MX/MY mirror the memory's columns/rows whatever MV
+  is. Only one reading matched all eight cases, so test every orientation.
+- 2026-11-09 (LIB-2) — Measuring a hot loop under vitest: imported bindings read through getters
+  (the module runner), ≈ 10× slower than a bundle (a frame conversion took 4.8 ms, then 0.37 ms
+  with the imports copied to locals). Copy imported constants to locals in hot loops, or
+  measure with `pnpm bench`'s native imports.
+- 2026-11-09 (LIB-2) — In a generated example, 3-state and bidirectional outputs (an EEPROM's
+  I/O, a 74HC574's Q) start floating at power-on, so a gate or an asynchronous load reading
+  them at t = 0 gives `floating-input` warnings. Push-pull outputs start `X`. Read memory
+  outputs through edge-sampled inputs (a 74HC273, a 74HC74 clocked by the system clock), which
+  also keeps them out of the memory's `X` window after an address change.
+- 2026-11-09 (LIB-2) — A load window built from a decoded counter and a clock phase must close
+  on the clock edge the counter does not move on. A 74HC165 PL̅ = NAND(count ≡ 0, CLK̅) closed on
+  the counter's own edge, and the decode lagged it by the ripple: a 10 ns PL̅ pulse at every
+  bit. The simulator reported it at once (`pulse-width-violation` ×17500). That is a real
+  breadboard bug.
+- 2026-11-09 (LIB-2) — `pnpm check > log; grep … log && git commit` commits a red tree: the
+  grep's exit code wins. Keep `ec=$?` right after the check and commit only when it is 0.
+- 2026-11-09 (LIB-2) — A new part's unknown controls must follow the project's rule (they count
+  only once they were known). A TFT treating a never-known CS as "lost" showed red noise before
+  RESET in its example; only looking at the example in the browser found it.

@@ -15,6 +15,7 @@ import { LCD_DRAWERS } from './lcd';
 import { NET_DRAWERS } from './net';
 import { POWER_DRAWERS } from './power';
 import { SUBCIRCUIT_DRAWERS } from './subcircuit';
+import { TFT_DRAWERS } from './tft';
 import type { Drawer, GateStyle, PartLive } from './types';
 
 export { drawDip } from './dip';
@@ -23,6 +24,7 @@ export { BUBBLE } from './gates';
 export * from './interact';
 export { LED_COLORS, lit, unlit } from './io';
 export { LCD_GLASS, lcdGlassRect } from './lcd';
+export { TFT_GLASS, tftGlassRect } from './tft';
 export * from './types';
 
 /** Every symbol kind the editor can draw. Kinds missing here are drawn as a labeled box. */
@@ -31,6 +33,7 @@ export const DRAWERS: Readonly<Record<string, Drawer>> = {
   ...POWER_DRAWERS,
   ...IO_DRAWERS,
   ...LCD_DRAWERS,
+  ...TFT_DRAWERS,
   ...NET_DRAWERS,
   ...SUBCIRCUIT_DRAWERS,
   ...DRAW_DRAWERS,

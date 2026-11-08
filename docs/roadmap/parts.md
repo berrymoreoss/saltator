@@ -22,6 +22,7 @@ their architecture's track; analog behavior beyond digital models
 | R09b  | `feat/74hc-counters`  | 74HC counters & shift registers            | —     | done   |
 | R12a  | `feat/memory-chips`   | Memory chips                               | —     | done   |
 | LIB-1 | `feat/lcd-hd44780`    | Character LCD (HD44780)                    | —     | done   |
+| LIB-2 | `feat/lcd-st7789`     | TFT LCD (ST7789)                           | —     | done   |
 
 ## R03 · Basic IO parts — `feat/io-basic`
 
@@ -128,6 +129,25 @@ symbols right. Examples: LCD by Hand, LCD Hello, World (74HC4040, AT28C16, 74HC5
 [components.md](../components.md#hd44780), [editor.md](../editor.md#symbol-drawing). Decision:
 [ADR-0022](../adr/0022-character-lcd.md). Plan: `.ai/plans/feat-lcd-hd44780.md`.
 
+## LIB-2 · TFT LCD (ST7789) — `feat/lcd-st7789`
+
+Promoted from an idea at the author's request (2026-11-08). `periph/st7789`: a color TFT module
+with the Sitronix ST7789V controller on its 4-line SPI — the 8-pin breakout header (LCDWiki
+MSP2008/MSP1141, DM-TFT114-397), one prop `panel` (240 × 320, 240 × 240, 135 × 240) whose window
+in the frame memory is data, checked against the vendor offsets in four orientations each. The
+controller at command level: every command with its table's parameter count, §8.12's counters
+and MADCTL mapping, 12/16/18-bit color with RAMCTRL's EPF, the display modes applied when the
+frame is computed (sleep, display, inversion — the normally black IPS panels need `INVON` —
+idle, partial, scrolling, RGB swap), the frame memory unknown at power-on; reads and unknown
+commands are warnings. Table 6 as timing checks, the reset pulse with spike rejection, the waits
+after reset, `SWRESET`, `SLPOUT` and `SLPIN` as `wait-violation` with the command's effect
+uncertain — drawn as its likely outcome under a veil, since vendor code that skips them works
+(Q5). Drawn as the module with its glass, through a new `SymbolGraphics.image` and a cached
+frame (`PartLive.epoch` counts rewinds). Example: TFT Color Bars (SMPTE bars from two EEPROMs,
+74HC4040 counters, a 74HC165). Spec: [components.md](../components.md#st7789),
+[editor.md](../editor.md#symbol-drawing). Decision: [ADR-0031](../adr/0031-tft-modules.md).
+Plan: `.ai/plans/feat-lcd-st7789.md`.
+
 ## Ideas
 
 Not scheduled yet; promoting one gives it the next free id and a row in the table.
@@ -153,5 +173,10 @@ Not scheduled yet; promoting one gives it the next free id and a row in the tabl
   `MemoryDef` without address pins, several memories per part); a PWM-dimmed backlight at its
   average brightness; an input-pull-up pin flag, so the design check doesn't say an unconnected
   RS "reads as X" (it reads HIGH — still a mistake for R/W̅).
+- TFT follow-ups (LIB-2): the ST7789's 8080 8-bit parallel interface (memory-mapped on a 6502
+  bus) and its reads (`RDDID`, `RDDST`, `RAMRD`: SDA turning around); other TFT controllers
+  with the same command set (ILI9341, ST7735, GC9A01, ILI9488); the TE output; `powerOn:
+  unknown` (RESX not held during power-on); a voltage-domain check for 3.3 V parts on 5 V nets
+  with level shifters (74HC4050, 74LVC245).
 - Reset supervisor (R17a, Q3): a DS1813-style part holding RESB low for its time after power-on
   and when its pin is pulled low (the W65C02S has no internal reset; until then a button does).

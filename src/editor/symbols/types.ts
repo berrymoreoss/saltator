@@ -19,6 +19,12 @@ export interface PartLive {
   /** Simulated time now, in ps (an LCD's blink follows it). */
   readonly time: number;
   /**
+   * Changes whenever `state` was put back to an earlier one (a rewind restores into the same
+   * objects, counters included): a drawer caching something it made from `state` keys it by
+   * this too. Absent: 0.
+   */
+  readonly epoch?: number;
+  /**
    * Light `i`'s brightness (indicators, lights in `LightsState` order): 0 off … 1 on all the
    * time, averaged over the last frame while running; `UNKNOWN_LIGHT` when unknown.
    */

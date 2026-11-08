@@ -85,6 +85,32 @@ function ramSweep(chips: number): Simulator {
   return new Simulator(b.build(), registry);
 }
 
+/**
+ * `modules` ST7789s on one SPI bus from drivers, CS LOW, RES HIGH: a RAMWR, then pixel data.
+ * Returns the simulator and a function sending one byte at 100 ns a bit (mode 0).
+ */
+function tftBus(modules: number): { sim: Simulator; send: (dc: 0 | 1, byte: number) => void } {
+  const b = new NetlistBuilder().add('SCL', 'test/driver').add('SDA', 'test/driver');
+  b.add('DC', 'test/driver').add('G', 'io/gnd').add('V', 'io/vcc');
+  for (let i = 0; i < modules; i++) {
+    b.add(`T${i}`, 'periph/st7789');
+    b.connect('SCL.Y', `T${i}.SCL`).connect('SDA.Y', `T${i}.SDA`).connect('DC.Y', `T${i}.DC`);
+    b.connect('G.Y', `T${i}.CS`).connect('V.Y', `T${i}.RES`, `T${i}.BLK`);
+  }
+  const sim = new Simulator(b.build(), registry);
+  const send = (dc: 0 | 1, byte: number) => {
+    sim.action('DC', strong(dc));
+    for (let bit = 7; bit >= 0; bit--) {
+      sim.action('SDA', strong((byte >> bit) & 1 ? 1 : 0));
+      sim.runFor(ns(50));
+      sim.action('SCL', strong(1));
+      sim.runFor(ns(50));
+      sim.action('SCL', strong(0));
+    }
+  };
+  return { sim, send };
+}
+
 function ring(stages: number): Simulator {
   const b = new NetlistBuilder().add('EN', 'test/driver').add('N0', 'prim/nand', { delay: ns(1) });
   b.connect('EN.Y', 'N0.A');
@@ -316,6 +342,30 @@ describe('kernel', () => {
           sim.runFor(ns(200));
           timeline?.ran();
         }
+      });
+    });
+  }
+
+  for (const modules of [0, 1, 4]) {
+    const name = `ST7789 ×${modules} on one SPI bus, 8 pixel bytes`;
+    test(name, async ({ bench }) => {
+      const { sim, send } = tftBus(modules);
+      sim.action('SCL', strong(0));
+      sim.runFor(us(130_000)); // past the power-on waits
+      send(0, 0x3a);
+      send(1, 0x55);
+      send(0, 0x2c); // RAMWR
+      for (let i = 0; i < 16; i++) send(1, i);
+      const problems = sim.diagnostics.entries.map((d) => d.kind);
+      if (problems.length > 0) throw new Error(`unexpected diagnostics: ${problems.join(', ')}`);
+      let n = 0;
+      const before = performance.now();
+      const bytes = 20_000;
+      for (let i = 0; i < bytes; i++) send(1, n++ & 0xff);
+      const perByte = ((performance.now() - before) * 1000) / bytes;
+      console.log(`${name}: ${perByte.toFixed(2)} µs of wall time a byte`);
+      await measure(bench, name, sim, () => {
+        for (let i = 0; i < 8; i++) send(1, n++ & 0xff);
       });
     });
   }
