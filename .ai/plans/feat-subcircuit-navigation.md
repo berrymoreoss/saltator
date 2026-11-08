@@ -182,7 +182,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   module drawn with their own levels, carry-over while inside, lights per instance.
 - [x] 3. `editor`: Interact and the Probe tool inside — path-prefixed references, the context
   menu's spot; `locate`/`locateNet` by flat ids going into the instance; tests.
-- [ ] 4. `editor`: double-click goes into the instance; Go Up selects the instance one came
+- [x] 4. `editor`: double-click goes into the instance; Go Up selects the instance one came
   from, in view; tests.
 - [ ] 5. `ui`: the breadcrumb bar (crumbs, instance switcher, Up, the edits note, the unplaced
   note), Circuit menu and context menu entries, `Mod+↓`/`Mod+↑`, the status bar note removed;

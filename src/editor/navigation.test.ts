@@ -295,3 +295,67 @@ describe('Editor: tools inside an instance', () => {
     expect(where(editor)).toEqual(['chain', 'A2']);
   });
 });
+
+describe('Editor: going in and out', () => {
+  // Inside the body's bottom right corner: the labels on an instance's input pins cover its left.
+  const corner = (editor: Editor, part: string): Point => {
+    const { x, y, width, height } = editor.scene.partById.get(part)!.body;
+    return [x + width - 0.5, y + height - 0.5];
+  };
+  const doubleClick = (editor: Editor, part: string) =>
+    editor.doubleClick(input(corner(editor, part)));
+
+  it('goes into an instance by double-click, stopped or running', () => {
+    const editor = new Editor(library, chainDesign(library));
+    doubleClick(editor, 'A2');
+    expect(where(editor)).toEqual(['chain', 'A2']);
+    doubleClick(editor, 'A1');
+    expect(where(editor)).toEqual(['inverter', 'A2/A1']);
+    doubleClick(editor, 'U1'); // no instance: its properties
+    expect(where(editor)).toEqual(['inverter', 'A2/A1']);
+    expect(editor.requests.get()?.kind).toBe('edit-properties');
+    editor.goTop();
+    editor.simulation.run();
+    expect(editor.tool.get()).toBe('interact');
+    doubleClick(editor, 'A1');
+    expect(where(editor)).toEqual(['chain', 'A1']);
+    expect(editor.goInto('A2')).toBe(true);
+    expect(where(editor)).toEqual(['inverter', 'A1/A2']);
+    expect(editor.goInto('U1')).toBe(false);
+  });
+
+  it('goes from a circuit placed nowhere into the first instance of the one it places', () => {
+    const editor = new Editor(library, chainDesign(library));
+    const { document, id } = addCircuit(editor.state.get().document, 'Spare');
+    const spare = document.circuits.find((c) => c.id === id)!;
+    const instance = editor.state
+      .get()
+      .document.circuits[1]!.components.find((c) => c.id === 'A1')!;
+    editor.editDocument(
+      'Add Circuit',
+      replaceCircuit(document, { ...spare, components: [instance] }),
+      { open: id },
+    );
+    expect(where(editor)).toEqual(['spare', undefined]);
+    doubleClick(editor, 'A1');
+    expect(where(editor)).toEqual(['inverter', 'A1/A1']);
+  });
+
+  it('goes up to the instance it came from, keeping a view that shows it', () => {
+    const editor = new Editor(library, chainDesign(library));
+    editor.view.update((view) => ({ ...view, viewport: { width: 800, height: 600 } }));
+    editor.setCamera({ x: 0, y: 0, scale: 16 });
+    doubleClick(editor, 'A2');
+    editor.goUp();
+    expect(editor.view.get().camera).toEqual({ x: 0, y: 0, scale: 16 });
+    // Panned away from A2 meanwhile: brought back into view.
+    editor.setCamera({ x: 5000, y: 5000, scale: 16 });
+    doubleClick(editor, 'A2'); // nothing there: stays
+    expect(where(editor)).toEqual(['main', '']);
+    editor.openInstance('A2');
+    editor.goUp();
+    const { camera } = editor.view.get();
+    expect(camera).not.toEqual({ x: 5000, y: 5000, scale: 16 });
+    expect([...editor.state.get().selection.parts]).toEqual(['A2']);
+  });
+});

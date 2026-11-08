@@ -604,6 +604,21 @@ export class Editor {
     return true;
   }
 
+  /**
+   * Goes into instance `designator` of the open circuit, in the instance open (`A1` inside
+   * `A2` is `A2/A1`); from a circuit placed nowhere, into the first instance of its circuit.
+   * Returns false when it is no subcircuit instance.
+   */
+  goInto(designator: string): boolean {
+    const { scene, path } = this.state.get();
+    const type = scene.partById.get(designator)?.instance.type;
+    const inner = type === undefined ? undefined : subcircuitOf(type);
+    if (inner === undefined) return false;
+    if (path === undefined) this.openCircuit(inner);
+    else this.openInstance(path === '' ? designator : `${path}/${designator}`);
+    return true;
+  }
+
   /** Goes to the top circuit (its instance path `''`). */
   goTop(): void {
     this.openInstance('');
@@ -2047,8 +2062,8 @@ export class Editor {
   }
 
   /**
-   * Double-click: finishes a wire (Wire tool), opens the circuit of a subcircuit instance (R11a),
-   * or asks the UI to edit the part's properties.
+   * Double-click: finishes a wire (Wire tool), goes into a subcircuit instance (R11b), or asks
+   * the UI to edit the part's properties.
    */
   doubleClick(input: PointerInput): void {
     if (input.button !== 0) return;
@@ -2059,12 +2074,7 @@ export class Editor {
     const tool = this.tool.get();
     if (tool !== 'select' && tool !== 'interact') return;
     const hit = this.#hitAt(input.at);
-    const type = hit?.kind === 'part' ? this.scene.partById.get(hit.id)?.instance.type : undefined;
-    const inner = type === undefined ? undefined : subcircuitOf(type);
-    if (inner !== undefined) {
-      this.openCircuit(inner);
-      return;
-    }
+    if (hit?.kind === 'part' && this.goInto(hit.id)) return;
     if (tool !== 'select') return;
     if (hit?.kind === 'part') {
       this.setSelection(selectHit(hit));
