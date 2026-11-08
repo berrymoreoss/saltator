@@ -76,6 +76,7 @@ export {
 export {
   addCircuit,
   circuitsContaining,
+  circuitsInside,
   circuitUses,
   duplicateCircuit,
   fragmentDocument,

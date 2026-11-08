@@ -257,7 +257,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 4. `ui`: the sandbox client (`test-runner.ts`): iframe, CSP, blob worker, port, jobs,
   progress, time limits, Cancel, restart, start failures; syntax-error lines. Unit-tested over
   a fake transport; the real sandbox in e2e.
-- [ ] 5. `ui`: `tests-view.ts` — results per circuit, stale tracking, badge counts, failure rows,
+- [x] 5. `ui`: `tests-view.ts` — results per circuit, stale tracking, badge counts, failure rows,
   the starter template; unit tests.
 - [ ] 6. `ui`: the script editor (per Q3), lazy-loaded: highlighting, gutter marks, completion
   of the API and the circuit's references, document ↔ editor text, shortcuts kept inside it.

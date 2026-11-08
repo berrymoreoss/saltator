@@ -9,6 +9,7 @@ import {
 import {
   addCircuit,
   circuitsContaining,
+  circuitsInside,
   circuitUses,
   duplicateCircuit,
   fragmentDocument,
@@ -113,6 +114,13 @@ describe('circuit operations', () => {
     expect([...circuitsContaining(design, 'cell')].sort()).toEqual(['cell', 'main', 'pair']);
     expect([...circuitsContaining(design, 'pair')].sort()).toEqual(['main', 'pair']);
     expect([...circuitsContaining(design, 'main')]).toEqual(['main']);
+  });
+
+  it('knows which circuits a circuit places, through others too', () => {
+    expect([...circuitsInside(design, 'main')].sort()).toEqual(['cell', 'main', 'pair']);
+    expect([...circuitsInside(design, 'pair')].sort()).toEqual(['cell', 'pair']);
+    expect([...circuitsInside(design, 'cell')]).toEqual(['cell']);
+    expect([...circuitsInside(design, 'nowhere')]).toEqual([]);
   });
 
   it('lists the instance paths of a circuit below another', () => {

@@ -152,6 +152,23 @@ export function circuitsContaining(document: CircuitDocument, id: string): Reado
 }
 
 /**
+ * The circuits circuit `id` places, directly or through others, `id` included: what its
+ * simulation as the top is made of (a bench's results change with any of them).
+ */
+export function circuitsInside(document: CircuitDocument, id: string): ReadonlySet<string> {
+  const byId = new Map(document.circuits.map((c) => [c.id, c]));
+  const found = new Set<string>();
+  const visit = (circuit: string) => {
+    const c = byId.get(circuit);
+    if (!c || found.has(circuit)) return;
+    found.add(circuit);
+    for (const inner of placed(c)) visit(inner);
+  };
+  visit(id);
+  return found;
+}
+
+/**
  * The instance paths at which circuit `target` sits in the hierarchy below circuit `root`
  * (`''` when they are the same): where a reference written in `root` reaches into `target`.
  */
