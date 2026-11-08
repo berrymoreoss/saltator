@@ -77,6 +77,8 @@ test('a subcircuit made in the app: ports, an instance in Main, wired and runnin
   await expect(page.getByTestId('sim-status')).toHaveText(/Running · /);
   await clickAt(page, grid(LED));
   await expect(summary(page)).toHaveText('D1 · LED');
+  // The NOT's output is `X` for its first delay after Run: read the level once it is known.
+  await expect(level(page, 'A')).toHaveText(/^[01]$/);
   const before = await level(page, 'A').textContent();
   await clickAt(page, grid(SWITCH));
   await expect(level(page, 'A')).not.toHaveText(before ?? '');
