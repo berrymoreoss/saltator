@@ -31,9 +31,10 @@ const benches = EXAMPLE_FILES.flatMap(({ id }) =>
 );
 
 describe('example benches', () => {
-  it('are there: Half Adder, RAM by Hand, the Two-Digit Counter’s three circuits', () => {
+  it('are there: 6502 NOP Sled, Half Adder, RAM by Hand, the Two-Digit Counter’s three circuits', () => {
     const where = new Set(benches.map((b) => `${b.example}/${b.circuit}`));
     expect([...where].sort()).toEqual([
+      '6502-nop-sled/main',
       'half-adder/main',
       'ram-by-hand/main',
       'two-digit-counter/counter-digit',

@@ -279,7 +279,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   bidirectional with `WAI`, `BE`, unknown clock edges; tests at each limit.
 - [x] 10. Scenarios (ROM/RAM program, lost and reset), carry-over property with the CPU, rewind
   coverage, benchmark recorded.
-- [ ] 11. Example: 6502 NOP Sled with its bench; looked at in the browser.
+- [x] 11. Example: 6502 NOP Sled with its bench; looked at in the browser.
 - [ ] 12. Example: 6502 program from ROM with its bench; looked at in the browser; an e2e check
   that it runs.
 - [ ] 13. Docs: components.md (`cpu` family, W65C02S), simulation.md (CPU inspection),
@@ -379,15 +379,24 @@ Checkable statements; verified one by one in the finish-branch workflow.
   start-up code (the loop re-reads its cells and hides it). Benchmark (`pnpm bench
   tests/bench/cpu.bench.ts`, M3 Pro): **≈ 43 events per cycle, 8.0M events/s — 18 % of real
   time at 1 MHz** (the BE6502 will run about 5× slower than the real board).
+- 2026-11-08 — task 11: example **6502 NOP Sled** (`examples/6502-nop-sled.logic.json`, generated
+  by a throwaway `CircuitBuilder` script, then deleted): W65C02S, D0–D7 pulled to $EA, a 10 Hz
+  clock, RESET with a pull-up, pull-ups on RDY/IRQB/NMIB/BE/SOB, six hex displays on the address
+  and data buses, probes (PHI2, RESB, SYNC, VPB, RWB, A[0..15], D[0..7]); its bench checks the
+  vector reads ($FFFC/$FFFD with VPB), then $EAEA, $EAEB… with SYNC on the fetches. Design
+  checks clean; looked at in the browser (layout readable).
 
 ## Handoff
 
-- **State:** tasks 1–10 done: the core (all of SingleStepTests), the part `cpu/w65c02s`,
+- **State:** tasks 1–11 done: the core (all of SingleStepTests), the part `cpu/w65c02s`,
   scenarios with ROM/RAM, the carry-over property with a CPU (which fixed a memory read-stamp
-  bug), the benchmark.
-- **Next step:** task 11 — the 6502 NOP Sled example (a throwaway generator in
-  `tests/scenarios/`, `CircuitBuilder`, net labels at the pins; its test bench; look at it in the
-  browser), then task 12 (program from ROM with a 74HC574 LED port), task 13 (docs).
+  bug), the benchmark, the NOP Sled example.
+- **Next step:** task 12 — the program-from-ROM example: `computer-6502.ts`'s circuit plus a
+  74HC574 output port with LEDs (decode a write strobe at $6000 with the 74HC00's spare gates or
+  a second chip; watch the 574's hold time against the CPU's tDHW = 10 ns), a hand-assembled
+  light-walking program, its bench, an e2e check; then task 13 (docs). Pattern for examples: a
+  throwaway vitest generator with `CircuitBuilder`, labels at pin points (left DIP pins rotation
+  180, right 0), `resolveProps` before `serializeDocument`, `compileDesign(...).issues` empty.
 - **Watch out:** component state must stay plain data (snapshots freeze it: no closures,
   generators, `Map`s); `evaluate` idempotent with nothing changed (carry-over); enumerate
   nothing per unknown bit in the CPU (masks, not outcomes).
