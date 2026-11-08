@@ -4,7 +4,7 @@
 | ---------- | ------------------------------------------------------------------------------ |
 | Branch     | `feat/test-bench-ui`                                                           |
 | Roadmap    | R15b — Test benches in the app ([roadmap](../../docs/roadmap.md))              |
-| Status     | in-progress                                                                    |
+| Status     | done                                                                           |
 | Depends on | R15a (scripts, `runBench`, `functionScriptHost`), R12b (image files), R14, R11 |
 | Created    | 2026-11-08                                                                     |
 
@@ -327,13 +327,19 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   the panel the command mounts); `DocumentController.shown` resets the results per document;
   the e2e network test aims at an answer a route gives and was checked by mutation. Acceptance
   criteria verified; M2 reached.
+- 2026-11-08 — finished: the Tests tab — a circuit's test script in CodeMirror with its errors
+  as typed, benches run in an opaque-origin, no-network sandbox off the UI thread with Cancel
+  and time limits, failures a click from their line and signal, Insert Image…; a pure bench
+  service, the runner bundled by a Vite plugin, ADR-0026. `pnpm check` (2 613), `pnpm build`,
+  `pnpm e2e` (85) and `pnpm test:circuits` green. M2 reached; follow-ups in the roadmap's
+  backlog (test bench UI follow-ups).
 
 ## Handoff
 
-- **State:** all tasks done, acceptance criteria verified, docs and roadmap updated (R15b done,
-  M2 reached, R16a next); not merged — merging to `main` waits for the user's approval.
-- **Next step:** `/finish-branch` (status `done`, merge with `--no-ff`).
-- **Watch out:** never run a document's script in the page; `functionScriptHost` has no
-  isolation of its own. The sandbox's CSP is load-bearing (`'unsafe-eval'` for the host, nothing
-  that reaches the network); the e2e network test guards it.
+- **State:** merged; nothing pending. Follow-ups (waveforms of a bench run, a watch mode,
+  progress inside a long bench, a time limit setting) are in the roadmap's backlog.
+- **Next step:** R16a `example/sap-1-modules`.
+- **Watch out:** never run a document's script in the page; the sandbox's CSP is load-bearing
+  (`'unsafe-eval'` for the host, nothing that reaches the network); the e2e network test guards
+  it.
 - **Verify with:** `pnpm check`; `pnpm e2e`; `pnpm test:circuits`.
