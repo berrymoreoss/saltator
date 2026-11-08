@@ -546,7 +546,11 @@ export const w65c02s = defineComponent<Record<string, never>, W65C02SState>({
         overflow.hold(ctx, times);
         let clockBad = false;
         if (clockChanged) {
-          clockBad = high.check(ctx, times) || low.check(ctx, times) || cycle.check(ctx, times);
+          // Every check reports its own violation (no short circuit).
+          const shortHigh = high.check(ctx, times);
+          const shortLow = low.check(ctx, times);
+          const shortCycle = cycle.check(ctx, times);
+          clockBad = shortHigh || shortLow || shortCycle;
           const level = toInput(ctx.read(PHI2));
           const known = level === Level.L0 || level === Level.L1;
           const drive = levelDrive(level);

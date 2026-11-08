@@ -281,6 +281,95 @@ describe('W65C02S part', () => {
       expect(board.cpu.unknown[0]).toBe(unknownA);
     });
 
+    /** A NOP sled (every byte $EA) after RESET: the bus stays $EA, the CPU just runs. */
+    const sled = () => {
+      const board = new Board();
+      board.memory.fill(0xea);
+      board.reset();
+      return board;
+    };
+
+    /**
+     * One more cycle with `values` set `offset` ns from PHI2's `edge` (negative: before): the
+     * falling edge that ends the cycle, or the rising edge in its middle.
+     */
+    const around = (board: Board, values: BenchValues, offset: number, edge: 'fall' | 'rise') => {
+      const bench = board.bench;
+      const before = Math.min(offset, 0);
+      const after = Math.max(offset, 0);
+      bench.set({ PHI2: 0 });
+      if (edge === 'rise') {
+        bench.run(ns(500 + before));
+        if (offset < 0) bench.set(values);
+        bench.run(ns(-before));
+        bench.set({ PHI2: 1 });
+        bench.run(ns(after));
+        if (offset > 0) bench.set(values);
+        bench.run(ns(500 - after));
+        return;
+      }
+      bench.run(ns(500));
+      bench.set({ PHI2: 1 });
+      bench.run(ns(500 + before));
+      if (offset < 0) bench.set(values);
+      bench.run(ns(-before));
+      bench.set({ PHI2: 0 });
+      bench.run(ns(after));
+      if (offset > 0) bench.set(values);
+      bench.run(ns(500 - after));
+      bench.set({ PHI2: 1 });
+      bench.run(ns(500));
+    };
+
+    it.each([
+      [-10, []],
+      [-9, ['setup-violation']],
+      [10, []],
+      [9, ['hold-violation']],
+    ])(
+      'control inputs (IRQB) changing %i ns from PHI2 falling: tPCS, tPCH ≥ 10 ns',
+      (offset, kinds) => {
+        const board = sled(); // I is set after RESET: the sample matters only to the check
+        around(board, { IRQB: 0 }, offset, 'fall');
+        expect(board.kinds()).toEqual(kinds);
+        expect(board.cpu.mode).toBe('running');
+      },
+    );
+
+    it.each([
+      [-10, [], 0x40],
+      [-9, ['setup-violation'], 0x40],
+    ])('SOB falling %i ns before PHI2 rises: tPCS ≥ 10 ns; V set', (offset, kinds, unknownV) => {
+      const board = sled();
+      board.bench.set({ SOB: 1 });
+      around(board, { SOB: 0 }, offset, 'rise');
+      expect(board.kinds()).toEqual(kinds);
+      const v = board.cpu.values[5]! & 0x40;
+      const unknown = board.cpu.unknown[5]! & 0x40;
+      // In time V is set; a late SOB is sampled unknown, and so is V.
+      expect(kinds.length === 0 ? v : unknown).toBe(unknownV);
+    });
+
+    it.each([
+      [35, 35, []],
+      [34, 36, ['pulse-width-violation']],
+      [35, 34, ['pulse-width-violation', 'cycle-violation']],
+    ])(
+      'PHI2 LOW %i ns, then HIGH %i ns: tPWL, tPWH ≥ 35 ns, tCYC ≥ 70 ns',
+      (lowTime, high, kinds) => {
+        const board = sled();
+        const bench = board.bench;
+        bench.set({ PHI2: 0 }); // a fall a whole cycle after the last one
+        bench.run(ns(lowTime));
+        bench.set({ PHI2: 1 });
+        bench.run(ns(high));
+        bench.set({ PHI2: 0 }); // the next fall: `lowTime + high` after it
+        bench.run(ns(500));
+        expect(board.kinds()).toEqual(kinds);
+        expect(board.cpu.mode).toBe(kinds.length === 0 ? 'running' : 'unknown');
+      },
+    );
+
     it('checks PHI2 pulse widths and cycle time, and loses the CPU on a violation', () => {
       const board = new Board([0xea]);
       board.reset();
@@ -379,6 +468,19 @@ describe('W65C02S part', () => {
       board.cycles(2, { RDY: 'Z' });
       expect(board.cpu.mode).toBe('unknown');
       expect(board.kinds()).toContain('floating-input');
+    });
+
+    it('takes IRQB while it is LOW and I is clear, through $FFFE', () => {
+      const board = new Board([0x58, 0xea, 0xea, 0xea]); // CLI, NOPs
+      board.memory.set([0x00, 0xa0], 0xfffe);
+      board.memory.set([0xea, 0xea], 0xa000);
+      board.reset();
+      board.cycles(2); // CLI
+      board.cycles(2, { IRQB: 0 });
+      board.cycles(10);
+      expect(board.trace).toContain('fffe r vpb');
+      expect(board.cpu.values[4]).toBeGreaterThanOrEqual(0xa000);
+      expect(board.cpu.values[5]! & 0x04).toBe(0x04); // I set by the interrupt
     });
 
     it('takes NMIB on its falling edge through $FFFA', () => {
