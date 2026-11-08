@@ -28,12 +28,16 @@ export function isTimingViolation(kind: string): kind is TimingViolationKind {
 /**
  * Short circuits, oscillations and violations of a part's requirements break the circuit (a
  * violated set-up time is an intermittent failure on a real board, an instruction sent to a busy
- * LCD is lost): every kind ending in `-violation` is an error, whichever part reports it. The
+ * LCD is lost): every kind ending in `-violation` is an error, whichever part reports it, and so
+ * is a CPU that lost its state (`cpu-lost`: the program it runs means nothing from there). The
  * rest are warnings.
  */
 export function diagnosticSeverity(diagnostic: { readonly kind: string }): 'error' | 'warning' {
   const { kind } = diagnostic;
-  return kind === 'contention' || kind === 'oscillation' || kind.endsWith('-violation')
+  return kind === 'contention' ||
+    kind === 'oscillation' ||
+    kind === 'cpu-lost' ||
+    kind.endsWith('-violation')
     ? 'error'
     : 'warning';
 }

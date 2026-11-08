@@ -272,10 +272,10 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   generator, the committed sample in `pnpm check`; the full suite green, result recorded.
 - [x] 6. Core: reset sequence, `IRQB`/`NMIB`/`BRK`/`RTI`, `WAI`/`STP`, `SOB`, `RDY` halt; tests.
 - [x] 7. Core: unknown masks through the ALU and addressing, losing the state, power-on; tests.
-- [ ] 8. The part: pins, package, timing, `PHI2` edges, output windows, write data, read
+- [x] 8. The part: pins, package, timing, `PHI2` edges, output windows, write data, read
   sampling, `PHI1O`/`PHI2O` (Q7 delay sourced); registered (family `cpu`, Parts panel
   group); pin tests and measured windows.
-- [ ] 9. The part: timing checks (`tDSR`, `tDHR`, `tPCS`, `tPCH`, clock), `RESB` width, `RDY`
+- [x] 9. The part: timing checks (`tDSR`, `tDHR`, `tPCS`, `tPCH`, clock), `RESB` width, `RDY`
   bidirectional with `WAI`, `BE`, unknown clock edges; tests at each limit.
 - [ ] 10. Scenarios (ROM/RAM program, lost and reset), carry-over property with the CPU, rewind
   coverage, benchmark recorded.
@@ -358,14 +358,25 @@ Checkable statements; verified one by one in the finish-branch workflow.
   2032 cases, 308 KB, `scripts/sample-65c02.ts`) misses rare paths (decimal boundary, `JMP ($xxFF)`),
   so hand-written tests (`w65c02s-core.test.ts`) cover them, MLB, VPB, reset, interrupts and
   unknowns; 8 mutations all killed.
+- 2026-11-08 — tasks 8–9: the part `cpu/w65c02s` (`w65c02s.ts`), registered (family `cpu`, Parts
+  group "CPUs"): DIP-40 per Figure 3-1, the 5 V timing, PHI2 edges with wake-ups (the core moves
+  at t0 + tDHR, outputs `X` from tAH to tADS on changing lines, write data `X` from PHI2 rising
+  and valid at tMDS, released tDHW after it falls), BE (tBVD), RDY (halts; WAI drives it LOW;
+  floating → lost), SOB, NMIB edges, RESB ≥ 2 cycles, timing checks (tDSR/tDHR, tPCS/tPCH,
+  tPWH/tPWL/tCYC), unknown PHI2 → lost. `cpu-lost` is an error (`diagnosticSeverity`). Q7: no
+  65C02 data sheet found with a PHI2 → PHI1O/PHI2O delay (a web search turned up none); 10 ns,
+  marked as an estimate in the timing's source. The rewind property covers the CPU as a
+  registered part. Lessons: read BE only when it changes (init read it floating); the bench's
+  RDY released without a pull-up loses the CPU — a real trap, now a test. Mutation-checked: 11
+  mutants, 10 killed, 1 equivalent (`tAH − tDHR` is 0 in the 5 V column).
 
 ## Handoff
 
-- **State:** tasks 1–7 done: `CpuDef`, the opcode table, the pure core passing all of
-  SingleStepTests (`pnpm test:65c02`), hand-written core tests. No part yet.
-- **Next step:** task 8 — the part `cpu/w65c02s` (`w65c02s.ts`): pins, timing, `PHI2` edges and
-  wake-ups around the core (`holdReset`, `startReset`, `setOverflow`, `core.irq`/`core.nmi` set
-  by the part; RDY low = don't call `endCycle`; `Mode.waiting` → drive RDY LOW).
+- **State:** tasks 1–9 done: `CpuDef`, the opcode table, the core (all of SingleStepTests), the
+  part `cpu/w65c02s` with its timing and control lines, registered and tested on a bench.
+- **Next step:** task 10 — `tests/scenarios/cpu-6502.test.ts` (W65C02S + AT28C256 + 62256 +
+  74HC00 running a hand-assembled program; lost on uninitialized RAM; carry-over property with
+  the CPU) and `tests/bench/cpu.bench.ts`.
 - **Watch out:** component state must stay plain data (snapshots freeze it: no closures,
   generators, `Map`s); `evaluate` idempotent with nothing changed (carry-over); enumerate
   nothing per unknown bit in the CPU (masks, not outcomes).

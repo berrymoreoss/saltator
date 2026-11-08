@@ -194,6 +194,14 @@ export function loadRegisters(core: W65C02SCore, registers: Registers): void {
   fetch(core);
 }
 
+/** The instruction under way (undefined while fetching an opcode, in a reset or interrupt). */
+export function currentInstruction(
+  c: W65C02SCore,
+): { address: number; opcode: number; cycle: number } | undefined {
+  if (c.mode !== Mode.running || c.seq !== Seq.instruction || c.t === 0) return undefined;
+  return { address: c.opAddr, opcode: c.ir, cycle: c.t };
+}
+
 // ---------------------------------------------------------------------------------------------
 // Decoding: what kind of cycle sequence each opcode runs, and which operation.
 

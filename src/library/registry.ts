@@ -1,5 +1,6 @@
 import { Registry } from '../core';
 import { chips74xx } from './74xx';
+import { cpus } from './cpu';
 import { io } from './io';
 import { memories } from './mem';
 import { nets } from './net';
@@ -16,6 +17,7 @@ export function createDefaultRegistry(): Registry {
     ...chips74xx,
     ...timers,
     ...memories,
+    ...cpus,
     ...peripherals,
   ]);
 }
