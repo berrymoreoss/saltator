@@ -226,6 +226,14 @@ netlist; it gathers the bus labels and bus entries on it. Bus names (`BUS_NAME` 
 name as the stem and a range of indices 0…99 either way round, at most 32 characters
 (`D[0..7]`, `A[15..0]`); `busMembers` lists the members least significant first.
 
+## Subcircuits
+
+R11a. A circuit's **ports** ([components.md](components.md#ports-net-port)) are its interface:
+each joins the net or bus of its name inside, like a net label. Net and bus labels join only
+within their circuit; the power names (`VCC`, `GND`) are the same net everywhere. Instances of
+a circuit placed in another, their generated symbols and the flattening into one netlist with
+instance paths (`A1/U3`) _(planned, R11a)_.
+
 ## Compiler
 
 ```ts
@@ -283,9 +291,15 @@ at? }` — enough to locate the issue on the canvas.
 | `multiple-net-names` | warning  | a net with more than one name (labels `CLK` and `CLOCK` on one wire, a label on a VCC wire), or a bus with more than one; it is called by its first name, the issue sits at the first pin giving the second |
 | `single-net-label`   | warning  | a net label or bus entry whose name no other label, entry or VCC/GND symbol uses: it joins nothing by name (a typo?); bus labels never                                                                      |
 | `bus-entry-member`   | warning  | a bus entry on a named bus whose name isn't one of the bus's members (`D9` on `D[0..7]`)                                                                                                                    |
+| `duplicate-port`     | error    | a port giving a name another port of the circuit gives already: two ports `CLK`, or `D3` beside the bus port `D[0..7]` (R11a)                                                                               |
 
 An `out` pin with a pull resistor (`weak` pin) or with tri-state outputs is legal; conflicts
 between drivers that can actually disagree at run time are the kernel's `contention` diagnostic.
+
+**Ports** ([components.md](components.md#ports-net-port)) are where a circuit meets the outside:
+a net an input or bidirectional port names (a bus port: its members) may be driven from there,
+so its inputs aren't `undriven-input`; a name a port gives never makes a label or bus entry a
+`single-net-label` (a bus port's members are joined through it).
 
 ## Builder
 

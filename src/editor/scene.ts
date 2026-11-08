@@ -290,8 +290,8 @@ function partTexts(
   bounds: Rect,
 ): SceneText[] {
   const symbolKind = drawing.kind === 'symbol' ? drawing.symbol.kind : undefined;
-  // Net labels and bus entries show their names; their designators are never drawn.
-  if (symbolKind === 'net-label' || symbolKind === 'bus-entry') return [];
+  // Net labels, bus entries and ports show their names; their designators are never drawn.
+  if (symbolKind === 'net-label' || symbolKind === 'bus-entry' || symbolKind === 'port') return [];
   if (definition && symbolKind !== undefined && RAIL_KINDS.has(symbolKind)) {
     const lines: TextLine[] = [{ text: instance.label ?? definition.name, role: 'name' }];
     return placeTextBlock(lines, bounds, textSide([], pins[0]?.side));

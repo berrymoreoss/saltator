@@ -214,6 +214,12 @@ export interface ComponentDefinition<
    */
   readonly schematicOnly?: boolean;
   /**
+   * A subcircuit's port (R11a, `net/port`): its one pin joins the net or bus of `name` in its
+   * circuit and is that circuit's interface pin, with the direction and side the instance's
+   * symbol gives it. Ports are schematic-only.
+   */
+  readonly port?: (props: Props) => PortDef;
+  /**
    * The props the editor gives the next instance placed after one with `props` was placed or
    * edited (net labels: `D0` → `D1`). Without it, new instances get the defaults.
    */
@@ -236,6 +242,20 @@ export interface ComponentDefinition<
   readonly animation?: (state: State, props: Props) => Time | undefined;
   /** Creates the behavior of one instance. `props` are validated and defaulted. */
   create(props: Props): Behavior<State>;
+}
+
+/** Which way a port's signal goes, seen from the subcircuit: `in` comes from outside. */
+export type PortDirection = 'in' | 'out' | 'bidir';
+
+/** Where a port's pin sits on the instance symbol; `auto`: inputs left, the others right. */
+export type PortSide = 'auto' | 'left' | 'right' | 'top' | 'bottom';
+
+/** A subcircuit's interface pin, as a port part declares it (`ComponentDefinition.port`). */
+export interface PortDef {
+  /** A net name (`CLK`) or a bus name (`D[0..7]`, a bus port). */
+  readonly name: string;
+  readonly direction: PortDirection;
+  readonly side: PortSide;
 }
 
 /** A definition with its generic parameters erased, as stored in a registry. */

@@ -262,7 +262,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 
 - [x] 1. `circuit`: schema v4 — `CIRCUIT_ID`, migration v3 → v4, validation (unique slug ids),
   serialization; `emptyDocument`, `circuitIdFor(name, taken)`; docs (circuit.md Document).
-- [ ] 2. `library` + `editor`: the port part `net/port` (props, pins, symbol, drawer, Place ▸
+- [x] 2. `library` + `editor`: the port part `net/port` (props, pins, symbol, drawer, Place ▸
   Port) and its checks in a single circuit (`duplicate-port`, no `single-net-label`, a driver
   for `undriven-input`); components.md.
 - [ ] 3. `circuit`: `documentRegistry` — generated `sub/<id>` definitions (pins from ports,

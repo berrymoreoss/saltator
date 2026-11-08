@@ -339,6 +339,82 @@ describe('compileCircuit', () => {
     });
   });
 
+  describe('ports', () => {
+    const port = (id: string, name: string, x: number, y: number, direction = 'in') =>
+      part(id, 'test/port', x, y, { props: { name, direction } });
+    const entry = (id: string, name: string, x: number, y: number) =>
+      part(id, 'test/bus-entry', x, y, { props: { name } });
+
+    it('join the net of their name, as a label does, and mark their pin', () => {
+      // P1 CLK on U1.A (0,1); a label CLK on U1.B (0,2) joins it by name.
+      const result = compile([
+        part('U1', 'test/and', 0, 0),
+        port('P1', 'CLK', 0, 1),
+        part('NL1', 'test/label', 0, 2, { props: { name: 'CLK' } }),
+      ]);
+      const net = result.nets.find((n) => n.id === 'CLK')!;
+      expect(net.pins.map((p) => p.pin)).toEqual(['A', 'B']);
+      expect(net.schematicPins.map((p) => [p.component, p.port])).toEqual([
+        ['P1', 'in'],
+        ['NL1', undefined],
+      ]);
+      expect(result.netlist.components.map((c) => c.id)).toEqual(['U1']);
+    });
+
+    it('count an input or bidirectional port as a driver, an output port not', () => {
+      const undriven = (direction: string) =>
+        codes(compile([part('U1', 'test/and', 0, 0), port('P1', 'A', 0, 1, direction)])).filter(
+          (code) => code === 'undriven-input',
+        ).length;
+      // U1.B is unconnected either way; U1.A is fed by the port unless it is an output.
+      expect(undriven('in')).toBe(1);
+      expect(undriven('bidir')).toBe(1);
+      expect(undriven('out')).toBe(2);
+    });
+
+    it('never warn as a lone label, and a bus port gives its members', () => {
+      // The bus port Q[0..3] on a bus line with one entry Q0 to U1.A, nothing else named Q0.
+      const result = compile(
+        [
+          part('U1', 'test/and', 0, 0),
+          entry('BE1', 'Q0', 0, 1),
+          port('P1', 'Q[0..3]', 3, 6),
+          port('P2', 'EN', 0, 2),
+        ],
+        [{ id: 'b1', from: [3, 2], to: [3, 6], bus: true }],
+      );
+      expect(result.issues).toEqual([]);
+      expect(result.buses.map((b) => b.id)).toEqual(['Q[0..3]']);
+    });
+
+    it('report a second port giving a name a port gives already', () => {
+      const result = compile([
+        port('P1', 'CLK', 0, 0),
+        port('P2', 'CLK', 0, 4),
+        port('P3', 'D[0..3]', 0, 8),
+        port('P4', 'D2', 0, 12, 'out'),
+        port('P5', 'D[3..6]', 0, 16),
+      ]);
+      expect(result.issues.filter((i) => i.code === 'duplicate-port')).toEqual([
+        {
+          severity: 'error',
+          code: 'duplicate-port',
+          message: 'ports P1 and P2 are both named CLK',
+          component: 'P2',
+          pin: 'N',
+          at: [0, 4],
+        },
+        expect.objectContaining({
+          message: 'port P4 "D2" gives D2, which port P3 "D[0..3]" gives already',
+        }),
+        expect.objectContaining({
+          message: 'port P5 "D[3..6]" gives D3, which port P3 "D[0..3]" gives already',
+        }),
+      ]);
+      expect(result.ok).toBe(false);
+    });
+  });
+
   describe('buses', () => {
     const entry = (id: string, name: string, x: number, y: number) =>
       part(id, 'test/bus-entry', x, y, { props: { name } });

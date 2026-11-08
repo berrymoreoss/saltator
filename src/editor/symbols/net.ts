@@ -2,7 +2,9 @@
  * Net parts. The net label: an outlined tag pointing at its connection point, the name inside
  * (overlined where it says `~{…}`); while simulating, the outline takes its net's wire color. The
  * bus entry: a diagonal across its one-cell body between its bit stub and its bus stub, its name
- * beside it.
+ * beside it. The port: a heavier flag whose points show the signal's direction (an input points
+ * into the circuit, at its connection point; an output away from it; a bidirectional port both
+ * ways), the name in bold.
  */
 import { isBusName, netNameRuns } from '../../core';
 import { NET_LABEL_FONT } from '../../library';
@@ -63,6 +65,52 @@ function drawValueTag(g: SymbolGraphics, value: string, x: number, y: number, ou
   });
 }
 
+/** Outline of a port's flag: heavier than a label's, so ports stand out as the interface. */
+const PORT_OUTLINE = 0.16;
+
+const port: Drawer = (g, { body, props, pinColor, busValue }) => {
+  const name = String(props.name ?? '');
+  const bus = isBusName(name);
+  const direction = String(props.direction ?? 'in');
+  const inward = direction !== 'out'; // a point at the connection end
+  const outward = direction !== 'in'; // a point at the far end
+  const x0 = body.x;
+  const x1 = body.x + body.width;
+  const y = body.y + body.height / 2;
+  g.beginPath();
+  if (inward) g.moveTo(x0, y);
+  else g.moveTo(x0, y - HALF);
+  if (inward) g.lineTo(x0 + POINT, y - HALF);
+  if (outward) {
+    g.lineTo(x1 - POINT, y - HALF);
+    g.lineTo(x1, y);
+    g.lineTo(x1 - POINT, y + HALF);
+  } else {
+    g.lineTo(x1, y - HALF);
+    g.lineTo(x1, y + HALF);
+  }
+  if (inward) g.lineTo(x0 + POINT, y + HALF);
+  else g.lineTo(x0, y + HALF);
+  g.closePath();
+  g.fill('body');
+  const outline = pinColor?.('N') ?? (bus ? 'bus' : 'line');
+  g.stroke(outline, bus ? BUS_OUTLINE : PORT_OUTLINE);
+  const { text, overline } = overlinedText(netNameRuns(name));
+  g.text(text, (x0 + x1) / 2, y, {
+    size: NET_LABEL_FONT,
+    align: 'center',
+    baseline: 'middle',
+    font: 'mono',
+    bold: true,
+    paint: 'text',
+    overline,
+  });
+  if (busValue !== undefined) drawValueTag(g, busValue, x1, y, outline);
+};
+
+/** A bus port's outline: as heavy as a bus label's and a little more. */
+const BUS_OUTLINE = WIRE_WIDTH * 1.6;
+
 /** Font size of a bus entry's name, in cells. */
 const ENTRY_FONT = 0.5;
 
@@ -87,4 +135,5 @@ const busEntry: Drawer = (g, { body, props, pinColor }) => {
 export const NET_DRAWERS: Readonly<Record<string, Drawer>> = {
   'net-label': netLabel,
   'bus-entry': busEntry,
+  port,
 };

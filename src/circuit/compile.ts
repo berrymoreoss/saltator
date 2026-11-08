@@ -18,9 +18,12 @@ import {
   type CircuitNet,
   type DesignIssue,
   danglingWires,
+  duplicatePorts,
   multipleBusNames,
   multipleNetNames,
   type PlacedPin,
+  type PlacedPort,
+  portBits,
   shortedOutputs,
   singleNetLabels,
   undrivenInputs,
@@ -71,6 +74,7 @@ export function compileCircuit(circuit: Circuit, registry: ComponentRegistry): C
   const pins: PlacedPin[] = [];
   const schematicPins: PlacedPin[] = [];
   const busPins: PlacedPin[] = [];
+  const ports: PlacedPort[] = [];
   const layouts = new Map<string, PartLayout>();
 
   for (const instance of circuit.components) {
@@ -111,8 +115,11 @@ export function compileCircuit(circuit: Circuit, registry: ComponentRegistry): C
     const defs = pinsOf(definition, props);
     const schematicOnly = definition.schematicOnly === true;
     const target = schematicOnly ? schematicPins : pins;
+    const port = definition.port?.(props);
     placePins(layout, placementOf(instance)).forEach((placed, i) => {
       const def = defs[i]!;
+      // A port's one pin is the circuit's interface pin of the port's name.
+      const portPin = port !== undefined && def.net === port.name;
       (def.bus === true ? busPins : target).push({
         component: instance.id,
         pin: def.name,
@@ -121,8 +128,18 @@ export function compileCircuit(circuit: Circuit, registry: ComponentRegistry): C
         sense: def.sense === true,
         ...(def.constant !== undefined && { constant: def.constant }),
         ...(def.net !== undefined && { net: def.net }),
+        ...(portPin && { port: port.direction }),
         at: placed.at,
       });
+      if (portPin) {
+        ports.push({
+          component: instance.id,
+          pin: def.name,
+          name: port.name,
+          direction: port.direction,
+          at: placed.at,
+        });
+      }
     });
     if (schematicOnly) continue;
     components.push(
@@ -164,14 +181,19 @@ export function compileCircuit(circuit: Circuit, registry: ComponentRegistry): C
     ),
   );
 
+  // What the ports give: names other labels may rely on, and names driven from outside.
+  const portNames = new Set(ports.flatMap((p) => portBits(p.name)));
+  const driven = new Set(ports.flatMap((p) => (p.direction === 'out' ? [] : portBits(p.name))));
+
   issues.push(
+    ...duplicatePorts(ports),
     ...shortedOutputs(nets),
-    ...undrivenInputs(nets),
+    ...undrivenInputs(nets, driven),
     ...danglingWires(connectivity.danglingEnds, wires, onBus),
     ...danglingWires(busConnectivity.danglingEnds, busWires),
     ...multipleNetNames(nets),
     ...multipleBusNames(buses),
-    ...singleNetLabels(nets, entries),
+    ...singleNetLabels(nets, entries, portNames),
     ...busEntryMembers(buses, entryNames),
   );
   issues.sort((a, b) => severityRank(a) - severityRank(b));

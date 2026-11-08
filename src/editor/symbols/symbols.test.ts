@@ -90,6 +90,23 @@ describe('net drawers', () => {
     expect(running.texts[1]!.at[0]).toBeGreaterThan(label.layout.body.x + label.layout.body.width);
   });
 
+  it('draw a port as a flag pointing the way its signal goes, its name in bold', () => {
+    const tips = (direction: string) => {
+      const p = part('net/port', { name: 'CLK', direction });
+      const g = draw('net/port', { name: 'CLK', direction }, 'ansi');
+      const { x, width } = p.layout.body;
+      const y = p.layout.body.y + p.layout.body.height / 2;
+      expect(within(g.points, p.localBounds), direction).toBe(true);
+      expect(g.texts.map((t) => [t.text, t.style.bold])).toEqual([['CLK', true]]);
+      const at = (px: number) => g.points.some(([gx, gy]) => gx === px && gy === y);
+      return [at(x), at(x + width)];
+    };
+    expect(tips('in')).toEqual([true, false]);
+    expect(tips('out')).toEqual([false, true]);
+    expect(tips('bidir')).toEqual([true, true]);
+    expect(part('net/port', { name: 'CLK' }).texts).toEqual([]);
+  });
+
   it('draw a bus entry with its name, no designator', () => {
     const entry = part('net/bus-entry', { name: 'A15' });
     expect(draw('net/bus-entry', { name: 'A15' }, 'ansi').texts.map((t) => t.text)).toEqual([

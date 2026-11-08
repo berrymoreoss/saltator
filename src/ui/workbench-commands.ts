@@ -903,6 +903,8 @@ const PLACE_PARTS: readonly {
   { id: 'place.netLabel', label: 'Net Label', type: 'net/label', shortcuts: ['L'] },
   // KiCad's key for a bus entry.
   { id: 'place.busEntry', label: 'Bus Entry', type: 'net/bus-entry', shortcuts: ['Z'] },
+  // A subcircuit's interface pin: a label that leaves the circuit (KiCad's hierarchical label).
+  { id: 'place.port', label: 'Port', type: 'net/port', shortcuts: ['Shift+L'] },
 ];
 
 /** The Place menu and the canvas context menu's Place submenu. */
@@ -916,6 +918,7 @@ export const PLACE_MENU: readonly MenuEntry[] = [
   'tool.bus',
   'place.netLabel',
   'place.busEntry',
+  'place.port',
   SEPARATOR,
   'parts.search',
 ];
