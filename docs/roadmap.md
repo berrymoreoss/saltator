@@ -13,37 +13,37 @@ How to read this file:
 
 ## Overview
 
-| ID   | Branch                       | Title                                      | Status  |
-| ---- | ---------------------------- | ------------------------------------------ | ------- |
-| R00  | — (initial commit on `main`) | Foundation                                 | done    |
-| R01  | `feat/engine-core`           | Simulation kernel                          | done    |
-| R02  | `feat/circuit-model`         | Circuit document & netlist compiler        | done    |
-| R03  | `feat/io-basic`              | Basic IO parts (headless)                  | done    |
-| R04a | `feat/editor-canvas`         | App shell & schematic view                 | done    |
-| R04b | `feat/editor-tools`          | Schematic editing                          | done    |
-| R05  | `feat/sim-ui`                | Running simulations in the editor          | done    |
-| R06  | `feat/74hc-gates`            | 74HC gates & bus buffers                   | done    |
-| R07  | `feat/persistence`           | Save, load, examples                       | done    |
-| R08  | `feat/74hc-msi`              | 74HC combinational MSI                     | done    |
-| R09a | `feat/74hc-registers`        | 74HC flip-flops, registers + timing checks | done    |
-| R09b | `feat/74hc-counters`         | 74HC counters & shift registers            | done    |
-| R10a | `feat/net-labels`            | Net labels                                 | done    |
-| R10b | `feat/buses`                 | Buses, rippers, bus values                 | done    |
-| R12a | `feat/memory-chips`          | Memory chips (EEPROM, SRAM)                | done    |
-| R12b | `feat/memory-inspector`      | Memory inspector, image files              | done    |
-| R13  | `feat/logic-analyzer`        | Waveforms & probes                         | done    |
-| R14a | `feat/debugger`              | Breakpoints, stepping, watches             | done    |
-| R14b | `feat/rewind`                | Snapshots & rewind                         | done    |
-| R11a | `feat/subcircuits`           | Subcircuits                                | done    |
-| R11b | `feat/subcircuit-navigation` | Navigation into instances                  | done    |
-| R15a | `feat/test-benches`          | Test benches: scripts, headless runner     | done    |
-| R15b | `feat/test-bench-ui`         | Test benches in the app                    | next    |
-| R16a | `example/sap-1-modules`      | SAP-1 modules as tested subcircuits        | planned |
-| R16b | `example/sap-1`              | Ben Eater SAP-1 reference build            | planned |
-| R17  | `feat/cpu-6502`              | W65C02S CPU                                | planned |
-| R18  | `feat/peripherals`           | VIA, serial, buzzer, keypad                | planned |
-| R19  | `feat/toolchain`             | 6502 assembler & flashing                  | planned |
-| R20  | `example/be6502`             | Ben Eater 6502 reference build             | planned |
+| ID   | Branch                       | Title                                      | Status      |
+| ---- | ---------------------------- | ------------------------------------------ | ----------- |
+| R00  | — (initial commit on `main`) | Foundation                                 | done        |
+| R01  | `feat/engine-core`           | Simulation kernel                          | done        |
+| R02  | `feat/circuit-model`         | Circuit document & netlist compiler        | done        |
+| R03  | `feat/io-basic`              | Basic IO parts (headless)                  | done        |
+| R04a | `feat/editor-canvas`         | App shell & schematic view                 | done        |
+| R04b | `feat/editor-tools`          | Schematic editing                          | done        |
+| R05  | `feat/sim-ui`                | Running simulations in the editor          | done        |
+| R06  | `feat/74hc-gates`            | 74HC gates & bus buffers                   | done        |
+| R07  | `feat/persistence`           | Save, load, examples                       | done        |
+| R08  | `feat/74hc-msi`              | 74HC combinational MSI                     | done        |
+| R09a | `feat/74hc-registers`        | 74HC flip-flops, registers + timing checks | done        |
+| R09b | `feat/74hc-counters`         | 74HC counters & shift registers            | done        |
+| R10a | `feat/net-labels`            | Net labels                                 | done        |
+| R10b | `feat/buses`                 | Buses, rippers, bus values                 | done        |
+| R12a | `feat/memory-chips`          | Memory chips (EEPROM, SRAM)                | done        |
+| R12b | `feat/memory-inspector`      | Memory inspector, image files              | done        |
+| R13  | `feat/logic-analyzer`        | Waveforms & probes                         | done        |
+| R14a | `feat/debugger`              | Breakpoints, stepping, watches             | done        |
+| R14b | `feat/rewind`                | Snapshots & rewind                         | done        |
+| R11a | `feat/subcircuits`           | Subcircuits                                | done        |
+| R11b | `feat/subcircuit-navigation` | Navigation into instances                  | done        |
+| R15a | `feat/test-benches`          | Test benches: scripts, headless runner     | done        |
+| R15b | `feat/test-bench-ui`         | Test benches in the app                    | in-progress |
+| R16a | `example/sap-1-modules`      | SAP-1 modules as tested subcircuits        | planned     |
+| R16b | `example/sap-1`              | Ben Eater SAP-1 reference build            | planned     |
+| R17  | `feat/cpu-6502`              | W65C02S CPU                                | planned     |
+| R18  | `feat/peripherals`           | VIA, serial, buzzer, keypad                | planned     |
+| R19  | `feat/toolchain`             | 6502 assembler & flashing                  | planned     |
+| R20  | `example/be6502`             | Ben Eater 6502 reference build             | planned     |
 
 ---
 
@@ -409,7 +409,7 @@ Two-Digit Counter's three circuits run in `pnpm check`; `pnpm test:circuits` run
 (exit codes; a CI step). Spec: [circuit.md](circuit.md#test-benches). Decision:
 [ADR-0025](adr/0025-test-benches.md). Plan: `.ai/plans/feat-test-benches.md`.
 
-### R15b · Test benches in the app — `feat/test-bench-ui` — `next`
+### R15b · Test benches in the app — `feat/test-bench-ui` — `in-progress`
 
 The Tests tab: a circuit's test script edited with its errors, its benches run in a browser
 sandbox off the UI thread with progress and Cancel, results with the failing lines; Insert
