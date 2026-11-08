@@ -97,6 +97,12 @@ export const EXAMPLE_FILES: readonly ExampleFile[] = [
       'A 74HC4040 steps an AT28C16 whose bytes a 74HC574 latches onto a 4-bit LCD: the data sheet’s initialization, then text. RESET first.',
   },
   {
+    id: 'tft-color-bars',
+    title: 'TFT Color Bars',
+    description:
+      'SMPTE color bars on an ST7789 240×320 in landscape: two 74HC4040s count SPI bits, an AT28C256 holds the rows, an AT28C64B D/CX and CS̅ for the initialization, a 74HC165 shifts the bytes out. RESET first; the picture takes 4 s of simulated time.',
+  },
+  {
     id: '6502-nop-sled',
     title: '6502 NOP Sled',
     description:
