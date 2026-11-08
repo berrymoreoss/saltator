@@ -262,7 +262,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 
 - [x] 1. `circuit`: `Circuit.testScript`, schema v5 + migration, `serializeDocument`, schema
   validation, `sameCircuit`; copy/paste carries it.
-- [ ] 2. `core`: `testDriver` into core proper (`core/testing` re-exports it).
+- [x] 2. `core`: `testDriver` into core proper (`core/testing` re-exports it).
 - [ ] 3. `circuit`: bench values — expected and input values (numbers, BigInt, text with `X`
   digits, `'X'`, `'Z'`, `'unknown'`), comparison with levels, formatting the actual value.
 - [ ] 4. `circuit`: the bench context on local test parts — compile with `top`, drivers on

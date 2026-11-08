@@ -1,6 +1,5 @@
 import {
   type AnyComponentDefinition,
-  defineComponent,
   isDriverPin,
   isReadPin,
   type PinDef,
@@ -8,10 +7,11 @@ import {
   resolveProps,
 } from '../component';
 import type { Diagnostic } from '../diagnostics';
-import { type Drive, Level, levelChar, strong } from '../logic';
+import { Level, levelChar, strong } from '../logic';
 import { NetlistBuilder } from '../netlist';
 import { Registry } from '../registry';
 import { type RunStatus, type SettleOptions, Simulator, type SimulatorOptions } from '../simulator';
+import { testDriver } from '../test-driver';
 import { formatTime, type Time } from '../time';
 
 /** A level as written in tests: `0`, `1`, `'X'`, `'Z'` (or a `Level` constant). */
@@ -27,22 +27,6 @@ export function toLevel(value: BenchValue): Level {
   if (value === 0 || value === 1 || value === 2 || value === 3) return value;
   throw new Error(`bad bench value ${JSON.stringify(value)} (expected 0, 1, 'X' or 'Z')`);
 }
-
-/**
- * Test stimulus driver: a tri-state source set through `sim.action(id, drive)`, zero delay.
- * Starts released (`Z`), so a pin the test never sets reads as floating.
- */
-export const testDriver = defineComponent({
-  type: 'test/driver',
-  name: 'DRV',
-  title: 'Test driver',
-  pins: [{ name: 'Y', dir: 'tristate' }],
-  create: () => ({
-    action(ctx, drive) {
-      ctx.drive(0, drive as Drive, 0);
-    },
-  }),
-});
 
 const DUT = 'DUT';
 const driverId = (pin: string) => `drv:${pin}`;

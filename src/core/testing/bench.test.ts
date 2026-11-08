@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { defineComponent } from '../component';
 import { and, Drive, Level, not, strong } from '../logic';
+import { testDriver } from '../test-driver';
 import { ns } from '../time';
-import { Bench, testDriver, toLevel } from './bench';
+import { Bench, toLevel } from './bench';
 import { functionTable, truthTable } from './function-table';
 
 const nand = defineComponent({

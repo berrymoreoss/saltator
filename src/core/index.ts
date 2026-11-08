@@ -163,6 +163,7 @@ export {
   type TextRun,
   validateSymbol,
 } from './symbol';
+export { testDriver } from './test-driver';
 export { formatTime, ms, ns, parseTime, ps, TIME_MAX, type Time, us } from './time';
 export {
   type CycleCheck,
