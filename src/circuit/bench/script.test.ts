@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { us } from '../../core';
 import type { CircuitDocument } from '../document';
+import { functionScriptHost } from './function-host';
 import { loadTestScript, runBench, runTestScript } from './script';
 import { benchTestDocument } from './test-circuits';
-import { functionHost } from './test-host';
 import { benchTestRegistry } from './test-parts';
 
 const registry = benchTestRegistry();
-const host = functionHost();
+const host = functionScriptHost();
 
 /** The test document with `script` as the test script of circuit `circuit`. */
 function withScript(script: string, circuit = 'cell'): CircuitDocument {

@@ -1,16 +1,18 @@
 /**
- * A script host for unit tests: the script as a `new Function` in this realm, lines from V8's
- * stack frames (Node and Chromium). No isolation and no time limit: tests only. The Node host
+ * A script host in this realm: the script as a `new Function` of its globals, lines from V8's
+ * stack frames (Node, Chromium). No isolation and no time limit, so only for code one trusts or
+ * a realm that is a sandbox already (tests; inside R15b's browser sandbox). The Node host
  * (scripts/script-host.ts) runs scripts in a `vm` context instead.
  */
 import type { ScriptHost } from './script';
 
+/** The script's name in stack frames. */
 const FILE = 'test-script.js';
 /** `new Function` puts two lines before the body: `function anonymous(…` and `) {`. */
 const HEADER_LINES = 2;
 const FRAME = new RegExp(`${FILE.replace('.', '\\.')}:(\\d+):\\d+`);
 
-export function functionHost(): ScriptHost {
+export function functionScriptHost(): ScriptHost {
   const lineOf = (stack: unknown) => {
     const match = typeof stack === 'string' ? FRAME.exec(stack) : null;
     return match ? Number(match[1]) - HEADER_LINES : undefined;

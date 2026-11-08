@@ -227,7 +227,7 @@ export class CircuitBench {
     this.#act(target.part, payload, name);
   }
 
-  /** `count` steps of a clock: each rises at ¼ of the step and falls at ¾. */
+  /** `count` steps of a clock: each LOW at its start, rising at ¼ of the step, falling at ¾. */
   clock(ref: unknown, count: unknown = 1): void {
     const name = this.#ref(ref, 'clock');
     if (typeof count !== 'number' || !Number.isInteger(count) || count < 0) {
@@ -422,10 +422,15 @@ export class CircuitBench {
     }
   }
 
-  /** One step: levels at its start, pulses from ¼ to ¾, to its end. */
+  /**
+   * One step: levels at its start, pulses from ¼ to ¾, to its end. A pulsed port is driven LOW
+   * from the start: a pulse is 0 → 1 → 0, and a rise from a released (`Z`) or unknown level is
+   * no edge to a flip-flop.
+   */
   #steps(levels: readonly [string, unknown][], pulses: readonly { name: string; input: Input }[]) {
     const start = this.now;
     for (const [ref, value] of levels) this.#set(ref, value);
+    for (const { input } of pulses) if (input.kind === 'port') this.#drive(input, [Level.L0]);
     const rise = start + Math.floor(this.#step / 4);
     const fall = start + Math.floor((this.#step * 3) / 4);
     this.#runTo(rise);

@@ -13,6 +13,7 @@ export {
   CircuitBench,
   DEFAULT_STEP,
 } from './bench/bench';
+export { functionScriptHost } from './bench/function-host';
 export {
   type BenchEntry,
   type BenchResult,

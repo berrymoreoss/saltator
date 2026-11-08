@@ -274,7 +274,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   power-on; power-on ordering.
 - [x] 7. `circuit`: `ScriptHost`, `loadTestScript`, `runBench` — registration, lines,
   `b.random`/`b.log`/`b.fail`, Promises refused.
-- [ ] 8. Node host (`node:vm`, globals only, time limit, lines); scenarios on real parts — a
+- [x] 8. Node host (`node:vm`, globals only, time limit, lines); scenarios on real parts — a
   74HC163 counter, a set-up violation failing the bench, a 6116 loaded before power-on,
   determinism, a runaway loop stopped.
 - [ ] 9. Example test scripts: Half Adder, Two-Digit Counter (three circuits), RAM by Hand;
@@ -320,11 +320,21 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - 2026-11-08 — plan drafted; Q1–Q9 answered (JavaScript scripts instead of the proposed DSL);
   R15 split into R15a/R15b.
 - 2026-11-08 — plan approved; branch started (roadmap: R15a in-progress, R15b planned).
+- 2026-11-08 — tasks 1–8 done. Decisions on the way: inputs are operated by symbol kind as the
+  Interact tool does (`switch`, `button`, `dip-switch`, `clock`); a pulsed port is driven LOW
+  from the step's start (a rise from a released `Z` is no edge: the 74HC74 went `X`); scripts
+  run in strict mode (`'use strict';` prefixed on line 1); each bench loads the script afresh;
+  `functionScriptHost` (in-realm `new Function`) is exported for tests and R15b's sandbox; the
+  Node host's tests live in `scripts/` because `tests/` is typed without Node types; the
+  bench's own test parts and circuits are in `src/circuit/bench/test-*.ts`.
 
 ## Handoff
 
 - **State:** plan approved; nothing implemented yet.
 - **Next step:** task 1.
 - **Watch out:** R13 lesson — a new document field must be in `sameCircuit`, the schema, the
-  serializer and a migration; vm realms — no `instanceof Array` on script values.
+  serializer and a migration; vm realms — no `instanceof Array` on script values. Lessons to
+  write in task 11: V8's 10-frame stack limit hides the script frame (hosts raise it); a Node
+  `vm` context has a `console` of its own; tests/ can't import Node APIs (typed by
+  tsconfig.app.json) — Node-side tests go in scripts/; a pulse from `Z` is no edge.
 - **Verify with:** `pnpm check`; `pnpm test:circuits`.
