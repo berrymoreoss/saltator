@@ -319,6 +319,53 @@ describe('instances in a compiled circuit', () => {
     expect(result.issues.filter((i) => i.pin === 'A' && i.component === 'U1')).toEqual([]);
   });
 
+  it('make the members of a bus at their bus pin names a label may rely on', () => {
+    // `reg` has the bus port D[0..1]; the top runs a bus named X[0..1] from A1's bus pin and
+    // names X0 once, by a label: it joins A1's bit 0, so it is no lone label.
+    const reg = circuit('reg', [port('P1', 'D[0..1]', 0, 0)]);
+    const shell = circuit('main', [part('A1', 'sub/reg', 0, 0)]);
+    const docRegistry = documentRegistry(doc(shell, reg), library);
+    const definition = docRegistry.get('sub/reg')!;
+    const at = placePins(partLayout(definition, {}), placementOf(shell.components[0]!))[0]!.at;
+    const top = circuit(
+      'main',
+      [
+        part('A1', 'sub/reg', 0, 0),
+        part('BL1', 'test/bus-label', at[0] + 4, at[1], { name: 'X[0..1]' }),
+        part('NL1', 'test/label', 30, 30, { name: 'X0' }),
+      ],
+      [{ id: 'b1', from: at, to: [at[0] + 4, at[1]], bus: true }],
+    );
+    expect(compileCircuit(top, docRegistry).issues).toEqual([]);
+  });
+
+  it('drive the members of a bus at an output bus port, not at an input one', () => {
+    const undriven = (direction: string) => {
+      const reg = circuit('reg', [port('P1', 'D[0..1]', 0, 0, direction)]);
+      const shell = circuit('main', [part('A1', 'sub/reg', 0, 0)]);
+      const docRegistry = documentRegistry(doc(shell, reg), library);
+      const definition = docRegistry.get('sub/reg')!;
+      const at = placePins(partLayout(definition, {}), placementOf(shell.components[0]!))[0]!.at;
+      // X0 reaches an AND gate's inputs by labels; X1 nothing.
+      const top = circuit(
+        'main',
+        [
+          part('A1', 'sub/reg', 0, 0),
+          part('BL1', 'test/bus-label', at[0] + 4, at[1], { name: 'X[0..1]' }),
+          part('U1', 'test/and', 30, 30),
+          part('NL1', 'test/label', 30, 31, { name: 'X0' }),
+          part('NL2', 'test/label', 30, 32, { name: 'X0' }),
+        ],
+        [{ id: 'b1', from: at, to: [at[0] + 4, at[1]], bus: true }],
+      );
+      return compileCircuit(top, docRegistry).issues.filter((i) => i.code === 'undriven-input')
+        .length;
+    };
+    expect(undriven('out')).toBe(0);
+    expect(undriven('bidir')).toBe(0);
+    expect(undriven('in')).toBe(2);
+  });
+
   it('are an unknown type when their circuit is missing', () => {
     const result = compileCircuit(circuit('main', [part('A1', 'sub/gone', 0, 0)]), registry);
     expect(result.issues.map((i) => i.code)).toEqual(['unknown-type']);

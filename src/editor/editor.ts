@@ -665,10 +665,16 @@ export class Editor {
     renames: ReadonlyMap<string, string> | undefined,
     fit = false,
   ): void {
-    const previous = this.state.get().circuit.id;
+    const old = this.state.get();
+    const previous = old.circuit.id;
     const state = this.#stateOf(document, open, selection, renames);
-    // Another circuit on the canvas (opened, or an undo there): each keeps its own camera.
-    const switched = state.circuit.id !== previous;
+    // Another circuit on the canvas (opened, or an undo there): each keeps its own camera. The
+    // same circuit under a new id (renamed while placed nowhere) is no other circuit.
+    const index = old.document.circuits.findIndex((c) => c.id === previous);
+    const renamed =
+      !document.circuits.some((c) => c.id === previous) &&
+      document.circuits[index]?.id === state.circuit.id;
+    const switched = state.circuit.id !== previous && !renamed;
     if (switched) this.#cameras.set(previous, this.view.get().camera);
     this.state.set(state);
     if (switched) {

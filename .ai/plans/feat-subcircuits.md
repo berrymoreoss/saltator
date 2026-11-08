@@ -286,7 +286,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   circuit, New Document; status bar note.
 - [x] 10. `ui`: document session, autosave and Open Recent over every circuit; the gallery's
   thumbnails; clipboard across documents.
-- [ ] 11. Example (Q6) with probes into its instances; examples test; e2e test that adds a
+- [x] 11. Example (Q6) with probes into its instances; examples test; e2e test that adds a
   circuit, places ports, places an instance in Main, wires it, runs it and sees the LED.
 - [ ] 12. Docs: circuit.md, editor.md, components.md, simulation.md (paths), architecture.md,
   glossary (subcircuit, instance, port, top circuit, instance path), ADR-0023, roadmap (R11

@@ -32,7 +32,7 @@ import { type Connectivity, connect } from './connectivity';
 import type { Circuit, CircuitDocument, Wire } from './document';
 import { type Point, pointKey } from './geometry';
 import { type PartLayout, partLayout, placementOf, placePins } from './layout';
-import { subcircuitOf } from './subcircuit';
+import { DocumentRegistry, subcircuitOf } from './subcircuit';
 
 export interface CompileResult {
   /** Ready for `new Simulator(netlist, registry)`. Components with errors are left out. */
@@ -191,9 +191,21 @@ export function compileCircuit(circuit: Circuit, registry: ComponentRegistry): C
     ),
   );
 
-  // What the ports give: names other labels may rely on, and names driven from outside.
-  const portNames = new Set(ports.flatMap((p) => portBits(p.name)));
-  const driven = new Set(ports.flatMap((p) => (p.direction === 'out' ? [] : portBits(p.name))));
+  // What the ports give: names other labels may rely on, and names driven from outside. The
+  // members of a bus reaching an instance's bus pin are joined inside the instance too.
+  const portNames = new Set([
+    ...ports.flatMap((p) => portBits(p.name)),
+    ...buses.flatMap((bus) => (bus.pins.some((p) => p.instance) ? bus.members : [])),
+  ]);
+  const driven = new Set([
+    ...ports.flatMap((p) => (p.direction === 'out' ? [] : portBits(p.name))),
+    // A bus at an instance's output or bidirectional bus port is driven from inside it.
+    ...buses.flatMap((bus) =>
+      bus.pins.some((pin) => pin.instance && instanceDrives(registry, circuit, pin))
+        ? bus.members
+        : [],
+    ),
+  ]);
 
   issues.push(
     ...duplicatePorts(ports),
@@ -340,3 +352,12 @@ function unnamedId({ pins, schematicPins, instancePins, wires }: NetGroup): stri
 }
 
 const severityRank = (issue: DesignIssue) => (issue.severity === 'error' ? 0 : 1);
+
+/** Whether an instance's bus pin is a port the instance's circuit drives (not an input). */
+function instanceDrives(registry: ComponentRegistry, circuit: Circuit, pin: PlacedPin): boolean {
+  if (!(registry instanceof DocumentRegistry)) return true;
+  const type = circuit.components.find((c) => c.id === pin.component)?.type;
+  const port =
+    type === undefined ? undefined : registry.portsOf(type).find((p) => p.name === pin.pin);
+  return port?.direction !== 'in';
+}

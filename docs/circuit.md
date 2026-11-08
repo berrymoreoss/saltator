@@ -58,8 +58,9 @@ interface Wire {
   simulates and opens at load; the others are subcircuits, placed in it or in each other, in the
   order the Circuits list shows them. A circuit's id is a slug (`CIRCUIT_ID`: lowercase letters
   and digits in runs joined by `-`), unique in the document, made from its name when it is
-  added (`circuitIdFor`: `Decade Counter` → `decade-counter`, `-2` if taken) and kept when it is
-  renamed; `name` is display text.
+  added (`circuitIdFor`: `Decade Counter` → `decade-counter`, `-2` if taken); while nothing
+  places it, renaming it makes a new id from the new name, once placed the id stays (its
+  instances' type names it); `name` is display text.
 - **Ids**: a letter or `_`, then letters, digits, `_` or `-` (`ID_PATTERN`). No dots, because
   netlists address pins as `U1.Y`. Component and wire ids are unique together within a circuit.
 - **A component's id is its designator** (`U1`, `SW1`): it is what netlists, diagnostics, the
@@ -260,7 +261,10 @@ with instance paths (`A1/U3`, [below](#flattening)).
 - **In the outer circuit** an instance's pins connect like any pins but stay out of that
   circuit's netlist (`CircuitNet.instancePins`): an instance output or bidirectional pin is a
   possible driver of its net, never a push-pull output (`shorted-outputs` doesn't count it,
-  what drives it is inside); an instance input on a net nothing drives is `undriven-input`.
+  what drives it is inside); an instance input on a net nothing drives is `undriven-input`. A
+  bus at an instance's bus pin: its members are names labels and bus entries may rely on (no
+  `single-net-label`), and at an output or bidirectional bus port they may be driven from inside
+  (no `undriven-input`; `DocumentRegistry.portsOf` gives the ports' directions).
 
 ### Flattening
 
@@ -426,7 +430,7 @@ them) and return the same circuit when nothing changes.
   taken ones with their part's prefix, giving wires fresh ids and keeping labels.
 - **Circuits** (R11a, `src/circuit/document-edit.ts`): pure `CircuitDocument → CircuitDocument`
   operations that keep unchanged circuits — `addCircuit` (empty, an id from the name),
-  `renameCircuit` (the name only: instances keep their type), `duplicateCircuit` (right after
+  `renameCircuit` (the name; the id too while nothing places the circuit), `duplicateCircuit` (right after
   it, "<name> copy"), `removeCircuit` (with every instance of it; never the last circuit),
   `setTopCircuit` (moved to the front), `replaceCircuit`; `circuitUses` (where a circuit is
   placed), `circuitsContaining` (the circuits that contain one, itself included: placing any of

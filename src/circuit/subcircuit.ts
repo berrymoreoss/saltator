@@ -227,6 +227,7 @@ function signatureOf(circuit: Circuit, ports: readonly CircuitPort[]): string {
 
 interface Generated {
   readonly circuit: Circuit;
+  readonly ports: readonly CircuitPort[];
   readonly signature: string;
   readonly definition: AnyComponentDefinition;
 }
@@ -255,7 +256,7 @@ export class DocumentRegistry implements ComponentRegistry {
       const signature = signatureOf(circuit, ports);
       const definition =
         old?.signature === signature ? old.definition : subcircuitDefinition(circuit, ports);
-      this.#generated.set(circuit.id, { circuit, signature, definition });
+      this.#generated.set(circuit.id, { circuit, ports, signature, definition });
     }
   }
 
@@ -272,6 +273,12 @@ export class DocumentRegistry implements ComponentRegistry {
   list(): readonly AnyComponentDefinition[] {
     const own = [...this.#generated.values()].map((g) => g.definition);
     return [...own, ...this.library.list().filter((d) => subcircuitOf(d.type) === undefined)];
+  }
+
+  /** The ports of the circuit an instance type places, in pin order (none for other types). */
+  portsOf(type: string): readonly CircuitPort[] {
+    const id = subcircuitOf(type);
+    return (id === undefined ? undefined : this.#generated.get(id)?.ports) ?? [];
   }
 
   /** The circuit an instance type places, if it is one of the document's. */

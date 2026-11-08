@@ -59,12 +59,21 @@ describe('circuit operations', () => {
     expect(addCircuit(design, 'Cell').id).toBe('cell-2');
   });
 
-  it('renames a circuit by name only, keeping its id', () => {
+  it('renames a placed circuit by name only, keeping its id', () => {
     const renamed = renameCircuit(design, 'cell', 'Register');
     expect(renamed.circuits[2]).toEqual({ ...cell, name: 'Register' });
     expect(renamed.circuits[0]).toBe(main);
     expect(renameCircuit(design, 'cell', 'CELL')).toBe(design);
     expect(() => renameCircuit(design, 'nope', 'X')).toThrow('no circuit "nope"');
+  });
+
+  it('gives a circuit nothing places an id from its new name', () => {
+    const { document } = addCircuit(design, 'Circuit 4');
+    const renamed = renameCircuit(document, 'circuit-4', 'Inverter');
+    expect(ids(renamed)).toEqual(['main', 'pair', 'cell', 'inverter']);
+    expect(renamed.circuits[3]!.name).toBe('Inverter');
+    // The top is placed nowhere either: it follows its name, avoiding the ids taken.
+    expect(ids(renameCircuit(design, 'main', 'Pair'))).toEqual(['pair-2', 'pair', 'cell']);
   });
 
   it('duplicates a circuit right after it, under a new id', () => {

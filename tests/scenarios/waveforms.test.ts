@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { EXAMPLE_FILES, exampleDocument } from '../../src/app/example-files';
-import { compileCircuit, Resolver } from '../../src/circuit';
+import { compileDesign, Resolver } from '../../src/circuit';
 import { ns, Recorder, type Simulator, Trigger, writeVcd } from '../../src/core';
 import { buildScene, probeSpotAt } from '../../src/editor';
 import { createDefaultRegistry } from '../../src/library';
@@ -114,8 +114,10 @@ describe('the examples’ probes', () => {
     const registry = createDefaultRegistry();
     const probed: string[] = [];
     for (const { id } of EXAMPLE_FILES) {
-      const circuit = exampleDocument(id).circuits[0]!;
-      const resolver = new Resolver(compileCircuit(circuit, registry), registry);
+      // The top circuit's probes, resolved against the design (paths into instances, R11a).
+      const document = exampleDocument(id);
+      const circuit = document.circuits[0]!;
+      const resolver = new Resolver(compileDesign(document, registry), registry);
       for (const probe of circuit.probes) {
         expect(resolver.probe(probe), `${id}: ${JSON.stringify(probe)}`).toMatchObject({
           nets: expect.any(Array),
@@ -123,6 +125,11 @@ describe('the examples’ probes', () => {
       }
       if (circuit.probes.length > 0) probed.push(id);
     }
-    expect(probed.sort()).toEqual(['clock-module', 'data-bus', 'lcd-hello-world']);
+    expect(probed.sort()).toEqual([
+      'clock-module',
+      'data-bus',
+      'lcd-hello-world',
+      'two-digit-counter',
+    ]);
   });
 });

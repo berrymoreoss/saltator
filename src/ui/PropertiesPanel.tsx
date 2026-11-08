@@ -114,7 +114,11 @@ function CircuitProperties({
   const top = circuit.id === design.top;
   const uses = circuitUses(document, circuit.id);
   const names = new Map(document.circuits.map((c) => [c.id, c.name]));
-  const ports = editor.registry.get(`sub/${circuit.id}`)?.title.replace(/^Subcircuit: /, '');
+  const definition = editor.registry.get(`sub/${circuit.id}`);
+  const ports =
+    definition && pinsOf(definition, {}).length > 0
+      ? definition.title.replace(/^Subcircuit: /, '')
+      : undefined;
   return (
     <div className="props" data-testid="circuit-properties">
       <Section title="Circuit">
@@ -126,12 +130,14 @@ function CircuitProperties({
             inputRef={nameRef}
             testId="circuit-name"
             validate={(text) => (text.trim() === '' ? 'A circuit needs a name.' : undefined)}
-            onCommit={(text) =>
-              editor.editDocument(
-                `Rename ${circuit.name}`,
-                renameCircuit(document, circuit.id, text.trim()),
-              )
-            }
+            onCommit={(text) => {
+              // A circuit nothing places takes an id from its new name: follow it.
+              const index = document.circuits.indexOf(circuit);
+              const next = renameCircuit(document, circuit.id, text.trim());
+              editor.editDocument(`Rename ${circuit.name}`, next, {
+                open: next.circuits[index]?.id ?? circuit.id,
+              });
+            }}
           />
         </Row>
         <Row label="Id">

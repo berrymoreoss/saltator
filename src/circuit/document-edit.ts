@@ -47,14 +47,23 @@ export function addCircuit(
   };
 }
 
-/** Renames a circuit: its name only; its id, and so its instances' type, stays. */
+/**
+ * Renames a circuit. While nothing places it, its id follows the name (`Circuit 2` renamed
+ * `Inverter` becomes `inverter`: nothing refers to it yet); once placed, the id stays, so its
+ * instances keep their type. The circuit keeps its place in the order.
+ */
 export function renameCircuit(
   document: CircuitDocument,
   id: string,
   name: string,
 ): CircuitDocument {
   const circuit = circuitOf(document, id);
-  return circuit.name === name ? document : replaceCircuit(document, { ...circuit, name });
+  if (circuit.name === name) return document;
+  const placed = circuitUses(document, id).length > 0;
+  const others = document.circuits.filter((c) => c !== circuit).map((c) => c.id);
+  const newId = placed ? id : circuitIdFor(name, others);
+  const circuits = document.circuits.map((c) => (c === circuit ? { ...c, id: newId, name } : c));
+  return { ...document, circuits };
 }
 
 /** A copy of a circuit right after it, called `name` (default: "<name> copy"), with a new id. */

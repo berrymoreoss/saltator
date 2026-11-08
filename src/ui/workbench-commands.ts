@@ -819,7 +819,7 @@ export function createCommands({
       run: () => patch({ wheel: 'zoom' }),
     },
 
-    ...(['parts', 'properties', 'bottom'] as const).map(
+    ...(['circuits', 'parts', 'properties', 'bottom'] as const).map(
       (id): Command => ({
         id: `view.panel.${id}`,
         label: PANEL_LABELS[id],

@@ -1131,6 +1131,13 @@ title and a description, in gallery order):
 - **SAP-1 Program Counter** — Ben Eater's program counter: a 74HC161 (CLR, CE, J) loading from a
   4-bit bus, a 74HC245 putting it on the bus (CO); the bus has pull-downs, a BUS bar and a
   DATA switch stand-in through another 74HC245. Unknown until CLR.
+- **Two-Digit Counter** (R11a) — a design of subcircuits two levels deep: **Decade Counter** (a
+  74HC163 cleared synchronously after 9 while enabled — a 74HC10 NAND of Q0, Q3 and EN, and a
+  74HC08 with RST — carry out CO, the bus port `Q[0..3]`) inside **Counter Digit** (with a
+  74HC4511: the counter's bus port onto a bus whose bits reach the decoder by name; segment ports
+  `a`–`g`), placed twice in Main with a 10 Hz clock, RESET (a button with a pull-up) and two
+  common-cathode displays; the ones digit's CARRY enables the tens. Probes reach into the
+  instances (`A1/A1/Q[0..3]` as ONES, decimal). Unknown until RESET.
 
 Two examples stay built in code (`src/app/examples.ts`): **Symbol Gallery** (every registered
 part with prop variants and placements, the 74HC chips, the NE555 in each mode and a 74HC245 in

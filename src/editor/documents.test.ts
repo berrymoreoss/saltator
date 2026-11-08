@@ -7,6 +7,7 @@ import {
   type ComponentInstance,
   emptyCircuit,
   type Point,
+  renameCircuit,
   replaceCircuit,
   SCHEMA_VERSION,
 } from '../circuit';
@@ -116,6 +117,17 @@ describe('Editor on documents', () => {
       'EN',
       'Y',
     ]);
+  });
+
+  it('keeps the camera when the open circuit is renamed to a new id', () => {
+    const editor = new Editor(registry, document());
+    const { document: next, id } = addCircuit(editor.state.get().document, 'Circuit 3');
+    editor.editDocument('Add Circuit', next, { open: id });
+    editor.setCamera({ x: 7, y: 8, scale: 25 });
+    const doc = editor.state.get().document;
+    editor.editDocument('Rename', renameCircuit(doc, 'circuit-3', 'Adder'), { open: 'adder' });
+    expect(editor.state.get().circuit.id).toBe('adder');
+    expect(editor.view.get().camera).toEqual({ x: 7, y: 8, scale: 25 });
   });
 
   it('undoes an edit made in another circuit by opening it', () => {
