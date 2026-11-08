@@ -12,13 +12,13 @@ produce new values.
 
 ```ts
 interface CircuitDocument {
-  schemaVersion: 3;
-  circuits: Circuit[]; // at least one; the first is used (R11 gives the others a meaning)
+  schemaVersion: 4;
+  circuits: Circuit[]; // at least one; the first is the top circuit (R11a)
 }
 
 interface Circuit {
-  id: string; // 'main'
-  name: string;
+  id: string; // a slug: 'main', 'decade-counter'
+  name: string; // display text: 'Decade Counter'
   components: ComponentInstance[];
   wires: Wire[];
   probes: Probe[]; // the Waveforms tab's signals, in its order (R13); left out of files when empty
@@ -54,6 +54,12 @@ interface Wire {
   connection is two wires sharing an end; the editor merges collinear segments into straight runs
   ([Editing](#editing)). A wire with `bus: true` is a **bus line**: drawn heavy, on a layer of
   its own ([Connectivity](#connectivity)); plain wires carry no `bus` field.
+- **Circuits** (R11a): the first circuit of a document is the **top** circuit — the one that
+  simulates and opens at load; the others are subcircuits, placed in it or in each other, in the
+  order the Circuits list shows them. A circuit's id is a slug (`CIRCUIT_ID`: lowercase letters
+  and digits in runs joined by `-`), unique in the document, made from its name when it is
+  added (`circuitIdFor`: `Decade Counter` → `decade-counter`, `-2` if taken) and kept when it is
+  renamed; `name` is display text.
 - **Ids**: a letter or `_`, then letters, digits, `_` or `-` (`ID_PATTERN`). No dots, because
   netlists address pins as `U1.Y`. Component and wire ids are unique together within a circuit.
 - **A component's id is its designator** (`U1`, `SW1`): it is what netlists, diagnostics, the
@@ -93,14 +99,17 @@ interface Wire {
   validation. A file from a newer version is rejected with "this file was saved by a newer
   version of the app". Never edit a released migration; bump `SCHEMA_VERSION` and add one. Schema
   v1 is the first version; v2 (R10b) added bus lines (`"bus": true` on a wire), v3 (R13) probes
-  (`"probes"` on a circuit), so both migrations change nothing.
+  (`"probes"` on a circuit), so both migrations change nothing; v4 (R11a) gave the circuits after
+  the first a meaning (subcircuits) and made circuit ids slugs: its migration turns other ids
+  into slugs (only `main` was ever written). The bump makes an older app refuse a document whose
+  subcircuits it would ignore.
 - `serializeDocument(doc)` writes stable JSON: fixed key order, defaults omitted, one line per
   component, per wire and per probe (no `probes` key without any), so a saved file diffs well in
   git. Round trip is lossless: `parseDocument(serializeDocument(doc))` equals `doc`.
 
 ```text
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "circuits": [
     {
       "id": "main",

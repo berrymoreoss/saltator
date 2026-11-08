@@ -15,9 +15,11 @@ export type {
 export { type CompileResult, compileCircuit, compileDocument } from './compile';
 export { type Connectivity, connect, type WireEnd, type WireSegment } from './connectivity';
 export {
+  CIRCUIT_ID,
   type Circuit,
   type CircuitDocument,
   type ComponentInstance,
+  circuitIdFor,
   emptyCircuit,
   emptyDocument,
   type GroupProbe,

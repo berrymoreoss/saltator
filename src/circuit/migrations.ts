@@ -2,7 +2,7 @@
  * Schema migrations: old documents are upgraded one version at a time before validation, so a
  * file saved by any earlier version still opens. Never edit a released migration; add a new one.
  */
-import { SCHEMA_VERSION } from './document';
+import { CIRCUIT_ID, circuitIdFor, SCHEMA_VERSION } from './document';
 
 /** Raw JSON of a document, before validation. */
 export type RawDocument = Record<string, unknown>;
@@ -18,7 +18,29 @@ export const MIGRATIONS: Migrations = {
   1: (doc) => doc,
   // v3 added probes (`"probes"` on a circuit, R13); v2 documents have none.
   2: (doc) => doc,
+  // v4 (R11a) gave the other circuits a meaning and made circuit ids slugs (`main`), the part
+  // half of an instance's type; v3 only ever wrote `main`, others are turned into slugs.
+  3: slugCircuitIds,
 };
+
+function slugCircuitIds(doc: RawDocument): RawDocument {
+  const { circuits } = doc;
+  if (!Array.isArray(circuits)) return doc;
+  const ids = (circuits as unknown[]).map((c) =>
+    typeof c === 'object' && c !== null ? (c as RawDocument).id : undefined,
+  );
+  const taken = ids.filter((id): id is string => typeof id === 'string' && CIRCUIT_ID.test(id));
+  return {
+    ...doc,
+    circuits: (circuits as unknown[]).map((circuit, i) => {
+      const id = ids[i];
+      if (typeof id !== 'string' || CIRCUIT_ID.test(id) || id === '') return circuit;
+      const slug = circuitIdFor(id, taken);
+      taken.push(slug);
+      return { ...(circuit as RawDocument), id: slug };
+    }),
+  };
+}
 
 /**
  * Upgrades `doc` from `from` to `to`, running `migrations[from]`, `migrations[from + 1]`, … and

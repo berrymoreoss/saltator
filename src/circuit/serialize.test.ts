@@ -4,7 +4,7 @@ import { parseDocument } from './schema';
 import { serializeDocument } from './serialize';
 
 const document: CircuitDocument = {
-  schemaVersion: 3,
+  schemaVersion: 4,
   circuits: [
     {
       id: 'main',
@@ -38,7 +38,7 @@ const document: CircuitDocument = {
 };
 
 const text = `{
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "circuits": [
     {
       "id": "main",
