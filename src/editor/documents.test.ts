@@ -352,6 +352,25 @@ describe('Editor on documents: simulating the design', () => {
     expect(editor.analyzer.probes).toEqual([{ ref: 'A1/U1.1Q' }]);
   });
 
+  it('breaks on a signal inside an instance, and keeps watches and breakpoints across a rename', () => {
+    const { editor, simulation, step } = latched();
+    const id = editor.debug.addBreakpoint([{ signal: 'A2/U1.1Q', kind: 'rise' }]);
+    expect(typeof id).toBe('number');
+    expect(editor.debug.addWatch('A1/U1.1Q')).toBeUndefined();
+    editor.renamePart('A2', 'LOW');
+    expect(editor.debug.setup.get().breakpoints[0]!.terms[0]!.signal).toBe('LOW/U1.1Q');
+    expect(editor.debug.watches.get().map((w) => w.label)).toEqual(['A1/U1.1Q']);
+    // Latch a 1 into LOW: its Q rises and the breakpoint pauses there.
+    simulation.action('D2', strong(Level.L1));
+    simulation.action('CK', strong(Level.L0));
+    step(ns(400));
+    const edge = simulation.simulator!.now;
+    simulation.action('CK', strong(Level.L1));
+    step(edge + ns(400));
+    expect(simulation.status.get().reason).toBe('Breakpoint 1: LOW/U1.1Q ↑');
+    expect(simulation.simulator!.now).toBeLessThan(edge + ns(400));
+  });
+
   it('lists a memory inside an instance and edits its circuit’s image', () => {
     const rom: Circuit = {
       ...emptyCircuit('rom', 'ROM'),
