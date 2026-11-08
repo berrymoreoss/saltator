@@ -6,6 +6,7 @@ import {
   designatorPrefixOf,
   type PinDef,
 } from './component';
+import type { CpuDef } from './cpu';
 import { createAccessStamps } from './memory';
 import { familyOf, Registry } from './registry';
 import type { SymbolDef } from './symbol';
@@ -150,6 +151,65 @@ describe('Registry', () => {
       );
       expect(() => new Registry([part('mem/bad', { pins, memory, props: image(32) })])).toThrow(
         'mem/bad: image prop "contents" holds 32 bytes, the memory 16 words',
+      );
+    });
+  });
+
+  describe('CPU parts', () => {
+    const pins: PinDef[] = [
+      { name: 'A0', dir: 'tristate' },
+      { name: 'A1', dir: 'tristate' },
+      { name: 'D0', dir: 'bidir' },
+      { name: 'VDD', dir: 'power' },
+      { name: 'NC', dir: 'nc' },
+    ];
+    const cpu: CpuDef = {
+      registers: [
+        { name: 'A', width: 8 },
+        { name: 'PC', width: 16 },
+        { name: 'P', width: 8, flags: 'NV-BDIZC' },
+      ],
+      programCounter: 'PC',
+      addressPins: ['A0', 'A1'],
+      dataPins: ['D0'],
+      view: () => ({ values: [0, 0, 0], unknown: [0, 0, 0], mode: 'unknown' }),
+    };
+
+    it('accepts a well-formed CPU', () => {
+      expect(new Registry([part('cpu/ok', { pins, cpu })]).has('cpu/ok')).toBe(true);
+    });
+
+    it.each<[Partial<CpuDef>, string]>([
+      [{ registers: [] }, 'a CPU needs registers; program counter "PC" is not a register'],
+      [
+        {
+          registers: [
+            { name: 'PC', width: 16 },
+            { name: 'PC', width: 8 },
+          ],
+        },
+        'duplicate register "PC"',
+      ],
+      [{ registers: [{ name: '1A', width: 8 }, ...cpu.registers] }, 'invalid register name "1A"'],
+      [{ registers: [{ name: 'PC', width: 33 }] }, 'register PC must be 1 to 32 bits wide, got 33'],
+      [{ registers: [{ name: 'PC', width: 0.5 }] }, 'register PC must be 1 to 32 bits wide'],
+      [
+        {
+          registers: [
+            { name: 'PC', width: 16 },
+            { name: 'P', width: 8, flags: 'NVBDIZC' },
+          ],
+        },
+        `register P's flags "NVBDIZC" must name 8 bits`,
+      ],
+      [{ programCounter: 'IP' }, 'program counter "IP" is not a register'],
+      [{ addressPins: [] }, 'a CPU needs address pins'],
+      [{ addressPins: ['A0', 'A9'] }, 'address pin "A9" is not a signal pin of the part'],
+      [{ dataPins: ['VDD'] }, 'data pin "VDD" is not a signal pin of the part'],
+      [{ dataPins: ['NC'] }, 'data pin "NC" is not a signal pin of the part'],
+    ])('rejects a malformed CPU (%#)', (bad, message) => {
+      expect(() => new Registry([part('cpu/bad', { pins, cpu: { ...cpu, ...bad } })])).toThrow(
+        `cpu/bad: ${message}`,
       );
     });
   });

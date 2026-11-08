@@ -126,13 +126,18 @@ Bigger parts (ROM/RAM, CPUs, microcontrollers, peripherals) are ordinary compone
 state; they additionally expose an **inspection interface** (memory view, CPU registers) for UI
 panels and a **debug access** path (flash a ROM, poke RAM) that bypasses simulated timing: memories
 have them since R12a (`ComponentDefinition.memory`, the `poke` action; a ROM's contents are an
-`image` prop), CPUs _(planned, R17)_. Memories simulate with their data sheets' limits and show
+`image` prop), CPUs since R17a (`ComponentDefinition.cpu`, registers and the instruction under
+way). Memories simulate with their data sheets' limits and show
 `X` until their access time ([ADR-0017](adr/0017-memories.md)); they stamp when each cell was
 last read and written, which the Memory tab lights up (R12b,
 [ADR-0018](adr/0018-memory-inspector.md)). The first peripheral, the HD44780 character LCD,
 models its controller at instruction level with a pure state machine beside the bus code, works
 out uncertain transfers by running every outcome and merging them, and gives the editor a pure
-frame of its glass to draw ([ADR-0022](adr/0022-character-lcd.md)).
+frame of its glass to draw ([ADR-0022](adr/0022-character-lcd.md)). The first CPU, the
+W65C02S (R17a), is a pure cycle-level core — its bus cycles checked against SingleStepTests —
+behind a part that puts each cycle on the pins with the data sheet's timing; unknown bits flow
+through its registers, and a CPU whose next step depends on them is lost until reset
+([ADR-0028](adr/0028-cpu-model.md)).
 
 ## Circuit model
 

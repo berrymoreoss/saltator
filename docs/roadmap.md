@@ -23,7 +23,7 @@ and the milestones' progress: `pnpm roadmap`. Item statuses live only in the tra
 | M1  | "Hello, LED"       | R01, R02, R03, R04a, R04b, R05, R06, R07            | reached |
 | M2  | "Tools"            | R12a, R12b, R13, R14a, R14b, R11a, R11b, R15a, R15b | reached |
 | M3  | "SAP-1 runs"       | R16a, R16b                                          | open    |
-| M4  | "6502 Hello World" | R17, R18, R19, R20                                  | open    |
+| M4  | "6502 Hello World" | R17a, R17b, R18, R19, R20                           | open    |
 | M5  | "My computer"      | —                                                   | open    |
 
 ### M1 "Hello, LED"

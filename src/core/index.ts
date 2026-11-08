@@ -31,6 +31,14 @@ export {
   type UnitDef,
 } from './component';
 export {
+  type CpuDef,
+  type CpuInstruction,
+  type CpuMode,
+  type CpuRegisterDef,
+  type CpuView,
+  cpuProblems,
+} from './cpu';
+export {
   type ComponentDiagnostic,
   type Diagnostic,
   type DiagnosticInput,

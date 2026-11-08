@@ -2,6 +2,7 @@
  * Component definitions and the runtime contract between parts and the simulator.
  * Spec: docs/components.md (definition shape), docs/simulation.md#components-at-runtime.
  */
+import type { CpuDef } from './cpu';
 import type { ComponentDiagnostic } from './diagnostics';
 import type { FunctionTable } from './function-table';
 import type { Drive, Level } from './logic';
@@ -234,6 +235,11 @@ export interface ComponentDefinition<
    * and test benches.
    */
   readonly memory?: MemoryDef<State>;
+  /**
+   * The part is a CPU: its registers and a view of an instance's state, for the CPU tab,
+   * watches and test benches.
+   */
+  readonly cpu?: CpuDef<State>;
   /**
    * The part's look changes as simulated time passes, without an event (an LCD's blinking
    * cursor): the length in ps of one look of an instance in `state`, or undefined while it stays

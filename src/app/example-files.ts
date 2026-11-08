@@ -97,6 +97,18 @@ export const EXAMPLE_FILES: readonly ExampleFile[] = [
       'A 74HC4040 steps an AT28C16 whose bytes a 74HC574 latches onto a 4-bit LCD: the data sheet’s initialization, then text. RESET first.',
   },
   {
+    id: '6502-nop-sled',
+    title: '6502 NOP Sled',
+    description:
+      'Ben Eater’s first 6502 step: a W65C02S whose data bus reads $EA (NOP) through resistors. After RESET it reads the vector $EAEA and counts up; the hex displays show the buses.',
+  },
+  {
+    id: '6502-rom-ram',
+    title: '6502 ROM and RAM',
+    description:
+      'A W65C02S runs a program from an AT28C256, its stack and data in a 62256, decoded by a 74HC00 as in Ben Eater’s 6502: it counts at $0010 and $0200 — watch the Memory tab. RESET first.',
+  },
+  {
     id: 'sap-1-program-counter',
     title: 'SAP-1 Program Counter',
     description:

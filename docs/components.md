@@ -14,7 +14,8 @@ How parts are described in `src/library`. Rationale for modeling chips as packag
 > `nextProps`, prop `pattern`s and `centered` symbols; R10b bus labels, bus entries and the
 > `bus` pin field; R12a the `mem` family, `image` props, `memory` definitions and timing as a
 > function of props (speed grades); the LCD branch (off the roadmap) the `periph` family with
-> the HD44780 character LCD, cycle-time checks and `animation`.
+> the HD44780 character LCD, cycle-time checks and `animation`; R17a the `cpu` family with the
+> W65C02S and `cpu` definitions.
 
 ## Families and type ids
 
@@ -30,7 +31,7 @@ the part before the slash (`familyOf(type)`).
 | `74xx`   | `74xx/74hc00`, `74xx/74hc245`, `74xx/74hc574`                      | Real logic chips ([below](#74xx-chips-74xx)). Behavior shared per function; timing per logic family.   |
 | `timer`  | `timer/ne555`                                                      | Analog timers, behavioral: the RC network as props ([below](#timers-timer)).                           |
 | `mem`    | `mem/at28c16`, `mem/6116`                                          | EEPROMs (read as ROMs) and SRAMs ([below](#memories-mem)); shown in the Memory tab (R12b).             |
-| `cpu`    | `cpu/w65c02s`                                                      | Processors (pin-level) _(planned, R17)_. Later: Z80, AVR, PIC.                                         |
+| `cpu`    | `cpu/w65c02s`                                                      | Processors, pin-level and cycle-accurate ([below](#cpus-cpu)). Later: Z80, AVR, PIC.                   |
 | `periph` | `periph/hd44780`, `periph/w65c22`                                  | Peripherals: the HD44780 character LCD ([below](#peripherals-periph)); the VIA, ACIA _(planned, R18)_. |
 | `test`   | `test/driver`                                                      | Test-only parts from `src/core/testing`; not in the default registry.                                  |
 
@@ -55,6 +56,7 @@ interface ComponentDefinition<Props, State> {
   schematicOnly?: boolean; // drawn and connected, never simulated: left out of the netlist
   nextProps?: (props: Props) => Props; // props of the next instance placed after this one
   memory?: MemoryDef<State>; // a memory's size and a view of its cells (inspectors, test benches)
+  cpu?: CpuDef<State>; // a CPU's registers and a view of its state (R17a; docs/simulation.md)
   animation?: (state: State, props: Props) => Time | undefined; // look changes with time alone
 
   create(props: Props): Behavior<State>; // see docs/simulation.md
@@ -903,6 +905,85 @@ test benches (`b.loadIntelHex`, R15a) and the toolchain (R19) share it.
   record type, wrapping, errors with their lines, placing and refusing, and a round trip of
   random sparse images up to 64 KB through Intel HEX (with a base and erased records left out)
   and binary; mutation-checked.
+
+## CPUs (`cpu/*`)
+
+Processors as their data sheets describe them, in `src/library/cpu`; their registers through
+`cpu` definitions (`CpuDef`, [simulation.md](simulation.md#observability)). Decision:
+[ADR-0028](adr/0028-cpu-model.md).
+
+### W65C02S
+
+`cpu/w65c02s` (R17a): the WDC W65C02S, DIP-40, the 5 V column (14 MHz). Data sheet: WDC W65C02S,
+April 8, 2022 (§3 pin functions, Figure 3-1 pinout, Table 5-2 opcode matrix, Table 6-3 AC
+characteristics, Figure 6-3 timing, Table 7-1 differences from the NMOS 6502).
+
+**Pins** (Figure 3-1, names as WDC writes them: a `B` suffix is active LOW):
+
+| No.         | Pin          | Dir      | What                                                                |
+| ----------- | ------------ | -------- | ------------------------------------------------------------------- |
+| 9–20, 22–25 | A0–A15       | tristate | address bus; released while BE is LOW                               |
+| 33–26       | D0–D7        | bidir    | data bus                                                            |
+| 34          | RWB          | tristate | HIGH read, LOW write; released while BE is LOW                      |
+| 37          | PHI2         | in       | the clock                                                           |
+| 3, 39       | PHI1O, PHI2O | out      | PHI2 inverted / in phase, 10 ns later (an estimate: no data sheet)  |
+| 7           | SYNC         | out      | HIGH during opcode fetches                                          |
+| 1           | VPB          | out      | LOW while a vector is read                                          |
+| 5           | MLB          | out      | LOW during a read-modify-write's modify and write cycles            |
+| 2           | RDY          | bidir    | LOW halts the CPU (reads and writes); `WAI` drives it LOW           |
+| 4, 6        | IRQB, NMIB   | in       | interrupt request (level, masked by I), non-maskable (falling edge) |
+| 40          | RESB         | in       | reset: LOW for at least two cycles, then a seven-cycle sequence     |
+| 36, 38      | BE, SOB      | in       | bus enable (asynchronous); set overflow (a falling edge sets V)     |
+| 8, 21, 35   | VDD, VSS, NC | power/nc | not simulated                                                       |
+
+**Timing** (Table 6-3, limits only as for memories): outputs valid `tADS` ≤ 30 ns after PHI2
+falls and held `tAH` ≥ 10 ns; write data valid `tMDS` ≤ 25 ns after PHI2 rises, held `tDHW` ≥
+10 ns after it falls; read data set-up `tDSR` and hold `tDHR` ≥ 10 ns; IRQB, NMIB, RDY, RESB,
+SOB set-up `tPCS` and hold `tPCH` ≥ 10 ns; PHI2 `tPWH`, `tPWL` ≥ 35 ns, `tCYC` ≥ 70 ns (no
+maximum: a static design); BE to valid or released data `tBVD` ≤ 25 ns.
+
+**A bus cycle on the pins**: PHI2 falling ends a cycle — the data bus (in a read) and the control
+inputs are sampled, set-up and hold checked; the core moves on `tDHR` later; outputs that change
+keep their level until `tAH`, are `X` until `tADS`, then show the new cycle (lines that keep
+their level don't move). PHI2 rising starts a write's data: `X`, the data at `tMDS`, released
+`tDHW` after PHI2 falls. SOB is sampled when PHI2 rises.
+
+**Instructions**: all 256 opcodes (`w65c02s-opcodes.ts`: Table 5-2's 212 and Table 7-1's
+reserved NOPs) with the bus cycles of the chip — dummy reads, the last instruction byte re-read
+when indexing crosses a page, read-modify-write's two reads, `JMP (a)` reading its pointer's high
+byte without the carry and then with it, `INC`/`DEC a,x` always seven cycles, decimal mode's
+extra cycle with valid N, Z. Checked against SingleStepTests 65x02 `wdc65c02` (all 2.54M cases,
+every cycle; `pnpm test:65c02`), except where the data sheet says otherwise: `5C` is 8 cycles
+(Table 7-1); the decimal-mode cycle of `ADC #`/`SBC #` reads at PC.
+
+**Control**: RESB LOW for at least two cycles (shorter: `pulse-width-violation`, the CPU lost),
+then two reads at PC, three stack reads (where an interrupt would push), `$FFFC`/`$FFFD` with
+VPB LOW; D = 0, I = 1, the other registers as before. IRQB and NMIB start the interrupt sequence
+after the current instruction (an IRQ waiting during `CLI` or `PLP` comes one instruction
+later); `BRK` pushes B set. `WAI` waits with RDY driven LOW (tied straight to VCC: contention —
+use a pull-up) until IRQB or NMIB (with I set it goes on without the interrupt); `STP` stops
+until RESB. RDY LOW at PHI2 falling halts the CPU in the cycle, address and data held.
+
+**Unknowns** (ADR-0028): registers keep unknown-bit masks; logic is exact per bit, sums unknown
+from the lowest unknown bit up; unknown data is stored and driven as `X`. When the next step
+depends on unknown bits — an opcode, a branch, the program counter, a page crossing, D in
+`ADC`/`SBC`, an interrupt that may be taken, an unknown RDY, RESB or PHI2 — the CPU is lost: `X`
+on its outputs (the data bus while PHI2 is HIGH), a `cpu-lost` error ("U1 fetched an opcode with
+unknown bits at 0x0300: its state is unknown until RESB"), back only with RESB. Power-on is lost
+without a report until the first reset.
+
+**Inspection**: `cpu` — registers `A`, `X`, `Y`, `S`, `PC`, `P` (`NV-BDIZC`), the mode and the
+instruction under way.
+
+**Tests** (`src/library/cpu/*.test.ts`): the opcode table against Tables 4-1, 5-2, 7-1; the core
+on a committed SingleStepTests sample (8 cases per opcode) and by hand (decimal boundaries,
+`JMP ($xxFF)`, MLB, VPB, reset, interrupts, `WAI`/`STP`, unknowns); the part on a bench (pinout,
+every window measured, each requirement 1 ns inside and outside, RDY, BE, NMIB, SOB, a lost CPU
+and its reset); mutation-checked. Scenarios (`tests/scenarios/cpu-6502.test.ts`,
+`computer-6502.ts`): a W65C02S with an AT28C256, a 62256 and a 74HC00 running a program at 1
+and 4 MHz without a diagnostic, lost in uninitialized RAM; the carry-over property on a running
+CPU. Benchmark (`tests/bench/cpu.bench.ts`): ≈ 43 events a cycle, 8M events/s, 18 % of real
+time at 1 MHz (M3 Pro). Examples: 6502 NOP Sled, 6502 ROM and RAM.
 
 ## Peripherals (`periph/*`)
 

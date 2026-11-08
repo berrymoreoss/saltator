@@ -16,6 +16,7 @@ const FAMILIES: readonly (readonly [string, string])[] = [
   ['74xx', '74HC Logic'],
   ['timer', 'Timers'],
   ['mem', 'Memory'],
+  ['cpu', 'CPUs'],
   ['periph', 'Peripherals'],
   ['prim', 'Primitives'],
   ['io', 'Input / Output'],

@@ -20,7 +20,7 @@ tH = 0.693 (RA + RB) C, tL = 0.693 RB C, tw = 1.1 RA C.
 it for a 7-segment display and blanks the six codes above 9.
 
 **Bidirectional pin (bidir)** — a pin that can read or drive the net depending on the part's state
-(RAM data pins, 74HC245 A/B ports, CPU data bus).
+(RAM data pins, 74HC245 A/B ports, a CPU's data bus, the W65C02S's RDY).
 
 **Bus** — several signals that belong together, drawn as one heavy bus line (a data bus
 `D[0..7]`, an address bus `A[0..15]`). Here, as in KiCad, a bus is a group of ordinary nets named
@@ -188,6 +188,9 @@ Drawn and connected but never simulated (schematic-only). Not to be confused wit
 `label`, which is display text only. Named like a bus (`D[0..7]`) it is a **bus label**: it sits
 on a bus line and names that bus.
 
+**Opcode fetch (SYNC)** — the bus cycle in which a CPU reads the first byte of an instruction;
+the W65C02S marks it with SYNC HIGH, which a debugger or a single-step circuit can watch.
+
 **Part / component** — a simulated device: a real chip (`74xx/74hc00`), an IO element
 (`io/led`), or an abstract primitive (`prim/nand`).
 
@@ -197,6 +200,10 @@ the brightness drawn, so a multiplexed display or an LED on a fast clock shows i
 **Open instance** — the instance of the open circuit the canvas shows (`EditorState.path`,
 R11b): its levels drawn while simulating, the Interact and Probe tools acting on its parts. The
 breadcrumb bar over the canvas shows where it is (`Main › A2 · Counter Digit`).
+
+**PHI2** — the 6502's clock input: a bus cycle ends when it falls (read data is taken then)
+and a write's data appears after it rises. The W65C02S is static: PHI2 may stop in either
+level.
 
 **Port** — a subcircuit's interface pin (KiCad's hierarchical label): a flag named like a net
 (or a bus, `D[0..7]`) inside the circuit, a pin of that name on every instance of it. Its
@@ -221,8 +228,15 @@ reference (`CLK`, `U1.Y`, `D[0..7]`), or a group of single signals read as one v
 the circuit (R13). The Probe tool (`P`) adds one with a click. Not to be confused with the logic
 probe part (`io/probe`, `TP`), which shows a level on the canvas.
 
+**RDY** — the 6502's ready line: LOW at PHI2 falling halts the CPU in its current cycle (slow
+memory, single-cycle stepping). The W65C02S also drives it LOW itself during `WAI`, so it needs
+a pull-up, not a tie to VCC.
+
 **Recorder** — what keeps the probed nets' levels over simulated time for the waveforms (core
 `Recorder`, R13): one level per instant, the oldest changes dropped past a budget.
+
+**Reset vector** — the address a 6502 starts at after RESB: read from `$FFFC` (low byte) and
+`$FFFD` (high byte), with VPB LOW; IRQ/BRK use `$FFFE`, NMI `$FFFA`.
 
 **Run statistics** — counters of a run (events, delta cycles, evaluations, simulated and wall
 time, their rates) since power-on and for the last run, and on request the nets that change
@@ -242,6 +256,9 @@ storage nor anything outside; Cancel and the time limits end it.
 
 **Script host** — where a test script's text becomes code (R15a): a `node:vm` context in Node
 (`pnpm test:circuits`), `new Function` in a trusted realm, inside the app's sandbox (R15b).
+
+**SingleStepTests** — a public test suite (65x02, MIT) of single instructions from random
+states with every bus cycle listed; the W65C02S core passes all 2.54M of its `wdc65c02` cases.
 
 **Subcircuit (instance)** — a circuit of the document placed inside another, drawn as a box whose
 pins are its ports (`A1`, `A2`: IEEE 315's `A` for an assembly). Every instance has its own

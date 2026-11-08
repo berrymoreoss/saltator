@@ -23,6 +23,7 @@
     "check:roadmap": "node scripts/roadmap-cli.ts --check",
     "roadmap": "node scripts/roadmap-cli.ts",
     "test:circuits": "node --import ./scripts/resolve-hooks.ts scripts/test-circuits.ts",
+    "test:65c02": "node --import ./scripts/resolve-hooks.ts scripts/test-65c02.ts",
     "check": "pnpm typecheck && pnpm lint && pnpm check:layers && pnpm check:roadmap && pnpm test",
     "bench": "vitest bench --run --reporter=verbose --experimental.viteModuleRunner=false --execArgv=--import=./scripts/resolve-hooks.ts"
   },

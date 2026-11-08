@@ -153,3 +153,5 @@ Not scheduled yet; promoting one gives it the next free id and a row in the tabl
   `MemoryDef` without address pins, several memories per part); a PWM-dimmed backlight at its
   average brightness; an input-pull-up pin flag, so the design check doesn't say an unconnected
   RS "reads as X" (it reads HIGH — still a mistake for R/W̅).
+- Reset supervisor (R17a, Q3): a DS1813-style part holding RESB low for its time after power-on
+  and when its pin is pulled low (the W65C02S has no internal reset; until then a button does).
