@@ -169,6 +169,9 @@ Implemented in R02. Full spec: [circuit.md](circuit.md). Rationale:
   name (`PinDef.net`); the VCC and GND symbols join `VCC` and `GND` the same way. The compiler
   leaves schematic-only parts out of the netlist and calls a named net by its name
   ([ADR-0015](adr/0015-net-labels.md)).
+- **Graphics** (PLT-1) are schematic-only parts without pins (`draw/text`): drawn, edited and
+  saved like any part, never compiled; a text's box is estimated from its lines in the pure
+  layers ([ADR-0029](adr/0029-schematic-graphics.md)).
 - **Buses** (R10b) are groups of nets named by their members (`D[0..7]` → `D0`…`D7`), as in
   KiCad: bus lines and bus pins (bus labels, bus entries' bus ends) are a second connectivity
   layer that never touches wires; bus entries join their bit's net by name, so the netlist and

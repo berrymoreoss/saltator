@@ -3,7 +3,7 @@
  * coordinates (grid cells); the caller converts a pixel tolerance with the camera scale.
  */
 import type { Point, Rect } from '../circuit';
-import type { Scene } from './scene';
+import type { Scene, ScenePart } from './scene';
 
 export type Hit =
   | { readonly kind: 'part'; readonly id: string }
@@ -33,14 +33,23 @@ export function rectContainsPoint(rect: Rect, p: Point, margin = 0): boolean {
 }
 
 /**
+ * Graphics — schematic-only parts without pins (texts, ADR-0029) — sit under the circuit for
+ * the pointer: a note across a chip or a wire doesn't take their clicks.
+ */
+function isGraphic(part: ScenePart): boolean {
+  return part.definition?.schematicOnly === true && part.pins.length === 0;
+}
+
+/**
  * The item under `point`: a part's body (with `tolerance` around it) or the nearest pin stub or
  * wire within `tolerance` cells. Bodies win; among stubs and wires the nearest wins, parts on
- * ties; later items (drawn on top) win over earlier ones.
+ * ties; later items (drawn on top) win over earlier ones; graphics only where nothing else is.
  */
 export function hitTest(scene: Scene, point: Point, tolerance: number): Hit | undefined {
   const tol2 = tolerance * tolerance;
   for (let i = scene.parts.length - 1; i >= 0; i--) {
     const part = scene.parts[i]!;
+    if (isGraphic(part)) continue;
     if (rectContainsPoint(part.body, point, tolerance)) return { kind: 'part', id: part.id };
   }
   let best: Hit | undefined;
@@ -64,7 +73,14 @@ export function hitTest(scene: Scene, point: Point, tolerance: number): Hit | un
       bestDistance = d;
     }
   }
-  return best;
+  if (best) return best;
+  for (let i = scene.parts.length - 1; i >= 0; i--) {
+    const part = scene.parts[i]!;
+    if (isGraphic(part) && rectContainsPoint(part.body, point, tolerance)) {
+      return { kind: 'part', id: part.id };
+    }
+  }
+  return undefined;
 }
 
 /** Box selection modes: items entirely inside the box, or every item the box touches. */

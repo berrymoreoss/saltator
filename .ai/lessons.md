@@ -435,3 +435,16 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
   first delay after power-on (`X`) and then wait for `X` to come back: wait for a known level
   first. Tests polling a real-time simulation against wall time (the LCD's 5 s) can fail under
   load; prefer conditions that don't depend on how fast the machine is.
+- 2026-11-08 (PLT-1) — `system-ui` on macOS (SF Pro) has optical sizes: a line measured with
+  `measureText` at 100 px is ~15 % narrower than at 7–10 px, where canvas text mostly is.
+  Calibrate text-width estimates at the sizes they are drawn at (the schematic text's table
+  follows 10 px).
+- 2026-11-08 (PLT-1) — A dev server from an earlier session may still hold port 5199
+  (`lsof -iTCP:5199 -sTCP:LISTEN`); start your own on another port with `--strictPort` as a
+  background command (`exec node_modules/.bin/vite --port 5198 --strictPort`), not with `&`,
+  which ends with the shell.
+- 2026-11-08 (PLT-1) — In a React text field, Escape that reverts and then blurs runs the blur
+  handler with the edited draft still in its closure (the state update hasn't rendered), so
+  Properties' fields applied what Escape should have dropped (since R04b; the docs said
+  "reverts", no test pressed it). Mark the revert in a ref and skip the commit on that blur;
+  test the keys a doc promises.

@@ -1,9 +1,10 @@
 /**
  * Component library: definitions of parts (primitives, IO, net labels, 74xx chips, timers,
- * memories, CPUs, peripherals) and the default registry. See docs/components.md.
+ * memories, CPUs, peripherals, graphics) and the default registry. See docs/components.md.
  */
 export * from './74xx';
 export * from './cpu';
+export * from './draw';
 export * from './io';
 export * from './mem';
 export * from './net';

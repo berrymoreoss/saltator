@@ -354,10 +354,12 @@ interface CompileResult {
   by their first bus pin (`BE1.B`), else their first bus line; bus ids are only compared with
   each other. `members` come from the first name; an unnamed bus has none (it connects, but has
   no value).
-- **Schematic-only parts** (`schematicOnly`: net labels) connect but are left out of the
+- **Schematic-only parts** (`schematicOnly`: net labels; graphics such as texts, which have no
+  pins, PLT-1) connect but are left out of the
   netlist; their pins are in `CircuitNet.schematicPins`, apart from the simulated `pins`, and no
   design check counts them as inputs or outputs. Adding, moving or renaming a label that
-  changes no pin connections keeps the netlist's structure (`sameNetlistStructure`).
+  changes no pin connections keeps the netlist's structure (`sameNetlistStructure`); adding or
+  editing a text never changes it.
 - **Never throws on user mistakes.** Components with errors (unknown type, invalid props) are
   left out of the netlist and reported; the rest compiles. Whether to simulate with errors is the
   host's decision: it simulates anyway, without them (R05). Only library bugs throw (an inconsistent package definition).

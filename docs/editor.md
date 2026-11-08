@@ -53,7 +53,8 @@ A desktop CAD-style window (`Workbench`), dense like KiCad or Altium: 12 px UI t
   `★ Main › Spare  Placed nowhere in Main: drawn without levels`.
 - **Parts**: families as collapsible groups (Subcircuits — the document's circuits, except the
   open one and those containing it, which would place a circuit inside itself — 74HC Logic,
-  Timers, Primitives, Input / Output, Nets, and Developer Fixtures in dev builds); a search box (`/` or `Mod+F`) matching every word against name, title,
+  Timers, Memory, CPUs, Peripherals, Primitives, Input / Output, Nets, Graphics, and Developer
+  Fixtures in dev builds); a search box (`/` or `Mod+F`) matching every word against name, title,
   type and keywords; the selected part's preview — its symbol drawn by the canvas drawers — with
   title, pins and datasheet link. Clicking a part arms the place tool with it (the row is marked);
   dragging it onto the canvas places one ([Placing parts](#placing-parts)).
@@ -272,7 +273,8 @@ editor doesn't know.
   bus stub, its name above the bus stub), `lcd` (a character LCD module: the board, a dark
   bezel, the glass in its backlight's colors with every 5 × 8 dot of every character, unlit dots
   faintly visible as on real glass, the pin names along the bottom edge as Proteus draws its
-  LM016L; stopped: dark glass, no characters).
+  LM016L; stopped: dark glass, no characters), `text` (a schematic text: its lines from the
+  top-left of its box, no outline, [below](#schematic-text)).
   Stopped, drawers show the idle look
   (power-on switch positions, unlit lights); while simulating they get `DrawContext.live`
   ([Simulation](#live-drawing)).
@@ -292,16 +294,20 @@ Text never reads upside down or mirrored.
   the part's bounding box (pins included) on the first side without pins, in the order top,
   bottom, right, left; designator first, then the label. Power symbols show their rail name
   (VCC, GND) at the end away from the pin instead of a designator; net labels show only the
-  name inside their tag, bus entries only their name.
+  name inside their tag, bus entries only their name, schematic texts only their text.
 - **Text inside a symbol** rotates with the part only by 0° or 90° and reads left-to-right or
   bottom-to-top (`uprightText`): a part rotated 180° draws its text at 0°, 270° at 90°, and a
   flipped part moves the anchors, not the glyphs.
+- **A block of lines** (`SymbolGraphics.textBlock`, schematic texts) is laid out in its placed
+  box, not line by line: it reads left to right from the box's top down, or bottom to top from
+  its left edge at 90° and 270°, so turned or flipped its lines stay in order.
 
 ## Hit-testing and selection
 
 - `hitTest(scene, point, tolerance)`: a part body (with the tolerance around it) wins; otherwise
   the nearest pin stub or wire within the tolerance (5 px on screen), parts on ties, later items
-  over earlier ones.
+  over earlier ones. Graphics — schematic-only parts without pins, the schematic texts — come
+  last: a text over a chip or a wire is hit only where neither is (ADR-0029).
 - **Selection** is a set of part ids and a set of wire ids (`src/editor/selection.ts`). Click
   selects one item; Shift-click toggles; a click on empty canvas clears; dragging on empty
   canvas draws a box — left-to-right selects items entirely inside (solid box), right-to-left
@@ -344,7 +350,7 @@ another tool is chosen or Escape. The editor's `mode` store says what is going o
   ([Instances](#instances)).
 - **Place menu** (the menu bar's Place, and right click on empty canvas ▸ Place): Power (VCC),
   Ground (GND), Pull-up, Pull-down, Wire (`W`), Bus (`B`), Net Label (`L`), Bus Entry (`Z`,
-  KiCad's key), Find Part…. A part item arms the place
+  KiCad's key), Port (`Shift+L`), Text (`T`, KiCad's key), Find Part…. A part item arms the place
   tool like a click in the Parts panel, with preset props where it needs them (`PlaceTool.props`:
   the pull's direction).
 - **Net labels** are placed with their connection point under the pointer (schematic-only parts
@@ -426,10 +432,22 @@ touches connects); the design checks report what came loose or got shorted.
   async Clipboard API (paste may ask for permission) and fall back to the last copy kept in
   memory when it is refused.
 
+### Schematic text
+
+A **Text** (`draw/text`, [components.md](components.md#graphics-draw)) is a note on the sheet: a
+title, what a block does, a program listing. It is placed like any part — Parts ▸ Graphics,
+Place ▸ Text or `T` — centered under the pointer (it has no pins), moved, rotated, copied and
+undone with the rest, and never simulated or checked. Its text is edited in Properties
+([below](#properties)); Size (Small, Normal, Large, Title: 0.5, 0.7, 1 and 1.5 cells) and Font
+(sans-serif, or monospaced for listings and tables) change how it is drawn and the size of its
+box. The box is whole cells, measured in the pure layers from the text (`textBlockSize`): exact
+for the monospaced font, a little wide for the sans-serif one; it shows on hover and selection,
+and the text is drawn from its top-left corner. No designator or label is drawn.
+
 ### Properties
 
 The Properties panel edits a single selected part: double-click it, or Edit ▸ Properties, to
-focus its designator.
+focus its designator — or, for a part edited as text (a schematic text), its text.
 
 - **Designator**: Enter applies a rename (one step; the edit records `old → new`, which carries
   the part's simulation state over);
@@ -443,7 +461,10 @@ focus its designator.
   1e-7; the NE555's R and C, the clock frequency), times with units (`10 ns`, `1.5us`, `2 µs`; a
   bare number is nanoseconds; `parseTime` in core), booleans as checkboxes, enums as selects (LED colors with
   a swatch), strings as text — checked as typed against a `pattern` (a net label's **Name**:
-  "Use letters, digits, …"), without the spaces at its ends. A schematic-only part (net label)
+  "Use letters, digits, …"), without the spaces at its ends; `multiline` strings (a schematic
+  text's **Text**) in a text area across the panel, under its label, monospaced when the part's
+  font is: Enter starts a line, `Mod+Enter` or leaving the field applies, Escape reverts; lines
+  don't wrap. A schematic-only part (net label, text)
   has no **Label** row: its free text would never be drawn. A memory's contents (`image` props)
   show as a summary, `214 of 2048 bytes programmed` or `Erased (2048 bytes)`, not edited here
   (the Memory tab edits them: [Memory inspector](#memory-inspector)). Each commit is one undo step and writes all resolved props. A prop
@@ -1325,7 +1346,9 @@ title and a description, in gallery order):
   decoding them (ROM CE̅ = NOT A15; RAM CE̅ = NAND(PHI2, NOT A15), OE̅ = A14, WE̅ = RWB), a 1 kHz
   clock, RESET. The program counts at $0010 and stores the count at $0200 through a subroutine
   (the stack at $01FF): the Memory tab lights the cells. An LED port waits for the VIA (R18): a
-  74HC574 strobed from PHI2 misses the CPU's 10 ns write data hold.
+  74HC574 strobed from PHI2 misses the CPU's 10 ns write data hold. Texts above the circuit
+  (PLT-1) say what it is and what to watch, and list the program with its bytes and cycles; a
+  scenario test keeps the listing equal to the ROM's image (`tests/scenarios/rom-listing.test.ts`).
 - **SAP-1 Program Counter** — Ben Eater's program counter: a 74HC161 (CLR, CE, J) loading from a
   4-bit bus, a 74HC245 putting it on the bus (CO); the bus has pull-downs, a BUS bar and a
   DATA switch stand-in through another 74HC245. Unknown until CLR.

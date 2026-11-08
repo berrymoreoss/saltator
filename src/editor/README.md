@@ -9,8 +9,9 @@ drawers, hit-testing, selection and the `Editor` facade (R04a); tools, gestures 
   other way round).
 
 Modules: `camera`, `scene` + `text-placement`, `hit-test`, `selection`, `graphics`
-(`SymbolGraphics`, upright text), `renderer`, `grid`, `theme`, `symbols/` (drawers by kind —
-`lcd.ts` draws the HD44780 module's glass from its controller —, DIP, fallbacks), `editor` (the facade: tools, gestures on `PointerInput`, stores), `history`
+(`SymbolGraphics`, upright text and text blocks), `renderer`, `grid`, `theme`, `symbols/`
+(drawers by kind — `lcd.ts` draws the HD44780 module's glass from its controller, `draw.ts` the
+schematic text —, DIP, fallbacks), `editor` (the facade: tools, gestures on `PointerInput`, stores), `history`
 (snapshot undo), `move` (rubber-band transforms, per layer: wires, bus lines), `operations`
 (delete, rotate, flip, nudge), `wire-route` (L routes, connection marks, one layer's
 `ConnectionIndex`), `clipboard` (fragments as document text), `store`,

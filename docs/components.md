@@ -33,6 +33,7 @@ the part before the slash (`familyOf(type)`).
 | `mem`    | `mem/at28c16`, `mem/6116`                                          | EEPROMs (read as ROMs) and SRAMs ([below](#memories-mem)); shown in the Memory tab (R12b).             |
 | `cpu`    | `cpu/w65c02s`                                                      | Processors, pin-level and cycle-accurate ([below](#cpus-cpu)). Later: Z80, AVR, PIC.                   |
 | `periph` | `periph/hd44780`, `periph/w65c22`                                  | Peripherals: the HD44780 character LCD ([below](#peripherals-periph)); the VIA, ACIA _(planned, R18)_. |
+| `draw`   | `draw/text`                                                        | Graphics: drawn only, no pins, never simulated ([below](#graphics-draw)).                              |
 | `test`   | `test/driver`                                                      | Test-only parts from `src/core/testing`; not in the default registry.                                  |
 
 ## Definition shape
@@ -186,6 +187,7 @@ interface PropDef {
   unit?: string; // display unit: 'Hz'
   si?: boolean; // 'number' entered and shown with SI prefixes: '4.7 kΩ', '100 nF'
   pattern?: { regex: RegExp; hint: string }; // what a 'string' allows; hint ends "must be …"
+  multiline?: boolean; // a 'string' that may hold line breaks (a text's text)
 }
 ```
 
@@ -197,6 +199,8 @@ interface PropDef {
   an address, a colon, the bytes; unlisted bytes erased, `0xFF`); `max` is the size in bytes
   (`parseImage`, `formatImage` in core; [Memories](#contents-in-the-document)). Properties
   shows them as a summary (`214 of 2048 bytes programmed`).
+- `string` props with `multiline` may hold line breaks (`\n`): a schematic text's text
+  ([Graphics](#graphics-draw)); Properties edits them in a text area.
 - Props are part of the saved document; changing one recompiles the netlist.
 - `resolveProps(definition, raw)` (used by the netlist resolver) fills in defaults and rejects
   unknown keys, wrong types, non-integers for `integer`/`time`, out-of-range values and unknown
@@ -503,6 +507,32 @@ pin and feeds the design checks. Schematic-only; declared through `ComponentDefi
   `D3` beside `D[0..7]`) are a `duplicate-port` error; an input or bidirectional port counts as
   a driver of its nets, so inputs fed by ports aren't `undriven-input`; a name a port gives is
   never a `single-net-label`.
+
+## Graphics (`draw/*`)
+
+Parts that are only drawn: schematic-only and without pins, so the compiler leaves them out of
+the netlist and the design checks never see them, while placing, moving, rotating, copying,
+undo and saving work as for any part ([ADR-0029](adr/0029-schematic-graphics.md)). Their
+designators are never drawn. Hit-testing tries them last, so they never take a click from a part
+or a wire under them ([editor.md](editor.md#hit-testing-and-selection)).
+
+`draw/text` (`src/library/draw`): a block of free text — a title, a description, a program
+listing ([editor.md](editor.md#schematic-text)).
+
+| Pins | Props                                                                                               | Notes                                      |
+| ---- | --------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| —    | `text` (`Text`, `multiline`), `size` (`small`, `normal`, `large`, `title`), `font` (`sans`, `mono`) | designator `TXT`, not drawn; symbol `text` |
+
+- **Size**: the font size in cells (`TEXT_SIZES`: 0.5, 0.7, 1, 1.5); lines are 1.25 font
+  sizes apart (`TEXT_LINE_HEIGHT`), 0.2 cells in from the box's left edge (`TEXT_PADDING`).
+- **Box** (`textBlockSize`): whole cells, at least 1 × 1 — the lines' height and the widest
+  line plus the padding on both sides. The pure layers have no font metrics, so widths are
+  estimated (`lineWidth`): 0.6 font sizes a character in the monospaced font (exact), a table
+  of character classes for the sans-serif one, following the system UI font at 10 px and
+  rounding up (wider than drawn at larger sizes, up to ~5 % narrower at 7 px). Lines split at
+  `\n` (`\r\n` too), tabs stop every four columns (`textLines`).
+- **Drawing**: the lines from the box's top-left corner, in the part text color, without an
+  outline (`SymbolGraphics.textBlock`): upright whatever the placement, the lines in order.
 
 ## 74xx chips (`74xx/*`)
 

@@ -61,6 +61,27 @@ describe('scene parts', () => {
     expect(scene.partById.get('NL1')!.body).toEqual({ x: 21, y: 0.5, width: 2, height: 1 });
   });
 
+  it('draws a text as its body only: no pins, no designator, bounds of its box', () => {
+    const scene = buildScene(
+      new CircuitBuilder(registry)
+        .add('TXT1', 'draw/text', {
+          at: [4, 6],
+          props: { text: 'LDA #$01\nSTA $0200', font: 'mono' },
+        })
+        .build(),
+      registry,
+    );
+    const part = scene.partById.get('TXT1')!;
+    expect(part.drawing).toMatchObject({ kind: 'symbol', symbol: { kind: 'text' } });
+    expect(part.pins).toEqual([]);
+    expect(part.texts).toEqual([]);
+    // 9 characters × 0.6 × 0.7 + 0.4 = 4.18 → 5 cells; 2 lines × 0.875 → 2.
+    expect(part.body).toEqual({ x: 4, y: 6, width: 5, height: 2 });
+    expect(part.bounds).toEqual(part.body);
+    expect(scene.compiled.netlist.components).toEqual([]);
+    expect(scene.issues).toEqual([]);
+  });
+
   it('transforms pins and bounds with the placement', () => {
     const scene = buildScene(
       new CircuitBuilder(registry).add('U1', 'prim/nand', { at: [0, 0], rotation: 90 }).build(),

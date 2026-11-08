@@ -4,7 +4,7 @@
  * whatever the placement. The canvas implementation applies the placement and camera; a
  * recording implementation backs the tests. Spec: docs/editor.md#symbol-drawing.
  */
-import type { Placement, Point } from '../circuit';
+import type { Placement, Point, Rect } from '../circuit';
 import type { TextRun } from '../core';
 import type { Camera } from './camera';
 import type { TextAlign, TextBaseline } from './text-placement';
@@ -33,6 +33,20 @@ export interface TextStyle {
    */
   readonly overline?: boolean | readonly OverlineRange[];
   /** Skip the text when smaller than this on screen, in px (default 4). */
+  readonly minPx?: number;
+}
+
+/** How a block of lines is drawn (`SymbolGraphics.textBlock`); lengths in cells. */
+export interface TextBlockStyle {
+  /** Font size. */
+  readonly size: number;
+  /** Distance between the lines' middles. */
+  readonly lineHeight: number;
+  /** Room between the box's starting edge and the lines. */
+  readonly padding: number;
+  readonly font?: 'sans' | 'mono';
+  readonly paint?: Paint;
+  /** Skip the block when its text is smaller than this on screen, in px (default 4). */
   readonly minPx?: number;
 }
 
@@ -72,6 +86,13 @@ export interface SymbolGraphics {
   /** Dashed strokes until reset with an empty array; lengths in cells. */
   setDash(segments: readonly number[]): void;
   text(text: string, x: number, y: number, style: TextStyle): void;
+  /**
+   * Lines of text in a box of local cells, upright on screen whatever the placement: they read
+   * left to right from the top of the placed box down — or bottom to top from its left edge,
+   * when the part lies on its side — so a rotated or flipped block keeps its lines in order. The
+   * text isn't clipped to the box. Empty lines take their room.
+   */
+  textBlock(lines: readonly string[], box: Rect, style: TextBlockStyle): void;
 }
 
 /** Line width of part outlines, in cells (1.6 px at 100 %). */
@@ -267,6 +288,39 @@ export class CanvasGraphics implements SymbolGraphics {
         for (const [from, to] of style.overline) bar(at(from), at(to));
       }
     }
+    ctx.restore();
+  }
+
+  textBlock(lines: readonly string[], box: Rect, style: TextBlockStyle): void {
+    const px = style.size * this.scale;
+    if (px < (style.minPx ?? 4)) return;
+    const { ctx, camera, dpr } = this;
+    const [a, b, c, d, e, f] = placementMatrix(this.#placement);
+    const x0 = a * box.x + c * box.y + e;
+    const y0 = b * box.x + d * box.y + f;
+    const x1 = a * (box.x + box.width) + c * (box.y + box.height) + e;
+    const y1 = b * (box.x + box.width) + d * (box.y + box.height) + f;
+    const left = Math.min(x0, x1);
+    const top = Math.min(y0, y1);
+    const bottom = Math.max(y0, y1);
+    // A quarter turn lays the block on its side: it reads upwards, its first line at the left.
+    const upright = this.#placement.rotation % 180 === 0;
+    ctx.save();
+    ctx.font = `${px}px ${style.font === 'mono' ? MONO : SANS}`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = this.paint(style.paint ?? 'text');
+    lines.forEach((line, i) => {
+      if (line === '') return;
+      const across = (i + 0.5) * style.lineHeight;
+      const wx = upright ? left + style.padding : left + across;
+      const wy = upright ? top + across : bottom - style.padding;
+      const sx = (wx - camera.x) * camera.scale * dpr;
+      const sy = (wy - camera.y) * camera.scale * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, sx, sy);
+      if (!upright) ctx.rotate(-Math.PI / 2);
+      ctx.fillText(line, 0, 0);
+    });
     ctx.restore();
   }
 }

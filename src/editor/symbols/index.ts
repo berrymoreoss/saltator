@@ -7,6 +7,7 @@ import { type Level, pinsOf } from '../../core';
 import type { SymbolGraphics } from '../graphics';
 import type { ScenePart } from '../scene';
 import { drawDip } from './dip';
+import { DRAW_DRAWERS } from './draw';
 import { drawBroken, drawLabeledBox } from './fallback';
 import { GATE_DRAWERS } from './gates';
 import { IO_DRAWERS } from './io';
@@ -32,6 +33,7 @@ export const DRAWERS: Readonly<Record<string, Drawer>> = {
   ...LCD_DRAWERS,
   ...NET_DRAWERS,
   ...SUBCIRCUIT_DRAWERS,
+  ...DRAW_DRAWERS,
 };
 
 /** What a part looks like in the running simulation, for its drawer. */

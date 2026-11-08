@@ -325,6 +325,13 @@
   background: var(--hover-bg);
 }
 
+/* A value under its label, across the panel: a text area. */
+.prop-row.wide {
+  grid-template-columns: 1fr;
+  gap: 2px;
+  padding-block: 3px;
+}
+
 .prop-label {
   color: var(--fg-muted);
   overflow: hidden;
@@ -375,6 +382,17 @@
   border-color: var(--accent);
   background: var(--input-bg);
   outline: none;
+}
+
+textarea.prop-input.prop-text {
+  height: auto;
+  padding: 3px 4px;
+  border-color: var(--border);
+  background: var(--input-bg);
+  line-height: 1.35;
+  resize: vertical;
+  white-space: pre;
+  overflow: auto;
 }
 
 .prop-input.invalid {

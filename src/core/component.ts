@@ -113,6 +113,11 @@ export interface PropDef {
    * whole value; `hint` says in words what it allows and ends the error message (`must be …`).
    */
   readonly pattern?: { readonly regex: RegExp; readonly hint: string };
+  /**
+   * A `string` prop whose value may hold line breaks (`\n`): a schematic text. Validated as any
+   * string; Properties edits it in a text area.
+   */
+  readonly multiline?: boolean;
 }
 
 /** Datasheet timing, in picoseconds, keyed by datasheet symbol (`tpd`, `tPLH`, `tsu`, …). */

@@ -40,9 +40,18 @@ export function imageSummary(def: PropDef, text: string): string {
   return programmed === 0 ? `Erased (${size} bytes)` : `${programmed} of ${size} bytes programmed`;
 }
 
-function Row({ label, children }: { readonly label: string; readonly children: ReactNode }) {
+function Row({
+  label,
+  wide,
+  children,
+}: {
+  readonly label: string;
+  /** The value under its label, across the panel (a text area). */
+  readonly wide?: boolean;
+  readonly children: ReactNode;
+}) {
   return (
-    <div className="prop-row">
+    <div className={wide ? 'prop-row wide' : 'prop-row'}>
       <div className="prop-label">{label}</div>
       <div className="prop-value">{children}</div>
     </div>
@@ -69,12 +78,15 @@ export function PropertiesPanel({
 }) {
   const { scene, selection } = useStore(editor.state);
   const designator = useRef<HTMLInputElement>(null);
+  // A part edited as text (a schematic text) takes the request in its text, not its designator.
+  const text = useRef<HTMLTextAreaElement>(null);
   const seen = useRef(focusRequest);
   useEffect(() => {
     if (focusRequest === seen.current) return;
     seen.current = focusRequest;
-    designator.current?.focus();
-    designator.current?.select();
+    const field = text.current ?? designator.current;
+    field?.focus();
+    field?.select();
   }, [focusRequest]);
 
   const parts = [...selection.parts].flatMap((id) => scene.partById.get(id) ?? []);
@@ -89,6 +101,7 @@ export function PropertiesPanel({
         scene={scene}
         editor={editor}
         designatorRef={designator}
+        textRef={text}
       />
     );
   }
@@ -194,6 +207,8 @@ function Field({
     setDraft(value);
     setFailure(undefined);
   }, [value]);
+  // Escape blurs the field, and the blur handler still sees the edited draft: skip that commit.
+  const reverting = useRef(false);
   const error = failure ?? (draft === value ? undefined : validate?.(draft));
   const commit = () => {
     if (draft === value) return;
@@ -225,10 +240,13 @@ function Field({
             e.stopPropagation();
             setDraft(value);
             setFailure(undefined);
+            reverting.current = true;
             e.currentTarget.blur();
+            reverting.current = false;
           }
         }}
         onBlur={() => {
+          if (reverting.current) return;
           if (error || validate?.(draft)) {
             setDraft(value);
             setFailure(undefined);
@@ -240,6 +258,67 @@ function Field({
   );
 }
 
+/** Rows a text area shows: its lines, within these limits (it scrolls beyond). */
+const TEXT_ROWS = { min: 3, max: 16 } as const;
+
+/**
+ * A multi-line text field: Enter starts a new line, Mod+Enter or leaving the field applies the
+ * text, Escape reverts. Lines don't wrap, so a listing keeps its columns.
+ */
+function TextArea({
+  value,
+  label,
+  mono,
+  inputRef,
+  testId,
+  onCommit,
+}: {
+  readonly value: string;
+  readonly label: string;
+  readonly mono: boolean;
+  readonly inputRef?: Ref<HTMLTextAreaElement>;
+  readonly testId: string;
+  readonly onCommit: (text: string) => unknown;
+}) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+  // Escape blurs the field, and the blur handler still sees the edited draft: skip that commit.
+  const reverting = useRef(false);
+  const commit = () => {
+    if (draft !== value) onCommit(draft);
+  };
+  const lines = draft.split('\n').length;
+  return (
+    <textarea
+      ref={inputRef}
+      className={['prop-input', 'prop-text', mono && 'mono'].filter(Boolean).join(' ')}
+      value={draft}
+      rows={Math.min(Math.max(lines, TEXT_ROWS.min), TEXT_ROWS.max)}
+      wrap="off"
+      aria-label={label}
+      spellCheck={false}
+      data-testid={testId}
+      onChange={(e) => setDraft(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+          e.preventDefault();
+          commit();
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          e.stopPropagation();
+          setDraft(value);
+          reverting.current = true;
+          e.currentTarget.blur();
+          reverting.current = false;
+        }
+      }}
+      onBlur={() => {
+        if (!reverting.current) commit();
+      }}
+    />
+  );
+}
+
 const ROTATION_OPTIONS = [0, 90, 180, 270] as const;
 
 function PartProperties({
@@ -247,11 +326,14 @@ function PartProperties({
   scene,
   editor,
   designatorRef,
+  textRef,
 }: {
   readonly part: ScenePart;
   readonly scene: Scene;
   readonly editor: Editor;
   readonly designatorRef: Ref<HTMLInputElement>;
+  /** For the part's first multi-line text prop. */
+  readonly textRef: Ref<HTMLTextAreaElement>;
 }) {
   const { instance, definition } = part;
   // A bus label names a bus: show it like a selected bus line.
@@ -263,6 +345,7 @@ function PartProperties({
   const integer = (text: string) =>
     /^\s*-?\d+\s*$/.test(text) ? undefined : 'Enter a whole number of grid cells.';
   const placed = subcircuitOf(instance.type);
+  const firstMultiline = definition?.props?.find((d) => d.type === 'string' && d.multiline);
   return (
     <div className="props" data-testid="part-properties">
       <div className="props-heading">
@@ -369,16 +452,25 @@ function PartProperties({
       </Section>
       {definition?.props && definition.props.length > 0 && (
         <Section title="Properties">
-          {definition.props.map((def) => (
-            <Row key={def.key} label={def.unit ? `${def.label} (${def.unit})` : def.label}>
-              <PropEditor
-                def={def}
-                value={part.props[def.key]}
-                editable={part.drawing.kind !== 'broken'}
-                onChange={(value) => editor.setPartProp(instance.id, def.key, value)}
-              />
-            </Row>
-          ))}
+          {definition.props.map((def) => {
+            const multiline = def.type === 'string' && def.multiline === true;
+            return (
+              <Row
+                key={def.key}
+                label={def.unit ? `${def.label} (${def.unit})` : def.label}
+                wide={multiline}
+              >
+                <PropEditor
+                  def={def}
+                  value={part.props[def.key]}
+                  editable={part.drawing.kind !== 'broken'}
+                  mono={part.props.font === 'mono'}
+                  {...(multiline && def === firstMultiline && { textRef })}
+                  onChange={(value) => editor.setPartProp(instance.id, def.key, value)}
+                />
+              </Row>
+            );
+          })}
         </Section>
       )}
       {part.pins.length > 0 && (
@@ -409,16 +501,33 @@ function PropEditor({
   def,
   value,
   editable,
+  mono,
+  textRef,
   onChange,
 }: {
   readonly def: PropDef;
   readonly value: PropValue | undefined;
   readonly editable: boolean;
+  /** A multi-line text in a monospaced font (a listing): edit it in one too. */
+  readonly mono?: boolean;
+  readonly textRef?: Ref<HTMLTextAreaElement>;
   readonly onChange: (value: PropValue) => string | undefined;
 }) {
   // Contents are loaded, not typed (the memory inspector edits them, R12b).
   if (!editable || def.type === 'image') return <>{formatProp(def, value)}</>;
   const testId = `prop-${def.key}`;
+  if (def.type === 'string' && def.multiline) {
+    return (
+      <TextArea
+        value={String(value ?? '')}
+        label={def.label}
+        mono={mono === true}
+        testId={testId}
+        {...(textRef && { inputRef: textRef })}
+        onCommit={(text) => onChange(text)}
+      />
+    );
+  }
   if (def.type === 'boolean') {
     return (
       <input

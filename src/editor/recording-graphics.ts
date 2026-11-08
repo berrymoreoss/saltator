@@ -1,10 +1,10 @@
 /**
  * A `SymbolGraphics` that records instead of drawing, for tests: every point a path passes
- * through (curve control points, sampled arcs, rectangle corners), every text and how many
+ * through (curve control points, sampled arcs, rectangle corners), every text and text block and how many
  * strokes and fills were made.
  */
-import type { Point } from '../circuit';
-import type { Paint, SymbolGraphics, TextStyle } from './graphics';
+import type { Point, Rect } from '../circuit';
+import type { Paint, SymbolGraphics, TextBlockStyle, TextStyle } from './graphics';
 
 export interface RecordedText {
   readonly text: string;
@@ -12,10 +12,17 @@ export interface RecordedText {
   readonly style: TextStyle;
 }
 
+export interface RecordedTextBlock {
+  readonly lines: readonly string[];
+  readonly box: Rect;
+  readonly style: TextBlockStyle;
+}
+
 export class RecordingGraphics implements SymbolGraphics {
   readonly scale: number;
   readonly points: Point[] = [];
   readonly texts: RecordedText[] = [];
+  readonly textBlocks: RecordedTextBlock[] = [];
   readonly paints: Paint[] = [];
   strokes = 0;
   fills = 0;
@@ -64,5 +71,8 @@ export class RecordingGraphics implements SymbolGraphics {
   setDash(): void {}
   text(text: string, x: number, y: number, style: TextStyle): void {
     this.texts.push({ text, at: [x, y], style });
+  }
+  textBlock(lines: readonly string[], box: Rect, style: TextBlockStyle): void {
+    this.textBlocks.push({ lines: [...lines], box, style });
   }
 }
