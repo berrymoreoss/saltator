@@ -4,7 +4,7 @@
 | ---------- | ------------------------------------------------------------------------------------- |
 | Branch     | `feat/subcircuits`                                                                    |
 | Roadmap    | R11a — Subcircuits ([roadmap](../../docs/roadmap.md))                                 |
-| Status     | in-progress                                                                           |
+| Status     | done                                                                                  |
 | Depends on | R02 (document, compiler), R10a/R10b (labels, buses), R12b (resolver), R13/R14 (tools) |
 | Created    | 2026-11-08                                                                            |
 
@@ -371,13 +371,17 @@ Checkable statements; verified one by one in the finish-branch workflow.
   Panels ▸ Circuits command was missing (a blank page — a unit test now checks every menu
   entry). Deviation: Delete Circuit doesn't ask; its menu label names the instances it removes
   and it is one undo step (a confirmation is in the backlog).
+- 2026-11-08 — finished: R11a done (13 commits: schema v4, ports, the document registry, the
+  flattening compiler, resolver paths, document operations, the editor on documents, the tools
+  on the design, the document session, the Circuits UI, the Two-Digit Counter example, docs and
+  ADR-0023); every acceptance criterion verified; merged into `main` with the user's approval.
+  Next: R11b (navigation into instances while simulating).
 
 ## Handoff
 
-- **State:** every task done and committed; acceptance criteria verified; `pnpm check`,
-  `pnpm build`, `pnpm e2e` green. Status stays in-progress until the merge.
-- **Next step:** the finish-branch workflow with the user's approval (roadmap R11a `done`, R11b
-  `next`; merge commit to `main`).
-- **Watch out:** R11b builds on `SimulationModel.flatNet/flatPart` (today: the top maps one to one,
-  any other circuit maps nothing) and `Design.netOf(path, net)`.
+- **State:** merged; nothing pending.
+- **Next step:** R11b `feat/subcircuit-navigation` (going into an instance while simulating).
+- **Watch out:** R11b builds on `SimulationModel.flatNet/flatPart` (the top maps one to one, any
+  other circuit nothing today) and `Design.netOf(path, net)`; subcircuit follow-ups are in the
+  roadmap's backlog.
 - **Verify with:** `pnpm check`; `pnpm e2e`.
