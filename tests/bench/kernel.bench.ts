@@ -1,6 +1,6 @@
 /**
  * Kernel throughput, printed as events/s (iterations/s × the fixed events per iteration).
- * `pnpm bench` runs this on native `import` (see scripts/bench-resolve-hooks.ts): Vite's module runner wraps
+ * `pnpm bench` runs this on native `import` (see scripts/resolve-hooks.ts): Vite's module runner wraps
  * every imported binding in a getter and makes hot loops ~3× slower than the real bundle.
  * Results are recorded in the plan of the branch that changed them.
  */

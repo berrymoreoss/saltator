@@ -19,7 +19,7 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
   console output only show with `--reporter=verbose`.
 - 2026-11-06 (R01) — Vite's module runner (vitest default) turns every imported binding into a
   getter, making kernel hot loops ~3× slower than the real bundle. Benchmark on native `import`
-  (`pnpm bench` does: `--experimental.viteModuleRunner=false` + `scripts/bench-resolve-hooks.ts`);
+  (`pnpm bench` does: `--experimental.viteModuleRunner=false` + `scripts/resolve-hooks.ts`);
   never tune the kernel to numbers taken under the module runner.
 - 2026-11-06 (R01) — In 4-state simulation a feedback loop that starts at `X` stays `X`
   (`not X = X`): a plain inverter ring never oscillates. Start oscillators through a NAND with an

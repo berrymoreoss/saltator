@@ -20,8 +20,9 @@
     "coverage": "vitest run --coverage",
     "e2e": "playwright test",
     "check:layers": "node scripts/check-layers.ts",
+    "test:circuits": "node --import ./scripts/resolve-hooks.ts scripts/test-circuits.ts",
     "check": "pnpm typecheck && pnpm lint && pnpm check:layers && pnpm test",
-    "bench": "vitest bench --run --reporter=verbose --experimental.viteModuleRunner=false --execArgv=--import=./scripts/bench-resolve-hooks.ts"
+    "bench": "vitest bench --run --reporter=verbose --experimental.viteModuleRunner=false --execArgv=--import=./scripts/resolve-hooks.ts"
   },
   "dependencies": {
     "lucide-react": "^1.69.0",

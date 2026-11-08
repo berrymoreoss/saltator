@@ -11,7 +11,7 @@ combine layers and therefore can't live inside one (layer rules forbid `core` fr
   start-up session restore); `file-system.ts` stubs the File System Access pickers with handles
   from the origin private file system and reads the autosaved sessions.
 - `tests/bench/*.bench.ts` — performance benchmarks (`pnpm bench`). They run on native `import`
-  (not Vite's module runner, which slows hot loops ~3×) with `scripts/bench-resolve-hooks.ts`;
+  (not Vite's module runner, which slows hot loops ~3×) with `scripts/resolve-hooks.ts`;
   Vitest 5 benchmarks use the test context: `test(name, async ({ bench }) => …)`.
 
 Not subject to `check:layers`; may import from any layer.
