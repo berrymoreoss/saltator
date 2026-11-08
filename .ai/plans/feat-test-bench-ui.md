@@ -264,7 +264,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 7. `ui`: the Tests tab and its commands, Workbench wiring, settings (`BottomTab`), the
   badge; going to a failure's line and signal (per Q4).
 - [x] 8. `ui`: Insert Image… — dialog, the text it writes (tested by running it in a bench).
-- [ ] 9. e2e `tests/e2e/tests.spec.ts`: RAM by Hand passes in the app (M2); a broken expectation
+- [x] 9. e2e `tests/e2e/tests.spec.ts`: RAM by Hand passes in the app (M2); a broken expectation
   fails with its line and the click goes there; `while (true)` is cancelled and times out, the
   next run works; the sandbox can't reach `localStorage`, `indexedDB`, `fetch`; Insert Image…
   writes a load that passes; the script survives undo and save/load.
