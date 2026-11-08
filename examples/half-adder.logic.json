@@ -56,6 +56,18 @@
         { "id": "w35", "from": [30, 17], "to": [34, 17] },
         { "id": "w36", "from": [30, 19], "to": [34, 19] },
         { "id": "w37", "from": [30, 20], "to": [34, 20] }
+      ],
+      "testScript": [
+        "// Half Adder: SUM = A xor B through a 74HC86 (U1), CARRY = A and B through a 74HC08 (U2).",
+        "bench('adds two bits', (b) => {",
+        "  b.table`",
+        "    SW1 SW2 | U1.1Y U2.1Y    # A B | SUM CARRY",
+        "    0   0   | 0     0",
+        "    0   1   | 1     0",
+        "    1   0   | 1     0",
+        "    1   1   | 0     1",
+        "  `;",
+        "});"
       ]
     }
   ]

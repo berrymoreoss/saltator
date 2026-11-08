@@ -277,7 +277,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 8. Node host (`node:vm`, globals only, time limit, lines); scenarios on real parts — a
   74HC163 counter, a set-up violation failing the bench, a 6116 loaded before power-on,
   determinism, a runaway loop stopped.
-- [ ] 9. Example test scripts: Half Adder, Two-Digit Counter (three circuits), RAM by Hand;
+- [x] 9. Example test scripts: Half Adder, Two-Digit Counter (three circuits), RAM by Hand;
   `example-benches.test.ts`.
 - [ ] 10. CLI `pnpm test:circuits`, `scripts/resolve-hooks.ts`; tests of the report and the exit
   codes.
