@@ -1,8 +1,9 @@
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
+import { benchRunner } from './scripts/vite-bench-runner.ts';
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), benchRunner()],
   test: {
     include: ['src/**/*.test.{ts,tsx}', 'tests/**/*.test.ts', 'scripts/**/*.test.ts'],
     passWithNoTests: true,

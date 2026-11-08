@@ -632,6 +632,7 @@ interface ScriptHost {
 runBench(document, circuitId, name, library, host); // a BenchResult
 runTestScript(document, circuitId, library, host); // { error?, results }
 loadTestScript(source, host); // { benches: [{ name, line }], error? }
+benchService(library, host); // (request, reply) => void: a runner by messages (R15b)
 ```
 
 - A result: `status` (`pass`, `fail`, `error`), `failures` (`{ line, time, message, ref,
@@ -639,10 +640,18 @@ loadTestScript(source, host); // { benches: [{ name, line }], error? }
   `error` (`{ message, line }`), `warnings` (the simulation's, merged), `logs`, `time`, `events`.
   It never throws for the script's sake.
 - **Hosts**: `functionScriptHost()` runs the script as a `new Function` in this realm (tests;
-  inside R15b's browser sandbox) — no isolation, no time limit. The Node host
+  inside the app's sandbox) — no isolation, no time limit. The Node host
   (`scripts/script-host.ts`) runs each script in a `node:vm` context holding only its globals,
   with a time limit (60 s) on its top level and on every bench, lines from stack frames. Neither
-  is a security boundary: the app (R15b) runs scripts in a browser sandbox.
+  is a security boundary: the app runs scripts in a browser sandbox (R15b,
+  [editor.md](editor.md#running), [ADR-0026](adr/0026-test-bench-sandbox.md)) with its time
+  limits outside it.
+- **The bench service** (`bench/service.ts`, R15b): what a runner does, as messages a worker can
+  pass — `{ kind: 'load', job, source }` answers `loaded` (the script's benches or its error);
+  `{ kind: 'run', job, document, targets: [{ circuit, benches? }] }` answers `planned` (every
+  bench it will run, with its line), a `script-error` per circuit whose script doesn't load,
+  then `started` (an index into the plan) and `result` for each bench; every request ends with
+  `done`. Synchronous and pure; answers are plain data (structured clone).
 - **Headless**: `pnpm test:circuits [--timeout=ms] [files…]` (default: `examples/*.logic.json`)
   prints one line per bench, every failure, log and error, and a summary; exit 0 when all
   passed, 1 when one failed or erred or a script didn't load, 2 when a file didn't load. CI runs

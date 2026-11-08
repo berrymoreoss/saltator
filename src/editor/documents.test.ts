@@ -123,6 +123,26 @@ describe('Editor on documents', () => {
     expect(editor.state.get().circuit.id).toBe('main');
   });
 
+  it('edits a circuit’s test script as one undo step while typing goes on', () => {
+    const editor = new Editor(registry, document());
+    const script = () => editor.state.get().document.circuits[1]!.testScript;
+    expect(editor.setTestScript('inverter', "bench('inverts', (b) => {")).toBe(true);
+    expect(editor.setTestScript('inverter', "bench('inverts', (b) => {\n});")).toBe(true);
+    expect(script()).toEqual(["bench('inverts', (b) => {", '});']);
+    expect(editor.state.get().circuit.id).toBe('main'); // the open circuit stays
+    expect(editor.undoLabel).toBe('Edit Test Script of Inverter');
+    expect(editor.setTestScript('inverter', "bench('inverts', (b) => {\n});")).toBe(false);
+    expect(editor.setTestScript('nowhere', 'x')).toBe(false);
+    editor.sealHistory(); // the editor left: the next keystrokes are a step of their own
+    editor.setTestScript('inverter', '');
+    expect(script()).toEqual([]);
+    editor.undo();
+    expect(script()).toEqual(["bench('inverts', (b) => {", '});']);
+    editor.undo();
+    expect(script()).toEqual([]);
+    expect(editor.undoLabel).toBeUndefined();
+  });
+
   it('places an instance of another circuit, never one that contains the open circuit', () => {
     const editor = new Editor(registry, document());
     editor.placePart('sub/inverter');

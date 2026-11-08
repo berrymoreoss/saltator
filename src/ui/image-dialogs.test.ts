@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import { functionScriptHost, runBench } from '../circuit';
+import { benchTestDocument } from '../circuit/bench/test-circuits';
+import { benchTestRegistry } from '../circuit/bench/test-parts';
 import {
+  benchImageCall,
+  circuitMemories,
   describeImage,
   type ImageFileInfo,
   imageFileBytes,
@@ -53,5 +58,72 @@ describe('saving a file', () => {
       'U3.bin',
       'U3.hex',
     ]);
+  });
+});
+
+describe('Insert Image… in a test script', () => {
+  const registry = benchTestRegistry();
+  const host = functionScriptHost();
+  const text = (s: string) => new TextEncoder().encode(s);
+
+  /** Runs `call` in a bench of the bench tests' `memory` circuit (a 16-word RAM, U1). */
+  function runIn(call: string, check: string) {
+    const document = benchTestDocument();
+    const script = `bench('loaded', (b) => {\n${call}\n${check}\n});`;
+    const withScript = {
+      ...document,
+      circuits: document.circuits.map((c) =>
+        c.id === 'memory' ? { ...c, testScript: script.split('\n') } : c,
+      ),
+    };
+    return runBench(withScript, 'memory', 'loaded', registry, host);
+  }
+
+  it('lists the circuit’s memory parts', () => {
+    const memory = benchTestDocument().circuits.find((c) => c.id === 'memory')!;
+    expect(circuitMemories(memory, registry)).toEqual([
+      { id: 'U1', name: 'RAM', words: 16, volatile: true },
+    ]);
+  });
+
+  it('writes a binary image as b.memory, sixteen bytes a line, that loads in a bench', () => {
+    const bytes = Uint8Array.from({ length: 18 }, (_, i) => (i * 7) & 0xff);
+    const info = readImageForLoad('program.bin', bytes) as ImageFileInfo;
+    const call = benchImageCall('U1', info, bytes, 0);
+    expect(call).toBe(
+      [
+        "b.memory('U1', 0x0000, `",
+        '  00 07 0E 15 1C 23 2A 31 38 3F 46 4D 54 5B 62 69',
+        '  70 77',
+        '`); // program.bin: 0x0000–0x0011 · 18 bytes · sum 0x042F',
+      ].join('\n'),
+    );
+    // 18 bytes don't fit a 16-word RAM: the bench says so.
+    expect(runIn(call, '').error?.message).toMatch(/U1/);
+    const fits = readImageForLoad('small.bin', bytes.slice(0, 3)) as ImageFileInfo;
+    const result = runIn(
+      benchImageCall('U1', fits, bytes.slice(0, 3), 2),
+      "b.expect({ 'U1[2]': 0x00, 'U1[3]': 0x07, 'U1[4]': 0x0E });",
+    );
+    expect([result.status, result.failures]).toEqual(['pass', []]);
+  });
+
+  it('writes an Intel HEX file as b.loadIntelHex with its records, that loads in a bench', () => {
+    const hex = ':0300020011223395\r\n:00000001FF\r\n';
+    const info = readImageForLoad('decoder.hex', text(hex)) as ImageFileInfo;
+    const call = benchImageCall("A1/U'1", info, text(hex), 0);
+    expect(call).toBe(
+      [
+        "b.loadIntelHex('A1/U\\'1', `",
+        '  :0300020011223395',
+        '  :00000001FF',
+        '`); // decoder.hex: 0x0002–0x0004 · 3 bytes · sum 0x0066',
+      ].join('\n'),
+    );
+    const result = runIn(
+      benchImageCall('U1', info, text(hex), 0),
+      "b.expect({ 'U1[2]': 0x11, 'U1[3]': 0x22, 'U1[4]': 0x33 });",
+    );
+    expect([result.status, result.failures]).toEqual(['pass', []]);
   });
 });

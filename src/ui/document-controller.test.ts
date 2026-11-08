@@ -108,6 +108,7 @@ describe('DocumentController', () => {
     expect(circuit().components[0]!.x).toBe(7);
     expect(editor.undoLabel).toBeUndefined();
     expect(documents.unsaved).toBe(false);
+    expect(documents.shown.get()).toBe(1); // what is kept per document starts anew
   });
 
   it('opens and saves every circuit of a document; an edit in any of them is unsaved', async () => {

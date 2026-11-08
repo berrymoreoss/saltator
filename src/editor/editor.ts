@@ -39,6 +39,7 @@ import {
   SCHEMA_VERSION,
   sameCircuit,
   sameDocument,
+  scriptLines,
   subcircuitOf,
   transformPoint,
   transformRect,
@@ -1135,6 +1136,23 @@ export class Editor {
   }
 
   /**
+   * Sets the test script of circuit `circuitId` (R15b) to `source`: one undo step while typing
+   * goes on (edits in a row coalesce until `sealHistory`), the circuit open stays open. The
+   * script is no part of the netlist, so a run and its history go on through it.
+   */
+  setTestScript(circuitId: string, source: string): boolean {
+    const { document } = this.state.get();
+    const circuit = document.circuits.find((c) => c.id === circuitId);
+    if (!circuit) return false;
+    const testScript = scriptLines(source);
+    return this.editDocument(
+      document.circuits.length > 1 ? `Edit Test Script of ${circuit.name}` : 'Edit Test Script',
+      replaceCircuit(document, { ...circuit, testScript }),
+      { coalesce: `script:${circuitId}` },
+    );
+  }
+
+  /**
    * Moves, turns or mirrors one part to the given placement, as the move tool would (wires
    * follow): flip first, then quarter turns about its center, then a move to `x`, `y`.
    */
@@ -1592,18 +1610,40 @@ export class Editor {
       if (component) this.locate({ component }, options);
       return;
     }
+    this.locateItems({ wires: wires.map((w) => w.id) }, options);
+  }
+
+  /**
+   * Selects parts and wires of the circuit open and brings them all into view; false when none
+   * of them is there.
+   */
+  locateItems(
+    items: { readonly parts?: readonly string[]; readonly wires?: readonly string[] },
+    options: { zoom?: boolean } = {},
+  ): boolean {
+    const scene = this.scene;
+    const parts = (items.parts ?? []).flatMap((id) => scene.partById.get(id) ?? []);
+    const wires = (items.wires ?? []).flatMap((id) => scene.wireById.get(id) ?? []);
+    if (parts.length === 0 && wires.length === 0) return false;
     this.setSelection(
       selectionOf(
-        [],
+        parts.map((p) => p.id),
         wires.map((w) => w.id),
       ),
     );
-    const xs = wires.flatMap((w) => [w.from[0], w.to[0]]);
-    const ys = wires.flatMap((w) => [w.from[1], w.to[1]]);
+    const xs = [
+      ...wires.flatMap((w) => [w.from[0], w.to[0]]),
+      ...parts.flatMap((p) => [p.bounds.x, p.bounds.x + p.bounds.width]),
+    ];
+    const ys = [
+      ...wires.flatMap((w) => [w.from[1], w.to[1]]),
+      ...parts.flatMap((p) => [p.bounds.y, p.bounds.y + p.bounds.height]),
+    ];
     const x = Math.min(...xs);
     const y = Math.min(...ys);
     const rect = { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y };
     this.#bringIntoView(rect, options.zoom === true);
+    return true;
   }
 
   /**

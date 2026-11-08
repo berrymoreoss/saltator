@@ -9,8 +9,10 @@ import {
   Copy,
   CopyPlus,
   Eye,
+  FastForward,
   FileDown,
   FilePlus,
+  FlaskConical,
   FlipHorizontal2,
   FlipVertical2,
   FolderOpen,
@@ -63,6 +65,7 @@ import type { DocumentController } from './document-controller';
 import { BusIcon, GateIcon, WireIcon } from './icons';
 import { RECENT_LIMIT, type RecentFiles } from './recent-files';
 import type { PanelId, Settings, ThemeSetting } from './settings';
+import type { TestSession } from './test-session';
 import type { Example, UiState } from './ui-state';
 
 export interface WorkbenchContext {
@@ -74,6 +77,8 @@ export interface WorkbenchContext {
   readonly settings: Store<Settings>;
   readonly ui: Store<UiState>;
   readonly examples: readonly Example[];
+  /** The test benches (R15b); none: the Test menu's commands are off. */
+  readonly tests?: TestSession;
 }
 
 const PANEL_LABELS: Readonly<Record<PanelId, string>> = {
@@ -99,6 +104,7 @@ export function createCommands({
   settings,
   ui,
   examples,
+  tests,
 }: WorkbenchContext): Command[] {
   const patch = (change: Partial<Settings>) => settings.update((s) => ({ ...s, ...change }));
   const setPanel = (id: PanelId, visible: boolean) =>
@@ -113,6 +119,12 @@ export function createCommands({
     settings.update((s) => ({
       ...s,
       bottomTab: 'debug',
+      panels: { ...s.panels, bottom: { ...s.panels.bottom, visible: true } },
+    }));
+  const showTests = () =>
+    settings.update((s) => ({
+      ...s,
+      bottomTab: 'tests',
       panels: { ...s.panels, bottom: { ...s.panels.bottom, visible: true } },
     }));
   /** The single signal under the context menu (a pin or a net, not a bus). */
@@ -764,6 +776,59 @@ export function createCommands({
     ),
 
     {
+      id: 'test.run',
+      label: 'Run Tests',
+      title: 'Run the benches of the circuit open (in a sandbox)',
+      icon: FlaskConical,
+      shortcuts: ['Mod+Enter'],
+      // Also from the script editor, where it is typed.
+      global: true,
+      enabled: () => tests !== undefined && editor.state.get().circuit.testScript.length > 0,
+      run: () => {
+        showTests();
+        void tests?.runOpen();
+      },
+    },
+    {
+      id: 'test.runAll',
+      label: 'Run All Tests',
+      title: 'Run the benches of every circuit',
+      icon: FastForward,
+      shortcuts: ['Mod+Shift+Enter'],
+      global: true,
+      enabled: () =>
+        tests !== undefined &&
+        editor.state.get().document.circuits.some((c) => c.testScript.length > 0),
+      run: () => {
+        showTests();
+        void tests?.runAll();
+      },
+    },
+    {
+      id: 'test.cancel',
+      label: 'Cancel Tests',
+      icon: Square,
+      enabled: () => tests?.running === true,
+      run: () => tests?.cancel(),
+    },
+    {
+      id: 'test.insertImage',
+      label: 'Insert Image…',
+      title: 'Write a memory load from a .bin or Intel HEX file into the test script',
+      enabled: () => tests !== undefined,
+      run: () => {
+        showTests();
+        ui.update((s) => ({ ...s, insertImageRequest: true }));
+      },
+    },
+    {
+      id: 'test.show',
+      label: 'Show Tests',
+      title: 'The Tests tab: the test script of the circuit open and the results',
+      run: showTests,
+    },
+
+    {
       id: 'view.zoomIn',
       label: 'Zoom In',
       icon: ZoomIn,
@@ -1027,6 +1092,18 @@ export function workbenchMenus(examples: readonly Example[], recentCount?: numbe
         { label: 'Speed', items: ALL_SPEEDS.map((s) => `sim.speed.${s.id}`) },
         SEPARATOR,
         'tool.interact',
+      ],
+    },
+    {
+      label: 'Test',
+      items: [
+        'test.run',
+        'test.runAll',
+        'test.cancel',
+        SEPARATOR,
+        'test.insertImage',
+        SEPARATOR,
+        'test.show',
       ],
     },
     { label: 'Help', items: ['help.shortcuts', SEPARATOR, 'help.about'] },

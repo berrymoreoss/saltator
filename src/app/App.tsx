@@ -16,6 +16,7 @@ import {
   exampleSession,
   IndexedDbRecentStore,
   IndexedDbSessionStore,
+  iframeSandbox,
   KEPT_SESSIONS,
   openDatabase,
   RecentFiles,
@@ -23,6 +24,8 @@ import {
   reportVia,
   sameFileHandle,
   sessionToRestore,
+  TestRunner,
+  TestSession,
   Workbench,
 } from '../ui';
 import { EXAMPLE_FILES, exampleDocument } from './example-files';
@@ -69,12 +72,23 @@ const settings = createSettingsStore();
 const ui = createUiState();
 const files = browserFileAccess();
 const images = browserImageAccess();
+// Test scripts run in a sandbox (R15b): the runner bundle, loaded the first time it's needed.
+const runnerSource = () =>
+  import('virtual:bench-runner').then(({ benchRunnerSource }) => benchRunnerSource);
+/** Lists scripts as they are typed; runs benches (two sandboxes: a run doesn't hold lists up). */
+const runners = {
+  checker: new TestRunner(iframeSandbox(runnerSource)),
+  runner: new TestRunner(iframeSandbox(runnerSource)),
+};
 const documents = new DocumentController({
   editor,
   files,
   askUnsaved: askUnsavedVia(ui),
   report: reportVia(ui),
 });
+// Test results are of the document shown: another document starts them anew.
+const tests = new TestSession(editor, runners);
+documents.shown.subscribe(() => tests.reset());
 
 // The browser's storage for autosave and Open Recent; none where it is blocked (private mode).
 const database = await openDatabase().catch(() => undefined);
@@ -168,7 +182,9 @@ if (recent) {
 }
 
 // Dev builds expose the editor for poking at it from the console.
-if (import.meta.env.DEV) Object.assign(window, { logicEditor: editor, logicDocuments: documents });
+if (import.meta.env.DEV) {
+  Object.assign(window, { logicEditor: editor, logicDocuments: documents, logicTests: tests });
+}
 
 /** The composition root: one editor, the settings and UI stores, the workbench around them. */
 export function App() {
@@ -181,6 +197,7 @@ export function App() {
       ui={ui}
       examples={examples}
       images={images}
+      tests={tests}
     />
   );
 }

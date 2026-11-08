@@ -386,3 +386,20 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
 - 2026-11-08 (R15a) — Scripts from `new Function` and `vm` run sloppy by default: assigning to a
   frozen `b.now` did nothing and a typo made a global. Prefix `'use strict';` on the script's
   first line (same line, so line numbers hold).
+- 2026-11-08 (R15b) — A blob Worker started in a sandboxed iframe inherits the iframe's CSP, and
+  `new Function` needs `'unsafe-eval'` there: without it the script host can't make code. Put
+  `'unsafe-eval'` in the sandbox's `script-src`, nothing that reaches the network.
+- 2026-11-08 (R15b) — V8 gives no line for a syntax error from `new Function` (nor `eval`, nor
+  `importScripts`): the stack names only the caller. A nested Worker started from a blob of the
+  script wrapped as `(function () {…})` reports it in `ErrorEvent.lineno` (not muted inside an
+  opaque origin).
+- 2026-11-08 (R15b) — A worker busy in a synchronous loop never runs its microtasks: a response
+  queued with `promise.then(post)` before the loop never leaves (the bench's `started` didn't).
+  Post at once; queue only behind something actually awaited.
+- 2026-11-08 (R15b) — Playwright's `page.on('request')` reports a request a CSP blocked (as
+  failed), and requests to missing files fail without any policy (404, CORS, MIME). A negative
+  network test must aim at something that would succeed — a route fulfilled with
+  `Access-Control-Allow-Origin: *` — and be checked by removing the policy (it read `xhr 200`).
+- 2026-11-08 (R15b) — A "request counter" in UI state (`runToRequest`) misfires for a panel
+  mounted by the same command: it starts at the new value and never sees a change. For a one-shot
+  request (open a file picker), use a flag the panel clears when it acts.

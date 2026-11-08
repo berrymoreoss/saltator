@@ -119,6 +119,11 @@ export function emptyCircuit(id = 'main', name = 'Main'): Circuit {
   return { id, name, components: [], wires: [], probes: [], testScript: [] };
 }
 
+/** A test script's text as `Circuit.testScript` keeps it: its lines; none for an empty text. */
+export function scriptLines(source: string): string[] {
+  return source === '' ? [] : source.split(/\r?\n/);
+}
+
 /**
  * A circuit id for `name`, not in `taken`: the name as a slug (`Decade Counter` →
  * `decade-counter`; `circuit` if nothing is left), then `-2`, `-3`, … until it is free.

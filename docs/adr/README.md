@@ -30,6 +30,7 @@ the alternatives we rejected. Format: [ADR-0001](0001-record-architecture-decisi
 | [0023](0023-subcircuits.md)                       | Subcircuits: flattened instances, ports, local labels                                           | accepted |
 | [0024](0024-instance-navigation.md)               | Instance navigation: the open view is an instance path                                          | accepted |
 | [0025](0025-test-benches.md)                      | Test benches: JavaScript scripts in the document, run in fixed steps by a script host           | accepted |
+| [0026](0026-test-bench-sandbox.md)                | Test benches in the app: an opaque-origin sandbox, no prompt, CodeMirror                        | accepted |
 
 New ADR: copy [template.md](template.md) to `NNNN-short-title.md` (next free number), fill it in,
 add a row here. Superseding: set the old one's status to `superseded by NNNN`; never delete ADRs.

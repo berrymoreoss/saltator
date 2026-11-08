@@ -26,6 +26,14 @@ export {
   scriptSource,
   type TestScript,
 } from './bench/script';
+export {
+  type BenchRequest,
+  type BenchResponse,
+  type BenchService,
+  benchService,
+  type PlannedBench,
+  type RunTarget,
+} from './bench/service';
 export { BenchError } from './bench/values';
 export { CircuitBuilder, type PlaceOptions, type WirePoint } from './builder';
 export type {
@@ -62,11 +70,13 @@ export {
   type ProbeRadix,
   SCHEMA_VERSION,
   type SignalProbe,
+  scriptLines,
   type Wire,
 } from './document';
 export {
   addCircuit,
   circuitsContaining,
+  circuitsInside,
   circuitUses,
   duplicateCircuit,
   fragmentDocument,
