@@ -6,12 +6,13 @@ the product has got somewhere. Why it is built: [vision.md](vision.md).
 
 ## Tracks
 
-| Track                           | Prefix | Goal                                                        |
-| ------------------------------- | ------ | ----------------------------------------------------------- |
-| [Platform](roadmap/platform.md) | `PLT`  | The kernel, the circuit model, the editor, the design tools |
-| [Parts](roadmap/parts.md)       | `LIB`  | Real chips and IO parts, each following its data sheet      |
-| [SAP-1](roadmap/sap-1.md)       | `SAP`  | Ben Eater's SAP-1 from tested modules (M3)                  |
-| [MOS 6502](roadmap/mos6502.md)  | `MOS`  | 65C02 systems with their companion chips and toolchain (M4) |
+| Track                                               | Prefix | Goal                                                           |
+| --------------------------------------------------- | ------ | -------------------------------------------------------------- |
+| [Platform](roadmap/platform.md)                     | `PLT`  | The kernel, the circuit model, the editor, the design tools    |
+| [Parts](roadmap/parts.md)                           | `LIB`  | Real chips and IO parts, each following its data sheet         |
+| [SAP-1](roadmap/sap-1.md)                           | `SAP`  | Ben Eater's SAP-1 from tested modules (M3)                     |
+| [MOS 6502](roadmap/mos6502.md)                      | `MOS`  | 65C02 systems with their companion chips and toolchain (M4)    |
+| [Programmable logic](roadmap/programmable-logic.md) | `HDL`  | Verilog modules as parts; GAL, CPLD and FPGA devices with them |
 
 Where every track stands — its current item, what that waits for, whether its branch exists —
 and the milestones' progress: `pnpm roadmap`. Item statuses live only in the track files.
@@ -109,8 +110,6 @@ its plan file.
 Lines of work that get a track when their first item is planned:
 
 - CPUs and MCUs, a track each: AVR (ATmega328P, ATtiny85), Z80, 8080/8085, 6800/6809, PIC.
-- Programmable logic: GAL and CPLD (ATF22V10, ATF1504) programmed from JEDEC fuse maps — the
-  address decoders of homebrew computers — and later FPGAs.
 - Video output: VGA (Ben Eater's video card), composite.
 
 ## History

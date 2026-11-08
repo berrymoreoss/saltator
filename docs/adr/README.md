@@ -34,6 +34,7 @@ the alternatives we rejected. Format: [ADR-0001](0001-record-architecture-decisi
 | [0027](0027-roadmap-tracks.md)                    | The roadmap is a set of parallel tracks; milestones span them                                   | accepted |
 | [0028](0028-cpu-model.md)                         | CPU model: a cycle-level core behind pin-level timing, unknown bits per bit, lost until reset   | accepted |
 | [0029](0029-schematic-graphics.md)                | Schematic graphics: schematic-only parts without pins, text boxes estimated in pure layers      | accepted |
+| [0030](0030-hdl-modules.md)                       | HDL modules: Yosys synthesizes, an interpreter of its netlist runs them as parts                | proposed |
 
 New ADR: copy [template.md](template.md) to `NNNN-short-title.md` (next free number), fill it in,
 add a row here. Branches of different tracks can take the same number at the same time: the one
