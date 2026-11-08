@@ -188,7 +188,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 5. `ui`: the breadcrumb bar (crumbs, instance switcher, Up, the edits note, the unplaced
   note), Circuit menu and context menu entries, `Mod+↓`/`Mod+↑`, the status bar note removed;
   Simulation tab locating into instances; looked at in the browser, light and dark.
-- [ ] 6. `ui`: autosave and session restore keep the path; tests.
+- [x] 6. `ui`: autosave and session restore keep the path; tests.
 - [ ] 7. e2e: the Two-Digit Counter — run, double-click a digit, see its levels, go into its
   Decade Counter, probe a wire (a row `A1/A1/…` in Waveforms), switch to the other digit, go up
   by the breadcrumb and by the shortcut.

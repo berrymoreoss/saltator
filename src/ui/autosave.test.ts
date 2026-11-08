@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { type CircuitDocument, emptyDocument, parseDocument, serializeDocument } from '../circuit';
 import { ns } from '../core';
 import { Editor } from '../editor';
+import { toggleDesign } from '../editor/test-documents';
 import { createDefaultRegistry } from '../library';
 import {
   Autosave,
@@ -288,6 +289,29 @@ describe('Autosave', () => {
     const next = setup('tab-2');
     next.documents.show(restored.session, restored.document, { open: restored.open! });
     expect(next.editor.state.get().circuit.id).toBe('sub');
+  });
+
+  it('keeps the instance open, and goes into it again when restored', async () => {
+    const { editor, documents, store, autosave } = setup();
+    documents.show(openedSession('toggles', toggleDesign(registry)));
+    autosave.start();
+    editor.openInstance('A2');
+    await autosave.flush();
+    const record = (await store.get('tab-1'))!;
+    expect([record.open, record.path]).toEqual(['toggle', 'A2']);
+    const restored = restoreSession(record)!;
+    expect(restored.path).toBe('A2');
+    const next = setup('tab-2');
+    next.documents.show(restored.session, restored.document, {
+      open: restored.open!,
+      path: restored.path!,
+    });
+    const state = next.editor.state.get();
+    expect([state.circuit.id, state.path]).toEqual(['toggle', 'A2']);
+    // Another instance alone is a change worth writing.
+    editor.openInstance('A1');
+    await autosave.flush();
+    expect((await store.get('tab-1'))!.path).toBe('A1');
   });
 
   it('a failing store is reported once and retried with the next change', async () => {
