@@ -11,11 +11,12 @@ import {
   createDefaultRegistry,
   createHd44780Controller,
   type Hd44780Controller,
+  st7789,
 } from '../../library';
 import { DEV_PARTS } from '../dev-parts';
 import { RecordingGraphics } from '../recording-graphics';
 import { buildScene } from '../scene';
-import { DRAWERS, drawPartBody, GATE_STYLES, type GateStyle, LCD_GLASS } from '.';
+import { DRAWERS, drawPartBody, GATE_STYLES, type GateStyle, LCD_GLASS, TFT_GLASS } from '.';
 
 const registry = new Registry([...createDefaultRegistry().list(), ...DEV_PARTS]);
 
@@ -247,5 +248,72 @@ describe('LCD drawer', () => {
     const texts = Object.fromEntries(g.texts.map((t) => [t.text, t.style.overline ?? false]));
     expect(Object.keys(texts)).toEqual(expect.arrayContaining(['VSS', 'V0', 'E', 'DB7', 'K']));
     expect(texts['R/W']).toEqual([[2, 3]]);
+  });
+});
+
+describe('TFT drawer', () => {
+  /** A module's state after power-on with the display on, inversion on, 16-bit. */
+  function tftState() {
+    const behavior = st7789.create({ panel: '135x240' });
+    const state = behavior.createState!() as {
+      ctl: { [k: string]: unknown; gram: Uint32Array; version: number };
+    };
+    Object.assign(state.ctl, { sleep: 0, display: 1, inversion: 1 });
+    return state;
+  }
+
+  function drawTft(state: object, blk: Level = Level.Z, epoch = 0) {
+    const g = new RecordingGraphics();
+    drawPartBody(g, part('periph/st7789', { panel: '135x240' }), 'ansi', 'red', {
+      part: {
+        state,
+        level: (pin) => (pin === 'BLK' ? blk : Level.Z),
+        light: () => 0,
+        time: 0,
+        epoch,
+      },
+      levelColor: () => '#ff0000',
+    });
+    return g;
+  }
+
+  it('shows the glass as an image of the panel’s size while the backlight is lit', () => {
+    const g = drawTft(tftState());
+    expect(g.images).toHaveLength(1);
+    const { image, box } = g.images[0]!;
+    expect([image.width, image.height]).toEqual([135, 240]);
+    expect([box.width, box.height]).toEqual([135 / 16, 240 / 16]);
+    expect(within(g.points, part('periph/st7789', { panel: '135x240' }).localBounds)).toBe(true);
+  });
+
+  it('is dark with BLK LOW, and before power-on', () => {
+    const g = drawTft(tftState(), Level.L0);
+    expect(g.images).toHaveLength(0);
+    expect(g.paints).toContain(TFT_GLASS.dark);
+    expect(draw('periph/st7789', {}, 'ansi').paints).toContain(TFT_GLASS.dark);
+  });
+
+  it('draws unknown memory as noise in the X color and known pixels as they are', () => {
+    const state = tftState();
+    state.ctl.gram[40 * 240 + 52] = 0x3ffff; // the glass's top-left pixel: white
+    const { rgba } = drawTft(state).images[0]!.image;
+    expect([...rgba.slice(0, 4)]).toEqual([255, 255, 255, 255]);
+    const [r, g, b] = rgba.slice(4, 7);
+    expect(r! > 0 && g === 0 && b === 0).toBe(true); // noise in the X color (#ff0000)
+  });
+
+  it('reuses the image while nothing changed, and makes a new one after a change or a rewind', () => {
+    const state = tftState();
+    const first = drawTft(state).images[0]!.image;
+    expect(drawTft(state).images[0]!.image).toBe(first);
+    state.ctl.version++;
+    const second = drawTft(state).images[0]!.image;
+    expect(second).not.toBe(first);
+    expect(drawTft(state, Level.Z, 1).images[0]!.image).not.toBe(second);
+  });
+
+  it('names the pins along the bottom', () => {
+    const texts = draw('periph/st7789', {}, 'ansi').texts.map((t) => t.text);
+    expect(texts).toEqual(['GND', 'VCC', 'SCL', 'SDA', 'RES', 'DC', 'CS', 'BLK']);
   });
 });

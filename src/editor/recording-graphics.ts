@@ -1,10 +1,10 @@
 /**
  * A `SymbolGraphics` that records instead of drawing, for tests: every point a path passes
- * through (curve control points, sampled arcs, rectangle corners), every text and text block and how many
- * strokes and fills were made.
+ * through (curve control points, sampled arcs, rectangle and image corners), every text, text
+ * block and image, and how many strokes and fills were made.
  */
 import type { Point, Rect } from '../circuit';
-import type { Paint, SymbolGraphics, TextBlockStyle, TextStyle } from './graphics';
+import type { Paint, RasterImage, SymbolGraphics, TextBlockStyle, TextStyle } from './graphics';
 
 export interface RecordedText {
   readonly text: string;
@@ -18,12 +18,18 @@ export interface RecordedTextBlock {
   readonly style: TextBlockStyle;
 }
 
+export interface RecordedImage {
+  readonly image: RasterImage;
+  readonly box: Rect;
+}
+
 export class RecordingGraphics implements SymbolGraphics {
   readonly scale: number;
   readonly points: Point[] = [];
   readonly texts: RecordedText[] = [];
   readonly textBlocks: RecordedTextBlock[] = [];
   readonly paints: Paint[] = [];
+  readonly images: RecordedImage[] = [];
   strokes = 0;
   fills = 0;
 
@@ -74,5 +80,9 @@ export class RecordingGraphics implements SymbolGraphics {
   }
   textBlock(lines: readonly string[], box: Rect, style: TextBlockStyle): void {
     this.textBlocks.push({ lines: [...lines], box, style });
+  }
+  image(image: RasterImage, x: number, y: number, width: number, height: number): void {
+    this.images.push({ image, box: { x, y, width, height } });
+    this.points.push([x, y], [x + width, y + height]);
   }
 }

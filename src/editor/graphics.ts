@@ -68,6 +68,17 @@ export function overlinedText(runs: readonly TextRun[]): {
   return { text, overline: whole || (ranges.length > 0 && ranges) };
 }
 
+/**
+ * A picture of `width × height` pixels (RGBA, row by row) a drawer hands `image`: a TFT's glass.
+ * Treat it as immutable — implementations may cache what they make of it by identity, so a
+ * changed picture is a new object.
+ */
+export interface RasterImage {
+  readonly width: number;
+  readonly height: number;
+  readonly rgba: Uint8ClampedArray;
+}
+
 export interface SymbolGraphics {
   /** Screen pixels per cell, for level-of-detail decisions. */
   readonly scale: number;
@@ -93,6 +104,11 @@ export interface SymbolGraphics {
    * text isn't clipped to the box. Empty lines take their room.
    */
   textBlock(lines: readonly string[], box: Rect, style: TextBlockStyle): void;
+  /**
+   * Draws `image` scaled into the box of local cells, turned and mirrored with the part.
+   * Magnified, its pixels stay sharp squares; reduced, they are smoothed.
+   */
+  image(image: RasterImage, x: number, y: number, width: number, height: number): void;
 }
 
 /** Line width of part outlines, in cells (1.6 px at 100 %). */
@@ -258,6 +274,15 @@ export class CanvasGraphics implements SymbolGraphics {
     this.ctx.setLineDash(segments as number[]);
   }
 
+  image(image: RasterImage, x: number, y: number, width: number, height: number): void {
+    const source = rasterCanvas(image);
+    if (!source) return;
+    const ctx = this.ctx;
+    const devicePerPixel = (width / image.width) * this.camera.scale * this.dpr;
+    ctx.imageSmoothingEnabled = devicePerPixel < 1;
+    ctx.drawImage(source, x, y, width, height);
+  }
+
   text(text: string, x: number, y: number, style: TextStyle): void {
     const px = style.size * this.scale;
     if (px < (style.minPx ?? 4) || text === '') return;
@@ -323,4 +348,33 @@ export class CanvasGraphics implements SymbolGraphics {
     });
     ctx.restore();
   }
+}
+
+/** The canvas each image was copied into, kept as long as the image is. */
+const rasterCanvases = new WeakMap<RasterImage, HTMLCanvasElement | OffscreenCanvas>();
+
+/** `image` on a canvas of its own, made once per image object (undefined without a DOM). */
+function rasterCanvas(image: RasterImage): HTMLCanvasElement | OffscreenCanvas | undefined {
+  const cached = rasterCanvases.get(image);
+  if (cached) return cached;
+  let canvas: HTMLCanvasElement | OffscreenCanvas;
+  if (typeof OffscreenCanvas !== 'undefined') {
+    canvas = new OffscreenCanvas(image.width, image.height);
+  } else if (typeof document !== 'undefined') {
+    canvas = document.createElement('canvas');
+    canvas.width = image.width;
+    canvas.height = image.height;
+  } else {
+    return undefined;
+  }
+  const ctx = canvas.getContext('2d') as
+    | CanvasRenderingContext2D
+    | OffscreenCanvasRenderingContext2D
+    | null;
+  if (!ctx) return undefined;
+  const data = new ImageData(image.width, image.height);
+  data.data.set(image.rgba);
+  ctx.putImageData(data, 0, 0);
+  rasterCanvases.set(image, canvas);
+  return canvas;
 }

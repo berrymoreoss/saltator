@@ -339,7 +339,7 @@ The alternatives considered:
   shows its picture under the veil, and a later timely command resolves it.
 - [x] 6. `library`: unknowns. `X` bits, merging an uncertain D/CX or command, the caps, a lost
   interface. Tests for each.
-- [ ] 7. `editor`: the `image` primitive (canvas, recording) and the `tft` drawer with its
+- [x] 7. `editor`: the `image` primitive (canvas, recording) and the `tft` drawer with its
   cache, dropped on restore. Symbol-drawing and drawer tests; measure the budget.
 - [ ] 8. Scenarios: an SPI driver helper (like `lcd-program.ts`), a common initialization
   written from the data sheet, then drawing; the carry-over and rewind properties with the
@@ -485,12 +485,22 @@ displaymodule.com (cdn.shopify.com/s/files/1/0264/7629/files/DM-TFT114-397_Datas
   uncertain SCL/CS or a clock check failure, makes the interface lost: every register unknown,
   the memory veiled, data ignored until the next command (a lost phase recovers at CS↑ or a
   reset). Window and scroll unknown bits are split (COLUMNS/ROWS, SCROLL_AREA/START).
+- 2026-11-09: task 7. `RasterImage` + `SymbolGraphics.image` (canvas: an offscreen canvas per
+  image object in a WeakMap, nearest-neighbor when magnified; recording: `images`).
+  `PartLive.epoch` counts rewinds (`Simulation.#reach`) so caches built from restored state
+  don't go stale. The `tft` drawer caches the glass image per controller by (version, epoch,
+  panel, X color): unknown memory is noise in the X color, uncertain pixels get a diagonal hatch
+  (the veil). A test caught `#ff0000` being parsed as `#ff0`. Budget (vitest, M3 Pro):
+  `st7789Frame` 240 × 320 0.32 ms, plus RGBA 0.37 ms, well inside 3 ms; an unchanged glass
+  reuses the image. Lesson: imported bindings inside hot loops read through getters under
+  vitest (≈ 10× slower), so copy them to locals.
 
 ## Handoff
 
-- **State:** tasks 1–6 done (memory, frame, timing checks, waits, unknowns with the veil); `periph/st7789` (pins, `panel`, symbol, serial framing, command
+- **State:** tasks 1–7 done (the controller, the frame, timing, unknowns, the drawer with images); `periph/st7789` (pins, `panel`, symbol, serial framing, command
   table, registers, resets) and a basic `tft` drawer (board, dark or lit glass, pin names).
-- **Next step:** task 7: the `image` primitive and the `tft` drawer showing `st7789Frame`.
+- **Next step:** task 8: scenarios (SPI driver helper, vendor-like init), carry-over and rewind
+  properties with the TFT, the SPI stream benchmark.
 - **Watch out:** the data sheets mark themselves "Sitronix Confidential". Cite them, never copy
   them into the repo. ST7789V is a 3.3 V part.
 - **Verify with:** `pnpm check`.
