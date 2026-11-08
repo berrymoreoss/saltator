@@ -272,7 +272,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   errors with lines.
 - [x] 6. `circuit`: memories — `b.memory`, `b.loadIntelHex`; RAM `poke`, ROM image before
   power-on; power-on ordering.
-- [ ] 7. `circuit`: `ScriptHost`, `loadTestScript`, `runBench` — registration, lines,
+- [x] 7. `circuit`: `ScriptHost`, `loadTestScript`, `runBench` — registration, lines,
   `b.random`/`b.log`/`b.fail`, Promises refused.
 - [ ] 8. Node host (`node:vm`, globals only, time limit, lines); scenarios on real parts — a
   74HC163 counter, a set-up violation failing the bench, a 6116 loaded before power-on,

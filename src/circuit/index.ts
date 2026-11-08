@@ -4,6 +4,28 @@
  * Spec: docs/circuit.md.
  */
 
+export {
+  type BenchFailure,
+  type BenchLog,
+  type BenchOptions,
+  type BenchReport,
+  type BenchStatus,
+  CircuitBench,
+  DEFAULT_STEP,
+} from './bench/bench';
+export {
+  type BenchEntry,
+  type BenchResult,
+  benchApi,
+  loadTestScript,
+  type RunOptions,
+  runBench,
+  runTestScript,
+  type ScriptHost,
+  scriptSource,
+  type TestScript,
+} from './bench/script';
+export { BenchError } from './bench/values';
 export { CircuitBuilder, type PlaceOptions, type WirePoint } from './builder';
 export type {
   CircuitBus,
