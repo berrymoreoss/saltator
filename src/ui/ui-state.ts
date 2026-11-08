@@ -43,6 +43,8 @@ export interface UiState {
   readonly breakpointDialog?: BreakpointDialogRequest;
   /** Incremented to ask the Debug tab to focus its Run To box. */
   readonly runToRequest: number;
+  /** Test ▸ Insert Image… asked the Tests tab for a file; it clears this when it asks (R15b). */
+  readonly insertImageRequest?: true;
   /** A file that didn't open or save, shown until dismissed. */
   readonly fileProblem?: FileProblem;
 }

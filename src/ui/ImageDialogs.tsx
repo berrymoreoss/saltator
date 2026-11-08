@@ -1,11 +1,13 @@
 import { Eraser, FileDown, FileUp } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { parseAddress } from '../circuit';
 import { formatAddress, placeImage, suggestedLoadAddress } from '../core';
 import type { Editor, MemoryEntry } from '../editor';
 import { Dialog } from './Dialogs';
 import type { ImageFileAccess, ImageFileKind } from './files';
 import {
+  benchImageCall,
+  circuitMemories,
   describeImage,
   FORMAT_LABELS,
   type ImageFileInfo,
@@ -293,6 +295,204 @@ function SaveImageDialog({
           onClick={save}
         >
           Save…
+        </button>
+      </div>
+    </Dialog>
+  );
+}
+
+type Inserting =
+  | { readonly kind: 'insert'; readonly info: ImageFileInfo; readonly raw: Uint8Array }
+  | { readonly kind: 'problem'; readonly message: string };
+
+/**
+ * The Tests tab's Insert Image… (R15b): reads a `.bin` or Intel HEX file and writes a memory
+ * load into the test script at the cursor — for the memory and (a binary) the address picked
+ * in its dialog. `insert` writes the text; false when the script editor isn't there.
+ */
+export function InsertImageAction({
+  editor,
+  images,
+  insert,
+  requested,
+  onAsked,
+}: {
+  readonly editor: Editor;
+  readonly images: ImageFileAccess;
+  readonly insert: (text: string) => boolean;
+  /** Test ▸ Insert Image… asked for a file: ask for it, then `onAsked`. */
+  readonly requested: boolean;
+  readonly onAsked: () => void;
+}) {
+  const [open, setOpen] = useState<Inserting | undefined>(undefined);
+  const close = () => setOpen(undefined);
+  const pick = async () => {
+    try {
+      const picked = await images.openBytes();
+      if (!picked) return;
+      const info = readImageForLoad(picked.name, picked.bytes);
+      setOpen(
+        typeof info === 'string'
+          ? { kind: 'problem', message: info }
+          : { kind: 'insert', info, raw: picked.bytes },
+      );
+    } catch (error) {
+      setOpen({ kind: 'problem', message: error instanceof Error ? error.message : String(error) });
+    }
+  };
+  useEffect(() => {
+    if (!requested) return;
+    onAsked();
+    void pick();
+  });
+  return (
+    <>
+      <button
+        type="button"
+        className="tool-button memory-action"
+        title="Write a memory load from a .bin or Intel HEX file into the script, at the cursor"
+        onClick={pick}
+      >
+        <FileUp size={13} /> Insert Image…
+      </button>
+      {open?.kind === 'insert' && (
+        <InsertImageDialog
+          editor={editor}
+          info={open.info}
+          raw={open.raw}
+          insert={insert}
+          onClose={close}
+        />
+      )}
+      {open?.kind === 'problem' && (
+        <Dialog title="Can’t Insert Image" onClose={close} testId="image-problem-dialog">
+          <p className="mono">{open.message}</p>
+          <div className="dialog-actions">
+            <span className="dialog-actions-gap" />
+            <button type="button" className="dialog-button primary" onClick={close}>
+              OK
+            </button>
+          </div>
+        </Dialog>
+      )}
+    </>
+  );
+}
+
+/** Which memory, where (a binary), and Insert. */
+function InsertImageDialog({
+  editor,
+  info,
+  raw,
+  insert,
+  onClose,
+}: {
+  readonly editor: Editor;
+  readonly info: ImageFileInfo;
+  readonly raw: Uint8Array;
+  readonly insert: (text: string) => boolean;
+  readonly onClose: () => void;
+}) {
+  const { circuit, design } = editor.state.get();
+  const memories = circuitMemories(circuit, design.registry);
+  const [ref, setRef] = useState(memories[0]?.id ?? '');
+  const [at, setAt] = useState('0x0000');
+  const [problem, setProblem] = useState('');
+  const binary = info.format === 'binary';
+  const memory = memories.find((m) => m.id === ref.trim());
+  const words = memory?.words ?? 2 ** 32;
+  const target = binary ? parseAddress(at, words) : 0;
+  const end = typeof target === 'number' ? target + info.summary.bytes : 0;
+  const why =
+    ref.trim() === ''
+      ? 'Name the memory: a part of this circuit (U1), or one inside an instance (A1/U3).'
+      : typeof target === 'string'
+        ? target
+        : binary && memory && end > memory.words
+          ? `${info.summary.bytes} bytes from ${formatAddress(target)} don't fit ${memory.id} (${memory.words} words).`
+          : undefined;
+  const write = () => {
+    if (why !== undefined || typeof target === 'string') return;
+    if (insert(benchImageCall(ref.trim(), info, raw, target))) onClose();
+    else setProblem('The script editor is not open yet.');
+  };
+  return (
+    <Dialog
+      title="Insert Image into the Test Script"
+      onClose={onClose}
+      testId="insert-image-dialog"
+    >
+      <dl className="image-facts">
+        <dt>File</dt>
+        <dd>
+          {info.name} <span className="muted">({FORMAT_LABELS[info.format]})</span>
+        </dd>
+        <dt>Holds</dt>
+        <dd className="mono" data-testid="image-summary">
+          {describeImage(info.summary)}
+        </dd>
+        <dt>
+          <label htmlFor="insert-image-memory">Memory</label>
+        </dt>
+        <dd>
+          <input
+            id="insert-image-memory"
+            className="prop-input mono image-at"
+            list="insert-image-memories"
+            value={ref}
+            onChange={(event) => setRef(event.target.value)}
+          />
+          <datalist id="insert-image-memories">
+            {memories.map((m) => (
+              <option key={m.id} value={m.id}>
+                {`${m.name}, ${m.words} words${m.volatile ? '' : ', ROM'}`}
+              </option>
+            ))}
+          </datalist>
+          {memory && (
+            <span className="muted">
+              {' '}
+              {memory.name}, {memory.words} words{memory.volatile ? '' : ', ROM'}
+            </span>
+          )}
+        </dd>
+        {binary && (
+          <>
+            <dt>
+              <label htmlFor="insert-image-at">Load at</label>
+            </dt>
+            <dd>
+              <input
+                id="insert-image-at"
+                className="prop-input mono image-at"
+                value={at}
+                onChange={(event) => setAt(event.target.value)}
+              />
+            </dd>
+          </>
+        )}
+      </dl>
+      <p className="muted">
+        Writes {binary ? 'b.memory(…)' : 'b.loadIntelHex(…)'} at the cursor: put it inside a bench
+        {memory && !memory.volatile ? ', before anything else (a ROM loads before power-on)' : ''}.
+      </p>
+      {(why !== undefined || problem !== '') && (
+        <div className="field-error" role="status">
+          {why ?? problem}
+        </div>
+      )}
+      <div className="dialog-actions">
+        <span className="dialog-actions-gap" />
+        <button type="button" className="dialog-button" onClick={onClose}>
+          Cancel
+        </button>
+        <button
+          type="button"
+          className="dialog-button primary"
+          disabled={why !== undefined}
+          onClick={write}
+        >
+          Insert
         </button>
       </div>
     </Dialog>

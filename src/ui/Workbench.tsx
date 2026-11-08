@@ -479,7 +479,15 @@ export function Workbench({
                   }
                 />
               )}
-              {tab === 'tests' && <TestsPanel editor={editor} tests={tests} />}
+              {tab === 'tests' && (
+                <TestsPanel
+                  editor={editor}
+                  tests={tests}
+                  {...(images && { images })}
+                  insertImageRequest={uiState.insertImageRequest === true}
+                  onInsertImageAsked={() => ui.update(({ insertImageRequest: _, ...s }) => s)}
+                />
+              )}
             </Panel>
           </div>
         </>

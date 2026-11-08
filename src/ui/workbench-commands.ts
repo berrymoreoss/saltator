@@ -812,6 +812,16 @@ export function createCommands({
       run: () => tests?.cancel(),
     },
     {
+      id: 'test.insertImage',
+      label: 'Insert Image…',
+      title: 'Write a memory load from a .bin or Intel HEX file into the test script',
+      enabled: () => tests !== undefined,
+      run: () => {
+        showTests();
+        ui.update((s) => ({ ...s, insertImageRequest: true }));
+      },
+    },
+    {
       id: 'test.show',
       label: 'Show Tests',
       title: 'The Tests tab: the test script of the circuit open and the results',
@@ -1086,7 +1096,15 @@ export function workbenchMenus(examples: readonly Example[], recentCount?: numbe
     },
     {
       label: 'Test',
-      items: ['test.run', 'test.runAll', 'test.cancel', SEPARATOR, 'test.show'],
+      items: [
+        'test.run',
+        'test.runAll',
+        'test.cancel',
+        SEPARATOR,
+        'test.insertImage',
+        SEPARATOR,
+        'test.show',
+      ],
     },
     { label: 'Help', items: ['help.shortcuts', SEPARATOR, 'help.about'] },
   ];

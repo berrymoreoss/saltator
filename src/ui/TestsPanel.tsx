@@ -13,10 +13,12 @@ import {
   Play,
   Square,
 } from 'lucide-react';
-import { lazy, type ReactNode, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import type { BenchEntry, Circuit } from '../circuit';
 import type { Editor } from '../editor';
+import type { ImageFileAccess } from './files';
 import { useStore, useStoreValue } from './hooks';
+import { InsertImageAction } from './ImageDialogs';
 import { Splitter } from './Panel';
 import type { ScriptEditorApi } from './ScriptEditor';
 import { scriptReferences } from './script-completions';
@@ -45,10 +47,11 @@ const ScriptEditor = lazy(() =>
 interface TestsPanelProps {
   readonly editor: Editor;
   readonly tests: TestSession;
-  /** The editor's API, for commands (Insert Image… writes at its cursor). */
-  readonly onEditorReady?: (api: ScriptEditorApi | undefined) => void;
-  /** Toolbar actions beside Run (Insert Image…). */
-  readonly actions?: ReactNode;
+  /** Memory image files, for Insert Image…; none: no such button. */
+  readonly images?: ImageFileAccess;
+  /** Test ▸ Insert Image… asks for a file; `onInsertImageAsked` when the tab has asked. */
+  readonly insertImageRequest: boolean;
+  readonly onInsertImageAsked: () => void;
 }
 
 /** How long typing pauses before the script is listed again (its errors marked). */
@@ -59,7 +62,13 @@ const CHECK_DELAY = 300;
  * results of the benches run on the right — Run, Run All, a bench at a time, Cancel — each
  * failure a click away from its line and its signal. Spec: docs/editor.md#tests.
  */
-export function TestsPanel({ editor, tests, onEditorReady, actions }: TestsPanelProps) {
+export function TestsPanel({
+  editor,
+  tests,
+  images,
+  insertImageRequest,
+  onInsertImageAsked,
+}: TestsPanelProps) {
   const state = useStore(tests.state);
   const listing = useStore(tests.listing);
   const document = useStoreValue(editor.state, (s) => s.document);
@@ -104,7 +113,6 @@ export function TestsPanel({ editor, tests, onEditorReady, actions }: TestsPanel
 
   const ready = (next: ScriptEditorApi | undefined) => {
     api.current = next;
-    onEditorReady?.(next);
     const wanted = pending.current;
     if (next && wanted && wanted.circuit === editor.state.get().circuit.id) {
       pending.current = undefined;
@@ -150,8 +158,22 @@ export function TestsPanel({ editor, tests, onEditorReady, actions }: TestsPanel
         >
           <Square size={12} /> Cancel
         </button>
-        {actions && <span className="toolbar-divider" />}
-        {actions}
+        {images && (
+          <>
+            <span className="toolbar-divider" />
+            <InsertImageAction
+              editor={editor}
+              images={images}
+              requested={insertImageRequest}
+              onAsked={onInsertImageAsked}
+              insert={(text) => {
+                if (!api.current) return false;
+                api.current.insert(text);
+                return true;
+              }}
+            />
+          </>
+        )}
         <span className="toolbar-divider" />
         <span className="tests-title" data-testid="tests-title">
           {circuit.name}
