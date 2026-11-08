@@ -12,25 +12,26 @@ terminal) comes with that architecture's item.
 
 ## Items
 
-| ID   | Branch                       | Title                                     | Needs | Status |
-| ---- | ---------------------------- | ----------------------------------------- | ----- | ------ |
-| R00  | —                            | Foundation                                | —     | done   |
-| R01  | `feat/engine-core`           | Simulation kernel                         | —     | done   |
-| R02  | `feat/circuit-model`         | Circuit document & netlist compiler       | —     | done   |
-| R04a | `feat/editor-canvas`         | App shell & schematic view                | —     | done   |
-| R04b | `feat/editor-tools`          | Schematic editing                         | —     | done   |
-| R05  | `feat/sim-ui`                | Running simulations in the editor         | —     | done   |
-| R07  | `feat/persistence`           | Save, load, examples                      | —     | done   |
-| R10a | `feat/net-labels`            | Net labels                                | —     | done   |
-| R10b | `feat/buses`                 | Buses, rippers, bus values                | —     | done   |
-| R12b | `feat/memory-inspector`      | Memory inspector, image files             | —     | done   |
-| R13  | `feat/logic-analyzer`        | Waveforms & probes                        | —     | done   |
-| R14a | `feat/debugger`              | Breakpoints, stepping, watches            | —     | done   |
-| R14b | `feat/rewind`                | Snapshots & rewind                        | —     | done   |
-| R11a | `feat/subcircuits`           | Subcircuits                               | —     | done   |
-| R11b | `feat/subcircuit-navigation` | Navigation into instances                 | —     | done   |
-| R15a | `feat/test-benches`          | Test benches: scripts and headless runner | —     | done   |
-| R15b | `feat/test-bench-ui`         | Test benches in the app                   | —     | done   |
+| ID    | Branch                       | Title                                     | Needs | Status      |
+| ----- | ---------------------------- | ----------------------------------------- | ----- | ----------- |
+| R00   | —                            | Foundation                                | —     | done        |
+| R01   | `feat/engine-core`           | Simulation kernel                         | —     | done        |
+| R02   | `feat/circuit-model`         | Circuit document & netlist compiler       | —     | done        |
+| R04a  | `feat/editor-canvas`         | App shell & schematic view                | —     | done        |
+| R04b  | `feat/editor-tools`          | Schematic editing                         | —     | done        |
+| R05   | `feat/sim-ui`                | Running simulations in the editor         | —     | done        |
+| R07   | `feat/persistence`           | Save, load, examples                      | —     | done        |
+| R10a  | `feat/net-labels`            | Net labels                                | —     | done        |
+| R10b  | `feat/buses`                 | Buses, rippers, bus values                | —     | done        |
+| R12b  | `feat/memory-inspector`      | Memory inspector, image files             | —     | done        |
+| R13   | `feat/logic-analyzer`        | Waveforms & probes                        | —     | done        |
+| R14a  | `feat/debugger`              | Breakpoints, stepping, watches            | —     | done        |
+| R14b  | `feat/rewind`                | Snapshots & rewind                        | —     | done        |
+| R11a  | `feat/subcircuits`           | Subcircuits                               | —     | done        |
+| R11b  | `feat/subcircuit-navigation` | Navigation into instances                 | —     | done        |
+| R15a  | `feat/test-benches`          | Test benches: scripts and headless runner | —     | done        |
+| R15b  | `feat/test-bench-ui`         | Test benches in the app                   | —     | done        |
+| PLT-1 | `feat/schematic-text`        | Schematic text                            | —     | in-progress |
 
 ## R00 · Foundation
 
@@ -309,6 +310,14 @@ bench service in `circuit` (the protocol), the runner bundled into one script by
 run and its history untouched). Spec: [editor.md](../editor.md#tests). Decision:
 [ADR-0026](../adr/0026-test-bench-sandbox.md). Plan: `.ai/plans/feat-test-bench-ui.md`.
 
+## PLT-1 · Schematic text — `feat/schematic-text`
+
+Graphic elements without logic, starting with text: a `draw` family of schematic-only parts
+without pins (never simulated, placed, moved, copied and saved like any part), and its first
+part `draw/text` — a block of multi-line text with a size and a sans or mono font, edited in
+Properties, placed from Parts ▸ Graphics or Place ▸ Text (`T`). The 6502 ROM and RAM example
+gets its description and its program listing on the canvas. Plan: `.ai/plans/feat-schematic-text.md`.
+
 ## Ideas
 
 Not scheduled yet; promoting one gives it the next free id and a row in the table.
@@ -339,6 +348,9 @@ Not scheduled yet; promoting one gives it the next free id and a row in the tabl
   and bus aliases if ever needed.
 - Net highlighting (R10a follow-up): selecting or hovering a wire or net label highlights every
   wire and label of its net, across labels.
+- Schematic graphics (PLT-1 follow-ups): editing a text in place on the canvas; bold,
+  alignment, colors and a frame for texts; lines, rectangles and frames around blocks, a title
+  block, images — each a `draw/*` part on the text's model.
 - Placing VCC/GND symbols by their pin (R10a follow-up), as net labels are placed, so a click on
   a pin tip attaches one; other one-pin parts may follow.
 
