@@ -109,6 +109,8 @@ describe('W65C02S opcode table', () => {
     expect(op(0x4c).cycles).toBe(3);
     expect(op(0x0e).cycles).toBe(6); // ASL a: read-modify-write adds 2
     expect(op(0x1e).cycles).toBe(6); // ASL a,x in the same page: six (Table 7-1)
+    expect(op(0xfe).cycles).toBe(7); // INC a,x: always seven (SingleStepTests)
+    expect(op(0xde).cycles).toBe(7);
     expect(op(0x0a).cycles).toBe(2); // ASL A
     expect(op(0xf0).cycles).toBe(2); // BEQ not taken
     expect(op(0x9d).cycles).toBe(5); // STA a,x: always the extra cycle (Table 4-1 note 1)

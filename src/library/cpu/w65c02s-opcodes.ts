@@ -132,7 +132,10 @@ const STORE_CYCLES: Partial<Record<AddressingMode, number>> = {
   '(zp),y': 6,
 };
 
-/** Read-modify-write: two reads and a write (Table 7-1); `a,x` in the same page takes six. */
+/**
+ * Read-modify-write: two reads and a write (Table 7-1); `a,x` in the same page takes six — but
+ * `INC a,x` and `DEC a,x` always take seven (SingleStepTests; `OWN_CYCLES`).
+ */
 const RMW_CYCLES: Partial<Record<AddressingMode, number>> = {
   A: 2,
   zp: 5,
@@ -184,6 +187,7 @@ function baseCycles(mnemonic: string, mode: AddressingMode): number {
   if (operation === 'RMB' || operation === 'SMB') return 5;
   if (operation === 'BBR' || operation === 'BBS') return 5;
   if (mnemonic === 'JMP') return mode === 'a' ? 3 : 6;
+  if ((mnemonic === 'INC' || mnemonic === 'DEC') && mode === 'a,x') return 7;
   const table = READS.has(mnemonic)
     ? READ_CYCLES
     : STORES.has(mnemonic)
