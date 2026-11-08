@@ -443,7 +443,13 @@ sim.restore(copy.snapshot());
   action `{ type: 'poke', address, data }` (`PokeAction`), that bypasses their timing
   ([components.md](components.md#memories-mem)). The editor's Memory tab is built on them
   ([editor.md](editor.md#memory-inspector)); parts and nets are found by reference through the
-  resolver ([circuit.md](circuit.md#resolver)). CPU registers come with R17 _(planned)_.
+  resolver ([circuit.md](circuit.md#resolver)). A CPU part's definition has `cpu` (`CpuDef`,
+  R17a: its registers — name, width, a status register's flag letters `NV-BDIZC` — the program
+  counter's name, the address and data pins, and `view(state)` → register values with their
+  unknown bits, the mode `running` / `reset` / `waiting` / `stopped` / `unknown`, and the
+  instruction under way: where its opcode was fetched, the opcode, the cycle in it); the
+  registry checks it (`cpuProblems`). The CPU tab and watches on registers come with R17b
+  _(planned)_.
 - **Reproducible randomness**: `SeededRandom` (mulberry32) and `hashString` (FNV-1a) in core;
   parts seed it from what identifies them (a RAM's random power-on contents from its
   designator), never from `Math.random`.

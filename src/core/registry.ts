@@ -6,6 +6,7 @@ import {
   resolveProps,
   validatePins,
 } from './component';
+import { cpuProblems } from './cpu';
 import { validateFunctionTable } from './function-table';
 import { symbolOf, validateSymbol } from './symbol';
 
@@ -38,7 +39,7 @@ export class Registry implements ComponentRegistry {
 
   /**
    * Adds definitions. Throws on a malformed or duplicate type id, a malformed designator prefix,
-   * a malformed function table or memory size, an `image` prop without a size, or on invalid
+   * a malformed function table, memory size or CPU, an `image` prop without a size, or on invalid
    * pins or symbol with the default props
    * (prop-dependent ones are checked again when instances are laid out).
    */
@@ -60,6 +61,10 @@ export class Registry implements ComponentRegistry {
       if (symbol) validateSymbol(symbol, pins, type);
       if (definition.functionTable) validateFunctionTable(definition.functionTable, type);
       validateMemory(definition, pins);
+      if (definition.cpu) {
+        const problems = cpuProblems(definition.cpu, pins);
+        if (problems.length > 0) throw new Error(`${type}: ${problems.join('; ')}`);
+      }
       this.byType.set(type, definition);
     }
     return this;

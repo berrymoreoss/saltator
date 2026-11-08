@@ -55,6 +55,7 @@ interface ComponentDefinition<Props, State> {
   schematicOnly?: boolean; // drawn and connected, never simulated: left out of the netlist
   nextProps?: (props: Props) => Props; // props of the next instance placed after this one
   memory?: MemoryDef<State>; // a memory's size and a view of its cells (inspectors, test benches)
+  cpu?: CpuDef<State>; // a CPU's registers and a view of its state (R17a; docs/simulation.md)
   animation?: (state: State, props: Props) => Time | undefined; // look changes with time alone
 
   create(props: Props): Behavior<State>; // see docs/simulation.md

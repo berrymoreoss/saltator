@@ -264,7 +264,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 
 - [ ] 1. Roadmap: R17 split into R17a/R17b (track file, M4); plan approved; status
   `in-progress`.
-- [ ] 2. `core`: `CpuDef`, `CpuView`, `ComponentDefinition.cpu`, registry checks; tests.
+- [x] 2. `core`: `CpuDef`, `CpuView`, `ComponentDefinition.cpu`, registry checks; tests.
 - [ ] 3. Opcode table from Table 5-2 (and the reserved NOPs); tests.
 - [ ] 4. Core, known values: registers, every addressing mode and instruction with its bus
   cycles; hand-written tests per mode.
@@ -337,12 +337,15 @@ Checkable statements; verified one by one in the finish-branch workflow.
   2022) in the scratchpad; SingleStepTests `wdc65c02` checked (MIT, 10,000 cases per opcode,
   ≈ 5 MB per file).
 - 2026-11-08 — plan approved; R17a `in-progress` (task 1).
+- 2026-11-08 — task 2: `CpuDef` in `src/core/cpu.ts` (registers with widths and flag letters,
+  the program counter's name, address and data pins, `view` → values, unknown bits, mode, the
+  instruction under way); `cpuProblems` checked by the registry; simulation.md and
+  components.md document it. `view` returns a small fresh object (inspection, not a hot path).
 
 ## Handoff
 
-- **State:** plan approved and started (task 1 done); branch `feat/cpu-6502` from `main`
-  (`cca1657`, green). No production code yet.
-- **Next step:** task 2 — `CpuDef` in `core`.
+- **State:** tasks 1–2 done: the plan started, `CpuDef` in `core` (no CPU part yet).
+- **Next step:** task 3 — the opcode table from Table 5-2 in `src/library/cpu/`.
 - **Watch out:** component state must stay plain data (snapshots freeze it: no closures,
   generators, `Map`s); `evaluate` idempotent with nothing changed (carry-over); enumerate
   nothing per unknown bit in the CPU (masks, not outcomes).
