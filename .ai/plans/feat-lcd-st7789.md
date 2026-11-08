@@ -18,7 +18,8 @@ module:
   directions, 12/16/18-bit color, inversion, sleep, display on/off, idle, partial mode and
   scrolling.
 - The waits after a reset, `SWRESET` and `SLPOUT` and the SPI write timing are checked. A command
-  sent too early is an error and is lost, which is the blank screen you get on the bench.
+  sent too early is an error, and what it did becomes uncertain: the data sheet doesn't promise
+  it works (Q5).
 - The frame memory powers on unknown, as the data sheet says ("set randomly").
 
 The schematic draws it as the module, with its glass showing the frame memory through the
@@ -32,8 +33,8 @@ author's computer (M5) may use it, and a 6502 can drive it once the VIA lands (R
 
 - `library`: `periph/st7789`, the module with its pin header (Q4: which module):
   - The header pins: GND, VCC, SCL, SDA, RES, DC, CS and BLK.
-  - Props: `panel` (size, with its window in the frame memory as data), `glass` (`ips`, which is
-    normally black and needs `INVON`, or `tn`) and the panel's color order.
+  - One prop, `panel` (size, with its window in the frame memory as data). Every panel is a
+    normally black IPS, so it needs `INVON` (task 1).
   - The controller at command level:
     - The 4-line serial interface I: CS framing, SDA sampled on SCL↑, D/CX on the 8th bit, and
       break and recovery as in §8.5.
@@ -46,8 +47,8 @@ author's computer (M5) may use it, and a 6502 can drive it once the VIA lands (R
     - The panel-tuning commands (porch, gate, VCOM, power, gamma) are accepted and stored but
       have no visible effect.
 - The SPI write timing as timing checks (Table 6). The reset pulse with its spike rejection
-  (Table 9). The waits after RESX↑, `SWRESET`, `SLPOUT` and `SLPIN` as errors, with the command
-  not accepted.
+  (Table 9). The waits after RESX↑, `SWRESET`, `SLPOUT` and `SLPIN` as errors, with the command's
+  effect uncertain (Q5).
 - Unknowns, as ADR-0014 and ADR-0022 handle them:
   - An `X` bit makes the pixel or register it lands in unknown.
   - An uncertain D/CX or command byte runs each outcome and merges them, up to a cap.
@@ -128,30 +129,36 @@ from a module data sheet.
 | RES | in        | RESX: a LOW pulse ≥ 10 µs resets; < 5 µs is rejected; 5–9 µs is uncertain  |
 | DC  | in        | D/CX, sampled on the 8th rising edge: 0 command, 1 parameter or pixel data |
 | CS  | in        | CSX: its falling edge starts a byte; HIGH resets the bit phase             |
-| BLK | in, sense | backlight: lit while HIGH or floating (pulled up on the board), dark LOW   |
+| BLK | in, sense | backlight: lit while HIGH or floating (10 kΩ pull-up), dark while LOW      |
 
 A module without CS (the 7-pin 1.3" boards) is this part with CS tied to GND.
 
-Props:
+Props: one, `panel`. Each panel is data: its glass size and its window in the physical
+frame memory.
 
-| Key     | Default     | Values                                                                                     |
-| ------- | ----------- | ------------------------------------------------------------------------------------------ |
-| `panel` | `240x320`   | `240x320` (2.0"–2.8"), `240x240` (1.3"/1.54"), `135x240` (1.14"), and more in task 1 (Q4)  |
-| `glass` | `ips`       | `ips` (normally black: without `INVON` the colors are inverted), `tn`                      |
-| `order` | `rgb`       | how the panel's sub-pixels are wired: `rgb`, `bgr` (fixed by MADCTL bit 3)                 |
+| `panel`             | Module (source)        | Window (columns × rows)     |
+| ------------------- | ---------------------- | --------------------------- |
+| `240x320` (default) | 2.0", MSP2008          | 0–239 × 0–319               |
+| `240x240`           | 1.3", MSP1308 (7-pin)  | 0–239 × 0–239               |
+| `135x240`           | 1.14", MSP1141         | 52–186 × 40–279             |
 
-Each panel is data: its glass size and its window in the physical frame memory. For example,
-240 × 240 → columns 0–239, rows 0–239 of the 320, and 135 × 240 → columns 52–186, rows 40–279.
-Task 1 confirms these against module data sheets and drops any panel without a source. The
-"row offset 80" that a rotated 240 × 240 needs then falls out of the model with no special
-case: MY = 1 writes MCU row 0 to physical row 319, which is off the glass.
+The vendor offsets in task 1 confirm every window. Other sizes (170 × 320, 172 × 320,
+240 × 280) had no module data sheet, so they are left out. All three panels are "normally
+black" IPS. Every vendor initialization sends `INVON` and then expects 0xFFFF to show white,
+so the glass shows the frame memory's colors inverted unless inversion is on. With that
+evidence, the panel needs no `glass` or `order` prop: no TN or BGR-wired module has a source,
+and MADCTL's RGB bit alone swaps R and B. The offsets a rotated panel needs fall out of the
+model with no special case: MY = 1 writes MCU row 0 to physical row 319, which is off a
+240 × 240 glass.
 
 ### The controller
 
 - **Serial interface (§8.4):** while CS is HIGH, nothing happens. Once CS falls, each SCL↑
   shifts SDA in. On the 8th edge D/CX is sampled and the byte completes. A CS↑ before D0
   rejects the partial byte, and the bytes already received stand (§8.5, Figures 20–21).
-- **Commands:** a table of code → parameter count → handler. Parameters arrive with D/CX = 1
+- **Commands:** a table of code → parameter count → handler. A code the data sheet doesn't
+  define (e.g. `D6h`, which MSP1141's initialization sends) is a warning (`unknown-command`):
+  it is ignored with the parameters that follow it. Parameters arrive with D/CX = 1
   after their command. A new command cancels an unfinished one and keeps the parameters that
   were already sent. `RAMWR` resets the counters to the window start. `WRMEMC` continues where
   they are. Data after `RAMWR` writes pixels until the next command.
@@ -163,9 +170,11 @@ case: MY = 1 writes MCU row 0 to physical row 319, which is off the glass.
   the end of the window everything wraps to the start. Out-of-range data is ignored (CASET
   restriction).
 - **Color (§8.8.40–43, RAMCTRL):**
-  - 12-bit: 3 bytes for 2 pixels, through the LUT.
-  - 16-bit: 2 bytes per pixel, expanded to 18 bits by EPF. The default F0h gives EPF = 11.
-    Task 1 reads the exact bit rule from the rendered figure.
+  - 12-bit: 3 bytes for 2 pixels. The data sheet draws a "look-up table for 4096 color data
+    mapping" but never gives it: a data sheet blank. Each 4-bit channel takes the top 4 bits
+    and its two MSBs repeat into the low 2. Documented as our choice.
+  - 16-bit: 2 bytes per pixel. G6 is taken as is. R0 and B0 come from EPF (RAMCTRL, p. 259):
+    00 → 0, 01 → 1, 10 → each channel's MSB, 11 (the default, F0h) → G0.
   - 18-bit: 3 bytes, the top 6 bits of each.
   - MADCTL RGB swaps R and B on write.
 - **Display modes**, applied by the frame function and never to the memory:
@@ -196,8 +205,23 @@ These are timing checks against the minima (Table 6, VDDI 1.65–3.3 V):
 | `tDCS`/`tDCH` | 10 ns each, `armed` on the 8th edge only                          |
 | `tRW`        | RESX LOW ≥ 10 µs (< 5 µs rejected silently, 5–9 µs reported and uncertain) |
 
-Waits after a command: anything sent sooner is a `*-violation` error and is not accepted. That
-follows ADR-0022: reported and not accepted, not silently ignored and not applied.
+Waits after a command (Q5): anything sent sooner is a `*-violation` error (`wait-violation`),
+and its effect is **uncertain**. The data sheet says "it will be necessary to wait" but not what
+happens otherwise, and vendor code that skips the waits works on the bench. So both outcomes,
+applied and not applied, are merged (ADR-0014):
+- a register or mode it sets becomes unknown where the two outcomes differ;
+- pixel data that may not have been written makes the target pixels unknown where old and new
+  differ;
+- an early `SWRESET` makes every register it resets unknown.
+
+The frame then has three kinds of pixel:
+- **known**;
+- **uncertain**: the memory color is known but how it shows is not, because display on, sleep,
+  inversion or idle is unknown. It is drawn as its color under the `X` veil, so the picture
+  stays visible but is marked;
+- **unknown**: the memory is `X`, drawn as noise.
+
+A later command sent in time resolves the mode again.
 
 | After          | Wait                                                                      |
 | -------------- | ------------------------------------------------------------------------- |
@@ -290,7 +314,7 @@ The alternatives considered:
 
 ## Tasks
 
-- [ ] 1. Data sheets: the module pinout and the BLK circuit; the panel windows (a module data
+- [x] 1. Data sheets: the module pinout and the BLK circuit; the panel windows (a module data
       sheet per panel; keep only those with a source); the EPF and LUT rules from the rendered
       §8.8 and RAMCTRL pages; each command's defaults and parameter counts into "Data sheet
       numbers" below; ST7789V vs VW differences.
@@ -305,8 +329,9 @@ The alternatives considered:
       sleep, inversion, idle, partial, scroll; a 240 × 240 with MY = 1 shows an unknown band
       without the row offset and a clean picture with it.
 - [ ] 5. `library`: timing. The Table 6 checks, the reset pulse and its spike rejection, the
-      waits as errors with the command lost. Tests: each one just inside (silent) and just
-      outside (reported).
+      waits as errors with the outcome merged (Q5). Tests: each one just inside (silent) and
+      just outside (reported, the touched state unknown); the MSP2008 vendor initialization
+      shows its picture under the veil, and a later timely command resolves it.
 - [ ] 6. `library`: unknowns. `X` bits, merging an uncertain D/CX or command, the caps, a lost
       interface. Tests for each.
 - [ ] 7. `editor`: the `image` primitive (canvas, recording) and the `tft` drawer with its
@@ -329,7 +354,7 @@ The alternatives considered:
       show the expected frame on every panel. Without `INVON`, an IPS panel shows inverted
       colors. A rotated 240 × 240 needs its row offset.
 - [ ] Each SPI write requirement and each wait is silent just inside and reported just outside.
-      A command sent too early is lost.
+      A command sent too early leaves what it sets uncertain (Q5).
 - [ ] The frame memory powers on unknown and is drawn as unknown. RESX and `SWRESET` don't
       clear it.
 - [ ] TFT Color Bars runs headless and in the browser, shows the SMPTE bars and reports no
@@ -351,13 +376,47 @@ The alternatives considered:
       74HC165 stream an initialization and a picture into a panel. A 6502 example waits for the
       VIA. — **answer:** TFT from ROM, and the picture is **SMPTE color bars**. See "The
       example" in Design.
+- [x] Q5. A command sent during a wait (5 ms after RESX↑, `SWRESET`, `SLPOUT` or `SLPIN`;
+      120 ms before `SLPOUT`). The data sheet says "it will be necessary to wait" but not what
+      the chip does otherwise, and the MSP1308/MSP2008 vendor code skips both waits and works on
+      the bench (task 1). — _proposed:_ an error, and the command's effect is uncertain: the
+      registers it sets become unknown (ADR-0014: `X` where outcomes differ), and the glass
+      shows the picture under the `X` veil instead of blanking it. _Alternatives:_ an error with
+      the command lost (ADR-0022's busy rule; it would blank the vendors' working code), or an
+      error with the command applied. — **answer:** as proposed (2026-11-08): an error, both
+      outcomes merged, the picture drawn under the `X` veil.
 - [x] Q4. Module and panels — _proposed:_ the generic 8-pin header (GND VCC SCL SDA RES DC CS
       BLK); panels 240 × 320 (default), 240 × 240 and 135 × 240, plus any others with a module
       data sheet. — **answer:** as proposed.
 
 ## Data sheet numbers
 
-ST7789V V1.3 unless noted.
+ST7789V V1.3 unless noted. Module documents are at lcdwiki.com/res/<SKU>/ (user manuals, panel
+specs, schematics, program packages). The DM-TFT114-397 data sheet is at
+displaymodule.com (cdn.shopify.com/s/files/1/0264/7629/files/DM-TFT114-397_Datasheet.pdf).
+
+- Module header (MSP2008 user manual, MSP1141 page, DM-TFT114-397 §3.2): 1 GND, 2 VCC (3.3 V),
+  3 SCL, 4 SDA, 5 RES, 6 DC, 7 CS, 8 BLK. MSP1308 (1.3" 240 × 240) has 7 pins and no CS.
+- BLK (MSP2008 schematic, DM-TFT114-397 §6): BLK → 1 kΩ → S8050 NPN base, 10 kΩ pull-up to
+  VCC, LED cathode through 10 Ω. "The default is floating, and the backlight is turned off at
+  low power." So floating or HIGH means lit, and LOW means dark.
+- Panels: QDTFT2009 (240 × 320), TFT1301 (240 × 240) and TFT1141 (135 × 240). All are
+  "Display Mode: Normally black". Vendor `LCD_direction` offsets (x, y), STM32F103 demos:
+  - 135 × 240: MADCTL 00h → (52, 40), 60h (MX MV) → (40, 53), C0h (MY MX) → (53, 40),
+    A0h (MY MV) → (40, 52).
+  - 240 × 240: 00h → (0, 0), 60h → (0, 0), C0h → (0, 80), A0h → (80, 0).
+  - 240 × 320: no offsets.
+  These are the orientation tests of task 4.
+- Vendor initializations:
+  - MSP1141: RES LOW 20 ms, HIGH, 20 ms, then 120 ms, `SLPOUT`, 120 ms, `36h 00`, `3Ah 05`,
+    `21h`, then the panel tuning (`B2`, `B7`, `BB`, `C0`, `C2`, `C3`, `C4`, `C6`, `D0`, `D6`,
+    `E0`, `E1`) and `29h`.
+  - MSP1308 and MSP2008: `36h`, `3Ah 05`, the panel tuning, `21h`, `11h` and then `29h` at
+    once ("//Delay (120);" is commented out). This breaks the 5 ms after `SLPOUT` and the
+    120 ms from RESX↑ to `SLPOUT`, yet these modules work on the bench. See Q5.
+- RAMCTRL p. 259, 65K → frame: EPF 00 → R0 = B0 = 0; 01 → 1; 10 → R0 = R4 (DB15),
+  B0 = B4 (DB4); 11 → R0 = B0 = G0 (DB5). No 4K table exists in V1.3 or VW.
+- ST7789VW V1.0 vs V1.3: the same command set, plus `POWSAVE` (BCh) and `DLPOFFSAVE` (BDh).
 
 - Table 6 (4-line serial, write): tCSS 15, tCSH 15, tCHW 40, tSCYCW 66, tSHW 15, tSLW 15,
   tDCS 10, tDCH 10, tSDS 10, tSDH 10 ns. Reads: tSCYCR 150, tSHR/tSLR 60, tACC 10–50,
@@ -383,11 +442,17 @@ ST7789V V1.3 unless noted.
   LIB-2 added to the Parts track.
 - 2026-11-08: Q1–Q4 answered (SPI only; reads warn; TFT Color Bars with SMPTE bars; generic
   8-pin module). Plan approved, branch started.
+- 2026-11-08: task 1. Module documents from LCDWiki (MSP2008, MSP1308, MSP1141, with panel
+  specs, schematics and vendor programs) and DM-TFT114-397. This confirmed the header, the BLK
+  pull-up, three panel windows with offsets for 4 orientations each, normally black glass,
+  `INVON` in every init, the EPF rules (p. 259), and the missing 4K LUT. Vendor code for
+  MSP2008/MSP1308 skips the `SLPOUT` waits, so Q5 was asked: an uncertain outcome, drawn under
+  a veil. Props reduced to `panel`.
 
 ## Handoff
 
-- **State:** plan approved, branch started; no code yet.
-- **Next step:** task 1 (data sheets: module pinout, BLK, panel windows, EPF/LUT, defaults).
+- **State:** task 1 done (data sheet numbers below, Q5 decided); no code yet.
+- **Next step:** task 2 (the `periph/st7789` skeleton, serial interface, command table, resets).
 - **Watch out:** the data sheets mark themselves "Sitronix Confidential". Cite them, never copy
   them into the repo. ST7789V is a 3.3 V part.
 - **Verify with:** `pnpm check`.

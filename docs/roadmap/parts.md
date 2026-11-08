@@ -138,7 +138,7 @@ controller at command level: CS framing, D/CX on the 8th bit, the 240 × 320 × 
 memory (unknown at power-on) written through the CASET/RASET window in the MADCTL direction,
 12/16/18-bit color, inversion, sleep, display on/off, idle, partial and scrolling; the SPI write
 timing as timing checks, the reset pulse and the waits after reset, `SWRESET` and `SLPOUT` as
-errors with the command lost. Drawn as the module with its glass (a new `image` primitive for
+errors with the command's effect uncertain. Drawn as the module with its glass (a new `image` primitive for
 the schematic), the backlight on BLK. Plan: `.ai/plans/feat-lcd-st7789.md`.
 
 ## Ideas
