@@ -5,7 +5,7 @@
  * glass shows, the frame memory, the resets. The serial interface that delivers the bytes lives
  * in `st7789.ts`. Spec: docs/components.md#st7789.
  */
-import { formatTime, type Time } from '../../core';
+import { formatTime, ms, type Time } from '../../core';
 import { GRAM_HEIGHT, GRAM_WIDTH } from './st7789-panels';
 
 export const St7789Diagnostic = {
@@ -21,6 +21,15 @@ export const St7789Diagnostic = {
   BAD_FORMAT: 'bad-format',
   /** CS rose in the middle of a byte: the bits so far are dropped (§8.5). */
   PARTIAL_BYTE: 'partial-byte',
+  /**
+   * A command within a wait the data sheet asks for (5 ms after RESX↑, SWRESET, SLPOUT, SLPIN;
+   * 120 ms before SLPOUT after a reset, before SLPIN after SLPOUT): its effect is uncertain.
+   */
+  WAIT: 'wait-violation',
+  /** A RESX LOW pulse shorter than 5 µs: "Reset Rejected" as a spike (Table 9). */
+  RESET_REJECTED: 'reset-rejected',
+  /** RESX, CS, SCL or D/CX unknown or floating: what the interface received is uncertain. */
+  UNCERTAIN: 'uncertain-interface',
 } as const;
 
 export type Reporter = (kind: string, message: string) => void;
@@ -156,12 +165,16 @@ export const COMMANDS: ReadonlyMap<number, CommandInfo> = new Map<number, Comman
   [0xfe, write('PROMACT', 2)],
 ]);
 
-/** No command is taking data (after a reset, a read, an unknown command's bytes run out). */
+/** No command is taking data (after a reset, or after a command without parameters). */
 const NONE = -1;
+/** Something unknown came in (a lost interface, an unknown command byte): data is ignored. */
+const ANY = -2;
 
 /**
- * Registers whose value is unknown (`Controller.unknown`): a command whose effect is uncertain (a
- * wait violated, an unknown bit) leaves what it sets unknown where its outcomes differ.
+ * Registers whose value is unknown (`Controller.unknown`). A command whose effect is uncertain
+ * (a wait violated, unknown bits) sets what it sets, as the outcome shown, and marks it here
+ * where its outcomes differ; the glass then shows that outcome under a veil. A later command
+ * sent in time makes it known again.
  */
 export const Unknown = {
   SLEEP: 1 << 0,
@@ -171,15 +184,17 @@ export const Unknown = {
   PARTIAL: 1 << 4,
   MADCTL: 1 << 5,
   PTLAR: 1 << 6,
-  /** VSCRDEF or VSCSAD. */
-  SCROLL: 1 << 7,
-  COLMOD: 1 << 8,
-  /** CASET or RASET. */
-  WINDOW: 1 << 9,
-  RAMCTRL: 1 << 10,
-  /** The counters and whether data is memory data (an uncertain RAMWR, a lost interface). */
-  WRITE: 1 << 11,
+  SCROLL_AREA: 1 << 7,
+  SCROLL_START: 1 << 8,
+  COLMOD: 1 << 9,
+  COLUMNS: 1 << 10,
+  ROWS: 1 << 11,
+  RAMCTRL: 1 << 12,
+  /** The memory write counters and whether the data is memory data. */
+  WRITE: 1 << 13,
 } as const;
+
+const ALL_UNKNOWN = (1 << 14) - 1;
 
 /** The modes that change how the memory shows (`st7789Frame`). */
 export const SHOWN =
@@ -190,10 +205,26 @@ export const SHOWN =
   Unknown.PARTIAL |
   Unknown.MADCTL |
   Unknown.PTLAR |
-  Unknown.SCROLL;
+  Unknown.SCROLL_AREA |
+  Unknown.SCROLL_START;
 
-/** A frame memory word: R6 G6 B6 in bits 17–0 and this flag when the pixel is unknown. */
+/** What makes a pixel write land uncertainly (where, or in what color). */
+const WRITE_DEPENDS =
+  Unknown.MADCTL |
+  Unknown.COLMOD |
+  Unknown.COLUMNS |
+  Unknown.ROWS |
+  Unknown.RAMCTRL |
+  Unknown.WRITE;
+
+/** A frame memory word: R6 G6 B6 in bits 17–0, and these flags. */
 export const PIXEL_X = 1 << 18;
+/** The pixel holds this color only if an uncertain write happened (drawn under a veil). */
+export const PIXEL_UNCERTAIN = 1 << 19;
+
+/** The waits (Table 9 Note 7, SWRESET, SLPIN, SLPOUT restrictions). */
+export const WAIT_COMMAND = ms(5);
+export const WAIT_SLEEP = ms(120);
 
 /** The controller's state: plain data (snapshots copy it), typed arrays for the memory. */
 export interface Controller {
@@ -228,55 +259,121 @@ export interface Controller {
   /** RAMCTRL's two parameters. */
   ramctrl1: number;
   ramctrl2: number;
-  /** The command taking the data bytes, `NONE`, or a read/unknown command swallowing them. */
+  /** Registers whose value is unknown (`Unknown` bits). */
+  unknown: number;
+  /** The command taking the data bytes, `NONE` or `ANY`. */
   cmd: number;
   /** Index of the next parameter of `cmd`. */
   param: number;
   /** 1 while the bytes are a read's or an unknown command's: ignored until the next command. */
   ignore: number;
+  /** 1 while the current command's effect is uncertain (sent within a wait). */
+  uncertain: number;
   /** The column and row counters of a memory write (logical: before MADCTL's mapping). */
   col: number;
   row: number;
-  /** Bytes of the pixel (or pixel pair, 12-bit) collected so far, and their bits. */
+  /** Bytes of the pixel (or pixel pair, 12-bit) collected so far, their bits and unknown bits. */
   phase: number;
   acc: number;
-  /** Registers whose value is unknown (`Unknown` bits). */
-  unknown: number;
+  accX: number;
+  /** No command before this time; no SLPOUT before `slpoutAt`; no SLPIN before `slpinAt`. */
+  quietUntil: Time;
+  slpoutAt: Time;
+  slpinAt: Time;
+  /** 1 while every known pixel is marked uncertain (a repeat can skip the pass). */
+  veiled: number;
   /** Frame memory, `GRAM_WIDTH × GRAM_HEIGHT` words row by row (see `PIXEL_X`). */
   gram: Uint32Array;
   /** Counts every change the glass could show, so a drawer can cache its frame. */
   version: number;
 }
 
-/** The registers at power-on and after a hardware reset (each command's "Default" table). */
-function setHardwareDefaults(c: Controller): void {
-  c.colmod = 0x06; // "18 bit/pixel" (RDDCOLMOD: 0000 0110)
-  c.madctl = 0x00;
-  c.unknown = 0;
-  setSoftwareDefaults(c);
+type Register =
+  | 'sleep'
+  | 'display'
+  | 'inversion'
+  | 'idle'
+  | 'partial'
+  | 'colmod'
+  | 'madctl'
+  | 'xs'
+  | 'xe'
+  | 'ys'
+  | 'ye'
+  | 'psl'
+  | 'pel'
+  | 'tfa'
+  | 'vsa'
+  | 'bfa'
+  | 'vsp'
+  | 'ramctrl1'
+  | 'ramctrl2';
+
+/** Which `Unknown` bit covers a register. */
+const BIT: Readonly<Record<Register, number>> = {
+  sleep: Unknown.SLEEP,
+  display: Unknown.DISPLAY,
+  inversion: Unknown.INVERSION,
+  idle: Unknown.IDLE,
+  partial: Unknown.PARTIAL,
+  colmod: Unknown.COLMOD,
+  madctl: Unknown.MADCTL,
+  xs: Unknown.COLUMNS,
+  xe: Unknown.COLUMNS,
+  ys: Unknown.ROWS,
+  ye: Unknown.ROWS,
+  psl: Unknown.PTLAR,
+  pel: Unknown.PTLAR,
+  tfa: Unknown.SCROLL_AREA,
+  vsa: Unknown.SCROLL_AREA,
+  bfa: Unknown.SCROLL_AREA,
+  vsp: Unknown.SCROLL_START,
+  ramctrl1: Unknown.RAMCTRL,
+  ramctrl2: Unknown.RAMCTRL,
+};
+
+/**
+ * Sets a register. Certain: it is known from now on (`known`: once its command's last part
+ * arrived). Uncertain: the new value is the outcome shown, unknown where it differs.
+ */
+function setRegister(c: Controller, key: Register, value: number, known = true): void {
+  if (c.uncertain) {
+    if (c[key] !== value) c.unknown |= BIT[key];
+  } else if (known) {
+    c.unknown &= ~BIT[key];
+  }
+  if (c[key] !== value) c.version++;
+  c[key] = value;
 }
 
-/** What `SWRESET` sets: COLMOD and MADCTL keep their values ("No change"). */
-function setSoftwareDefaults(c: Controller): void {
-  c.sleep = 1;
-  c.display = 0;
-  c.inversion = 0;
-  c.idle = 0;
-  c.partial = 0;
+/** The registers' defaults (each command's "Default" table); `software`: SWRESET's. */
+function defaults(c: Controller, software: boolean): void {
+  if (!software) {
+    setRegister(c, 'colmod', 0x06); // "18 bit/pixel" (RDDCOLMOD: 0000 0110)
+    setRegister(c, 'madctl', 0x00);
+  }
+  // COLMOD and MADCTL keep their values at SWRESET ("No change").
+  setRegister(c, 'sleep', 1);
+  setRegister(c, 'display', 0);
+  setRegister(c, 'inversion', 0);
+  setRegister(c, 'idle', 0);
+  setRegister(c, 'partial', 0);
   // The window's ends follow MV: with rows and columns exchanged it is 320 wide (CASET, RASET).
   const mv = (c.madctl & 0x20) !== 0;
-  c.xs = 0;
-  c.xe = (mv ? GRAM_HEIGHT : GRAM_WIDTH) - 1;
-  c.ys = 0;
-  c.ye = (mv ? GRAM_WIDTH : GRAM_HEIGHT) - 1;
-  c.psl = 0;
-  c.pel = GRAM_HEIGHT - 1;
-  c.tfa = 0;
-  c.vsa = GRAM_HEIGHT;
-  c.bfa = 0;
-  c.vsp = 0;
-  c.ramctrl1 = 0x00;
-  c.ramctrl2 = 0xf0;
+  const mvKnown = !(c.unknown & Unknown.MADCTL);
+  setRegister(c, 'xs', 0);
+  setRegister(c, 'xe', (mv ? GRAM_HEIGHT : GRAM_WIDTH) - 1, mvKnown);
+  setRegister(c, 'ys', 0);
+  setRegister(c, 'ye', (mv ? GRAM_WIDTH : GRAM_HEIGHT) - 1, mvKnown);
+  if (!mvKnown) c.unknown |= Unknown.COLUMNS | Unknown.ROWS;
+  setRegister(c, 'psl', 0);
+  setRegister(c, 'pel', GRAM_HEIGHT - 1);
+  setRegister(c, 'tfa', 0);
+  setRegister(c, 'vsa', GRAM_HEIGHT);
+  setRegister(c, 'bfa', 0);
+  setRegister(c, 'vsp', 0);
+  setRegister(c, 'ramctrl1', 0x00);
+  setRegister(c, 'ramctrl2', 0xf0);
   c.cmd = NONE;
   c.param = 0;
   c.ignore = 0;
@@ -284,14 +381,15 @@ function setSoftwareDefaults(c: Controller): void {
   c.row = 0;
   c.phase = 0;
   c.acc = 0;
-  // A reset knows every register again, except what it leaves as it was.
-  c.unknown &= Unknown.COLMOD | Unknown.MADCTL;
-  // …and the window's ends follow an MV it doesn't know.
-  if (c.unknown & Unknown.MADCTL) c.unknown |= Unknown.WINDOW;
-  c.version++;
+  c.accX = 0;
+  if (c.uncertain) c.unknown |= Unknown.WRITE;
+  else c.unknown &= ~Unknown.WRITE;
 }
 
-/** The controller at power-on: the defaults, the frame memory "set randomly" (unknown). */
+/**
+ * The controller at power-on: the defaults, the frame memory "set randomly" (unknown). Power-on
+ * counts as a reset released at time 0, so its waits apply too.
+ */
 export function createController(): Controller {
   const c: Controller = {
     sleep: 1,
@@ -299,7 +397,7 @@ export function createController(): Controller {
     inversion: 0,
     idle: 0,
     partial: 0,
-    colmod: 0,
+    colmod: 0x06,
     madctl: 0,
     xs: 0,
     xe: 0,
@@ -313,36 +411,91 @@ export function createController(): Controller {
     vsp: 0,
     ramctrl1: 0,
     ramctrl2: 0,
+    unknown: 0,
     cmd: NONE,
     param: 0,
     ignore: 0,
+    uncertain: 0,
     col: 0,
     row: 0,
     phase: 0,
     acc: 0,
-    unknown: 0,
+    accX: 0,
+    quietUntil: 0,
+    slpoutAt: 0,
+    slpinAt: 0,
+    veiled: 0,
     gram: new Uint32Array(GRAM_WIDTH * GRAM_HEIGHT).fill(PIXEL_X),
     version: 0,
   };
-  setHardwareDefaults(c);
+  defaults(c, false);
+  resetReleased(c, 0);
   return c;
 }
 
 /** RESX held LOW long enough: the registers' hardware defaults; the memory is "not cleared". */
 export function hardwareReset(c: Controller): void {
-  setHardwareDefaults(c);
+  c.uncertain = 0;
+  defaults(c, false);
 }
 
-/** One byte off the serial interface. `dc`: 0 a command, 1 a parameter or memory data. */
+/**
+ * A reset that may or may not have happened (a 5–9 µs pulse: "Reset starts"; RESX unknown):
+ * the defaults are the outcome shown, unknown where they differ.
+ */
+export function uncertainReset(c: Controller, now: Time): void {
+  c.uncertain = 1;
+  defaults(c, false);
+  c.uncertain = 0;
+  c.cmd = ANY;
+  resetReleased(c, now);
+}
+
+/** RESX rose after a reset: no command for 5 ms, no SLPOUT for 120 ms (Table 9 Note 7). */
+export function resetReleased(c: Controller, now: Time): void {
+  c.quietUntil = now + WAIT_COMMAND;
+  c.slpoutAt = now + WAIT_SLEEP;
+  c.slpinAt = 0;
+}
+
+/**
+ * One byte off the serial interface. `dc`: 0 a command, 1 a parameter or memory data, -1
+ * unknown; `x`: its unknown bits.
+ */
 export function receiveByte(
   c: Controller,
   now: Time,
-  dc: 0 | 1,
+  dc: number,
   value: number,
+  x: number,
   report: Reporter,
 ): void {
-  if (dc === 0) command(c, now, value, report);
-  else data(c, value, report);
+  if (dc === 0 && x === 0) command(c, now, value, report);
+  else if (dc === 0) uncertainCommand(c, now, value, x, report);
+  else if (dc === 1) data(c, value, x, report);
+  else lost(c);
+}
+
+/**
+ * Something unknown arrived — a byte that may be a command or data, a lost interface: any
+ * register may have changed and any pixel may have been written. Everything is unknown and the
+ * memory is veiled; the data that follows is ignored until a command comes in (D/CX = 0 makes
+ * every command recognizable, so the interface finds its way back).
+ */
+export function lost(c: Controller): void {
+  c.unknown = ALL_UNKNOWN;
+  c.cmd = ANY;
+  c.param = 0;
+  c.ignore = 0;
+  c.uncertain = 0;
+  if (!c.veiled) {
+    const { gram } = c;
+    for (let i = 0; i < gram.length; i++) {
+      if (!(gram[i]! & PIXEL_X)) gram[i] = gram[i]! | PIXEL_UNCERTAIN;
+    }
+    c.veiled = 1;
+  }
+  c.version++;
 }
 
 function command(c: Controller, now: Time, code: number, report: Reporter): void {
@@ -350,6 +503,7 @@ function command(c: Controller, now: Time, code: number, report: Reporter): void
   c.cmd = code;
   c.param = 0;
   c.ignore = 0;
+  c.uncertain = 0;
   if (info === undefined) {
     report(
       St7789Diagnostic.UNKNOWN_COMMAND,
@@ -366,66 +520,142 @@ function command(c: Controller, now: Time, code: number, report: Reporter): void
     c.ignore = 1;
     return;
   }
+  checkWaits(c, now, code, info.name, report);
+  execute(c, now, code, report);
+  if (info.params === 0) c.cmd = NONE;
+}
+
+/** A command sent within a wait: reported, and its effect becomes uncertain (Q5). */
+function checkWaits(c: Controller, now: Time, code: number, name: string, report: Reporter): void {
+  let until = c.quietUntil;
+  let why = '5 ms after a reset, SWRESET, SLPOUT or SLPIN';
+  if (code === Cmd.SLPOUT && c.slpoutAt > until) {
+    until = c.slpoutAt;
+    why = '120 ms after a reset before SLPOUT';
+  }
+  if (code === Cmd.SLPIN && c.slpinAt > until) {
+    until = c.slpinAt;
+    why = '120 ms after SLPOUT before SLPIN';
+  }
+  if (now >= until) return;
+  report(
+    St7789Diagnostic.WAIT,
+    `${name} at ${formatTime(now)}, ${formatTime(until - now)} too early: the data sheet asks for ${why}; what it does is uncertain`,
+  );
+  c.uncertain = 1;
+}
+
+/** What a (write) command does when it is accepted. */
+function execute(c: Controller, now: Time, code: number, report: Reporter): void {
   switch (code) {
-    case Cmd.SWRESET:
-      setSoftwareDefaults(c);
+    case Cmd.SWRESET: {
+      const asleep = c.sleep === 1;
+      defaults(c, true);
+      c.quietUntil = now + WAIT_COMMAND;
+      // "If software reset is sent during sleep in mode, … 120msec before sending sleep out."
+      if (asleep) c.slpoutAt = Math.max(c.slpoutAt, now + WAIT_SLEEP);
       break;
+    }
     case Cmd.SLPIN:
-      set(c, 'sleep', 1);
+      if (c.sleep !== 1 || c.unknown & Unknown.SLEEP) c.quietUntil = now + WAIT_COMMAND;
+      setRegister(c, 'sleep', 1);
       break;
     case Cmd.SLPOUT:
-      set(c, 'sleep', 0);
+      // "This command has no effect when module is already in sleep out mode."
+      if (c.sleep !== 0 || c.unknown & Unknown.SLEEP) {
+        c.quietUntil = now + WAIT_COMMAND;
+        c.slpinAt = now + WAIT_SLEEP;
+      }
+      setRegister(c, 'sleep', 0);
       break;
     case Cmd.PTLON:
-      set(c, 'partial', 1);
+      setRegister(c, 'partial', 1);
       break;
     case Cmd.NORON:
-      set(c, 'partial', 0);
+      setRegister(c, 'partial', 0);
       break;
     case Cmd.INVOFF:
-      set(c, 'inversion', 0);
+      setRegister(c, 'inversion', 0);
       break;
     case Cmd.INVON:
-      set(c, 'inversion', 1);
+      setRegister(c, 'inversion', 1);
       break;
     case Cmd.DISPOFF:
-      set(c, 'display', 0);
+      setRegister(c, 'display', 0);
       break;
     case Cmd.DISPON:
-      set(c, 'display', 1);
+      setRegister(c, 'display', 1);
       break;
     case Cmd.IDMOFF:
-      set(c, 'idle', 0);
+      setRegister(c, 'idle', 0);
       break;
     case Cmd.IDMON:
-      set(c, 'idle', 1);
+      setRegister(c, 'idle', 1);
       break;
     case Cmd.RAMWR:
       // "The column and the page register are reset to the start column/start page."
       c.col = c.xs;
       c.row = c.ys;
-      c.phase = 0;
-      checkWindow(c, now, report);
+      startWrite(c, now, report);
       break;
     case Cmd.WRMEMC:
-      // Continues from where the last write left the counters; a pixel begins afresh.
-      c.phase = 0;
-      checkWindow(c, now, report);
+      // Continues from where the last write left the counters.
+      startWrite(c, now, report);
       break;
   }
-  if (info.params === 0) c.cmd = NONE;
 }
 
-type Flag = 'sleep' | 'display' | 'inversion' | 'idle' | 'partial';
-
-function set(c: Controller, flag: Flag, value: number): void {
-  if (c[flag] === value) return;
-  c[flag] = value;
-  c.version++;
+function startWrite(c: Controller, now: Time, report: Reporter): void {
+  c.phase = 0;
+  c.acc = 0;
+  c.accX = 0;
+  if (!c.uncertain) c.unknown &= ~Unknown.WRITE;
+  if (c.xs <= c.xe && c.ys <= c.ye) return;
+  report(
+    St7789Diagnostic.BAD_WINDOW,
+    `memory write at ${formatTime(now)} with columns ${c.xs}–${c.xe}, rows ${c.ys}–${c.ye}: the start must not be past the end`,
+  );
 }
 
-function data(c: Controller, value: number, report: Reporter): void {
-  if (c.ignore) return;
+/** Commands that can't be told apart by more than this many unknown bits run one by one. */
+const MAX_UNKNOWN_BITS = 3;
+
+/**
+ * A command byte with unknown bits. When every value it may be is a command without parameters,
+ * each runs uncertainly (what any of them sets becomes unknown); otherwise what follows can't be
+ * placed, and the interface counts as lost.
+ */
+function uncertainCommand(
+  c: Controller,
+  now: Time,
+  value: number,
+  x: number,
+  report: Reporter,
+): void {
+  const candidates: number[] = [];
+  if (popcount(x) <= MAX_UNKNOWN_BITS) {
+    for (let v = 0; v < 256; v++) if ((v & ~x) === (value & ~x)) candidates.push(v);
+  }
+  const simple =
+    candidates.length > 0 &&
+    candidates.every((code) => {
+      const info = COMMANDS.get(code);
+      return info !== undefined && !info.read && info.params === 0 && code !== Cmd.SWRESET;
+    });
+  if (!simple) {
+    lost(c);
+    return;
+  }
+  for (const code of candidates) {
+    c.uncertain = 1;
+    execute(c, now, code, report);
+  }
+  c.uncertain = 0;
+  c.cmd = NONE;
+}
+
+function data(c: Controller, value: number, x: number, report: Reporter): void {
+  if (c.ignore || c.cmd === ANY) return;
   const info = c.cmd === NONE ? undefined : COMMANDS.get(c.cmd);
   if (info === undefined || (info.params !== STREAM && c.param >= info.params)) {
     report(
@@ -437,55 +667,52 @@ function data(c: Controller, value: number, report: Reporter): void {
     return;
   }
   const index = c.param++;
-  if (info.params === STREAM) memoryByte(c, value, index, report);
-  else parameter(c, index, value);
+  if (info.params === STREAM) memoryByte(c, value, x, index, report);
+  else parameter(c, index, value, x, info.params);
 }
 
-/** Stores parameter `index` of the current command as it arrives (§8.5: sent ones stand). */
-function parameter(c: Controller, index: number, value: number): void {
+/**
+ * Stores parameter `index` of the current command as it arrives (§8.5: the ones sent stand). A
+ * register becomes known once its command's last parameter came in certain and whole.
+ */
+function parameter(c: Controller, index: number, value: number, x: number, count: number): void {
+  const last = index === count - 1;
+  const put = (key: Register, v: number) => {
+    setRegister(c, key, v, last);
+    if (x) c.unknown |= BIT[key];
+  };
   switch (c.cmd) {
     case Cmd.CASET:
-      if (index < 2) c.xs = word(c.xs, index, value);
-      else c.xe = word(c.xe, index - 2, value);
+      if (index < 2) put('xs', word(c.xs, index, value));
+      else put('xe', word(c.xe, index - 2, value));
       break;
     case Cmd.RASET:
-      if (index < 2) c.ys = word(c.ys, index, value);
-      else c.ye = word(c.ye, index - 2, value);
+      if (index < 2) put('ys', word(c.ys, index, value));
+      else put('ye', word(c.ye, index - 2, value));
       break;
     case Cmd.PTLAR:
-      if (index < 2) c.psl = word(c.psl, index, value);
-      else c.pel = word(c.pel, index - 2, value);
+      if (index < 2) put('psl', word(c.psl, index, value));
+      else put('pel', word(c.pel, index - 2, value));
       break;
     case Cmd.VSCRDEF:
-      if (index < 2) c.tfa = word(c.tfa, index, value);
-      else if (index < 4) c.vsa = word(c.vsa, index - 2, value);
-      else c.bfa = word(c.bfa, index - 4, value);
+      if (index < 2) put('tfa', word(c.tfa, index, value));
+      else if (index < 4) put('vsa', word(c.vsa, index - 2, value));
+      else put('bfa', word(c.bfa, index - 4, value));
       break;
     case Cmd.VSCSAD:
-      c.vsp = word(c.vsp, index, value);
+      put('vsp', word(c.vsp, index, value));
       break;
     case Cmd.MADCTL:
-      c.madctl = value;
+      put('madctl', value);
       break;
     case Cmd.COLMOD:
-      c.colmod = value;
+      put('colmod', value);
       break;
     case Cmd.RAMCTRL:
-      if (index === 0) c.ramctrl1 = value;
-      else c.ramctrl2 = value;
+      put(index === 0 ? 'ramctrl1' : 'ramctrl2', value);
       break;
-    default:
-      return; // accepted, no effect on the glass
+    // The rest are accepted with no effect on the glass.
   }
-  c.version++;
-}
-
-function checkWindow(c: Controller, now: Time, report: Reporter): void {
-  if (c.xs <= c.xe && c.ys <= c.ye) return;
-  report(
-    St7789Diagnostic.BAD_WINDOW,
-    `memory write at ${formatTime(now)} with columns ${c.xs}–${c.xe}, rows ${c.ys}–${c.ye}: the start must not be past the end`,
-  );
 }
 
 /** COLMOD's control interface format (D2–D0). */
@@ -530,37 +757,52 @@ function rgb565(c: Controller, word: number): number {
 }
 
 /** One byte of memory data after RAMWR/WRMEMC (`index`: its position in the stream). */
-function memoryByte(c: Controller, value: number, index: number, report: Reporter): void {
+function memoryByte(
+  c: Controller,
+  value: number,
+  x: number,
+  index: number,
+  report: Reporter,
+): void {
   switch (c.colmod & 7) {
     case Format.RGB444:
       // R1 G1 | B1 R2 | G2 B2: the first pixel is complete with the second byte's high nibble.
       if (c.phase === 0) {
         c.acc = value;
+        c.accX = x;
         c.phase = 1;
       } else if (c.phase === 1) {
-        writePixel(c, rgb444(c.acc >> 4, c.acc & 0xf, value >> 4));
+        writePixel(
+          c,
+          rgb444(c.acc >> 4, c.acc & 0xf, value >> 4),
+          c.accX !== 0 || (x & 0xf0) !== 0,
+        );
         c.acc = value & 0xf;
+        c.accX = x & 0xf;
         c.phase = 2;
       } else {
-        writePixel(c, rgb444(c.acc, value >> 4, value & 0xf));
+        writePixel(c, rgb444(c.acc, value >> 4, value & 0xf), c.accX !== 0 || x !== 0);
         c.phase = 0;
       }
       return;
     case Format.RGB565:
       if (c.phase === 0) {
         c.acc = value;
+        c.accX = x;
         c.phase = 1;
       } else {
-        writePixel(c, rgb565(c, (c.acc << 8) | value));
+        writePixel(c, rgb565(c, (c.acc << 8) | value), c.accX !== 0 || x !== 0);
         c.phase = 0;
       }
       return;
     case Format.RGB666:
     case Format.RGB888:
       c.acc = (c.acc << 6) | (value >> 2);
+      c.accX |= x >> 2;
       if (++c.phase < 3) return;
-      writePixel(c, c.acc & 0x3ffff);
+      writePixel(c, c.acc & 0x3ffff, c.accX !== 0);
       c.acc = 0;
+      c.accX = 0;
       c.phase = 0;
       return;
     default:
@@ -589,10 +831,23 @@ export function gramIndex(madctl: number, col: number, row: number): number {
   return y * GRAM_WIDTH + x;
 }
 
-/** Writes a pixel where the counters point, then moves them (§8.12's counter table). */
-function writePixel(c: Controller, word: number): void {
+/**
+ * Writes a pixel where the counters point, then moves them (§8.12's counter table). Unknown data
+ * bits make it unknown; an uncertain write (sent within a wait, through an unknown register)
+ * leaves it uncertain.
+ */
+function writePixel(c: Controller, word: number, unknownBits: boolean): void {
   const at = gramIndex(c.madctl, c.col, c.row);
-  if (at >= 0) c.gram[at] = word;
+  if (at >= 0) {
+    const old = c.gram[at]!;
+    if (unknownBits) c.gram[at] = PIXEL_X;
+    else if (c.uncertain || c.unknown & WRITE_DEPENDS) {
+      if (old !== word) c.gram[at] = word | PIXEL_UNCERTAIN;
+    } else {
+      c.gram[at] = word;
+      c.veiled = 0;
+    }
+  }
   c.version++;
   // "Larger than XE": a start past the end (XS > XE) wraps after every pixel, as the table says.
   if (++c.col > c.xe) {
@@ -613,6 +868,12 @@ function unknownWindow(c: Controller): void {
     }
   }
   c.version++;
+}
+
+function popcount(v: number): number {
+  let n = 0;
+  for (let b = v; b; b &= b - 1) n++;
+  return n;
 }
 
 /** A 16-bit register with its high (`half` 0) or low byte replaced. */

@@ -103,8 +103,10 @@ describe('ST7789 frame: what the glass shows', () => {
     expect(at(f, 0, 0)).toBe(WHITE | FRAME_UNCERTAIN);
     expect(at(f, 1, 0)).toBe(FRAME_UNKNOWN);
     f.c.unknown = Unknown.DISPLAY;
-    f.command(Cmd.DISPOFF);
-    expect(at(f, 0, 0)).toBe(WHITE | FRAME_UNCERTAIN); // may be off, may be on
+    f.c.display = 0; // may be off, may be on
+    expect(at(f, 0, 0)).toBe(WHITE | FRAME_UNCERTAIN);
+    f.command(Cmd.DISPOFF); // sent in time: off for sure
+    expect(at(f, 0, 0)).toBe(0);
   });
 });
 

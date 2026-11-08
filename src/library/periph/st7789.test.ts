@@ -3,7 +3,7 @@ import { pinsOf, resolveProps, us } from '../../core';
 import { st7789, st7789Symbol } from './st7789';
 import { Cmd, COMMANDS, PIXEL_X, STREAM, St7789Diagnostic } from './st7789-controller';
 import { ST7789_PANELS } from './st7789-panels';
-import { TftBench } from './st7789-test-helpers';
+import { SETTLE, TftBench } from './st7789-test-helpers';
 
 const pins = pinsOf(st7789, resolveProps(st7789, {}));
 
@@ -69,7 +69,7 @@ describe('ST7789 power-on and resets', () => {
 
   it('a RESX pulse of 10 µs sets the hardware defaults again', () => {
     const tft = new TftBench();
-    tft.command(Cmd.SLPOUT).command(Cmd.COLMOD, [0x55]).command(Cmd.MADCTL, [0x60]);
+    tft.command(Cmd.SLPOUT, [], SETTLE).command(Cmd.COLMOD, [0x55]).command(Cmd.MADCTL, [0x60]);
     tft.command(Cmd.CASET, [0, 10, 0, 20]);
     expect([tft.controller.sleep, tft.controller.colmod, tft.controller.xe]).toEqual([0, 0x55, 20]);
     tft.reset(us(10));
@@ -89,7 +89,7 @@ describe('ST7789 power-on and resets', () => {
 
   it('SWRESET sets the software defaults; COLMOD and MADCTL keep their values', () => {
     const tft = new TftBench();
-    tft.command(Cmd.SLPOUT).command(Cmd.DISPON).command(Cmd.COLMOD, [0x55]);
+    tft.command(Cmd.SLPOUT, [], SETTLE).command(Cmd.DISPON).command(Cmd.COLMOD, [0x55]);
     tft.command(Cmd.MADCTL, [0x20]).command(Cmd.CASET, [0, 1, 0, 2]);
     tft.command(Cmd.SWRESET);
     const c = tft.controller;
@@ -158,12 +158,13 @@ describe('ST7789 serial interface', () => {
       const c = tft.controller;
       return [c.sleep, c.display, c.inversion, c.idle, c.partial];
     };
-    tft.command(Cmd.SLPOUT).command(Cmd.DISPON).command(Cmd.INVON);
+    tft.command(Cmd.SLPOUT, [], SETTLE).command(Cmd.DISPON).command(Cmd.INVON);
     tft.command(Cmd.IDMON).command(Cmd.PTLON);
     expect(flags()).toEqual([0, 1, 1, 1, 1]);
     tft.command(Cmd.NORON).command(Cmd.IDMOFF).command(Cmd.INVOFF);
     tft.command(Cmd.DISPOFF).command(Cmd.SLPIN);
     expect(flags()).toEqual([1, 0, 0, 0, 0]);
+    expect(tft.diagnostics()).toEqual([]);
   });
 
   it('stores the scroll, partial and RAM control registers byte by byte', () => {

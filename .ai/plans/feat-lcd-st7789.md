@@ -333,11 +333,11 @@ The alternatives considered:
 - [x] 4. `library`: the display modes and `st7789Frame` with the panel windows. Tests: on/off,
   sleep, inversion, idle, partial, scroll; a 240 × 240 with MY = 1 shows an unknown band
   without the row offset and a clean picture with it.
-- [ ] 5. `library`: timing. The Table 6 checks, the reset pulse and its spike rejection, the
+- [x] 5. `library`: timing. The Table 6 checks, the reset pulse and its spike rejection, the
   waits as errors with the outcome merged (Q5). Tests: each one just inside (silent) and
   just outside (reported, the touched state unknown); the MSP2008 vendor initialization
   shows its picture under the veil, and a later timely command resolves it.
-- [ ] 6. `library`: unknowns. `X` bits, merging an uncertain D/CX or command, the caps, a lost
+- [x] 6. `library`: unknowns. `X` bits, merging an uncertain D/CX or command, the caps, a lost
   interface. Tests for each.
 - [ ] 7. `editor`: the `image` primitive (canvas, recording) and the `tft` drawer with its
   cache, dropped on restore. Symbol-drawing and drawer tests; measure the budget.
@@ -471,13 +471,26 @@ displaymodule.com (cdn.shopify.com/s/files/1/0264/7629/files/DM-TFT114-397_Datas
   identity; no separate scroll mode, since the data sheet names no exit); the partial
   non-display area is black (PARCTRL's NDL not modeled); the blank page is black; ML = 1
   exchanges the fixed areas.
+- 2026-11-09: tasks 5–6 together, since violations feed the unknowns. Table 6 checks (D/CX
+  armed on the 8th edge only; a byte completes 10 ns after its 8th edge so hold violations
+  reach it; tCSH is reported only, because the byte stands). RESX: < 5 µs gives a
+  `reset-rejected` warning, 5–10 µs gives a `pulse-width-violation` and an uncertain reset,
+  RES X/Z gives an uncertain reset. Waits per Q5: `wait-violation`, the command runs
+  "uncertainly" (registers it sets are unknown where they differ; pixels it writes get
+  `PIXEL_UNCERTAIN`). Power-on counts as a reset released at 0, so the 5 ms and 120 ms apply.
+  SLPOUT/SLPIN start their waits only when they change the mode. Unknowns follow one model, the
+  veil: the likely outcome is shown and marked uncertain. `X` noise is kept for data never
+  known (power-on memory, `X` data bits). A command byte with ≤ 3 unknown bits whose
+  candidates all lack parameters runs each uncertainly. Anything else, and an unknown D/CX, an
+  uncertain SCL/CS or a clock check failure, makes the interface lost: every register unknown,
+  the memory veiled, data ignored until the next command (a lost phase recovers at CS↑ or a
+  reset). Window and scroll unknown bits are split (COLUMNS/ROWS, SCROLL_AREA/START).
 
 ## Handoff
 
-- **State:** tasks 1–4 done (memory writes; the frame with display modes, panels, flags); `periph/st7789` (pins, `panel`, symbol, serial framing, command
+- **State:** tasks 1–6 done (memory, frame, timing checks, waits, unknowns with the veil); `periph/st7789` (pins, `panel`, symbol, serial framing, command
   table, registers, resets) and a basic `tft` drawer (board, dark or lit glass, pin names).
-- **Next step:** task 5: timing (Table 6 checks, reset pulse, waits with merged outcomes);
-  unknown SDA/DC bits are still dropped in `clockIn`, replaced in task 6.
+- **Next step:** task 7: the `image` primitive and the `tft` drawer showing `st7789Frame`.
 - **Watch out:** the data sheets mark themselves "Sitronix Confidential". Cite them, never copy
   them into the repo. ST7789V is a 3.3 V part.
 - **Verify with:** `pnpm check`.

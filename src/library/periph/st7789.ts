@@ -9,19 +9,29 @@
 import {
   defineComponent,
   type EvalContext,
+  formatTime,
   Level,
+  ns,
   type PinDef,
+  type PinTimes,
   type SymbolDef,
   type SymbolPin,
+  TimingChecks,
+  type TimingDef,
   us,
 } from '../../core';
 import {
   type Controller,
   createController,
   hardwareReset,
+  lost,
   type Reporter,
   receiveByte,
+  resetReleased,
   St7789Diagnostic,
+  uncertainReset,
+  WAIT_COMMAND,
+  WAIT_SLEEP,
 } from './st7789-controller';
 import { ST7789_PANEL_LABELS, ST7789_PANELS, type St7789Panel, st7789Glass } from './st7789-panels';
 
@@ -112,19 +122,70 @@ export function st7789Symbol(panel: St7789Panel): SymbolDef {
   };
 }
 
-/** Table 9: a RESX LOW pulse of at least tRW resets. */
-const T_RW = us(10);
+/** Table 6 (4-line serial, write), VDDI 1.65–3.3 V, and Table 9 (tRW). */
+const MIN = {
+  tCSS: ns(15),
+  tCSH: ns(15),
+  tCHW: ns(40),
+  tSCYCW: ns(66),
+  tSHW: ns(15),
+  tSLW: ns(15),
+  tDCS: ns(10),
+  tDCH: ns(10),
+  tSDS: ns(10),
+  tSDH: ns(10),
+  tRW: us(10),
+} as const;
+
+/** Table 9: shorter RESX pulses are rejected as spikes; between it and tRW a reset may start. */
+const T_SPIKE = us(5);
+
+/** A byte completes once the hold times after its 8th edge have passed (tSDH, tDCH). */
+const COMPLETE_AFTER = Math.max(MIN.tSDH, MIN.tDCH);
+
+function timingOf(): TimingDef {
+  return {
+    typical: {},
+    min: {
+      ...MIN,
+      'RESX↑ to command': WAIT_COMMAND,
+      'RESX↑ to SLPOUT': WAIT_SLEEP,
+      'SWRESET, SLPIN, SLPOUT to command': WAIT_COMMAND,
+      'SLPOUT to SLPIN': WAIT_SLEEP,
+    },
+    conditions:
+      'VDDI = 1.65–3.3 V, VDD = 2.4–3.3 V (a 3.3 V part: its inputs are not 5 V tolerant)',
+    source:
+      'Sitronix ST7789V data sheet V1.3 (2014/03): Table 6 (4-line serial write), Table 9 and its notes (reset), the SWRESET, SLPIN and SLPOUT restrictions',
+  };
+}
+
+const WAKE_RESET = 0;
+const WAKE_BYTE = 1;
+const token = (kind: number, gen: number) => gen * 2 + kind;
 
 export interface St7789State {
   ctl: Controller;
+  times: PinTimes;
   /** CS as last seen (read only when it changes). */
   cs: number;
-  /** The byte being shifted in, MSB first, and how many bits of it arrived. */
+  /** The byte being shifted in, MSB first, its unknown bits, and how many bits arrived. */
   shift: number;
+  shiftX: number;
   bits: number;
-  /** 1 while RESX is LOW: the interface is held. */
+  /** 1 once SCL rose with the interface listening (its hold checks then count). */
+  edgeTaken: number;
+  /** 1 while the bit phase is unknown (an uncertain clock or select): bytes count as unknown. */
+  lost: number;
+  /** A complete byte waiting out the hold times: value, unknown bits, D/CX (-1 unknown). */
+  pending: number;
+  pendingValue: number;
+  pendingX: number;
+  pendingDc: number;
+  byteGen: number;
+  /** 1 while RESX is LOW: the interface is held. When it fell; the pending reset's generation. */
   resetting: number;
-  /** Generation of the pending reset wake-up (a RESX rise cancels it). */
+  resetFell: number;
   resetGen: number;
 }
 
@@ -146,74 +207,256 @@ export const st7789 = defineComponent<St7789Props, St7789State>({
   ],
   pins: PINS,
   symbol: ({ panel }) => st7789Symbol(panel),
+  timing: timingOf,
   create: () => {
+    const checks = new TimingChecks(PINS, MIN);
+    const sda = checks.setupHold({
+      data: 'SDA',
+      clock: 'SCL',
+      edge: 'rise',
+      setup: 'tSDS',
+      hold: 'tSDH',
+    });
+    const dc = checks.setupHold({
+      data: 'DC',
+      clock: 'SCL',
+      edge: 'rise',
+      setup: 'tDCS',
+      hold: 'tDCH',
+    });
+    const csSetup = checks.setupHold({
+      data: 'CS',
+      clock: 'SCL',
+      edge: 'rise',
+      setup: 'tCSS',
+      dataEdge: 'fall',
+    });
+    const csHold = checks.setupHold({
+      data: 'CS',
+      clock: 'SCL',
+      edge: 'rise',
+      hold: 'tCSH',
+      dataEdge: 'rise',
+    });
+    const sclHigh = checks.pulseWidth({ pin: 'SCL', level: 'high', width: 'tSHW' });
+    const sclLow = checks.pulseWidth({ pin: 'SCL', level: 'low', width: 'tSLW' });
+    const sclCycle = checks.cycle({ pin: 'SCL', edge: 'rise', cycle: 'tSCYCW' });
+    const csHigh = checks.pulseWidth({ pin: 'CS', level: 'high', width: 'tCHW' });
+
     const reporter =
       (ctx: EvalContext<St7789State>): Reporter =>
       (kind, message) =>
         ctx.report({ kind, message });
 
+    /** Hands the pending byte to the controller (its hold window is over, or must end now). */
+    const complete = (ctx: EvalContext<St7789State>) => {
+      const st = ctx.state;
+      if (!st.pending) return;
+      st.pending = 0;
+      st.byteGen++;
+      if (st.pendingDc === -1 && !st.lost) {
+        ctx.report({
+          kind: St7789Diagnostic.UNCERTAIN,
+          message: 'D/CX was unknown on the 8th edge: the byte may be a command or data',
+          pin: DC,
+        });
+      }
+      receiveByte(st.ctl, ctx.now, st.pendingDc, st.pendingValue, st.pendingX, reporter(ctx));
+    };
+
     /** Drops a byte cut short by CS rising (§8.5: "reject the previous bits"). */
     const restartByte = (ctx: EvalContext<St7789State>) => {
       const st = ctx.state;
-      if (st.bits === 0) return;
-      ctx.report({
-        kind: St7789Diagnostic.PARTIAL_BYTE,
-        message: `CS rose after ${st.bits} of 8 bits: the byte is dropped`,
-        pin: CS,
-      });
+      if (st.bits !== 0 && !st.lost) {
+        ctx.report({
+          kind: St7789Diagnostic.PARTIAL_BYTE,
+          message: `CS rose after ${st.bits} of 8 bits: the byte is dropped`,
+          pin: CS,
+        });
+      }
       st.bits = 0;
       st.shift = 0;
+      st.shiftX = 0;
+    };
+
+    /** The bit phase is lost: whatever comes in until CS↑ or a reset can't be placed. */
+    const lose = (ctx: EvalContext<St7789State>, why: string, pin: number) => {
+      const st = ctx.state;
+      if (!st.lost) {
+        ctx.report({ kind: St7789Diagnostic.UNCERTAIN, message: why, pin });
+        lost(st.ctl);
+      }
+      st.lost = 1;
     };
 
     /** SCL rose with CS LOW: SDA shifts in; the 8th bit completes the byte with D/CX. */
-    const clockIn = (ctx: EvalContext<St7789State>) => {
+    const clockIn = (ctx: EvalContext<St7789State>, lateSda: boolean, lateDc: boolean) => {
       const st = ctx.state;
-      const sda = ctx.read(SDA);
-      st.shift = ((st.shift << 1) | (sda === Level.L1 ? 1 : 0)) & 0xff;
-      st.bits++;
-      if (st.bits < 8) return;
+      complete(ctx); // a byte still in its hold window: an edge this soon broke tSCYCW anyway
+      const level = ctx.read(SDA);
+      const bitX = lateSda || (level !== Level.L0 && level !== Level.L1);
+      st.shift = ((st.shift << 1) | (level === Level.L1 ? 1 : 0)) & 0xff;
+      st.shiftX = ((st.shiftX << 1) | (bitX ? 1 : 0)) & 0xff;
+      st.edgeTaken = 1;
+      if (++st.bits < 8) return;
+      const dcLevel = ctx.read(DC);
+      st.pending = 1;
+      st.pendingValue = st.shift;
+      st.pendingX = st.lost ? 0xff : st.shiftX;
+      st.pendingDc =
+        st.lost || lateDc || (dcLevel !== Level.L0 && dcLevel !== Level.L1)
+          ? -1
+          : dcLevel === Level.L1
+            ? 1
+            : 0;
+      st.byteGen++;
+      ctx.wakeAfter(COMPLETE_AFTER, token(WAKE_BYTE, st.byteGen));
       st.bits = 0;
-      const dc = ctx.read(DC);
-      if (dc === Level.L0 || dc === Level.L1) {
-        receiveByte(st.ctl, ctx.now, dc === Level.L1 ? 1 : 0, st.shift, reporter(ctx));
-      }
       st.shift = 0;
+      st.shiftX = 0;
+    };
+
+    /** RESX changed. */
+    const resetPin = (ctx: EvalContext<St7789State>) => {
+      const st = ctx.state;
+      const level = ctx.read(RES);
+      st.resetGen++;
+      if (level === Level.L0) {
+        // A byte complete before RESX fell stands; one under way is rejected (§8.5).
+        complete(ctx);
+        st.resetting = 1;
+        st.resetFell = ctx.now;
+        st.bits = 0;
+        st.shift = 0;
+        st.shiftX = 0;
+        ctx.wakeAfter(MIN.tRW, token(WAKE_RESET, st.resetGen));
+        return;
+      }
+      const wasLow = st.resetting === 1;
+      st.resetting = 0;
+      if (level !== Level.L1) {
+        ctx.report({
+          kind: St7789Diagnostic.UNCERTAIN,
+          message: `RES is ${level === Level.X ? 'unknown' : 'floating'}: the controller may be resetting`,
+          pin: RES,
+        });
+        uncertainReset(st.ctl, ctx.now);
+        st.lost = 1;
+        return;
+      }
+      if (!wasLow) return;
+      const width = ctx.now - st.resetFell;
+      if (width >= MIN.tRW) {
+        resetReleased(st.ctl, ctx.now);
+      } else if (width >= T_SPIKE) {
+        ctx.report({
+          kind: 'pulse-width-violation',
+          message: `RES was LOW for ${formatTime(width)}: a reset needs at least 10 µs (5–9 µs: it may or may not reset)`,
+          pin: RES,
+        });
+        uncertainReset(st.ctl, ctx.now);
+      } else {
+        ctx.report({
+          kind: St7789Diagnostic.RESET_REJECTED,
+          message: `RES was LOW for only ${formatTime(width)}: rejected as a spike (a reset needs 10 µs)`,
+          pin: RES,
+        });
+      }
     };
 
     return {
       createState: () => ({
         ctl: createController(),
+        times: checks.createTimes(),
         cs: Level.X,
         shift: 0,
+        shiftX: 0,
         bits: 0,
+        edgeTaken: 0,
+        lost: 0,
+        pending: 0,
+        pendingValue: 0,
+        pendingX: 0,
+        pendingDc: 0,
+        byteGen: 0,
         resetting: 0,
+        resetFell: 0,
         resetGen: 0,
       }),
       evaluate(ctx) {
         const st = ctx.state;
-        if (ctx.changed(RES)) {
-          st.resetGen++;
-          if (ctx.read(RES) === Level.L0) {
-            // The interface stops at once; the registers reset once the pulse is long enough.
-            st.resetting = 1;
-            st.bits = 0;
-            st.shift = 0;
-            ctx.wakeAfter(T_RW, st.resetGen);
-          } else {
-            st.resetting = 0;
+        const { times } = st;
+        if (ctx.changed(RES)) resetPin(ctx);
+        // CS is read when it changes, and until it is first known (tied LOW from power-on).
+        const csChanged = ctx.changed(CS) || (st.cs !== Level.L0 && st.cs !== Level.L1);
+        if (csChanged) st.cs = ctx.read(CS);
+        const listening = !st.resetting && st.cs === Level.L0;
+        const rose = listening && ctx.rose(SCL);
+
+        // The checks look at the times before this delta; `track` records it last.
+        const lateSda = sda.setup(ctx, times, rose) !== 0;
+        const lateDc = dc.setup(ctx, times, rose && st.bits === 7) !== 0;
+        if (sda.hold(ctx, times, st.edgeTaken === 1 && !st.resetting)) {
+          if (st.pending) st.pendingX |= 1;
+          else st.shiftX |= 1;
+        }
+        if (dc.hold(ctx, times, st.pending === 1)) st.pendingDc = -1;
+        const lateSelect = csSetup.setup(ctx, times, rose) !== 0;
+        csHold.hold(ctx, times, st.edgeTaken === 1);
+        const badClock =
+          sclHigh.check(ctx, times, listening) ||
+          sclLow.check(ctx, times, listening) ||
+          sclCycle.check(ctx, times, listening);
+        const shortDeselect = csHigh.check(ctx, times, !st.resetting);
+
+        if (csChanged && !st.resetting) {
+          if (st.cs === Level.L1) {
+            complete(ctx);
+            restartByte(ctx);
+            st.edgeTaken = 0;
+            // CS HIGH initializes the interface: the bit phase is known again.
+            if (!shortDeselect) st.lost = 0;
+          } else if (st.cs !== Level.L0) {
+            lose(
+              ctx,
+              `CS is ${st.cs === Level.X ? 'unknown' : 'floating'}: the bit phase is lost`,
+              CS,
+            );
+          } else if (shortDeselect) {
+            lose(ctx, 'CS was HIGH too briefly to restart the interface (tCHW)', CS);
           }
         }
-        // CS is read when it changes, and until it is first known (tied LOW from power-on).
-        if (ctx.changed(CS) || (st.cs !== Level.L0 && st.cs !== Level.L1)) {
-          st.cs = ctx.read(CS);
-          if (st.cs !== Level.L0) restartByte(ctx);
+        if (listening && !st.resetting) {
+          const scl = ctx.changed(SCL) ? ctx.read(SCL) : Level.L0;
+          if (scl !== Level.L0 && scl !== Level.L1) {
+            lose(
+              ctx,
+              `SCL is ${scl === Level.X ? 'unknown' : 'floating'}: the bit phase is lost`,
+              SCL,
+            );
+          } else if (badClock || lateSelect) {
+            lose(
+              ctx,
+              'an SCL edge too soon may or may not have been taken: the bit phase is lost',
+              SCL,
+            );
+          }
+          if (rose) clockIn(ctx, lateSda, lateDc);
         }
-        if (st.resetting || st.cs !== Level.L0) return;
-        if (ctx.rose(SCL)) clockIn(ctx);
+        checks.track(ctx, times);
       },
-      wake(ctx, token) {
+      wake(ctx, wakeToken) {
         const st = ctx.state;
-        if (token === st.resetGen && st.resetting) hardwareReset(st.ctl);
+        const kind = wakeToken % 2;
+        const gen = (wakeToken - kind) / 2;
+        if (kind === WAKE_RESET) {
+          if (gen === st.resetGen && st.resetting) {
+            hardwareReset(st.ctl);
+            st.lost = 0;
+          }
+        } else if (gen === st.byteGen) {
+          complete(ctx);
+        }
       },
     };
   },

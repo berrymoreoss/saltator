@@ -7,7 +7,7 @@
  * memory's colors inverted unless inversion is on (every vendor initialization sends INVON and
  * then expects FFFFh to be white). Spec: docs/components.md#st7789.
  */
-import { type Controller, PIXEL_X, SHOWN, Unknown } from './st7789-controller';
+import { type Controller, PIXEL_UNCERTAIN, PIXEL_X, SHOWN, Unknown } from './st7789-controller';
 import { GRAM_HEIGHT, GRAM_WIDTH, type St7789Panel, st7789Glass } from './st7789-panels';
 
 /** The memory doesn't know this pixel ("set randomly" at power-on, an unknown write). */
@@ -86,7 +86,10 @@ export function st7789Frame(c: Controller, panel: St7789Panel): St7789Frame {
       if (swap) [r, b] = [b, r];
       const out = ((r << 12) | (g << 6) | b) ^ invert;
       pixels[i] =
-        (to8((out >> 12) & 0x3f) << 16) | (to8((out >> 6) & 0x3f) << 8) | to8(out & 0x3f) | flags;
+        (to8((out >> 12) & 0x3f) << 16) |
+        (to8((out >> 6) & 0x3f) << 8) |
+        to8(out & 0x3f) |
+        (word & PIXEL_UNCERTAIN ? FRAME_UNCERTAIN : flags);
     }
   }
   return { width: glass.width, height: glass.height, pixels };

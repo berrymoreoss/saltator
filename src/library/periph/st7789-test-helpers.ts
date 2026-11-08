@@ -26,10 +26,11 @@ export class TftBench {
   clock: Clock = SAFE_CLOCK;
 
   /**
-   * A module at power-on with RES HIGH, CS HIGH, SCL LOW, the backlight on; `wait` runs past
-   * it. (No reset pulse: the registers start at their power-on defaults.)
+   * A module at power-on with RES HIGH, CS HIGH, SCL LOW, the backlight on; `wait` (default:
+   * past the power-on waits) runs past it. No reset pulse: the registers start at their
+   * power-on defaults.
    */
-  constructor(props: Partial<St7789Props> = {}, wait: Time = ms(1)) {
+  constructor(props: Partial<St7789Props> = {}, wait: Time = SETTLE) {
     this.bench = new Bench(st7789, props);
     this.bench.set({ SCL: 0, SDA: 0, DC: 0, CS: 1, RES: 1, BLK: 1 });
     this.bench.run(wait);
@@ -104,17 +105,26 @@ export class TftBench {
 }
 
 /** A controller fed bytes directly (no serial interface), and the warnings it gave. */
+/** Time between the commands a `Fed` sends. */
+const STEP = SETTLE;
+
 export class Fed {
   readonly c: Controller = createController();
   readonly warnings: string[] = [];
+  /** Simulated time: every command comes 130 ms after the last, past any wait. */
+  now = 0;
+  private readonly report = (kind: string) => {
+    this.warnings.push(kind);
+  };
 
   command(code: number, ...params: number[]): this {
-    receiveByte(this.c, 0, 0, code, (kind) => this.warnings.push(kind));
+    this.now += STEP;
+    receiveByte(this.c, this.now, 0, code, 0, this.report);
     return this.data(...params);
   }
 
   data(...bytes: number[]): this {
-    for (const b of bytes) receiveByte(this.c, 0, 1, b, (kind) => this.warnings.push(kind));
+    for (const b of bytes) receiveByte(this.c, this.now, 1, b, 0, this.report);
     return this;
   }
 
