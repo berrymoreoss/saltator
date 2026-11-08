@@ -403,3 +403,7 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
 - 2026-11-08 (R15b) — A "request counter" in UI state (`runToRequest`) misfires for a panel
   mounted by the same command: it starts at the new value and never sees a change. For a one-shot
   request (open a file picker), use a flag the panel clears when it acts.
+- 2026-11-08 (docs/roadmap-tracks) — Git reports a conflict when two branches change adjacent
+  lines, even different rows of one table: two rows appended to the end of the ADR index by
+  parallel branches conflict. Keep per-branch state out of shared tables (roadmap statuses live
+  in the track files); resolve the ADR index by keeping both rows.

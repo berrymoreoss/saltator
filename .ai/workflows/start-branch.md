@@ -5,8 +5,8 @@ its head; or a branch name (also for `fix/`, `chore/`, `docs/` branches, which h
 skip step 2 for them). Without input: run `pnpm roadmap`, show the user the tracks' heads and ask
 which one to start.
 
-The rules this workflow follows (tracks, items, heads, `Needs`): [docs/roadmap.md](../../docs/roadmap.md),
-"How it works".
+The rules this workflow follows (tracks, items, heads, `Needs`) are in
+[docs/roadmap.md](../../docs/roadmap.md), "How it works".
 
 ## 1. Check the ground
 

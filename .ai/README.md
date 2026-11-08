@@ -23,9 +23,9 @@ lives in [`docs/`](../docs/README.md); this folder is about **process and state*
 ```
 roadmap item (docs/roadmap/<track>.md, the track's head, status "next")
   └─ start-branch ─► branch feat/<slug> + plan .ai/plans/feat-<slug>.md (status: approved)
-       └─ sessions (resume-branch at the start of each): implement tasks, tick checkboxes, log progress
+       └─ sessions (resume-branch at the start of each): implement tasks, tick boxes, log progress
             └─ handoff (before /clear or when stopping) ─► plan "Handoff" section updated
-       └─ finish-branch ─► main merged in, acceptance verified, docs and track updated, merged to main
+       └─ finish-branch ─► main merged in, acceptance verified, docs and track updated, merged
 ```
 
 Several tracks can each have a branch like this at the same time; `pnpm roadmap` shows them.

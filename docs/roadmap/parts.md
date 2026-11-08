@@ -57,8 +57,8 @@ astable, monostable and bistable modes, RA, RB, C as props with SI-prefixed entr
 network's pins drawn but not simulated, `X` until the first trigger or reset. Pin labels (the
 151's `Y̅`), changeover switch contacts (`spdt-gnd`), wider DIP bodies for crowded pin names.
 Examples: BCD to 7-Segment and Ben Eater's Clock Module. Spec:
-[components.md](../components.md#74xx-chips-74xx), [timers](../components.md#timers-timer). Decision:
-[ADR-0013](../adr/0013-behavioral-timer.md). Plan: `.ai/plans/feat-74hc-msi.md`.
+[components.md](../components.md#74xx-chips-74xx), [timers](../components.md#timers-timer).
+Decision: [ADR-0013](../adr/0013-behavioral-timer.md). Plan: `.ai/plans/feat-74hc-msi.md`.
 
 ## R09a · 74HC flip-flops, registers + timing checks — `feat/74hc-registers`
 
