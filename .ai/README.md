@@ -8,7 +8,7 @@ lives in [`docs/`](../docs/README.md); this folder is about **process and state*
 .ai/
 ├── README.md              this file
 ├── workflows/             step-by-step procedures (tool-agnostic)
-│   ├── start-branch.md    pick a roadmap item, branch, write/approve the plan
+│   ├── start-branch.md    pick a track's item, branch, write/approve the plan
 │   ├── resume-branch.md   continue a branch in a fresh session (after /clear)
 │   ├── handoff.md         end a session cleanly so the next one can resume
 │   ├── finish-branch.md   verify, document, merge
@@ -21,17 +21,21 @@ lives in [`docs/`](../docs/README.md); this folder is about **process and state*
 ## Lifecycle of a branch
 
 ```
-roadmap item (docs/roadmap.md, status "next")
+roadmap item (docs/roadmap/<track>.md, the track's head, status "next")
   └─ start-branch ─► branch feat/<slug> + plan .ai/plans/feat-<slug>.md (status: approved)
        └─ sessions (resume-branch at the start of each): implement tasks, tick checkboxes, log progress
             └─ handoff (before /clear or when stopping) ─► plan "Handoff" section updated
-       └─ finish-branch ─► acceptance verified, docs updated, roadmap updated, merged to main
+       └─ finish-branch ─► main merged in, acceptance verified, docs and track updated, merged to main
 ```
+
+Several tracks can each have a branch like this at the same time; `pnpm roadmap` shows them.
 
 ## Rules
 
 - **One branch = one roadmap item = one plan.** Small fix/chore branches still get a short plan
   (Goal + Tasks + Handoff).
+- **One branch per track at a time.** Tracks move in parallel; within a track, items go in order
+  ([docs/roadmap.md](../docs/roadmap.md), "How it works").
 - **The plan is the source of truth for the branch's state.** If it isn't in the plan (or in git),
   the next session won't know it.
 - **Plans are committed** on the branch and merged to main with it — they become the history of

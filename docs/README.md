@@ -3,7 +3,7 @@
 | Document                           | What it answers                                                   |
 | ---------------------------------- | ----------------------------------------------------------------- |
 | [vision.md](vision.md)             | Why this exists, goals, non-goals, principles, success milestones |
-| [roadmap.md](roadmap.md)           | What gets built in which order; one item = one branch             |
+| [roadmap.md](roadmap.md)           | What gets built in which order: tracks, items, milestones         |
 | [architecture.md](architecture.md) | Layers, data flow, how the pieces fit                             |
 | [simulation.md](simulation.md)     | Kernel semantics: time, levels, strengths, delays, event loop     |
 | [components.md](components.md)     | How parts are defined, pinned, timed and tested                   |

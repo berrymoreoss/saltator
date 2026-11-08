@@ -19,9 +19,11 @@ Somewhere between Logisim and Proteus, built for learning and for building real 
 
 ## Status
 
-Early development, phase 2 (building blocks): the kernel, a schematic editor that runs circuits
-live, files and examples, 74HC gates, MSI chips, flip-flops and registers with data sheet timing
-checks, and a behavioral 555 are in. See the [roadmap](docs/roadmap.md).
+Early development; milestones M1 "Hello, LED" and M2 "Tools" are reached. The kernel, a
+schematic editor that runs circuits live, files and examples, 74HC logic with data sheet timing
+checks, memories, a character LCD, buses and subcircuits are in, with the tools to see inside a
+design and verify it: memory inspector, waveforms, debugger with rewind, test benches. Next: the
+SAP-1 (M3). See the [roadmap](docs/roadmap.md).
 
 ## Quick start
 
@@ -37,7 +39,7 @@ pnpm build      # production build in dist/
 ## Documentation
 
 - [Vision](docs/vision.md) — goals, non-goals, principles
-- [Roadmap](docs/roadmap.md) — milestones and feature branches
+- [Roadmap](docs/roadmap.md) — tracks of work, their items, milestones
 - [Architecture](docs/architecture.md) — layers and data flow
 - [Simulation model](docs/simulation.md) — how the kernel works
 - [Components](docs/components.md) — how parts are defined and tested
@@ -46,12 +48,13 @@ pnpm build      # production build in dist/
 
 ## How this project is developed
 
-AI-first, one feature branch at a time. Each roadmap item gets its own branch and a plan in
-[`.ai/plans/`](.ai/plans/); agents follow [AGENTS.md](AGENTS.md) and the workflows in
-[`.ai/workflows/`](.ai/workflows/). With Claude Code:
+AI-first, one feature branch per roadmap item. Items belong to tracks (the parts library, the
+SAP-1, the 6502 systems, …) that move in parallel, one branch per track at a time. Each item gets
+its own branch and a plan in [`.ai/plans/`](.ai/plans/); agents follow [AGENTS.md](AGENTS.md) and
+the workflows in [`.ai/workflows/`](.ai/workflows/). With Claude Code:
 
-1. `/start-branch` — picks the next roadmap item, creates the branch, drafts the plan, asks the
-   open questions.
+1. `/start-branch` — picks a track's next item (`pnpm roadmap` shows them), creates the branch,
+   drafts the plan, asks the open questions.
 2. Work in sessions: `/handoff` before `/clear` saves the state into the plan, `/resume-branch`
    picks it up in the next session.
 3. `/finish-branch` — verifies acceptance criteria, updates docs and roadmap, merges after approval.
