@@ -288,6 +288,21 @@ button {
   border-top: 1px solid var(--border);
 }
 
+/* The left dock stacks Circuits above Parts (R11a), each a part of the dock's height. */
+.dock-left {
+  flex-direction: column;
+}
+
+.dock-part {
+  display: flex;
+  flex: none;
+  min-height: 0;
+}
+
+.dock-part.fill {
+  flex: 1;
+}
+
 .panel {
   display: flex;
   flex-direction: column;

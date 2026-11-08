@@ -18,9 +18,12 @@ import {
   type CircuitNet,
   type DesignIssue,
   danglingWires,
+  duplicatePorts,
   multipleBusNames,
   multipleNetNames,
   type PlacedPin,
+  type PlacedPort,
+  portBits,
   shortedOutputs,
   singleNetLabels,
   undrivenInputs,
@@ -29,6 +32,7 @@ import { type Connectivity, connect } from './connectivity';
 import type { Circuit, CircuitDocument, Wire } from './document';
 import { type Point, pointKey } from './geometry';
 import { type PartLayout, partLayout, placementOf, placePins } from './layout';
+import { DocumentRegistry, subcircuitOf } from './subcircuit';
 
 export interface CompileResult {
   /** Ready for `new Simulator(netlist, registry)`. Components with errors are left out. */
@@ -70,7 +74,9 @@ export function compileCircuit(circuit: Circuit, registry: ComponentRegistry): C
   const components: NetlistComponent[] = [];
   const pins: PlacedPin[] = [];
   const schematicPins: PlacedPin[] = [];
+  const instancePins: PlacedPin[] = [];
   const busPins: PlacedPin[] = [];
+  const ports: PlacedPort[] = [];
   const layouts = new Map<string, PartLayout>();
 
   for (const instance of circuit.components) {
@@ -110,9 +116,14 @@ export function compileCircuit(circuit: Circuit, registry: ComponentRegistry): C
     }
     const defs = pinsOf(definition, props);
     const schematicOnly = definition.schematicOnly === true;
-    const target = schematicOnly ? schematicPins : pins;
+    // A subcircuit instance connects but is flattened, not simulated as a part (compileDesign).
+    const subcircuit = subcircuitOf(definition.type) !== undefined;
+    const target = schematicOnly ? schematicPins : subcircuit ? instancePins : pins;
+    const port = definition.port?.(props);
     placePins(layout, placementOf(instance)).forEach((placed, i) => {
       const def = defs[i]!;
+      // A port's one pin is the circuit's interface pin of the port's name.
+      const portPin = port !== undefined && def.net === port.name;
       (def.bus === true ? busPins : target).push({
         component: instance.id,
         pin: def.name,
@@ -121,10 +132,21 @@ export function compileCircuit(circuit: Circuit, registry: ComponentRegistry): C
         sense: def.sense === true,
         ...(def.constant !== undefined && { constant: def.constant }),
         ...(def.net !== undefined && { net: def.net }),
+        ...(portPin && { port: port.direction }),
+        ...(subcircuit && { instance: true }),
         at: placed.at,
       });
+      if (portPin) {
+        ports.push({
+          component: instance.id,
+          pin: def.name,
+          name: port.name,
+          direction: port.direction,
+          at: placed.at,
+        });
+      }
     });
-    if (schematicOnly) continue;
+    if (schematicOnly || subcircuit) continue;
     components.push(
       Object.keys(instance.props).length > 0
         ? { id: instance.id, type: instance.type, props: instance.props }
@@ -137,16 +159,19 @@ export function compileCircuit(circuit: Circuit, registry: ComponentRegistry): C
   const busWires = circuit.wires.filter((w) => w.bus === true);
 
   // Simulated pins first, so nets keep being numbered by them; label pins only join.
-  const allPins = [...pins, ...schematicPins];
+  const allPins = [...pins, ...instancePins, ...schematicPins];
   const connectivity = connectPins(allPins, wires);
   const groups = Array.from({ length: connectivity.netCount }, () => ({
     pins: [] as PlacedPin[],
     schematicPins: [] as PlacedPin[],
+    instancePins: [] as PlacedPin[],
     wires: [] as Wire[],
   }));
   for (const [i, pin] of allPins.entries()) {
     const group = groups[connectivity.pinNet[i]!]!;
-    (i < pins.length ? group.pins : group.schematicPins).push(pin);
+    (pin.instance ? group.instancePins : i < pins.length ? group.pins : group.schematicPins).push(
+      pin,
+    );
   }
   for (const [i, wire] of wires.entries()) {
     groups[connectivity.wireNet[i]!]!.wires.push(wire);
@@ -157,21 +182,40 @@ export function compileCircuit(circuit: Circuit, registry: ComponentRegistry): C
   const buses = nameBuses(busConnectivity, busPins, busWires);
   const onBus = busLocator(busPins, busWires);
   // Bus entries: parts with an unnamed bus pin; each joins the name of its other pin.
-  const entries = new Set(busPins.filter((p) => p.net === undefined).map((p) => p.component));
+  const entries = new Set(
+    busPins.filter((p) => p.net === undefined && !p.instance).map((p) => p.component),
+  );
   const entryNames = new Map(
     allPins.flatMap((p) =>
       entries.has(p.component) && p.net !== undefined ? [[p.component, p.net] as const] : [],
     ),
   );
 
+  // What the ports give: names other labels may rely on, and names driven from outside. The
+  // members of a bus reaching an instance's bus pin are joined inside the instance too.
+  const portNames = new Set([
+    ...ports.flatMap((p) => portBits(p.name)),
+    ...buses.flatMap((bus) => (bus.pins.some((p) => p.instance) ? bus.members : [])),
+  ]);
+  const driven = new Set([
+    ...ports.flatMap((p) => (p.direction === 'out' ? [] : portBits(p.name))),
+    // A bus at an instance's output or bidirectional bus port is driven from inside it.
+    ...buses.flatMap((bus) =>
+      bus.pins.some((pin) => pin.instance && instanceDrives(registry, circuit, pin))
+        ? bus.members
+        : [],
+    ),
+  ]);
+
   issues.push(
+    ...duplicatePorts(ports),
     ...shortedOutputs(nets),
-    ...undrivenInputs(nets),
+    ...undrivenInputs(nets, driven),
     ...danglingWires(connectivity.danglingEnds, wires, onBus),
     ...danglingWires(busConnectivity.danglingEnds, busWires),
     ...multipleNetNames(nets),
     ...multipleBusNames(buses),
-    ...singleNetLabels(nets, entries),
+    ...singleNetLabels(nets, entries, portNames),
     ...busEntryMembers(buses, entryNames),
   );
   issues.sort((a, b) => severityRank(a) - severityRank(b));
@@ -297,9 +341,23 @@ function namesOf(group: NetGroup): string[] {
 
 const byCodePoint = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
-function unnamedId({ pins, schematicPins, wires }: NetGroup): string {
-  const pin = pins.find((p) => isDriverPin(p.dir)) ?? pins[0] ?? schematicPins[0];
+function unnamedId({ pins, schematicPins, instancePins, wires }: NetGroup): string {
+  const pin =
+    pins.find((p) => isDriverPin(p.dir)) ??
+    instancePins.find((p) => isDriverPin(p.dir)) ??
+    pins[0] ??
+    instancePins[0] ??
+    schematicPins[0];
   return pin ? `${pin.component}.${pin.pin}` : wires[0]!.id;
 }
 
 const severityRank = (issue: DesignIssue) => (issue.severity === 'error' ? 0 : 1);
+
+/** Whether an instance's bus pin is a port the instance's circuit drives (not an input). */
+function instanceDrives(registry: ComponentRegistry, circuit: Circuit, pin: PlacedPin): boolean {
+  if (!(registry instanceof DocumentRegistry)) return true;
+  const type = circuit.components.find((c) => c.id === pin.component)?.type;
+  const port =
+    type === undefined ? undefined : registry.portsOf(type).find((p) => p.name === pin.pin);
+  return port?.direction !== 'in';
+}

@@ -265,6 +265,31 @@ describe('Autosave', () => {
     expect((await store.get('tab-1'))!.debug).toBeUndefined();
   });
 
+  it('keeps the circuit open, and opens it again when restored', async () => {
+    const { editor, documents, store, autosave } = setup();
+    const two: CircuitDocument = {
+      ...nandDocument(1),
+      circuits: [
+        nandDocument(1).circuits[0]!,
+        { ...nandDocument(2).circuits[0]!, id: 'sub', name: 'Sub' },
+      ],
+    };
+    documents.show(openedSession('cpu', two));
+    autosave.start();
+    await autosave.flush();
+    expect((await store.get('tab-1'))!.open).toBeUndefined(); // the top: nothing to say
+    editor.openCircuit('sub');
+    await autosave.flush();
+    const record = (await store.get('tab-1'))!;
+    expect(record.open).toBe('sub');
+    const restored = restoreSession(record)!;
+    expect(restored.open).toBe('sub');
+    expect(restored.document.circuits.map((c) => c.id)).toEqual(['main', 'sub']);
+    const next = setup('tab-2');
+    next.documents.show(restored.session, restored.document, { open: restored.open! });
+    expect(next.editor.state.get().circuit.id).toBe('sub');
+  });
+
   it('a failing store is reported once and retried with the next change', async () => {
     const editor = new Editor(registry);
     const documents = new DocumentController({
@@ -319,8 +344,8 @@ describe('restoring a session', () => {
       stored({ file: { name: 'adder.logic.json' }, camera: { x: 1, y: 2, scale: 8 } }),
     )!;
     expect(clean.session).toMatchObject({ name: 'adder', file: { name: 'adder.logic.json' } });
-    expect(clean.session.saved).toBe(clean.circuit);
-    expect(clean.circuit.components[0]!.x).toBe(4);
+    expect(clean.session.saved).toBe(clean.document);
+    expect(clean.document.circuits[0]!.components[0]!.x).toBe(4);
     expect(clean.camera).toEqual({ x: 1, y: 2, scale: 8 });
 
     const unsaved = restoreSession(stored({ unsaved: true }))!;
@@ -329,12 +354,12 @@ describe('restoring a session', () => {
 
   it('a session stored before buses (schema v1) comes back unchanged', () => {
     const text = serializeDocument(nandDocument(4)).replace(
-      '"schemaVersion": 3',
+      '"schemaVersion": 4',
       '"schemaVersion": 1',
     );
     expect(text).toContain('"schemaVersion": 1');
     const restored = restoreSession(stored({ text }))!;
-    expect(restored.circuit).toEqual(nandDocument(4).circuits[0]);
+    expect(restored.document.circuits[0]).toEqual(nandDocument(4).circuits[0]);
   });
 
   it('a session that no longer loads is skipped', () => {

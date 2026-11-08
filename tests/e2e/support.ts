@@ -43,7 +43,7 @@ export async function newCircuit(page: Page): Promise<(p: Point) => Point> {
   await openApp(page);
   // A second tab starts from the latest autosaved session, which may have unsaved changes.
   const unsaved = (await page.getByTestId('document-name').textContent())?.startsWith('•');
-  await menu(page, 'File', 'New Circuit');
+  await menu(page, 'File', 'New Document');
   if (unsaved) {
     await page.getByTestId('unsaved-dialog').getByRole('button', { name: 'Don’t Save' }).click();
   }

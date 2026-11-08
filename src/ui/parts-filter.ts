@@ -1,7 +1,8 @@
 /**
  * Parts panel model: definitions grouped by family and filtered by a search query.
  */
-import { type AnyComponentDefinition, familyOf } from '../core';
+import { circuitsContaining, type DocumentRegistry, subcircuitOf } from '../circuit';
+import { type AnyComponentDefinition, type ComponentRegistry, familyOf } from '../core';
 
 export interface PartGroup {
   readonly family: string;
@@ -11,6 +12,7 @@ export interface PartGroup {
 
 /** Display names and order of part families; unknown families follow, alphabetically. */
 const FAMILIES: readonly (readonly [string, string])[] = [
+  ['sub', 'Subcircuits'],
   ['74xx', '74HC Logic'],
   ['timer', 'Timers'],
   ['mem', 'Memory'],
@@ -62,3 +64,17 @@ export function groupParts(
 
 /** Data type of a part dragged from the Parts panel onto the canvas (the value is its type). */
 export const PART_DRAG_TYPE = 'application/x-logic-part';
+
+/**
+ * The parts that may be placed in circuit `open`: every part of the document's registry but the
+ * circuits that contain `open` (itself included), which would make it contain itself (R11a).
+ */
+export function placeableParts(registry: DocumentRegistry, open: string): ComponentRegistry {
+  const outer = circuitsContaining(registry.document, open);
+  const hidden = (type: string) => outer.has(subcircuitOf(type) ?? '');
+  return {
+    get: (type) => registry.get(type),
+    has: (type) => registry.has(type),
+    list: () => registry.list().filter((definition) => !hidden(definition.type)),
+  };
+}

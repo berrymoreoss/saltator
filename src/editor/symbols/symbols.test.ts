@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { type Circuit, emptyCircuit, type Rect } from '../../circuit';
+import {
+  type Circuit,
+  documentRegistry,
+  emptyCircuit,
+  type Rect,
+  SCHEMA_VERSION,
+} from '../../circuit';
 import { Level, levelChar, type PropValue, Registry } from '../../core';
 import {
   createDefaultRegistry,
@@ -90,12 +96,81 @@ describe('net drawers', () => {
     expect(running.texts[1]!.at[0]).toBeGreaterThan(label.layout.body.x + label.layout.body.width);
   });
 
+  it('draw a port as a flag pointing the way its signal goes, its name in bold', () => {
+    const tips = (direction: string) => {
+      const p = part('net/port', { name: 'CLK', direction });
+      const g = draw('net/port', { name: 'CLK', direction }, 'ansi');
+      const { x, width } = p.layout.body;
+      const y = p.layout.body.y + p.layout.body.height / 2;
+      expect(within(g.points, p.localBounds), direction).toBe(true);
+      expect(g.texts.map((t) => [t.text, t.style.bold])).toEqual([['CLK', true]]);
+      const at = (px: number) => g.points.some(([gx, gy]) => gx === px && gy === y);
+      return [at(x), at(x + width)];
+    };
+    expect(tips('in')).toEqual([true, false]);
+    expect(tips('out')).toEqual([false, true]);
+    expect(tips('bidir')).toEqual([true, true]);
+    expect(part('net/port', { name: 'CLK' }).texts).toEqual([]);
+  });
+
   it('draw a bus entry with its name, no designator', () => {
     const entry = part('net/bus-entry', { name: 'A15' });
     expect(draw('net/bus-entry', { name: 'A15' }, 'ansi').texts.map((t) => t.text)).toEqual([
       'A15',
     ]);
     expect(entry.texts).toEqual([]);
+  });
+});
+
+describe('subcircuit drawer', () => {
+  it('draws a box with the circuit name and every port name inside, overlines marked', () => {
+    const port = (id: string, name: string, x: number, y: number, props = {}) => ({
+      id,
+      type: 'net/port',
+      x,
+      y,
+      rotation: 0 as const,
+      flip: false,
+      props: { name, direction: 'in', side: 'auto', ...props },
+    });
+    const module: Circuit = {
+      ...emptyCircuit('counter', 'Counter'),
+      components: [
+        port('P1', 'CLK', 0, 0),
+        port('P2', '~{CLR}', 0, 2),
+        port('P3', 'Q[0..3]', 9, 0, { direction: 'out' }),
+        port('P4', 'EN', 4, 0, { side: 'top' }),
+        port('P5', 'CO', 4, 9, { direction: 'out', side: 'bottom' }),
+      ],
+    };
+    const top: Circuit = {
+      ...emptyCircuit(),
+      components: [
+        { id: 'A1', type: 'sub/counter', x: 0, y: 0, rotation: 0, flip: false, props: {} },
+      ],
+    };
+    const docRegistry = documentRegistry(
+      { schemaVersion: SCHEMA_VERSION, circuits: [top, module] },
+      registry,
+    );
+    const instance = buildScene(top, docRegistry).parts[0]!;
+    const g = new RecordingGraphics();
+    drawPartBody(g, instance, 'ansi', 'red');
+    expect(within(g.points, instance.localBounds)).toBe(true);
+    expect(g.texts.map((t) => [t.text, t.style.overline ?? false])).toEqual([
+      ['Counter', false],
+      ['CLK', false],
+      ['CLR', true],
+      ['Q[0..3]', false],
+      ['EN', false],
+      ['CO', false],
+    ]);
+    for (const t of g.texts) {
+      expect(within([t.at], instance.layout.body), t.text).toBe(true);
+    }
+    expect(g.texts.filter((t) => t.style.rotate === 90).map((t) => t.text)).toEqual(['EN', 'CO']);
+    // The designator is the scene's text, outside the body.
+    expect(instance.texts.map((t) => t.text)).toEqual(['A1']);
   });
 });
 

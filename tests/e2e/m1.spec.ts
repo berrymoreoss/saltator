@@ -97,7 +97,7 @@ test('M1: build switch → 74HC00 → LED and clock → LED, run, save, reload, 
   await runAndCheck(page, grid);
 
   // And the file itself opens and runs.
-  await menu(page, 'File', 'New Circuit');
+  await menu(page, 'File', 'New Document');
   await expect(page).toHaveTitle('Untitled — Logic');
   await pick(page, 'open', 'm1.logic.json');
   await page.keyboard.press('ControlOrMeta+O');

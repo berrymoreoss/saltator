@@ -5,6 +5,7 @@
  */
 import type { PropValue } from '../core';
 import {
+  CIRCUIT_ID,
   type Circuit,
   type CircuitDocument,
   type ComponentInstance,
@@ -106,6 +107,11 @@ const id: Parser<string> = {
   parse: (v) => (typeof v === 'string' && ID_PATTERN.test(v) ? v : undefined),
 };
 
+const circuitId: Parser<string> = {
+  expected: 'a circuit id (lowercase letters and digits, runs joined by -)',
+  parse: (v) => (typeof v === 'string' && CIRCUIT_ID.test(v) ? v : undefined),
+};
+
 const nonEmpty: Parser<string> = {
   expected: 'a non-empty string',
   parse: (v) => (typeof v === 'string' && v !== '' ? v : undefined),
@@ -156,7 +162,7 @@ class Checker {
     if (!circuits) return undefined;
     if (circuits.length === 0) this.fail('circuits', 'expected at least one circuit');
     const parsed = circuits.map((c, i) => this.circuit(c, join('circuits', i)));
-    this.uniqueIds([{ items: circuits, path: 'circuits' }], 'circuit id');
+    this.uniqueIds([{ items: circuits, path: 'circuits' }], 'circuit id', circuitId);
     if (parsed.some((c) => c === undefined)) return undefined;
     return { schemaVersion: SCHEMA_VERSION, circuits: parsed as Circuit[] };
   }
@@ -164,7 +170,7 @@ class Checker {
   private circuit(value: unknown, path: string): Circuit | undefined {
     if (!this.isObject(value, path)) return undefined;
     this.unknownKeys(value, path, CIRCUIT_KEYS);
-    const circuitId = this.field(value, 'id', path, id);
+    const ownId = this.field(value, 'id', path, circuitId);
     const name = this.field(value, 'name', path, text);
     const rawComponents = this.array(value, 'components', path) ?? [];
     const rawWires = this.array(value, 'wires', path) ?? [];
@@ -181,12 +187,12 @@ class Checker {
     );
     const rawProbes = value.probes === undefined ? [] : (this.array(value, 'probes', path) ?? []);
     const probes = rawProbes.map((p, i) => this.probe(p, join(join(path, 'probes'), i)));
-    if (circuitId === undefined || name === undefined) return undefined;
+    if (ownId === undefined || name === undefined) return undefined;
     if (components.some((c) => !c) || wires.some((w) => !w) || probes.some((p) => !p)) {
       return undefined;
     }
     return {
-      id: circuitId,
+      id: ownId,
       name,
       components: components as ComponentInstance[],
       wires: wires as Wire[],
@@ -315,11 +321,15 @@ class Checker {
   }
 
   /** Reports repeated (syntactically valid) ids across the given lists, even in broken items. */
-  private uniqueIds(lists: readonly { items: readonly unknown[]; path: string }[], what: string) {
+  private uniqueIds(
+    lists: readonly { items: readonly unknown[]; path: string }[],
+    what: string,
+    parser: Parser<string> = id,
+  ) {
     const seen = new Set<string>();
     for (const { items, path } of lists) {
       items.forEach((item, i) => {
-        const value = isObject(item) ? id.parse(item.id) : undefined;
+        const value = isObject(item) ? parser.parse(item.id) : undefined;
         if (value === undefined) return;
         if (seen.has(value)) this.fail(join(join(path, i), 'id'), `duplicate ${what} "${value}"`);
         seen.add(value);

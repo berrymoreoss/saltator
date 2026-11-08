@@ -68,7 +68,8 @@ flowchart LR
 
 1. The **circuit document** is what the user edits and what gets saved.
 2. The **compiler** (`circuit`) flattens it into a **netlist**: component instances
-   `(id, type, props)` plus nets (sets of `(componentId, pinName)`).
+   `(id, type, props)` plus nets (sets of `(componentId, pinName)`) — the top circuit with its
+   subcircuit instances expanded by path (`A1/U3`, R11a).
 3. The **simulator** (`core`) instantiates behaviors from the **registry** (`library`) and runs
    the netlist.
 4. The **editor** reads net levels every frame to color wires and draw indicators. UI panels
@@ -99,7 +100,9 @@ before a net's pending change (`stopBefore`, R14: the debugger's Step Clock); th
 steps (`runTo`) and pauses on requests with a reason (`requestPause`). Core can snapshot and
 restore a whole simulation and replay it in a replica (R14b); the history of checkpoints and
 user actions and the rewinds built on it are the host's (`Timeline`,
-[ADR-0021](adr/0021-rewind.md)). This keeps core pure and makes
+[ADR-0021](adr/0021-rewind.md)); R11a the Circuits list above Parts, the Circuit menu, the Parts
+panel's Subcircuits and Properties of a circuit ([editor.md](editor.md#shell),
+[ADR-0023](adr/0023-subcircuits.md)). This keeps core pure and makes
 moving the kernel into a Web Worker a host-only change _(planned, backlog)_.
 
 ## Component library
@@ -137,7 +140,14 @@ Implemented in R02. Full spec: [circuit.md](circuit.md). Rationale:
 - **Document**: `{ schemaVersion, circuits: [...] }`; a circuit has component instances
   `{ id, type, x, y, rotation, flip, props, label? }` and wires, each one straight horizontal or
   vertical segment `{ id, from, to, bus? }` in integer grid coordinates (`bus`: a bus line,
-  R10b). Immutable values in memory. Later: subcircuit instances (R11).
+  R10b). Immutable values in memory. The first circuit is the top; the others are subcircuits
+  (R11a), placed as instances of type `sub/<circuit id>` whose pins are their ports (`net/port`).
+- **Subcircuits** (R11a): the compiler flattens the top circuit into one netlist
+  (`compileDesign`): every circuit compiled once on its own, inner parts by instance path
+  (`A1/U3`), nets joined through ports and bus ports, net labels local to their circuit and the
+  power names global. A document registry serves a generated definition per circuit (pins from
+  its ports, a box symbol), so the editor treats an instance like any part. The kernel never sees
+  the hierarchy ([ADR-0023](adr/0023-subcircuits.md)).
 - **A component's id is its designator** (`U1`, `SW1`): readable in netlists, diagnostics and
   test benches. `label` is free display text.
 - **Pin positions are derived** from part definitions (`partLayout`: DIP drawing for packages,
@@ -158,10 +168,10 @@ Implemented in R02. Full spec: [circuit.md](circuit.md). Rationale:
   versions forward and rejects newer ones. Never break old files silently.
 - **Compiler** (`compileCircuit`): document → `Netlist` with deterministic, readable net ids, plus
   the net of every wire and the junction dots for the editor. It never throws on user mistakes.
-- **Resolver** (R12b): references (`U5`, `U5.A0`, `CLK`, `D[0..7]`) to the compiled parts and
-  nets, for the memory inspector, probes (R13), watches and breakpoints (R14; memory cells
-  `U5[1F]`) and later test benches;
-  R11 adds instance paths there ([circuit.md](circuit.md#resolver)).
+- **Resolver** (R12b): references (`U5`, `U5.A0`, `CLK`, `D[0..7]`, and inside instances
+  `A1/U3.Q0`, R11a) to the compiled design's parts and nets, for the memory inspector, probes
+  (R13), watches and breakpoints (R14; memory cells `U5[1F]`) and later test benches
+  ([circuit.md](circuit.md#resolver)).
 - **Probes** (R13): the Waveforms tab's signals as resolver references in the circuit
   (`Circuit.probes`, schema v3), never compiled ([ADR-0019](adr/0019-waveforms.md)).
 - **Design checks** (pre-simulation): unknown part types, invalid props, shorted push-pull
@@ -187,8 +197,9 @@ simulation). Full spec: [editor.md](editor.md). Framework-agnostic TypeScript on
   connectivity always agree.
 - **Hit-testing and selection**: parts, pin stubs and wires under a point; click, Shift-click and
   box selection (inside or touching).
-- **`Editor` facade**: owns circuit, scene, selection, camera, tool and the simulator host;
-  exposes them as small observable stores.
+- **`Editor` facade**: owns the document, the circuit open and its scene, the flattened design,
+  selection, camera (one per circuit), tool and the simulator host; exposes them as small
+  observable stores. Edits go to the open circuit; one undo history spans the document (R11a).
 - **Tools and gestures**: select/move, pan, wire (click by click or dragged from a pin, L-shaped
   preview), place (armed from the Parts panel, sticky); rotate, flip, delete, nudge; floating
   copy/paste and duplicate. Moves keep wires connected (rubber-banding); wires are normalized into

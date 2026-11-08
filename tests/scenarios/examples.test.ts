@@ -7,7 +7,8 @@
 import { describe, expect, it } from 'vitest';
 import { EXAMPLE_FILES, exampleDocument, exampleText } from '../../src/app/example-files';
 import {
-  compileCircuit,
+  compileDesign,
+  documentRegistry,
   normalizeWires,
   parseDocument,
   serializeDocument,
@@ -38,25 +39,26 @@ describe('example files', () => {
   describe.each(EXAMPLE_FILES)('$id', ({ id }) => {
     const text = exampleText(id);
     const document = exampleDocument(id);
-    const circuit = document.circuits[0]!;
+    const parts = documentRegistry(document, registry);
 
-    it('is canonical: one circuit, saved as serializeDocument writes it, wires normalized', () => {
-      expect(document.circuits).toHaveLength(1);
+    it('is canonical: saved as serializeDocument writes it, every circuit’s wires normalized', () => {
       expect(serializeDocument(document)).toBe(text);
       expect(serializeDocument(parseDocument(text))).toBe(text);
-      expect(normalizeWires(circuit)).toEqual(circuit);
+      for (const circuit of document.circuits) expect(normalizeWires(circuit)).toEqual(circuit);
     });
 
     it('stores every resolved prop of known parts, as the editor does', () => {
-      for (const component of circuit.components) {
-        const definition = registry.get(component.type);
-        expect(definition, component.type).toBeDefined();
-        expect(component.props, component.id).toEqual(resolveProps(definition!, component.props));
+      for (const circuit of document.circuits) {
+        for (const component of circuit.components) {
+          const definition = parts.get(component.type);
+          expect(definition, component.type).toBeDefined();
+          expect(component.props, component.id).toEqual(resolveProps(definition!, component.props));
+        }
       }
     });
 
-    it('compiles without design issues', () => {
-      expect(compileCircuit(circuit, registry).issues).toEqual([]);
+    it('compiles without design issues, every circuit and the flattened design', () => {
+      expect(compileDesign(document, registry).issues).toEqual([]);
     });
   });
 });

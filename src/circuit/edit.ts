@@ -12,6 +12,7 @@ import {
 } from '../core';
 import {
   type Circuit,
+  type CircuitDocument,
   type ComponentInstance,
   type GroupProbe,
   ID_PATTERN,
@@ -162,6 +163,15 @@ export function updateComponent(circuit: Circuit, id: string, patch: ComponentPa
   return { ...circuit, components };
 }
 
+/** Whether two documents hold the same circuits in the same order (`sameCircuit` each). */
+export function sameDocument(a: CircuitDocument, b: CircuitDocument): boolean {
+  if (a === b) return true;
+  return (
+    a.circuits.length === b.circuits.length &&
+    a.circuits.every((circuit, i) => sameCircuit(circuit, b.circuits[i]!))
+  );
+}
+
 /** True if two circuits hold the same parts, wires and probes in the same order (by value). */
 export function sameCircuit(a: Circuit, b: Circuit): boolean {
   if (a === b) return true;
@@ -255,12 +265,26 @@ export function renameComponent(circuit: Circuit, from: string, to: string): Cir
 }
 
 /**
- * A signal reference after part `from` was renamed `to`: its pins (`U5.A0` → `U7.A0`); anything
- * else is unchanged (nets are named by their labels, and a bus name may look like a designator).
+ * A signal reference with part `from` renamed to `to`: its pins (`U5.A0` → `U7.A0`) and, for an
+ * instance, the paths through it (`A1/U3.Q0` → `A3/U3.Q0`). `scopes` are the instance paths
+ * the renamed part's circuit sits at (`''`: the top, the default): a part renamed inside a
+ * subcircuit is renamed in every instance's references (`A1/U1.Q`, `A2/U1.Q`). A bare name stays:
+ * a net may be called like a designator.
  */
-export function renameReference(ref: string, from: string, to: string): string {
-  const prefix = `${from}.`;
-  return ref.startsWith(prefix) ? `${to}.${ref.slice(prefix.length)}` : ref;
+export function renameReference(
+  ref: string,
+  from: string,
+  to: string,
+  scopes: readonly string[] = [''],
+): string {
+  for (const scope of scopes) {
+    const base = scope === '' ? '' : `${scope}/`;
+    for (const separator of ['.', '/']) {
+      const prefix = `${base}${from}${separator}`;
+      if (ref.startsWith(prefix)) return `${base}${to}${separator}${ref.slice(prefix.length)}`;
+    }
+  }
+  return ref;
 }
 
 /** Probes with the pin references of part `from` (`U5.A0`) rewritten to part `to`. */

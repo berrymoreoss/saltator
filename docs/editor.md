@@ -30,22 +30,34 @@ A desktop CAD-style window (`Workbench`), dense like KiCad or Altium: 12 px UI t
 └──────────────────────────────────────────────────────────────────┘
 ```
 
-- **Docks** are fixed regions around the canvas: Parts (left), Properties (right) and a tabbed
-  bottom dock (Messages). Splitters resize them within limits; each can be hidden from its title
-  bar or View ▸ Panels. Sizes and visibility are settings (below).
-- **Parts**: families as collapsible groups (74HC Logic, Timers, Primitives, Input / Output,
-  Nets, and Developer Fixtures in dev builds); a search box (`/` or `Mod+F`) matching every word against name, title,
+- **Docks** are fixed regions around the canvas: Circuits above Parts (left), Properties
+  (right) and a tabbed bottom dock (Messages). Splitters resize them within limits; each can be
+  hidden from its title bar or View ▸ Panels. Sizes and visibility are settings (below).
+- **Circuits** (R11a, `CircuitsPanel.tsx`): the document's circuits in order — the top circuit
+  first, starred (it simulates), the open one highlighted, each with the number of its instances
+  placed (`2×`); a click opens one (`Editor.openCircuit`: not an edit; each circuit keeps its
+  camera), a right click opens it and shows Rename…, Duplicate, Delete, Set as Top Circuit;
+  **+ Add Circuit** adds `Circuit N` and opens it with its name ready in Properties. The
+  **Circuit** menu has the same commands on the open circuit — Add Circuit, Rename Circuit…,
+  Duplicate Circuit, Delete Circuit (named "and N Instances" when it has some: they go with it,
+  one undo step), Set as Top Circuit — and Open Subcircuit (the selected instance's circuit,
+  also in the canvas context menu) and Open Top Circuit.
+- **Parts**: families as collapsible groups (Subcircuits — the document's circuits, except the
+  open one and those containing it, which would place a circuit inside itself — 74HC Logic,
+  Timers, Primitives, Input / Output, Nets, and Developer Fixtures in dev builds); a search box (`/` or `Mod+F`) matching every word against name, title,
   type and keywords; the selected part's preview — its symbol drawn by the canvas drawers — with
   title, pins and datasheet link. Clicking a part arms the place tool with it (the row is marked);
   dragging it onto the canvas places one ([Placing parts](#placing-parts)).
 - **Properties**: one part — designator, label, position, rotation, flip and every prop, all
-  editable ([Properties](#properties)), plus type, datasheet and pins with their nets; one wire —
-  endpoints, length, net and the pins on it; several items — counts by part name; nothing — the
-  circuit's name and counts.
-- **Bottom dock tabs** (the active one is a setting): **Messages** — the compile result's design
-  issues, errors first, with code, message and location (`U1.A`, `wire w3`); click selects the
-  item and brings it into view, double-click zooms to it; the tab and the status bar show the
-  counts. **Simulation** — what happened while running ([Simulation](#simulation)). **Part** —
+  editable ([Properties](#properties)), plus type, datasheet and pins with their nets (an
+  instance: its ports, and Open <circuit>); one wire — endpoints, length, net and the pins on it;
+  several items — counts by part name; nothing — the open circuit: its name (editable: Rename),
+  id, role (the top circuit, or a subcircuit), where it is placed, its ports, and counts.
+- **Bottom dock tabs** (the active one is a setting): **Messages** — the design issues of every
+  circuit of the document (`Design.issues`), errors first, with code, message and location
+  (`U1.A`, `wire w3`; `Decade Counter: U1.A` when there are several circuits); click opens the
+  circuit, selects the item and brings it into view, double-click zooms to it; the tab and the
+  status bar show the counts. **Simulation** — what happened while running ([Simulation](#simulation)). **Part** —
   the pins and function table of the last part picked ([Part info](#part-info)). **Memory** —
   the cells of a memory part, live while simulating ([Memory inspector](#memory-inspector)).
   **Waveforms** — the probed signals over simulated time ([Waveforms](#waveforms)). **Debug**
@@ -53,7 +65,8 @@ A desktop CAD-style window (`Workbench`), dense like KiCad or Altium: 12 px UI t
   run statistics.
 - **Status bar**: grid position under the pointer, zoom, a one-line selection summary, the
   simulation (state, simulated time, the speed reached when lagging, runtime problems; click opens
-  the Simulation tab), a hint for the current tool and gesture (`statusHint`), part/wire counts,
+  the Simulation tab; while a circuit other than the top is open, "Main simulates; this circuit is
+  drawn without levels"), a hint for the current tool and gesture (`statusHint`), part/wire counts,
   redraw time (dev builds), error/warning counts (click opens Messages).
 - **Context menu** (right click on the canvas): over a part or wire (selected first) — Cut, Copy,
   Paste, Duplicate, Delete, Rotate, Rotate Counter-clockwise, Flip Horizontal, Flip Vertical,
@@ -127,7 +140,7 @@ the shortcuts dialog all read the same `CommandRegistry`, which rejects duplicat
 | Keyboard Shortcuts  | `?`, `Mod+/`               | Swap wire bend (drawing)   | `Tab`                     |
 | Interact tool       | `I`                        | Run / Pause                | `F5`                      |
 | Step                | `F10`                      | Stop                       | `Shift+F5`                |
-| Reset               | `Mod+Shift+F5`             | New Circuit                | `Mod+Alt+N`               |
+| Reset               | `Mod+Shift+F5`             | New Document               | `Mod+Alt+N`               |
 | Open…               | `Mod+O`                    | Save (As…)                 | `Mod+S` (`Mod+Shift+S`)   |
 | Net Label           | `L`                        | Probe tool                 | `P`                       |
 | Step Clock          | `F8`                       | Run For                    | `Shift+F8`                |
@@ -315,6 +328,10 @@ another tool is chosen or Escape. The editor's `mode` store says what is going o
   follows the drag), in the default orientation, and leaves the current tool alone.
 - A placed part gets its designator from its definition's prefix — the lowest free number
   (`U1`, `U2`, `SW1`, … filling gaps) — and **every resolved prop** written into the document.
+- **Subcircuit instances** (R11a) are placed the same way from the Parts panel's Subcircuits
+  group (`A1`, `A2`); the editor refuses a circuit that contains the open one (from the panel, a
+  paste or a script). A **double-click** on an instance opens its circuit (R11b: while
+  simulating, the instance itself).
 - **Place menu** (the menu bar's Place, and right click on empty canvas ▸ Place): Power (VCC),
   Ground (GND), Pull-up, Pull-down, Wire (`W`), Bus (`B`), Net Label (`L`), Bus Entry (`Z`,
   KiCad's key), Find Part…. A part item arms the place
@@ -382,10 +399,14 @@ touches connects); the design checks report what came loose or got shorted.
 
 ### Copy and paste
 
-- **Copy** puts the selected parts and the selected wires on the clipboard as a one-circuit
-  document in the file format (`fragmentText`, `serializeDocument`), so it is plain text: it
-  pastes into another tab, and any document's text pastes too (`parseFragment` validates and
-  migrates it like a file). **Cut** copies, then deletes.
+- **Copy** puts the selected parts and the selected wires on the clipboard as a document in the
+  file format (`fragmentText`, `serializeDocument`), so it is plain text: it pastes into another
+  tab, and any document's text pastes too (`parseFragment` validates and migrates it like a
+  file). Its first circuit is the copy; the circuits its subcircuit instances place follow
+  (R11a, `fragmentDocument`). **Cut** copies, then deletes.
+- A paste brings those circuits into the document with the drop (`importCircuits`: the same
+  circuit is reused, a differing one under a taken id comes in as `cell-2`, its instances
+  retargeted) — one undo step; an instance of a circuit that contains the open one isn't pasted.
 - **Paste** and **Duplicate** float: the items follow the pointer as ghosts until a click drops
   them (one undo step, selected), Escape or right click cancels; `R`/`F` orient them meanwhile.
   Pasted parts keep their designators where they are free and are renumbered with their prefix
@@ -421,13 +442,17 @@ focus its designator.
 
 ### Undo and redo
 
-`src/editor/history.ts`: an entry is the circuit and the selection before and after one action,
-labelled (`Move`, `Place NAND`, `Rename U1`, `Change Delay`); documents are immutable, so
-snapshots share every unchanged part and wire ([ADR-0009](adr/0009-editing-model.md)). A new
+`src/editor/history.ts`: an entry is the document, the circuit open and the selection before and
+after one action, labelled (`Move`, `Place NAND`, `Rename U1`, `Change Delay`); documents are
+immutable, so snapshots share every unchanged circuit, part and wire
+([ADR-0009](adr/0009-editing-model.md)). One history for the whole document (R11a): undoing an
+edit made in another circuit opens that circuit; opening a circuit is no edit. A new
 edit clears the redo stack; 200 entries are kept; consecutive entries with the same `coalesce`
 key merge (nudges of one selection). Undo and redo restore the selection too and report the
-renames they undo or redo in `state.renames`. Opening a document (New, Open, an example, a
-dropped file) loads it with `setCircuit`, which clears the history ([Files](#files)).
+renames they undo or redo in `state.renames` — as renames of the flattened design's parts: in
+every instance of the circuit (`A1/U1` → `A1/U2`), an instance's path and every part in it
+(`A1` → `A3`, `A1/U1` → `A3/U1`). Opening a document (New, Open, an example, a dropped file)
+loads it with `setDocument`, which clears the history ([Files](#files)).
 
 ## Simulation
 
@@ -490,6 +515,17 @@ the toolbar group (Run/Pause, Step Back, Step, Step Clock, Stop, Reset, speed se
   circuit).
 
 ### Editing while running
+
+What simulates is the document's **design** (R11a): the top circuit flattened, its instances'
+parts by path (`A1/U3`). The host gets a `SimulationModel` — the design's netlist, the open
+circuit's scene, and how the scene's ids map to the netlist's (the top circuit open: one to one;
+another circuit open: nothing, so it is drawn as when stopped and the status bar says what
+simulates; R11b shows an instance's levels). An edit in any circuit, the top's or a
+subcircuit's, changes the design, so editing a module while running carries the run over and
+every instance of it keeps its state. The Interact and Probe tools act on the top circuit; the
+Memory tab lists every memory by path (`A1/U3`; a ROM's image edited inside an instance is its
+circuit's, shared by every instance), the Waveforms tab shows the top circuit's probes, and
+watches, breakpoints and probes take paths (`A1/U3.Q0`).
 
 Every committed edit, undo and redo is followed (`Simulation.sync`, from `editor.state`):
 
@@ -937,18 +973,24 @@ counting and the "last run" counters restart; on a divergence its recorder cuts 
 
 ## Editor API
 
-`new Editor(registry, circuit?, settings?, options?)` (`src/editor/editor.ts`) owns the circuit,
-its scene, the selection, the undo history, the camera, the tool and the simulator host
+`new Editor(library, circuitOrDocument?, settings?, options?)` (`src/editor/editor.ts`) owns the
+document, the circuit open and its scene, the flattened design, the selection, the undo history,
+the cameras, the tool and the simulator host
 (`editor.simulation`; `options.simulation` injects its clock in tests). The UI mounts it with
 `editor.mount(canvas)` (returns the detach function) and reads through `useSyncExternalStore`:
-`editor.state` (circuit, scene, selection, renames), `editor.view` (camera, viewport, pointer
+`editor.state` (document, circuit, scene, design, selection, renames), `editor.view` (camera, viewport, pointer
 position, last redraw time — changes often, keep consumers small), `editor.tool`, `editor.mode`,
 `editor.history` and `editor.requests` (the editor asking the UI to open the context menu or to
 focus Properties).
 
-- Document: `setCircuit(circuit, { fit?, camera? })` (load; clears history; `camera` restores a
-  view instead of zooming to fit), `edit(label, circuit, options)`, `undo`, `redo`,
-  `undoLabel`, `redoLabel`.
+- Document: `setDocument(document, { open?, fit?, camera? })` (load; clears history; `camera`
+  restores a view instead of zooming to fit; `setCircuit(circuit, …)` loads a one-circuit
+  document), `openCircuit(id)`, `cameras`, `edit(label, circuit, options)` (the open circuit),
+  `editDocument(label, document, { open?, … })`, `undo`, `redo`, `undoLabel`, `redoLabel`;
+  `registry` (the document registry: library parts and `sub/<id>`), `library`; `partAt(id)` and
+  `setPartPropAt(id, …)` for a part of the design by netlist id (`A1/U3`: its circuit's part),
+  `flatPart(id)` (a part of the open circuit as the simulator calls it, if it simulates as
+  drawn).
 - Editing: `deleteSelection`, `rotate(clockwise)`, `flip(direction)`, `nudge(dx, dy)`,
   `copySelection`, `cutSelection` (both return clipboard text), `pasteText(text)`, `duplicate`,
   `renamePart`, `setPartLabel`, `setPartProp`, `setPartPlacement` (the last three return an error
@@ -985,12 +1027,13 @@ Circuits are `.logic.json` files ([circuit.md](circuit.md#loading-versioning-sav
 
 ### Document session
 
-`DocumentSession` (`src/ui/document-session.ts`, pure) is the open document around the editor's
-circuit: its **name** (the file name without `.logic.json`, `Untitled`, or an example's title),
-the **document** as loaded (the editor edits the first circuit; the others are written back
-unchanged), the **file** Save writes to (a File System Access handle) and the circuit as last
-**saved**. Unsaved changes = the editor's circuit differs from the saved one, by identity then
-by value (`sameCircuit`): undoing back to the saved state is clean again. File names map both
+`DocumentSession` (`src/ui/document-session.ts`, pure) is the open document around the editor's:
+its **name** (the file name without `.logic.json`, `Untitled`, or an example's title), the
+**document** as loaded (the editor edits every circuit of it, R11a), the **file** Save writes to
+(a File System Access handle) and the document as last **saved**. Unsaved changes = the editor's
+document differs from the saved one, by identity then by value (`sameDocument`: the same circuits
+in the same order, `sameCircuit` each) — an edit in any circuit, a circuit added, removed or
+made the top; undoing back to the saved state is clean again. File names map both
 ways (`fileNameOf` replaces characters no file system accepts; `nameOfFile` strips
 `.logic.json` or `.json`).
 
@@ -998,7 +1041,7 @@ ways (`fileNameOf` replaces characters no file system accepts; `nameOfFile` stri
 `Store<DocumentSession>`; it asks and reports through callbacks (the workbench shows dialogs),
 one file operation at a time:
 
-- **New Circuit** (`Mod+Alt+N`), **Open…** (`Mod+O`), **Open Recent**, an **example** and a
+- **New Document** (`Mod+Alt+N`), **Open…** (`Mod+O`), **Open Recent**, an **example** and a
   `.logic.json` **dropped** anywhere on the window replace the document: with unsaved changes
   they first ask **"Save changes to “name”?"** — Save (the default button; a cancelled Save
   cancels the action), Don't Save, Cancel (also Escape). Then `setCircuit` (history cleared,
@@ -1031,8 +1074,10 @@ keeps its handle where the browser gives one.
 The open document is restored as it was after a reload or a closed tab (`src/ui/autosave.ts`):
 
 - `Autosave` writes a `StoredSession` — name, the document text in the file format, unsaved
-  flag, file handle, camera, the debug setup (R14), time — at most **500 ms** after a change of
-  the circuit, the session, the view or the debug setup (later changes in that time ride along; selection and pointer moves don't count),
+  flag, file handle, the circuit open when it isn't the top (`open`, R11a), its camera, the debug
+  setup (R14), time — at most **500 ms** after a change of the document, the circuit open, the
+  session, the view or the debug setup (later changes in that time ride along; selection and
+  pointer moves don't count),
   at once when the page is hidden, and synchronously to `localStorage` on `pagehide`
   (`logic.unload.<id>`, without the handle: IndexedDB writes started while a page unloads don't
   finish). At start-up `recoverUnloadWrites` moves those into IndexedDB when newer.
@@ -1043,8 +1088,8 @@ The open document is restored as it was after a reload or a closed tab (`src/ui/
   the session.
 - **Start-up** (`src/app/App.tsx`, before the first render): `?example=<id>` (or `?gallery`) opens
   that example; else this tab's session, else the most recent one (a new tab), else Hello, LED
-  (a first launch). A restored session keeps its view and unsaved state; the history starts
-  empty and the simulation stopped. Blocked storage means nothing is restored or kept.
+  (a first launch). A restored session keeps the circuit open, its view and the unsaved state;
+  the history starts empty and the simulation stopped. Blocked storage means nothing is restored or kept.
 
 ### Open Recent
 
@@ -1111,6 +1156,13 @@ title and a description, in gallery order):
 - **SAP-1 Program Counter** — Ben Eater's program counter: a 74HC161 (CLR, CE, J) loading from a
   4-bit bus, a 74HC245 putting it on the bus (CO); the bus has pull-downs, a BUS bar and a
   DATA switch stand-in through another 74HC245. Unknown until CLR.
+- **Two-Digit Counter** (R11a) — a design of subcircuits two levels deep: **Decade Counter** (a
+  74HC163 cleared synchronously after 9 while enabled — a 74HC10 NAND of Q0, Q3 and EN, and a
+  74HC08 with RST — carry out CO, the bus port `Q[0..3]`) inside **Counter Digit** (with a
+  74HC4511: the counter's bus port onto a bus whose bits reach the decoder by name; segment ports
+  `a`–`g`), placed twice in Main with a 10 Hz clock, RESET (a button with a pull-up) and two
+  common-cathode displays; the ones digit's CARRY enables the tens. Probes reach into the
+  instances (`A1/A1/Q[0..3]` as ONES, decimal). Unknown until RESET.
 
 Two examples stay built in code (`src/app/examples.ts`): **Symbol Gallery** (every registered
 part with prop variants and placements, the 74HC chips, the NE555 in each mode and a 74HC245 in

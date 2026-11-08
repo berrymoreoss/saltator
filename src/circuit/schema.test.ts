@@ -109,7 +109,7 @@ describe('loadDocument', () => {
       schemaVersion: SCHEMA_VERSION,
       circuits: [{ ...v1.circuits[0], probes: [] }],
     });
-    expect(SCHEMA_VERSION).toBe(3);
+    expect(SCHEMA_VERSION).toBe(4);
   });
 
   it('opens a schema v2 document (before probes) with none', () => {
@@ -118,6 +118,33 @@ describe('loadDocument', () => {
       circuits: [{ id: 'main', name: 'Main', components: [], wires: [] }],
     };
     expect(loadDocument(v2).circuits[0]!.probes).toEqual([]);
+  });
+
+  it('opens a schema v3 document with its circuit ids turned into slugs', () => {
+    const v3 = {
+      schemaVersion: 3,
+      circuits: [
+        { id: 'main', name: 'Main', components: [], wires: [] },
+        { id: 'Adder_4', name: 'Adder', components: [], wires: [] },
+        { id: 'adder-4', name: 'Taken', components: [], wires: [] },
+      ],
+    };
+    expect(loadDocument(v3).circuits.map((c) => c.id)).toEqual(['main', 'adder-4-2', 'adder-4']);
+  });
+
+  it('requires circuit ids to be slugs', () => {
+    expect(
+      problemsOf({
+        schemaVersion: SCHEMA_VERSION,
+        circuits: [
+          { id: 'Main', name: 'Main', components: [], wires: [] },
+          { id: 'a--b', name: 'B', components: [], wires: [] },
+        ],
+      }),
+    ).toEqual([
+      'circuits[0].id: expected a circuit id (lowercase letters and digits, runs joined by -), got "Main"',
+      'circuits[1].id: expected a circuit id (lowercase letters and digits, runs joined by -), got "a--b"',
+    ]);
   });
 
   it('loads probes: signals by reference, groups of members, radixes', () => {

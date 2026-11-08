@@ -110,6 +110,32 @@ describe('DocumentController', () => {
     expect(documents.unsaved).toBe(false);
   });
 
+  it('opens and saves every circuit of a document; an edit in any of them is unsaved', async () => {
+    const { editor, files, documents } = setup();
+    const two: CircuitDocument = {
+      ...nandDocument(1),
+      circuits: [
+        nandDocument(1).circuits[0]!,
+        { ...nandDocument(2).circuits[0]!, id: 'sub', name: 'Sub' },
+      ],
+    };
+    files.disk.set('cpu.logic.json', serializeDocument(two));
+    files.opens.push('cpu.logic.json');
+    expect(await documents.open()).toBe(true);
+    expect(editor.state.get().document.circuits.map((c) => c.id)).toEqual(['main', 'sub']);
+    expect(editor.state.get().circuit.id).toBe('main');
+    editor.openCircuit('sub');
+    expect(documents.unsaved).toBe(false);
+    const sub = editor.state.get().circuit;
+    editor.edit('Move', { ...sub, components: sub.components.map((c) => ({ ...c, x: 9 })) });
+    expect(documents.unsaved).toBe(true);
+    expect(await documents.save()).toBe(true);
+    const saved = parseDocument(files.disk.get('cpu.logic.json')!);
+    expect(saved.circuits.map((c) => c.id)).toEqual(['main', 'sub']);
+    expect(saved.circuits[1]!.components[0]!.x).toBe(9);
+    expect(documents.unsaved).toBe(false);
+  });
+
   it('asks before replacing unsaved changes: Cancel keeps them, Save saves first', async () => {
     const cancel = setup(['cancel']);
     cancel.documents.show(openedSession('a', nandDocument(), { name: 'a.logic.json' }));

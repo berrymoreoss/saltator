@@ -1,6 +1,7 @@
 import { Eraser } from 'lucide-react';
 import { useEffect, useMemo, useRef } from 'react';
 import { DARK_CANVAS, type Editor, LIGHT_CANVAS, Store } from '../editor';
+import { CircuitsPanel } from './CircuitsPanel';
 import { ContextMenu } from './ContextMenu';
 import { ClipboardBridge } from './clipboard';
 import { CommandRegistry, dispatchShortcut } from './commands';
@@ -19,7 +20,7 @@ import { Panel, Splitter } from './Panel';
 import { PartInfoPanel } from './PartInfoPanel';
 import { PartsPanel } from './PartsPanel';
 import { PropertiesPanel } from './PropertiesPanel';
-import { PART_DRAG_TYPE } from './parts-filter';
+import { PART_DRAG_TYPE, placeableParts } from './parts-filter';
 import type { RecentFile, RecentFiles } from './recent-files';
 import { SpeedSelect } from './SimControls';
 import { SimulationBadges, SimulationPanel } from './SimulationPanel';
@@ -113,7 +114,9 @@ export function Workbench({
 
   // A boolean, so an edit re-renders the shell only when it changes.
   const session = useStore(documents.session);
-  const unsaved = useStoreValue(editor.state, (state) => hasUnsavedChanges(session, state.circuit));
+  const unsaved = useStoreValue(editor.state, (state) =>
+    hasUnsavedChanges(session, state.document),
+  );
   useEffect(() => {
     document.title = documentTitle(session.name, unsaved);
   }, [session.name, unsaved]);
@@ -171,6 +174,15 @@ export function Workbench({
     }
   }, [request, commands, settingsStore]);
 
+  // The Parts panel's parts: the library's and the document's circuits, except the circuits that
+  // contain the open one (placing them would make it contain itself).
+  const documentParts = useStoreValue(editor.state, (s) => s.design.registry);
+  const openCircuit = useStoreValue(editor.state, (s) => s.circuit.id);
+  const placeable = useMemo(
+    () => placeableParts(documentParts, openCircuit),
+    [documentParts, openCircuit],
+  );
+
   const setPanel = (id: PanelId, change: Partial<Settings['panels'][PanelId]>) =>
     settingsStore.update((s) => ({
       ...s,
@@ -180,7 +192,8 @@ export function Workbench({
     const { min, max } = PANEL_LIMITS[id];
     setPanel(id, { size: Math.round(Math.min(max, Math.max(min, size))) });
   };
-  const { parts, properties, bottom } = settings.panels;
+  const { circuits, parts, properties, bottom } = settings.panels;
+  const leftDock = circuits.visible || parts.visible;
   const showTab = (bottomTab: BottomTab) =>
     settingsStore.update((s) => ({
       ...s,
@@ -229,28 +242,55 @@ export function Workbench({
         widgets={{ speed: <SpeedSelect simulation={editor.simulation} /> }}
       />
       <div className="workbench-main">
-        {parts.visible && (
+        {leftDock && (
           <>
             <div className="dock dock-left" style={{ width: parts.size }}>
-              <Panel
-                title="Parts"
-                onClose={() => setPanel('parts', { visible: false })}
-                testId="parts-panel"
-              >
-                <PartsPanel
-                  registry={editor.registry}
-                  theme={canvasTheme}
-                  gateStyle={settings.gateStyle}
-                  searchRequest={uiState.searchRequest}
-                  armed={typeof tool === 'object' ? tool.type : undefined}
-                  onPick={(type) => {
-                    // …or a part clicked in the Parts panel.
-                    ui.update((s) => ({ ...s, partPick: { type } }));
-                    editor.placePart(type);
-                  }}
-                  onDrag={(type) => editor.dragPart(type)}
+              {circuits.visible && (
+                <div
+                  className={parts.visible ? 'dock-part' : 'dock-part fill'}
+                  style={parts.visible ? { height: circuits.size } : undefined}
+                >
+                  <Panel
+                    title="Circuits"
+                    onClose={() => setPanel('circuits', { visible: false })}
+                    testId="circuits-panel"
+                  >
+                    <CircuitsPanel editor={editor} commands={commands} mac={MAC} />
+                  </Panel>
+                </div>
+              )}
+              {circuits.visible && parts.visible && (
+                <Splitter
+                  orientation="horizontal"
+                  size={circuits.size}
+                  direction={1}
+                  onResize={resize('circuits')}
+                  label="Resize Circuits panel"
                 />
-              </Panel>
+              )}
+              {parts.visible && (
+                <div className="dock-part fill">
+                  <Panel
+                    title="Parts"
+                    onClose={() => setPanel('parts', { visible: false })}
+                    testId="parts-panel"
+                  >
+                    <PartsPanel
+                      registry={placeable}
+                      theme={canvasTheme}
+                      gateStyle={settings.gateStyle}
+                      searchRequest={uiState.searchRequest}
+                      armed={typeof tool === 'object' ? tool.type : undefined}
+                      onPick={(type) => {
+                        // …or a part clicked in the Parts panel.
+                        ui.update((s) => ({ ...s, partPick: { type } }));
+                        editor.placePart(type);
+                      }}
+                      onDrag={(type) => editor.dragPart(type)}
+                    />
+                  </Panel>
+                </div>
+              )}
             </div>
             <Splitter
               orientation="vertical"

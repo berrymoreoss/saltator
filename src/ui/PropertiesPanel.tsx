@@ -1,5 +1,5 @@
 import { type ReactNode, type Ref, useEffect, useRef, useState } from 'react';
-import { designatorError } from '../circuit';
+import { circuitUses, designatorError, renameCircuit, subcircuitOf } from '../circuit';
 import {
   formatTime,
   type PropDef,
@@ -96,10 +96,62 @@ export function PropertiesPanel({
     return <WireProperties wire={wires[0]!} scene={scene} editor={editor} />;
   }
   if (parts.length + wires.length > 1) return <MultiProperties parts={parts} wires={wires} />;
+  return <CircuitProperties editor={editor} scene={scene} nameRef={designator} />;
+}
+
+/** Nothing selected: the open circuit — its name (editable), its role, where it is placed. */
+function CircuitProperties({
+  editor,
+  scene,
+  nameRef,
+}: {
+  readonly editor: Editor;
+  readonly scene: Scene;
+  readonly nameRef: Ref<HTMLInputElement>;
+}) {
+  const { document, design } = useStore(editor.state);
+  const { circuit } = scene;
+  const top = circuit.id === design.top;
+  const uses = circuitUses(document, circuit.id);
+  const names = new Map(document.circuits.map((c) => [c.id, c.name]));
+  const definition = editor.registry.get(`sub/${circuit.id}`);
+  const ports =
+    definition && pinsOf(definition, {}).length > 0
+      ? definition.title.replace(/^Subcircuit: /, '')
+      : undefined;
   return (
-    <div className="props">
+    <div className="props" data-testid="circuit-properties">
       <Section title="Circuit">
-        <Row label="Name">{scene.circuit.name}</Row>
+        <Row label="Name">
+          <Field
+            key={circuit.id}
+            value={circuit.name}
+            label="Circuit name"
+            inputRef={nameRef}
+            testId="circuit-name"
+            validate={(text) => (text.trim() === '' ? 'A circuit needs a name.' : undefined)}
+            onCommit={(text) => {
+              // A circuit nothing places takes an id from its new name: follow it.
+              const index = document.circuits.indexOf(circuit);
+              const next = renameCircuit(document, circuit.id, text.trim());
+              editor.editDocument(`Rename ${circuit.name}`, next, {
+                open: next.circuits[index]?.id ?? circuit.id,
+              });
+            }}
+          />
+        </Row>
+        <Row label="Id">
+          <span className="mono">{circuit.id}</span>
+        </Row>
+        <Row label="Role">{top ? 'Top circuit: it simulates' : 'Subcircuit'}</Row>
+        {document.circuits.length > 1 && (
+          <Row label="Placed in">
+            {uses.length === 0
+              ? 'nowhere'
+              : uses.map((u) => `${names.get(u.circuit)}: ${u.components.join(', ')}`).join('; ')}
+          </Row>
+        )}
+        {ports && <Row label="Ports">{ports}</Row>}
         <Row label="Parts">{scene.parts.length}</Row>
         <Row label="Wires">{scene.wires.length}</Row>
         <Row label="Nets">{scene.compiled.nets.length}</Row>
@@ -210,6 +262,7 @@ function PartProperties({
   const circuit = editor.state.get().circuit;
   const integer = (text: string) =>
     /^\s*-?\d+\s*$/.test(text) ? undefined : 'Enter a whole number of grid cells.';
+  const placed = subcircuitOf(instance.type);
   return (
     <div className="props" data-testid="part-properties">
       <div className="props-heading">
@@ -217,6 +270,18 @@ function PartProperties({
         <span className="muted">{definition?.name ?? instance.type}</span>
       </div>
       {definition && <div className="props-subtitle">{definition.title}</div>}
+      {placed !== undefined && definition && (
+        <div className="props-subtitle">
+          <button
+            type="button"
+            className="link-button"
+            data-testid="open-subcircuit"
+            onClick={() => editor.openCircuit(placed)}
+          >
+            Open {definition.name}
+          </button>
+        </div>
+      )}
       {part.drawing.kind === 'broken' && <div className="props-error">{part.drawing.reason}</div>}
       <Section title="Part">
         <Row label="Designator">

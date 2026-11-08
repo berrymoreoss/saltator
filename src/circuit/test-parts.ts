@@ -9,6 +9,7 @@ import {
   Level,
   ns,
   type PinDef,
+  type PortSide,
   Registry,
   strong,
   weak,
@@ -144,7 +145,7 @@ export const testLamp = defineComponent<Record<string, never>, undefined>({
 
 /**
  * `test/label`: a schematic-only net label; its pin `N` joins the net named by `name` (capital
- * letters and digits). At (x, y): N (x, y).
+ * letters, digits and `/`, as in `R/W`). At (x, y): N (x, y).
  */
 export const testLabel = defineComponent<{ name: string }, undefined>({
   type: 'test/label',
@@ -157,7 +158,7 @@ export const testLabel = defineComponent<{ name: string }, undefined>({
       label: 'Name',
       type: 'string',
       default: 'N',
-      pattern: { regex: /^[A-Z0-9]+$/, hint: 'capital letters and digits' },
+      pattern: { regex: /^[A-Z0-9/]+$/, hint: 'capital letters, digits and /' },
     },
   ],
   pins: ({ name }) => [{ name: 'N', dir: 'nc', net: name }],
@@ -219,6 +220,52 @@ export const testBusEntry = defineComponent<{ name: string }, undefined>({
   create: () => ({}),
 });
 
+/**
+ * `test/port`: a schematic-only port; its pin `N` joins the net (or, named `D[0..3]`, the bus)
+ * of its name; `direction` and `side` as `net/port`'s. At (x, y): N (x, y).
+ */
+export const testPort = defineComponent<
+  { name: string; direction: 'in' | 'out' | 'bidir'; side: PortSide },
+  undefined
+>({
+  type: 'test/port',
+  name: 'PORT',
+  title: 'Test port',
+  designatorPrefix: 'P',
+  schematicOnly: true,
+  props: [
+    {
+      key: 'name',
+      label: 'Name',
+      type: 'string',
+      default: 'P',
+      pattern: { regex: /^[A-Z0-9]+(?:\[\d+\.\.\d+\])?$/, hint: 'a net or bus name' },
+    },
+    {
+      key: 'direction',
+      label: 'Direction',
+      type: 'enum',
+      default: 'in',
+      options: ['in', 'out', 'bidir'].map((value) => ({ value, label: value })),
+    },
+    {
+      key: 'side',
+      label: 'Side',
+      type: 'enum',
+      default: 'auto',
+      options: ['auto', 'left', 'right', 'top', 'bottom'].map((value) => ({ value, label: value })),
+    },
+  ],
+  port: ({ name, direction, side }) => ({ name, direction, side }),
+  pins: ({ name }) => [
+    name.includes('[')
+      ? { name: 'N', dir: 'nc', net: name, bus: true }
+      : { name: 'N', dir: 'nc', net: name },
+  ],
+  symbol: { kind: 'label', width: 2, height: 1, pins: { N: { side: 'left', offset: 0 } } },
+  create: () => ({}),
+});
+
 /** `test/hi`: a rail joining the net `HI` by name, output `Y` tied to 1. At (x, y): Y (x+5, y+1). */
 export const testHi = defineComponent<Record<string, never>, undefined>({
   type: 'test/hi',
@@ -262,5 +309,6 @@ export function testRegistry(): Registry {
     testBusEntry,
     testHi,
     testRom,
+    testPort,
   ]);
 }

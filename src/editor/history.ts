@@ -1,14 +1,17 @@
 /**
- * Undo/redo as document snapshots: an entry holds the circuit and selection before and after one
- * user action. Documents are immutable, so snapshots share every unchanged part and wire; nothing
- * has to be inverted and the history can't drift from the document. Pure values.
- * Spec: docs/editor.md#undo-and-redo.
+ * Undo/redo as document snapshots: an entry holds the document, the circuit open in it and the
+ * selection before and after one user action. Documents are immutable, so snapshots share every
+ * unchanged circuit, part and wire; nothing has to be inverted and the history can't drift from
+ * the document. One history for the whole document (R11a): undoing an edit made in another
+ * circuit opens that circuit. Pure values. Spec: docs/editor.md#undo-and-redo.
  */
-import type { Circuit } from '../circuit';
+import type { CircuitDocument } from '../circuit';
 import type { Selection } from './selection';
 
 export interface Snapshot {
-  readonly circuit: Circuit;
+  readonly document: CircuitDocument;
+  /** The id of the circuit open (and edited). */
+  readonly open: string;
   readonly selection: Selection;
 }
 
@@ -19,7 +22,10 @@ export interface HistoryEntry {
   readonly after: Snapshot;
   /** Consecutive entries with the same key merge into one (arrow-key nudges). */
   readonly coalesce?: string;
-  /** Parts renamed by the action, old designator → new (R05 carries simulator state over). */
+  /**
+   * Parts of the flattened design renamed by the action, old netlist id → new (`U1` → `U2`,
+   * `A1/U3` → `A2/U3`): R05 carries simulator state over.
+   */
   readonly renames?: ReadonlyMap<string, string>;
 }
 
@@ -63,7 +69,7 @@ export function pushEntry(history: History, entry: HistoryEntry, limit = HISTORY
     last &&
     entry.coalesce !== undefined &&
     last.coalesce === entry.coalesce &&
-    last.after.circuit === entry.before.circuit
+    last.after.document === entry.before.document
   ) {
     const renames = composeRenames(last.renames, entry.renames);
     const merged: HistoryEntry = {

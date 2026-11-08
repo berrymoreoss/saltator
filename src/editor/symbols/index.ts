@@ -13,6 +13,7 @@ import { IO_DRAWERS } from './io';
 import { LCD_DRAWERS } from './lcd';
 import { NET_DRAWERS } from './net';
 import { POWER_DRAWERS } from './power';
+import { SUBCIRCUIT_DRAWERS } from './subcircuit';
 import type { Drawer, GateStyle, PartLive } from './types';
 
 export { drawDip } from './dip';
@@ -30,6 +31,7 @@ export const DRAWERS: Readonly<Record<string, Drawer>> = {
   ...IO_DRAWERS,
   ...LCD_DRAWERS,
   ...NET_DRAWERS,
+  ...SUBCIRCUIT_DRAWERS,
 };
 
 /** What a part looks like in the running simulation, for its drawer. */

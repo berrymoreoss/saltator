@@ -26,7 +26,7 @@ the part before the slash (`familyOf(type)`).
 | -------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
 | `prim`   | `prim/nand`, `prim/tristate-buffer`, `prim/pull`                   | Abstract building blocks (Logisim-style), configurable inputs and delay. For prototyping and learning. |
 | `io`     | `io/switch`, `io/button`, `io/led`, `io/clock`, `io/seven-segment` | Interaction and indication: rails, switches, LEDs, displays, clock, probe ([below](#io-parts-io)).     |
-| `net`    | `net/label`, `net/bus-entry`                                       | Schematic-only connections: net and bus labels, bus entries ([below](#net-labels-net)); ports later.   |
+| `net`    | `net/label`, `net/bus-entry`, `net/port`                           | Schematic-only connections: net and bus labels, bus entries, ports ([below](#net-labels-net)).         |
 | `74xx`   | `74xx/74hc00`, `74xx/74hc245`, `74xx/74hc574`                      | Real logic chips ([below](#74xx-chips-74xx)). Behavior shared per function; timing per logic family.   |
 | `timer`  | `timer/ne555`                                                      | Analog timers, behavioral: the RC network as props ([below](#timers-timer)).                           |
 | `mem`    | `mem/at28c16`, `mem/6116`                                          | EEPROMs (read as ROMs) and SRAMs ([below](#memories-mem)); shown in the Memory tab (R12b).             |
@@ -429,8 +429,8 @@ rails change with zero delay, the clock's edges are exact.
 `net/label` (`src/library/net`): a flag with a name and one connection point. Every label of
 one name — and every VCC or GND symbol for the names `VCC`, `GND` — is one net, so distant parts
 connect without a wire between them (KiCad's net label, Logisim's tunnel). Schematic-only: it
-is drawn and connects, never simulated. Scope: the whole circuit (local vs global labels come
-with R11).
+is drawn and connects, never simulated. Scope: its circuit; in a subcircuit's instances the
+power names stay global (R11a, [circuit.md](circuit.md#subcircuits)).
 
 | Pins       | Props           | Notes                                                                   |
 | ---------- | --------------- | ----------------------------------------------------------------------- |
@@ -471,6 +471,36 @@ bus line. Schematic-only.
   special.
 - Names are net names, not bus names. An entry on a named bus whose name isn't a member is a
   `bus-entry-member` warning.
+
+### Ports (`net/port`)
+
+`net/port` (`src/library/net`, R11a): a subcircuit's interface pin, KiCad's hierarchical
+label. Like a net label it joins the net — named like a bus, the bus — of its name in its
+circuit; an instance of that circuit then has a pin of that name, which joins whatever the outer
+circuit connects to it ([circuit.md](circuit.md#subcircuits)). Electrically every port is a plain
+connection, as a board's connector is; its direction shapes the flag, says where `auto` puts the
+pin and feeds the design checks. Schematic-only; declared through `ComponentDefinition.port`.
+
+| Pins       | Props                                                                    | Notes                                                             |
+| ---------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------- |
+| `N` (`nc`) | `name` (`PORT1`), `direction` (`in`, `out`, `bidir`), `side` (`auto`, …) | `net: name`; designator `P`, not drawn; symbol `port`, `centered` |
+
+- **Names**: net or bus names, as a net label's. A port named like a bus is a **bus port**: its
+  pin is a bus pin, and the instance's pin of that name a bus pin whose bits join the outer bus
+  bit by bit.
+- **Side**: where the instance symbol puts the pin — `left`, `right`, `top`, `bottom`, or
+  `auto` (inputs left, outputs and bidirectional ports right).
+- **Drawing**: a flag one cell high, `centered` on the pin's row, wide enough for a point at both
+  ends (`portWidth`), so changing the direction moves nothing: an input points into the circuit
+  (at its connection point), an output away from it, a bidirectional port both ways; a heavier
+  outline than a label's (a bus port's in the bus color) and the name in bold; a bus port shows
+  the bus value while simulating.
+- **Placing**: Place ▸ Port (`Shift+L`), by its connection point; each named after the last
+  (`D0` → `D1`) with the same direction and side.
+- **Checks** ([circuit.md](circuit.md#design-checks)): two ports giving one name (`CLK` twice,
+  `D3` beside `D[0..7]`) are a `duplicate-port` error; an input or bidirectional port counts as
+  a driver of its nets, so inputs fed by ports aren't `undriven-input`; a name a port gives is
+  never a `single-net-label`.
 
 ## 74xx chips (`74xx/*`)
 
@@ -769,7 +799,7 @@ Alliance Memory for the 62256.
 | `mem/62256`    | AS6C62256-55       | 32K × 8 SRAM   | DIP-28  | tAA 55, tACE 55, tOE 30 ns     | `powerOn`; Alliance's names `DQ0`…`DQ7`, `VSS`   |
 
 - **Pins**: data sheet names, the data pins named `IO0`…`IO7` and drawn `I/O0`… (no `/` in pin
-  names: R11's instance paths will use it), `DQ0`…`DQ7` on the AS6C62256; `CE̅`/`CS̅`, `OE̅`, `WE̅` active LOW, data pins `bidir`.
+  names: instance paths use it), `DQ0`…`DQ7` on the AS6C62256; `CE̅`/`CS̅`, `OE̅`, `WE̅` active LOW, data pins `bidir`.
   The mode tables are `functionTable`s with text cells (`Dout`, `Din`), checked by hand.
 - **Reads** (`ReadPath` in `memory.ts`), with the outputs driving while `CE̅` and `OE̅` are LOW
   (and, for a RAM, `WE̅` HIGH):

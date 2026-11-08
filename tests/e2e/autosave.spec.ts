@@ -73,7 +73,7 @@ test('a new tab starts from the latest session; each tab then keeps its own', as
   await second.addInitScript(stubFileSystemAccess);
   await openApp(second);
   await expect(second).toHaveTitle('• Hello, LED — Logic');
-  await menu(second, 'File', 'New Circuit');
+  await menu(second, 'File', 'New Document');
   await second.getByTestId('unsaved-dialog').getByRole('button', { name: 'Don’t Save' }).click();
   await expect(second).toHaveTitle('Untitled — Logic');
   await expect

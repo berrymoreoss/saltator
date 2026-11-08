@@ -102,6 +102,12 @@ export const EXAMPLE_FILES: readonly ExampleFile[] = [
     description:
       'Ben Eater’s program counter: a 74HC161 counts, jumps to the bus value and a 74HC245 puts it on a 4-bit bus. CLR first.',
   },
+  {
+    id: 'two-digit-counter',
+    title: 'Two-Digit Counter',
+    description:
+      'Subcircuits: a 74HC163 Decade Counter inside a Counter Digit with its 74HC4511, placed twice and cascaded to count 00–99 at 10 Hz. RESET first.',
+  },
 ];
 
 // Not a JSON import: the text is kept as saved and parsed (migrated, validated) like any file.

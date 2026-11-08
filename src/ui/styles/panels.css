@@ -33,6 +33,77 @@
   height: 100%;
 }
 
+/* The Circuits list (R11a): one row a circuit, the open one highlighted, the top starred. */
+.circuits {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: auto;
+}
+
+.circuits-list {
+  margin: 0;
+  padding: 2px 0;
+  list-style: none;
+}
+
+.circuit-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  height: 22px;
+  padding: 0 8px 0 4px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.circuit-row:hover {
+  background: var(--hover-bg);
+}
+
+.circuit-row.open {
+  background: var(--active-bg);
+  font-weight: 600;
+}
+
+.circuit-top {
+  display: inline-flex;
+  flex: none;
+  width: 12px;
+  color: var(--accent);
+}
+
+.circuit-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.circuit-count {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.circuits-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 2px 8px 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+
 .search-box {
   display: flex;
   align-items: center;
@@ -204,6 +275,20 @@
 .props-subtitle {
   padding: 0 10px 6px;
   color: var(--fg-muted);
+}
+
+/* A command that reads like a link: Open <subcircuit> in Properties. */
+.link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.link-button:hover {
+  text-decoration: underline;
 }
 
 .props-error {

@@ -68,6 +68,10 @@ display shift moves.
 Real chips carry it as data (`functionTable`, columns with the data sheet's generic names such as
 `nA nB | nY`), shown in the Part tab.
 
+**Design** — the top circuit with every subcircuit instance expanded into one flat netlist, which
+the simulator runs (`compileDesign`): inner parts by instance path (`A1/U3`), nets joined
+through ports. The kernel never sees the hierarchy.
+
 **Enable / disable time (ten, tdis)** — how long a 3-state output takes to start driving after
 its enable becomes active (`ten`, tPZH/tPZL) and to release the net after it becomes inactive
 (`tdis`, tPHZ/tPLZ). When `tdis > ten`, two outputs handing a bus over at one instant fight
@@ -122,6 +126,10 @@ in the editor; the pins are the same either way.
 **HD44780** — Hitachi's character LCD controller (HD44780U; clones: ST7066U, KS0066, SPLC780):
 on nearly every 16 × 2 and 20 × 4 text display module, driven over RS, R/W̅, E and an 8- or
 4-bit data bus (`periph/hd44780`).
+
+**Instance path** — where a part or net sits in the hierarchy: designators of instances from the
+top down, then the inner name (`A1/A2/U1.Y`, `A1/CLK`). How the Waveforms tab, watches,
+breakpoints and the Memory tab name things inside subcircuits.
 
 **Interact tool** — the tool that operates parts while simulating: flip a switch or DIP switch,
 hold a push button, step a manual clock (`I`; Run selects it).
@@ -186,6 +194,10 @@ on a bus line and names that bus.
 **On-time / brightness** — how long an indicator's light has been on; its share of a frame is
 the brightness drawn, so a multiplexed display or an LED on a fast clock shows its average.
 
+**Port** — a subcircuit's interface pin (KiCad's hierarchical label): a flag named like a net
+(or a bus, `D[0..7]`) inside the circuit, a pin of that name on every instance of it. Its
+direction shapes the flag and the instance symbol's side; electrically it is a plain connection.
+
 **Propagation delay (tpd, tPLH, tPHL)** — time from an input change to the resulting output
 change; tPLH for low→high, tPHL for high→low output transitions. MSI chips give one per **delay
 path** (74HC138: `An to Yn`, `E3 to Yn`); several inputs changing at once take the longest.
@@ -220,6 +232,10 @@ next): cheap, but its outputs change one after another, passing through wrong va
 74HC107 chain going 15 → 0 shows 14, 12, 8 on the way, 19 ns apart; a 74HC4040 ripples 10 ns
 per stage). Gates decoding its outputs glitch.
 
+**Subcircuit (instance)** — a circuit of the document placed inside another, drawn as a box whose
+pins are its ports (`A1`, `A2`: IEEE 315's `A` for an assembly). Every instance has its own
+parts and state; editing the circuit changes them all. A module of a breadboard computer.
+
 **Synchronous counter** — a counter whose flip-flops all take the same clock edge, so its
 outputs change together (74HC161, 163, 191, 193); it can load a value (**parallel load**) and
 count only when enabled. Its **terminal count** output (TC) signals the last state (15 counting
@@ -241,9 +257,9 @@ shifting.
 **Johnson counter** — a shift register whose inverted last stage feeds its input: it fills with
 ones, then with zeros, 2n states for n stages (the Shift Register LEDs example).
 
-**Resolver** — what turns a reference (`U5`, `U5.A0`, `CLK`, `D[0..7]`) into the compiled
-circuit's part, pin, net or bus; one place for the memory inspector, probes, watches and test
-benches, where subcircuit paths (`U5/D0`) will be added.
+**Resolver** — what turns a reference (`U5`, `U5.A0`, `CLK`, `D[0..7]`, inside instances
+`A1/U3.Q0`) into the compiled design's part, pin, net or bus; one place for the memory
+inspector, probes, watches and test benches.
 
 **Rubber-banding** — wires following a part as it is moved, rotated or flipped: they stretch,
 slide a corner or bend, so connections are kept.
@@ -299,6 +315,9 @@ editor): run, pause, step, stop, reset, speed, frame budget, following edits.
 time.
 
 **Test vector** — one row of a test bench table: inputs to apply and outputs expected.
+
+**Top circuit** — the document's first circuit, starred in the Circuits list: the one that
+simulates, with every instance in it flattened. Set as Top Circuit makes another one the top.
 
 **Trigger** — a condition that catches a moment in a run, as on a logic analyzer: levels and
 bus values ANDed with at most one edge; when it fires, the run goes on for the rest of the

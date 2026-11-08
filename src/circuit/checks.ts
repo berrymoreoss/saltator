@@ -3,7 +3,7 @@
  * carries enough location data (component, pin, wire, net, point) to be shown on the canvas.
  * Spec: docs/circuit.md#design-checks.
  */
-import { isDriverPin, type PinDir } from '../core';
+import { busMembers, isBusName, isDriverPin, type PinDir, type PortDirection } from '../core';
 import type { WireEnd } from './connectivity';
 import type { Wire } from './document';
 import type { Point } from './geometry';
@@ -16,7 +16,10 @@ export type DesignIssueCode =
   | 'dangling-wire'
   | 'multiple-net-names'
   | 'single-net-label'
-  | 'bus-entry-member';
+  | 'bus-entry-member'
+  | 'duplicate-port'
+  | 'recursive-subcircuit'
+  | 'bus-port-width';
 
 export interface DesignIssue {
   readonly severity: 'error' | 'warning';
@@ -41,6 +44,13 @@ export interface PlacedPin {
   readonly constant?: 0 | 1;
   /** The circuit-wide net the pin joins by name (net labels, VCC and GND symbols). */
   readonly net?: string;
+  /** The pin of a port (R11a): the circuit's interface pin of that direction, named `net`. */
+  readonly port?: PortDirection;
+  /**
+   * The pin of a subcircuit instance (R11a): it connects through to the instance's inside, so
+   * what drives it is there — a possible driver here, never a push-pull output.
+   */
+  readonly instance?: true;
   readonly at: Point;
 }
 
@@ -56,6 +66,8 @@ export interface CircuitNet {
   readonly pins: readonly PlacedPin[];
   /** Pins of schematic-only parts (net labels): drawn and connected, never simulated. */
   readonly schematicPins: readonly PlacedPin[];
+  /** Pins of subcircuit instances (R11a): they join nets inside the instances when flattened. */
+  readonly instancePins: readonly PlacedPin[];
   readonly wires: readonly Wire[];
 }
 
@@ -115,13 +127,22 @@ function secondSource(outputs: readonly PlacedPin[]): PlacedPin | undefined {
   return undefined;
 }
 
-/** Inputs on nets that nothing could drive: unconnected, or connected only to other inputs. */
-export function undrivenInputs(nets: readonly CircuitNet[]): DesignIssue[] {
+/**
+ * Inputs on nets that nothing could drive: unconnected, or connected only to other inputs. A net
+ * named in `driven` may be driven from outside the circuit (the names of its input and
+ * bidirectional ports, a bus port's members).
+ */
+export function undrivenInputs(
+  nets: readonly CircuitNet[],
+  driven: ReadonlySet<string> = new Set(),
+): DesignIssue[] {
   const issues: DesignIssue[] = [];
   for (const net of nets) {
-    if (net.pins.some((p) => isDriverPin(p.dir))) continue;
-    const alone = net.pins.length === 1 && net.wires.length === 0 && net.schematicPins.length === 0;
-    for (const pin of net.pins) {
+    const inputs = [...net.pins, ...net.instancePins];
+    if (inputs.some((p) => isDriverPin(p.dir))) continue;
+    if (net.names.some((name) => driven.has(name))) continue;
+    const alone = inputs.length === 1 && net.wires.length === 0 && net.schematicPins.length === 0;
+    for (const pin of inputs) {
       if (pin.dir !== 'in' || pin.sense) continue;
       issues.push({
         severity: 'warning',
@@ -237,17 +258,19 @@ export function busEntryMembers(
 /**
  * Net labels and bus entries whose name nothing else uses (no other label or entry, no VCC/GND
  * symbol): they join nothing by name, which is usually a typo (`CKL` for `CLK`). `entries` are
- * the bus entries among the schematic-only parts.
+ * the bus entries among the schematic-only parts. Names a port gives (`portNames`: its name,
+ * a bus port's members) never count: the port is their connection to the outside.
  */
 export function singleNetLabels(
   nets: readonly CircuitNet[],
   entries: ReadonlySet<string> = new Set(),
+  portNames: ReadonlySet<string> = new Set(),
 ): DesignIssue[] {
   const issues: DesignIssue[] = [];
   for (const net of nets) {
     for (const label of net.schematicPins) {
       const name = label.net;
-      if (name === undefined) continue;
+      if (name === undefined || portNames.has(name)) continue;
       const uses = [...net.pins, ...net.schematicPins].filter((p) => p.net === name).length;
       if (uses > 1) continue;
       const kind = entries.has(label.component) ? 'bus entry' : 'net label';
@@ -261,6 +284,50 @@ export function singleNetLabels(
         at: label.at,
       });
     }
+  }
+  return issues;
+}
+
+/** A port of the compiled circuit: its part, name and direction, where its pin is. */
+export interface PlacedPort {
+  readonly component: string;
+  readonly pin: string;
+  readonly name: string;
+  readonly direction: PortDirection;
+  readonly at: Point;
+}
+
+/** The net names a port gives: its name, or a bus port's members. */
+export function portBits(name: string): readonly string[] {
+  return isBusName(name) ? busMembers(name) : [name];
+}
+
+/**
+ * Ports that give a name another port gives already: two ports named `CLK`, or `D3` beside the
+ * bus port `D[0..7]`. An instance would have two pins for one signal; the first port keeps it.
+ */
+export function duplicatePorts(ports: readonly PlacedPort[]): DesignIssue[] {
+  const issues: DesignIssue[] = [];
+  const owner = new Map<string, PlacedPort>();
+  for (const port of ports) {
+    const bits = portBits(port.name);
+    const clash = bits.map((bit) => [bit, owner.get(bit)] as const).find(([, first]) => first);
+    if (clash) {
+      const [bit, first] = clash as readonly [string, PlacedPort];
+      issues.push({
+        severity: 'error',
+        code: 'duplicate-port',
+        message:
+          first.name === port.name
+            ? `ports ${first.component} and ${port.component} are both named ${port.name}`
+            : `port ${port.component} "${port.name}" gives ${bit}, which port ${first.component} "${first.name}" gives already`,
+        component: port.component,
+        pin: port.pin,
+        at: port.at,
+      });
+      continue;
+    }
+    for (const bit of bits) owner.set(bit, port);
   }
   return issues;
 }

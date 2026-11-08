@@ -15,9 +15,20 @@ export type {
 export { type CompileResult, compileCircuit, compileDocument } from './compile';
 export { type Connectivity, connect, type WireEnd, type WireSegment } from './connectivity';
 export {
+  type CircuitIssue,
+  CompileCache,
+  compileDesign,
+  type Design,
+  type DesignInstance,
+  type DesignOptions,
+  recursiveInstances,
+} from './design';
+export {
+  CIRCUIT_ID,
   type Circuit,
   type CircuitDocument,
   type ComponentInstance,
+  circuitIdFor,
   emptyCircuit,
   emptyDocument,
   type GroupProbe,
@@ -30,6 +41,20 @@ export {
   type SignalProbe,
   type Wire,
 } from './document';
+export {
+  addCircuit,
+  circuitsContaining,
+  circuitUses,
+  duplicateCircuit,
+  fragmentDocument,
+  importCircuits,
+  placementsOf,
+  removeCircuit,
+  renameCircuit,
+  renamePartInDocument,
+  replaceCircuit,
+  setTopCircuit,
+} from './document-edit';
 export {
   addComponents,
   addWires,
@@ -49,6 +74,7 @@ export {
   renameInProbes,
   renameReference,
   sameCircuit,
+  sameDocument,
   sameProbes,
   translateCircuit,
   updateComponent,
@@ -99,3 +125,17 @@ export {
 } from './resolve';
 export { DocumentError, type LoadOptions, loadDocument, parseDocument } from './schema';
 export { serializeDocument } from './serialize';
+export {
+  type CircuitPort,
+  circuitPorts,
+  DocumentRegistry,
+  documentRegistry,
+  SUBCIRCUIT_FAMILY,
+  SUBCIRCUIT_PIN_FONT,
+  SUBCIRCUIT_PREFIX,
+  SUBCIRCUIT_TITLE_FONT,
+  subcircuitDefinition,
+  subcircuitOf,
+  subcircuitRoom,
+  subcircuitType,
+} from './subcircuit';

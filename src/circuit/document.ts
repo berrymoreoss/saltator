@@ -8,24 +8,37 @@ import type { Point, Rotation } from './geometry';
 
 /**
  * Version written into every saved document. Bump it together with a migration.
- * v2 (R10b): bus lines (`Wire.bus`). v3 (R13): probes (`Circuit.probes`).
+ * v2 (R10b): bus lines (`Wire.bus`). v3 (R13): probes (`Circuit.probes`). v4 (R11a): several
+ * circuits with subcircuit instances; circuit ids are slugs (`CIRCUIT_ID`).
  */
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 /**
- * Ids of circuits, components (their designators: `U1`, `SW1`) and wires: a letter or `_`, then
+ * Ids of components (their designators: `U1`, `SW1`) and wires: a letter or `_`, then
  * letters, digits, `_` or `-`. No dots, because netlists address pins as `U1.Y`.
  */
 export const ID_PATTERN = /^[A-Za-z_][A-Za-z0-9_-]*$/;
 
+/**
+ * Ids of circuits: lowercase letters and digits in dash-separated runs (`main`,
+ * `decade-counter`), the part half of a type id, since an instance of a circuit is a part of
+ * type `sub/<circuit id>`.
+ */
+export const CIRCUIT_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
 export interface CircuitDocument {
   readonly schemaVersion: typeof SCHEMA_VERSION;
-  /** At least one. The first is used; subcircuits (R11) give the others a meaning. */
+  /**
+   * At least one, ids unique. The first is the **top** circuit: the one that simulates and opens
+   * at load; the others are subcircuits placed in it (or in each other), in the order listed.
+   */
   readonly circuits: readonly Circuit[];
 }
 
 export interface Circuit {
+  /** A slug (`CIRCUIT_ID`); kept when the circuit is renamed, so its instances keep their type. */
   readonly id: string;
+  /** Display text: the Circuits list, the instance symbol's title. */
   readonly name: string;
   readonly components: readonly ComponentInstance[];
   readonly wires: readonly Wire[];
@@ -98,4 +111,22 @@ export function emptyDocument(name = 'Main'): CircuitDocument {
 
 export function emptyCircuit(id = 'main', name = 'Main'): Circuit {
   return { id, name, components: [], wires: [], probes: [] };
+}
+
+/**
+ * A circuit id for `name`, not in `taken`: the name as a slug (`Decade Counter` →
+ * `decade-counter`; `circuit` if nothing is left), then `-2`, `-3`, … until it is free.
+ */
+export function circuitIdFor(name: string, taken: Iterable<string> = []): string {
+  const used = new Set(taken);
+  const base =
+    name
+      .normalize('NFKD') // é → e + a combining accent, dropped next
+      .replace(/\p{M}/gu, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'circuit';
+  let id = base;
+  for (let n = 2; used.has(id); n++) id = `${base}-${n}`;
+  return id;
 }

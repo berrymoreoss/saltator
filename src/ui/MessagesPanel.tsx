@@ -1,5 +1,5 @@
 import { CircleCheck, CircleX, TriangleExclamationPoint } from 'lucide-react';
-import type { DesignIssue } from '../circuit';
+import type { CircuitIssue, DesignIssue } from '../circuit';
 import type { Editor } from '../editor';
 import { useStore } from './hooks';
 
@@ -12,12 +12,19 @@ export function issueLocation(issue: DesignIssue): string {
 }
 
 /**
- * The design checks of the current circuit, errors first. Click selects the item and brings it
- * into view; double-click zooms to it.
+ * The design checks of every circuit of the document, errors first (R11a: each with its circuit
+ * when there are several). Click opens the circuit, selects the item and brings it into view;
+ * double-click zooms to it.
  */
 export function MessagesPanel({ editor }: { readonly editor: Editor }) {
-  const { scene } = useStore(editor.state);
-  const { issues } = scene;
+  const { design, document } = useStore(editor.state);
+  const { issues } = design;
+  const names = new Map(document.circuits.map((c) => [c.id, c.name]));
+  const several = document.circuits.length > 1;
+  const locate = (issue: CircuitIssue, zoom: boolean) => {
+    editor.openCircuit(issue.circuit);
+    editor.locate(issue, { zoom });
+  };
   if (issues.length === 0) {
     return (
       <div className="messages-empty">
@@ -33,8 +40,8 @@ export function MessagesPanel({ editor }: { readonly editor: Editor }) {
           <button
             type="button"
             className={`message ${issue.severity}`}
-            onClick={() => editor.locate(issue)}
-            onDoubleClick={() => editor.locate(issue, { zoom: true })}
+            onClick={() => locate(issue, false)}
+            onDoubleClick={() => locate(issue, true)}
             title="Click to locate, double-click to zoom"
           >
             {issue.severity === 'error' ? (
@@ -44,7 +51,10 @@ export function MessagesPanel({ editor }: { readonly editor: Editor }) {
             )}
             <span className="message-code mono">{issue.code}</span>
             <span className="message-text">{issue.message}</span>
-            <span className="message-where mono">{issueLocation(issue)}</span>
+            <span className="message-where mono">
+              {several ? `${names.get(issue.circuit)}: ` : ''}
+              {issueLocation(issue)}
+            </span>
           </button>
         </li>
       ))}
@@ -54,9 +64,9 @@ export function MessagesPanel({ editor }: { readonly editor: Editor }) {
 
 /** The Messages tab's badges: design-check errors and warnings. */
 export function MessagesBadges({ editor }: { readonly editor: Editor }) {
-  const { scene } = useStore(editor.state);
-  const errors = scene.issues.filter((i) => i.severity === 'error').length;
-  const warnings = scene.issues.length - errors;
+  const { design } = useStore(editor.state);
+  const errors = design.issues.filter((i) => i.severity === 'error').length;
+  const warnings = design.issues.length - errors;
   return (
     <>
       {errors > 0 && <span className="tab-badge error">{errors}</span>}

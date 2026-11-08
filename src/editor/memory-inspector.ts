@@ -5,7 +5,7 @@
  * document edit), a simulated RAM takes debug writes (`poke`). No DOM: the Memory tab renders
  * it, and tests drive it with a fake clock. Spec: docs/editor.md#memory-inspector.
  */
-import { compareDesignators, Resolver } from '../circuit';
+import { compareDesignators, type Design, Resolver } from '../circuit';
 import {
   applyImageWrites,
   busValueText,
@@ -20,7 +20,6 @@ import {
   toInput,
 } from '../core';
 import type { Editor } from './editor';
-import type { Scene } from './scene';
 import type { SimClock } from './simulation';
 
 /** One memory of the circuit, as the picker lists it. */
@@ -133,7 +132,7 @@ class AccessClock {
 export class MemoryInspector {
   readonly #editor: Editor;
   readonly #clock: SimClock;
-  #scene: Scene | undefined;
+  #design: Design | undefined;
   #entries: readonly MemoryEntry[] = [];
   readonly #images = new Map<string, { readonly text: string; readonly bytes: Uint8Array }>();
   readonly #accesses = new AccessClock();
@@ -148,12 +147,12 @@ export class MemoryInspector {
     simulation.onRewind(({ time }) => this.#accesses.clear(time));
   }
 
-  /** The memories of the circuit, in designator order. */
+  /** The memories of the design — inside instances by path (`A1/U3`) — in designator order. */
   memories(): readonly MemoryEntry[] {
-    const { scene } = this.#editor.state.get();
-    if (scene !== this.#scene) {
-      this.#scene = scene;
-      const resolver = new Resolver(scene.compiled, this.#editor.registry);
+    const { design } = this.#editor.state.get();
+    if (design !== this.#design) {
+      this.#design = design;
+      const resolver = new Resolver(design, this.#editor.registry);
       this.#entries = resolver
         .memories()
         .map(({ id, type, definition, memory }) => ({
@@ -297,7 +296,8 @@ export class MemoryInspector {
     const key = this.#imageProp(entry)?.key;
     if (!image || key === undefined) return `${id} has no contents to edit.`;
     const text = formatImage(applyImageWrites(image.bytes.slice(), writes));
-    return this.#editor.setPartProp(id, key, text, options);
+    // A ROM inside an instance: its circuit's image, shared by every instance of it.
+    return this.#editor.setPartPropAt(id, key, text, options);
   }
 
   #imageProp(entry: MemoryEntry): PropDef | undefined {
@@ -309,7 +309,7 @@ export class MemoryInspector {
     const entry = this.entry(id);
     const definition = entry && this.#editor.registry.get(entry.type);
     const prop = entry && this.#imageProp(entry);
-    const instance = this.#editor.state.get().circuit.components.find((c) => c.id === id);
+    const instance = this.#editor.partAt(id)?.part;
     if (!definition || !prop || !instance || entry.volatile) return undefined;
     const text = String(resolveProps(definition, instance.props, id)[prop.key] ?? '');
     const cached = this.#images.get(id);

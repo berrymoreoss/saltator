@@ -5,7 +5,7 @@
  * statistics. The debug setup lives in the session, not in the document (ADR-0020). No DOM: the
  * Debug tab draws it, and tests drive it with a fake clock. Spec: docs/editor.md#debugger.
  */
-import { type ProbeRadix, Resolver, renameReference } from '../circuit';
+import { type Design, type ProbeRadix, Resolver, renameReference } from '../circuit';
 import {
   busMembers,
   conditionProblems,
@@ -24,7 +24,6 @@ import {
 import { clockPhases } from '../library';
 import { formatValue } from './analyzer';
 import type { Editor } from './editor';
-import type { Scene } from './scene';
 import type { BackSearch, SimClock } from './simulation';
 import { Store } from './store';
 import { comparePositions, type TimelinePosition } from './timeline';
@@ -297,7 +296,7 @@ export class Debugger {
   readonly #clock: SimClock;
   /** The levels breakpoints are evaluated on: only their signals. */
   readonly #recorder = new Recorder({ budget: DEBUG_BUDGET });
-  #scene: Scene | undefined;
+  #design: Design | undefined;
   #sim: Simulator | undefined;
   /** Recorder channel by bit reference; net id (of the scene's compile) by bit reference. */
   #bits = new Map<string, number>();
@@ -395,7 +394,7 @@ export class Debugger {
 
   /** Why these terms can't make a breakpoint (empty when they can). */
   termProblems(terms: readonly DebugTerm[]): string[] {
-    const built = this.#buildTerms(terms, new Resolver(this.#compiled(), this.#editor.registry));
+    const built = this.#buildTerms(terms, this.#resolver());
     return typeof built === 'string' ? [built] : conditionProblems(built.terms);
   }
 
@@ -480,7 +479,7 @@ export class Debugger {
 
   /** The net named `CLK`, else the first clock part's output; undefined when neither exists. */
   defaultClock(): DebugSignal | undefined {
-    const resolver = new Resolver(this.#compiled(), this.#editor.registry);
+    const resolver = this.#resolver();
     const clk = resolver.resolve('CLK');
     if (typeof clk !== 'string' && clk.kind === 'net') return 'CLK';
     const outputs: Readonly<Record<string, string>> = { 'io/clock': 'Y', 'timer/ne555': 'OUT' };
@@ -547,12 +546,12 @@ export class Debugger {
     return undefined;
   }
 
-  /** The manual `io/clock` driving a net of the scene, with its phases, if one does. */
+  /** The manual `io/clock` driving a net of the design, with its phases, if one does. */
   #manualClock(net: string): { id: string; phases: { high: Time; low: Time } } | undefined {
-    const compiled = this.#compiled();
-    const pins = compiled.nets.find((n) => n.id === net)?.pins ?? [];
+    const { netlist } = this.#editor.state.get().design;
+    const pins = netlist.nets.find((n) => n.id === net)?.pins ?? [];
     for (const pin of pins) {
-      const part = compiled.netlist.components.find((c) => c.id === pin.component);
+      const part = netlist.components.find((c) => c.id === pin.component);
       const definition = part && this.#editor.registry.get(part.type);
       if (part?.type !== 'io/clock' || !definition) continue;
       // Documents may leave props at their defaults out.
@@ -740,9 +739,9 @@ export class Debugger {
     const counts = this.#activity;
     if (!sim || !counts) return [];
     const span = (sim.now - this.#activityFrom) / 1e12;
-    const resolver = new Resolver(this.#compiled(), this.#editor.registry);
+    const resolver = this.#resolver();
     const names = new Map<number, string>();
-    for (const net of this.#compiled().nets) {
+    for (const net of this.#editor.state.get().design.netlist.nets) {
       const index = this.#editor.simulation.netOf(net.id);
       if (index !== undefined && !names.has(index)) {
         names.set(index, resolver.netReference(net.id) ?? net.id);
@@ -762,15 +761,16 @@ export class Debugger {
 
   // ── Following the editor ────────────────────────────────────────────────────────────────
 
-  #compiled() {
-    return this.#editor.state.get().scene.compiled;
+  /** References resolve against the design: the top flattened, paths into instances (R11a). */
+  #resolver(): Resolver {
+    return new Resolver(this.#editor.state.get().design, this.#editor.registry);
   }
 
   #sync(): void {
-    const { scene, renames } = this.#editor.state.get();
+    const { design, renames } = this.#editor.state.get();
     let changed = false;
-    if (scene !== this.#scene) {
-      this.#scene = scene;
+    if (design !== this.#design) {
+      this.#design = design;
       if (renames) this.#rename(renames);
       changed = true;
     }
@@ -890,7 +890,7 @@ export class Debugger {
   #rebuild(): void {
     const old = this.#built;
     this.#built = new Map();
-    const resolver = new Resolver(this.#compiled(), this.#editor.registry);
+    const resolver = this.#resolver();
     const used = new Set<string>();
     const nets = new Map<string, string>();
     for (const breakpoint of this.setup.get().breakpoints) {
@@ -1068,7 +1068,7 @@ export class Debugger {
   }
 
   #watchValues(): WatchView[] {
-    const resolver = new Resolver(this.#compiled(), this.#editor.registry);
+    const resolver = this.#resolver();
     const paused = this.#editor.simulation.state !== 'running';
     const base = paused ? this.#prevStop : this.#lastStop;
     return this.setup.get().watches.map((watch, index) => {
@@ -1128,7 +1128,7 @@ export class Debugger {
   #parseWatch(text: string): Watch | string {
     const trimmed = text.trim();
     if (trimmed === '') return 'Type a signal or memory cells (U5[1F]).';
-    const resolver = new Resolver(this.#compiled(), this.#editor.registry);
+    const resolver = this.#resolver();
     const members = signalMembers(trimmed);
     if (members.length === 1) {
       const target = resolver.resolve(trimmed);
@@ -1146,7 +1146,7 @@ export class Debugger {
   }
 
   #clockNet(signal: DebugSignal): { readonly net: string } | string {
-    const resolver = new Resolver(this.#compiled(), this.#editor.registry);
+    const resolver = this.#resolver();
     const members = signalMembers(signal);
     if (members.length !== 1) return 'The step clock is one signal.';
     const target = resolver.signal(members[0]!);

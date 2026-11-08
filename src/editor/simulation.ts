@@ -198,11 +198,36 @@ export interface BusLive {
   readonly members: readonly SignalStyle[];
 }
 
+/**
+ * What the host simulates and what the canvas shows of it (R11a): the design's flat netlist
+ * and the scene of the circuit open, with the way from the scene's local ids to the netlist's.
+ * The top circuit open, local ids are the flat ones; another circuit open isn't simulated as
+ * drawn (R11b: an instance's), so it maps nothing.
+ */
+export interface SimulationModel {
+  readonly netlist: Netlist;
+  readonly scene: Scene;
+  /** The flat net id of a net of the scene (its id in the scene's compile result). */
+  flatNet(net: string): string | undefined;
+  /** The netlist id of a part of the scene (`U1`), if the scene is what simulates. */
+  flatPart(id: string): string | undefined;
+}
+
+/** The model of a flat circuit: its own netlist, ids as they are (tests, one-circuit hosts). */
+export function sceneModel(scene: Scene): SimulationModel {
+  return {
+    netlist: scene.compiled.netlist,
+    scene,
+    flatNet: (net) => net,
+    flatPart: (id) => id,
+  };
+}
+
 /** Where each wire and connection point of the scene is in the simulator's nets. */
 export interface SignalMap {
   /**
-   * Net index of each net of the scene, by its id in the scene's compile result (through a pin
-   * on it: a simulator kept across a same-structure edit may call its nets otherwise).
+   * Net index of each net of the netlist, by its flat id — what the resolver gives (through a
+   * pin on it: a simulator kept across a same-structure edit may call its nets otherwise).
    */
   readonly nets: ReadonlyMap<string, number>;
   /** Net index of each wire, by wire id; −1 when the simulator has no such net. */
@@ -347,7 +372,7 @@ export class Simulation {
   readonly #registry: ComponentRegistry;
   readonly #clock: SimClock;
   readonly #budget: number;
-  #scene: Scene;
+  #model: SimulationModel;
   #netlist: Netlist;
   #sim: Simulator | undefined;
   #signals: SignalMap = EMPTY_SIGNALS;
@@ -384,13 +409,17 @@ export class Simulation {
   /** Live views of the parts in the simulator, by component id (rebuilt with the simulator). */
   #parts = new Map<string, LivePart>();
 
-  constructor(registry: ComponentRegistry, scene: Scene, options: SimulationOptions = {}) {
+  constructor(
+    registry: ComponentRegistry,
+    model: SimulationModel | Scene,
+    options: SimulationOptions = {},
+  ) {
     this.#registry = registry;
     this.#clock = options.clock ?? BROWSER_CLOCK;
     this.#budget = options.frameBudget ?? 8;
     this.#historyOptions = options.history ?? {};
-    this.#scene = scene;
-    this.#netlist = scene.compiled.netlist;
+    this.#model = 'netlist' in model ? model : sceneModel(model);
+    this.#netlist = this.#model.netlist;
     this.status = new Store<SimStatus>({
       state: 'stopped',
       time: 0,
@@ -448,8 +477,8 @@ export class Simulation {
   }
 
   /**
-   * The simulator's index of a net of the scene (its id in the scene's compile result: what
-   * the resolver gives); undefined without a simulator or for a net it doesn't have.
+   * The simulator's index of a net by its flat id (what the resolver gives); undefined without
+   * a simulator or for a net it doesn't have.
    */
   netOf(net: string): number | undefined {
     const index = this.#signals.nets.get(net);
@@ -541,7 +570,10 @@ export class Simulation {
         return members && members.length > 0 ? busValue(sim, members) : undefined;
       },
       flash: this.#flash || this.state !== 'running',
-      part: (id: string) => this.#parts.get(id),
+      part: (id: string) => {
+        const flat = this.#model.flatPart(id);
+        return flat === undefined ? undefined : this.#parts.get(flat);
+      },
     };
   }
 
@@ -878,13 +910,15 @@ export class Simulation {
   // ── Following the document ──────────────────────────────────────────────────────────────
 
   /**
-   * The editor's circuit changed (`renames`: old designator → new). Same structure: the
-   * simulator goes on as it is. Otherwise the simulation continues in the recompiled netlist.
+   * The document or the circuit shown changed (`renames`: old netlist id → new). Same
+   * structure: the simulator goes on as it is. Otherwise the simulation continues in the
+   * recompiled netlist.
    */
-  sync(scene: Scene, renames?: ReadonlyMap<string, string>): void {
-    if (scene === this.#scene) return;
-    this.#scene = scene;
-    const netlist = scene.compiled.netlist;
+  sync(model: SimulationModel | Scene, renames?: ReadonlyMap<string, string>): void {
+    const next = 'netlist' in model ? model : sceneModel(model);
+    if (next.netlist === this.#model.netlist && next.scene === this.#model.scene) return;
+    this.#model = next;
+    const netlist = next.netlist;
     const previous = this.#netlist;
     this.#netlist = netlist;
     const sim = this.#sim;
@@ -896,7 +930,7 @@ export class Simulation {
       if (!this.#build(carry)) return;
       if (this.state === 'halted') this.#setState('paused');
     }
-    this.#signals = signalMap(scene, this.#sim!);
+    this.#signals = signalMap(next, this.#sim!);
     this.#afterRun();
   }
 
@@ -908,7 +942,7 @@ export class Simulation {
     this.#pauseAt = undefined;
     this.#pauseRequest = undefined;
     if (!this.#build(undefined)) return false;
-    this.#signals = signalMap(this.#scene, this.#sim!);
+    this.#signals = signalMap(this.#model, this.#sim!);
     this.#events = 0;
     return true;
   }
@@ -1280,15 +1314,17 @@ export class Simulation {
 }
 
 /**
- * Maps the scene's wires and connection points to the simulator's nets through the pins on
- * them: net ids may differ when the simulator was kept across a same-structure edit.
+ * Maps the netlist's nets, and the scene's wires and connection points through them, to the
+ * simulator's nets by the pins on them: net ids may differ when the simulator was kept across a
+ * same-structure edit. A net without pins maps to −1.
  */
-export function signalMap(scene: Scene, sim: Simulator): SignalMap {
+export function signalMap(model: SimulationModel | Scene, sim: Simulator): SignalMap {
+  const { netlist, scene, flatNet } = 'netlist' in model ? model : sceneModel(model);
   const nets = new Map<string, number>();
   const wires = new Map<string, number>();
   const points = new Map<number, number>();
   const named = new Map<string, number>();
-  for (const net of scene.compiled.nets) {
+  for (const net of netlist.nets) {
     let index = -1;
     for (const pin of net.pins) {
       try {
@@ -1299,6 +1335,10 @@ export function signalMap(scene: Scene, sim: Simulator): SignalMap {
       if (index >= 0) break;
     }
     nets.set(net.id, index);
+  }
+  for (const net of scene.compiled.nets) {
+    const flat = flatNet(net.id);
+    const index = flat === undefined ? -1 : (nets.get(flat) ?? -1);
     for (const wire of net.wires) {
       wires.set(wire.id, index);
       points.set(pointKey(wire.from), index);
@@ -1306,6 +1346,7 @@ export function signalMap(scene: Scene, sim: Simulator): SignalMap {
     }
     for (const pin of net.pins) points.set(pointKey(pin.at), index);
     for (const pin of net.schematicPins) points.set(pointKey(pin.at), index);
+    for (const pin of net.instancePins) points.set(pointKey(pin.at), index);
     for (const name of net.names) named.set(name, index);
   }
   const buses = new Map<string, Int32Array>();

@@ -337,3 +337,22 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
   its side and offset" — true, and the bottom pins still moved down with a taller body. Test a
   geometric promise in absolute points (`partLayout(...).pins`), and walk the acceptance
   criteria in the app: the browser test of the Properties change found it.
+- 2026-11-08 (R11a) — A menu entry naming a command that doesn't exist crashes the whole app the
+  moment its menu opens (a blank page in the browser; every unit test passed). A unit test now
+  checks every menu, context menu and toolbar entry against `createCommands`: add a command and
+  its menu entry together.
+- 2026-11-08 (R11a) — Caches keyed by a part's type id go stale once definitions are generated:
+  a subcircuit keeps its type while its ports, and so its pins, change. Key layout caches by the
+  definition object (`WeakMap`), and keep a definition object while what it depends on is equal
+  (the document registry reuses it by the circuit's name and ports).
+- 2026-11-08 (R11a) — `Editor.registry` is a getter now (the document's registry): a React prop
+  read from it at render goes stale unless the component subscribes to `state.design.registry`.
+  The Parts panel gets its parts through `useStoreValue(editor.state, (s) => s.design.registry)`.
+- 2026-11-08 (R11a) — The e2e test found what the unit tests couldn't: "Add Circuit" then a
+  rename kept the id `circuit-2`, so instances were `sub/circuit-2`. Ids now follow the name
+  until the circuit is placed. Walk a new feature end to end in the browser test, not only the
+  pieces.
+- 2026-11-08 (R11a) — A bus port inside a module needs no bus line: its bits join the nets of its
+  members' names (labels `Q0`…`Q3` on the chip's pins), and so does a bus label at an instance's
+  bus pin outside. Checks had to learn that such members are used (no `single-net-label`) and,
+  at an output port, driven (no `undriven-input`).

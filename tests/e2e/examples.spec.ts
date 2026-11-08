@@ -8,7 +8,7 @@ import { menu, openApp, watchErrors } from './support';
 test('the gallery shows every example with a thumbnail and opens one', async ({ page }) => {
   const errors = watchErrors(page);
   await openApp(page);
-  await menu(page, 'File', 'New Circuit');
+  await menu(page, 'File', 'New Document');
   await expect(page).toHaveTitle('Untitled — Logic');
 
   await menu(page, 'File', 'New from Example…');

@@ -1,9 +1,9 @@
 /**
  * File ▸ New, Open, Save, Save As and opening examples or dropped files: the document session
- * around the editor's circuit, kept in a store. Questions and failures go through injected
+ * around the editor's document, kept in a store. Questions and failures go through injected
  * callbacks (the workbench shows them as dialogs), so every flow runs in Node tests.
  */
-import { type Circuit, type CircuitDocument, DocumentError, parseDocument } from '../circuit';
+import { type CircuitDocument, DocumentError, parseDocument } from '../circuit';
 import { type Camera, type Editor, EMPTY_SELECTION, Store } from '../editor';
 import {
   type DocumentSession,
@@ -55,9 +55,9 @@ export class DocumentController {
     this.session = new Store(options.session ?? newSession());
   }
 
-  /** True if the editor's circuit differs from what was last saved. */
+  /** True if the editor's document differs from what was last saved. */
   get unsaved(): boolean {
-    return hasUnsavedChanges(this.session.get(), this.#editor.state.get().circuit);
+    return hasUnsavedChanges(this.session.get(), this.#editor.state.get().document);
   }
 
   /** File ▸ New. Resolves to false if nothing changed (cancelled). */
@@ -97,18 +97,21 @@ export class DocumentController {
   }
 
   /**
-   * Shows `session` in the editor without asking (start-up, a restored session). `circuit` is the
-   * editor's circuit when it differs from the session's saved one (restored unsaved changes);
-   * `camera` restores the view instead of zooming to fit.
+   * Shows `session` in the editor without asking (start-up, a restored session). `document` is
+   * the editor's when it differs from the session's saved one (restored unsaved changes); `open`
+   * opens that circuit instead of the top; `camera` restores its view instead of zooming to fit.
    */
   show(
     session: DocumentSession,
-    circuit: Circuit = session.document.circuits[0]!,
-    options: { readonly camera?: Camera } = {},
+    document: CircuitDocument = session.document,
+    options: { readonly camera?: Camera; readonly open?: string } = {},
   ): void {
     const editor = this.#editor;
     editor.simulation.stop();
-    editor.setCircuit(circuit, options.camera ? { camera: options.camera } : { fit: true });
+    editor.setDocument(document, {
+      ...(options.open !== undefined && { open: options.open }),
+      ...(options.camera ? { camera: options.camera } : { fit: true }),
+    });
     editor.setSelection(EMPTY_SELECTION);
     this.session.set(session);
   }
@@ -159,23 +162,20 @@ export class DocumentController {
   async #save(): Promise<boolean> {
     const session = this.session.get();
     if (session.file === undefined) return this.#saveAs();
-    const circuit = this.#editor.state.get().circuit;
-    if (!(await this.files.write(session.file, documentText(session, circuit)))) {
+    const { document } = this.#editor.state.get();
+    if (!(await this.files.write(session.file, documentText(document)))) {
       return this.#saveAs();
     }
-    this.session.set(savedSession(session, circuit, session.name, session.file));
+    this.session.set(savedSession(session, document, session.name, session.file));
     return true;
   }
 
   async #saveAs(): Promise<boolean> {
     const session = this.session.get();
-    const circuit = this.#editor.state.get().circuit;
-    const result = await this.files.saveAs(
-      documentText(session, circuit),
-      fileNameOf(session.name),
-    );
+    const { document } = this.#editor.state.get();
+    const result = await this.files.saveAs(documentText(document), fileNameOf(session.name));
     if (!result) return false;
-    this.session.set(savedSession(session, circuit, nameOfFile(result.name), result.handle));
+    this.session.set(savedSession(session, document, nameOfFile(result.name), result.handle));
     return true;
   }
 }
