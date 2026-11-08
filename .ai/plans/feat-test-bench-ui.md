@@ -251,7 +251,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   typing, no simulation restart and no history reset (tests at the host, R11b lesson).
 - [x] 2. `circuit`: the bench service and its protocol types; tests with `functionScriptHost`
   (load, run all / some benches, script errors, results in order, determinism).
-- [ ] 3. The runner bundle: `src/app/bench-worker.ts`, the Vite plugin and `virtual:bench-runner`
+- [x] 3. The runner bundle: `src/app/bench-worker.ts`, the Vite plugin and `virtual:bench-runner`
   (types, dev and build, rebuilt on change), layer check aware of it; a test that the bundle
   builds and runs a bench (Node: evaluating the IIFE with a fake `self`).
 - [ ] 4. `ui`: the sandbox client (`test-runner.ts`): iframe, CSP, blob worker, port, jobs,
