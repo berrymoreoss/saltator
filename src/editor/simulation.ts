@@ -159,6 +159,11 @@ type HostRun = RunStatus | 'action';
 interface Step {
   readonly goal: StepGoal;
   passed: boolean;
+  /**
+   * An edge goal: the run is right before the edge it passes first (`passed` follows). False
+   * only when paused right before that edge with an action's instants queued ahead of it.
+   */
+  ahead?: boolean;
   done?: string;
 }
 
@@ -398,6 +403,11 @@ export class Simulation {
   #pauseRequest: string | undefined;
   #breaks = 0;
   #step: Step | undefined;
+  /**
+   * Where an edge step paused, right before its edge: until time moves, the next step to that
+   * edge passes it first, whatever instants actions queued ahead of it meanwhile.
+   */
+  #beforeEdge: { readonly net: string; readonly level: Level; readonly time: Time } | undefined;
   #timeline: Timeline | undefined;
   readonly #historyOptions: TimelineOptions;
   #search: Search | undefined;
@@ -677,7 +687,14 @@ export class Simulation {
       }
     }
     this.#unschedule();
-    this.#step = { goal, passed };
+    const before = this.#beforeEdge;
+    const resumed =
+      goal.kind === 'edge' &&
+      !passed &&
+      before?.net === goal.net &&
+      before.level === goal.level &&
+      before.time === this.#sim!.now;
+    this.#step = { goal, passed, ...(goal.kind === 'edge' && { ahead: !resumed }) };
     this.#lastWall = this.#clock.now();
     this.#lagFrames = 0;
     this.#actual = 0;
@@ -948,6 +965,7 @@ export class Simulation {
   /** A fresh simulator at t = 0 for the current netlist; false if it can't be built. */
   #powerOn(): boolean {
     this.#lights.clear();
+    this.#beforeEdge = undefined;
     this.#pauseAt = undefined;
     this.#pauseRequest = undefined;
     if (!this.#build(undefined)) return false;
@@ -1147,9 +1165,27 @@ export class Simulation {
       step.done = `${goal.label}: no net ${goal.net}`;
       return 'idle';
     }
+    if (!step.passed && step.ahead === false) {
+      // Paused right before the edge, an action queued instants ahead of it (a button pressed,
+      // then Step Clock): they aren't the edge, so run to right before it again first.
+      const limit = sim.now + Math.max(0, Math.min(MAX_SETTLE, pauseAt - sim.now));
+      const result = this.#advance(sim, limit, (l) =>
+        sim.settle({
+          maxTime: Math.max(0, l - sim.now),
+          maxEvents: CHUNK_EVENTS,
+          stopBefore: { net, level: goal.level },
+        }),
+      );
+      if (result === 'idle') {
+        step.done = `${goal.label}: nothing left to happen`;
+        return 'idle';
+      }
+      if (result !== 'before') return result;
+      step.ahead = true;
+    }
     if (!step.passed) {
-      // Through the next instant first: right before an edge, that is the edge itself (a
-      // recorded action on the way is delivered first, then the edge passed).
+      // Through the next instant: the edge itself (a recorded action on the way is delivered
+      // first, then the edge passed).
       const next = sim.nextEventTime;
       if (next === Number.POSITIVE_INFINITY) {
         step.done = `${goal.label}: nothing left to happen`;
@@ -1168,8 +1204,10 @@ export class Simulation {
         stopBefore: { net, level: goal.level },
       }),
     );
-    if (result === 'before') step.done = goal.label;
-    else if (result === 'idle') step.done = `${goal.label}: nothing left to happen`;
+    if (result === 'before') {
+      step.done = goal.label;
+      this.#beforeEdge = { net: goal.net, level: goal.level, time: sim.now };
+    } else if (result === 'idle') step.done = `${goal.label}: nothing left to happen`;
     return result; // `reached` after an hour without the edge: the next frame goes on
   }
 
