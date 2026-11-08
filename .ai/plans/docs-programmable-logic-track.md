@@ -4,7 +4,7 @@
 | ---------- | ------------------------------------------------------------------------------- |
 | Branch     | `docs/programmable-logic-track`                                                 |
 | Roadmap    | — (a new track, [Programmable logic](../../docs/roadmap/programmable-logic.md)) |
-| Status     | in-progress                                                                     |
+| Status     | done                                                                            |
 | Depends on | —                                                                               |
 | Created    | 2026-11-08                                                                      |
 
@@ -52,27 +52,27 @@ product code changes.
 - [x] 2. `docs/roadmap.md`: track row, track idea removed.
 - [x] 3. ADR-0030 (proposed), ADR index.
 - [x] 4. `pnpm check` green; commit.
-- [ ] 5. User's review of the items; merge with approval (finish-branch).
+- [x] 5. User's review of the items; merge with approval (finish-branch).
 
 ## Acceptance criteria
 
-- [ ] `pnpm check` is green; `pnpm roadmap` lists the track with HDL-1 as its head.
-- [ ] The user approved the items and their order.
+- [x] `pnpm check` is green; `pnpm roadmap` lists the track with HDL-1 as its head.
+- [x] The user approved the items and their order.
 
 ## Open questions
 
-- [ ] Q1. Track prefix — _proposed:_ `HDL` (`PLD-1` would read too close to `PLT-1`) —
-  **answer:** …
-- [ ] Q2. Item order — _proposed:_ as in Design; devices (HDL-5) before memories and PicoRV32,
-  since GAL/CPLD glue logic is what a homebrew computer (M5) needs first — **answer:** …
+- [x] Q1. Track prefix — _proposed:_ `HDL` (`PLD-1` would read too close to `PLT-1`) —
+  **answer:** `HDL`.
+- [x] Q2. Item order — _proposed:_ as in Design; devices (HDL-5) before memories and PicoRV32,
+  since GAL/CPLD glue logic is what a homebrew computer (M5) needs first — **answer:** as proposed.
 
 ## Progress log
 
 - 2026-11-08 — branch started; track, roadmap row, ADR-0030 (proposed) drafted.
+- 2026-11-08 — the user approved the items, their order and the `HDL` prefix; merged.
 
 ## Handoff
 
-- **State:** docs written, waiting for the user's review of the items.
-- **Next step:** answer Q1/Q2, adjust the track, finish-branch.
-- **Watch out:** `pnpm check:roadmap` validates the track file (headings, table, ids).
-- **Verify with:** `pnpm check`, `pnpm roadmap`.
+- **State:** merged; nothing pending.
+- **Next step:** HDL-1 (`feat/hdl-modules`) via `/start-branch HDL-1`; accept or revise ADR-0030
+  there after its benchmark.
