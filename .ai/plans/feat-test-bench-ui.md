@@ -259,7 +259,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   a fake transport; the real sandbox in e2e.
 - [x] 5. `ui`: `tests-view.ts` — results per circuit, stale tracking, badge counts, failure rows,
   the starter template; unit tests.
-- [ ] 6. `ui`: the script editor (per Q3), lazy-loaded: highlighting, gutter marks, completion
+- [x] 6. `ui`: the script editor (per Q3), lazy-loaded: highlighting, gutter marks, completion
   of the API and the circuit's references, document ↔ editor text, shortcuts kept inside it.
 - [ ] 7. `ui`: the Tests tab and its commands, Workbench wiring, settings (`BottomTab`), the
   badge; going to a failure's line and signal (per Q4).
