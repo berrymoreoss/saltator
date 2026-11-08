@@ -341,7 +341,7 @@ The alternatives considered:
   interface. Tests for each.
 - [x] 7. `editor`: the `image` primitive (canvas, recording) and the `tft` drawer with its
   cache, dropped on restore. Symbol-drawing and drawer tests; measure the budget.
-- [ ] 8. Scenarios: an SPI driver helper (like `lcd-program.ts`), a common initialization
+- [x] 8. Scenarios: an SPI driver helper (like `lcd-program.ts`), a common initialization
   written from the data sheet, then drawing; the carry-over and rewind properties with the
   TFT; a benchmark of the SPI stream with and without the TFT.
 - [ ] 9. The TFT Color Bars example (Q3): design the streamer (record it in Design), a
@@ -494,13 +494,24 @@ displaymodule.com (cdn.shopify.com/s/files/1/0264/7629/files/DM-TFT114-397_Datas
   `st7789Frame` 240 × 320 0.32 ms, plus RGBA 0.37 ms, well inside 3 ms; an unchanged glass
   reuses the image. Lesson: imported bindings inside hot loops read through getters under
   vitest (≈ 10× slower), so copy them to locals.
+- 2026-11-09: task 8. `tests/scenarios/tft-program.ts`: the TFT Color Bars ROM program (pixel
+  AT28C256 + control AT28C64B at 500 kHz; SLPOUT at byte 7563 ≈ 121 ms, the rest 5.2 ms later
+  with CS HIGH between, RAMWR as block 0's last byte; block 31 repeats rows 0–7). `tft.test.ts`
+  runs it through the controller at the stream's byte times: SMPTE bars exact, no warnings, a
+  second pass the same, twice the clock gives `wait-violation`. The part: a CS glitch between
+  bytes is harmless (EEPROM output windows at byte boundaries), and lost only if SCL rises
+  while CS is unknown or a byte is under way; CS/SCL unknown before they were ever known
+  (power-on transient) is silent. Carry-over: random TFT networks (8 seeds) invisible; the
+  rewind property already covers every registered part. Bench (`pnpm bench`, M3 Pro): an SPI
+  bus from drivers costs 1.41 µs of wall time a byte with no module, 4.62 with one, 13.93 with
+  four, so a module adds ≈ 3.1 µs a byte (≈ 0.4 µs a bit).
 
 ## Handoff
 
-- **State:** tasks 1–7 done (the controller, the frame, timing, unknowns, the drawer with images); `periph/st7789` (pins, `panel`, symbol, serial framing, command
+- **State:** tasks 1–8 done (controller, frame, timing, unknowns, drawer, scenarios, bench); `periph/st7789` (pins, `panel`, symbol, serial framing, command
   table, registers, resets) and a basic `tft` drawer (board, dark or lit glass, pin names).
-- **Next step:** task 8: scenarios (SPI driver helper, vendor-like init), carry-over and rewind
-  properties with the TFT, the SPI stream benchmark.
+- **Next step:** task 9: the TFT Color Bars circuit (design in "The example"), its generator,
+  gallery entry, scenario and browser tests.
 - **Watch out:** the data sheets mark themselves "Sitronix Confidential". Cite them, never copy
   them into the repo. ST7789V is a 3.3 V part.
 - **Verify with:** `pnpm check`.

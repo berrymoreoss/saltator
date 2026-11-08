@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ms, ns, type Time, us } from '../../core';
+import { Bench } from '../../core/testing';
+import { st7789, st7789Controller } from './st7789';
 import { Cmd, PIXEL_UNCERTAIN, PIXEL_X, St7789Diagnostic, Unknown } from './st7789-controller';
 import { FRAME_UNCERTAIN, st7789Frame } from './st7789-frame';
 import { SETTLE, TftBench } from './st7789-test-helpers';
@@ -256,14 +258,46 @@ describe('ST7789 unknown inputs', () => {
     expect([tft.controller.inversion, tft.controller.unknown & Unknown.INVERSION]).toEqual([0, 0]);
   });
 
-  it('CS unknown: lost; known HIGH again: found', () => {
+  it('CS unknown when SCL rises: lost; known HIGH again: found', () => {
     const tft = new TftBench();
     tft.bench.set({ CS: 'X' });
-    tft.run(ns(100));
-    expect(tft.diagnostics()).toEqual([`${St7789Diagnostic.UNCERTAIN} CS`]);
+    tft.run(ns(100)).bench.set({ SCL: 1 });
+    tft.run(ns(100)).bench.set({ SCL: 0 });
+    expect(tft.diagnostics()).toEqual([`${St7789Diagnostic.UNCERTAIN} SCL`]);
     tft.bench.set({ CS: 1 });
     tft.run(ns(100)).command(Cmd.INVON);
     expect([tft.controller.inversion, tft.controller.unknown & Unknown.INVERSION]).toEqual([1, 0]);
+  });
+
+  it('a CS glitch between bytes is harmless (a memory output window at a byte boundary)', () => {
+    const tft = new TftBench().select().bits(0, Cmd.INVON);
+    tft.bench.set({ CS: 'X' });
+    tft.run(ns(100)).bench.set({ CS: 0 });
+    tft.run(ns(100)).bits(0, Cmd.IDMON).deselect();
+    expect(tft.diagnostics()).toEqual([]);
+    expect([tft.controller.inversion, tft.controller.idle, tft.controller.unknown]).toEqual([
+      1, 1, 0,
+    ]);
+  });
+
+  it('a CS glitch in the middle of a byte loses the bit phase', () => {
+    const tft = new TftBench().select().bits(0, Cmd.INVON >> 4, 4);
+    tft.bench.set({ CS: 'X' });
+    tft.run(ns(100)).bench.set({ CS: 0 });
+    tft.run(ns(100));
+    expect(tft.diagnostics()).toEqual([`${St7789Diagnostic.UNCERTAIN} CS`]);
+  });
+
+  it('says nothing of a CS never known yet (the power-on transient) but counts it as lost', () => {
+    const b = new Bench(st7789, {});
+    b.set({ SCL: 0, SDA: 0, DC: 0, CS: 'X', RES: 1, BLK: 1 });
+    b.run(ns(100));
+    b.set({ SCL: 1 });
+    b.run(ns(100));
+    b.set({ SCL: 0 });
+    b.run(ns(100));
+    expect(b.diagnostics).toEqual([]);
+    expect(st7789Controller(b.sim.stateOf('DUT'))!.unknown).not.toBe(0);
   });
 
   it('RES unknown: the controller may be resetting', () => {

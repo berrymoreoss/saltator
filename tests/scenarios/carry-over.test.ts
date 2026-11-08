@@ -18,7 +18,7 @@ import {
   type Time,
   us,
 } from '../../src/core';
-import { hd44780Controller, w65c02s } from '../../src/library';
+import { hd44780Controller, st7789Controller, w65c02s } from '../../src/library';
 import { COUNT_TO_FIVE, computer } from './computer-6502';
 import { rng, scenarioRegistry } from './support';
 
@@ -471,6 +471,51 @@ describe('recompiling LCD modules mid-run', () => {
     expect(changes).toBeGreaterThan(5000);
     expect(written).toBeGreaterThan(20);
     expect(rejected).toBeGreaterThan(0);
+  });
+});
+
+describe('recompiling TFT modules mid-run', () => {
+  it('is invisible in random networks of them, bytes, resets and glitches included (seeded)', () => {
+    let changes = 0;
+    let versions = 0;
+    for (let seed = 1; seed <= 8; seed++) {
+      const random = rng(7000 + seed);
+      const pick = <T>(items: readonly T[]): T => items[Math.floor(random() * items.length)]!;
+      const b = new NetlistBuilder();
+      const outputs: string[] = [];
+      for (let i = 0; i < 2; i++) {
+        b.add(`X${i}`, 'io/clock', { frequency: 1e5 + Math.floor(random() * 2e6), duty: 50 });
+        b.add(`T${i}`, 'test/driver');
+        outputs.push(`X${i}.Y`, `T${i}.Y`);
+      }
+      // A counter for changing SDA, D/CX, CS and RES.
+      b.add('C', '74xx/74hc4040');
+      b.connect('X0.Y', 'C.CP').connect('T0.Y', 'C.MR');
+      for (let q = 0; q < 12; q++) outputs.push(`C.Q${q}`);
+      const tfts = ['D0', 'D1'];
+      for (const id of tfts) {
+        b.add(id, 'periph/st7789', { panel: pick(['240x320', '240x240', '135x240']) });
+        b.connect(pick(['X0.Y', 'X1.Y']), `${id}.SCL`);
+        for (const pin of ['SDA', 'DC', 'CS', 'RES']) b.connect(pick(outputs), `${id}.${pin}`);
+      }
+      const netlist = b.build();
+      const end = us(400);
+      const pokes: Poke[] = [
+        { time: 0, component: 'T0', action: Drive.STRONG_1 },
+        { time: us(1), component: 'T0', action: Drive.STRONG_0 },
+        ...Array.from({ length: 12 }, () => ({
+          time: us(2) + Math.floor(random() * end),
+          component: pick(['T0', 'T1']),
+          action: pick([Drive.STRONG_0, Drive.STRONG_1, Drive.Z]),
+        })),
+      ];
+      const at = Array.from({ length: 10 }, () => Math.floor(random() * end));
+      const { changes: list, sim } = expectInvisible(netlist, end, pokes, at);
+      changes += list.length;
+      for (const id of tfts) versions += st7789Controller(sim.stateOf(id))!.version;
+    }
+    expect(changes).toBeGreaterThan(5000);
+    expect(versions).toBeGreaterThan(100);
   });
 });
 

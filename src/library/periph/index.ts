@@ -54,7 +54,9 @@ export {
 export {
   COMMANDS as ST7789_COMMANDS,
   type Controller as St7789Controller,
+  createController as createSt7789Controller,
   PIXEL_X,
+  receiveByte as st7789ReceiveByte,
   St7789Diagnostic,
   Unknown as St7789Unknown,
 } from './st7789-controller';
