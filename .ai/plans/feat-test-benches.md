@@ -268,7 +268,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 4. `circuit`: the bench context on local test parts — compile with `top`, drivers on
   ports, references, `set`/`press`/`release`/`action`, `wait`, `clock`, `row`, `expect`,
   `get`, soft failures, diagnostics policy, the report.
-- [ ] 5. `circuit`: `` b.table`…` `` — header, rows, `-`, `C`, interpolations, comments,
+- [x] 5. `circuit`: `` b.table`…` `` — header, rows, `-`, `C`, interpolations, comments,
   errors with lines.
 - [ ] 6. `circuit`: memories — `b.memory`, `b.loadIntelHex`; RAM `poke`, ROM image before
   power-on; power-on ordering.

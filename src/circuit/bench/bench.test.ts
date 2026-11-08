@@ -170,6 +170,72 @@ describe('CircuitBench on a subcircuit', () => {
   });
 });
 
+describe('CircuitBench.table', () => {
+  it('runs a table’s rows as steps, failures on the row’s line', () => {
+    const b = bench('cell', { line: () => 10 });
+    const one = 1;
+    b.table`
+      A B      | Y
+      0 0      | 0
+      1 ${one} | 1
+      1 0      | 1     # wrong on purpose
+      - 1      | -
+    `;
+    expect(b.now).toBe(4 * DEFAULT_STEP);
+    expect(b.report().failures).toEqual([
+      {
+        line: 14,
+        time: us(3),
+        message: 'Y is 0, expected 1',
+        ref: 'Y',
+        expected: '1',
+        actual: '0',
+      },
+    ]);
+  });
+
+  it('pulses C cells and takes a plain string', () => {
+    const b = bench('main');
+    b.set({ SW1: 1 });
+    b.table('X1 | Q\nC | 1\n- | 1');
+    expect(b.report().status).toBe('pass');
+  });
+
+  it('throws a table’s mistakes with their line in the script', () => {
+    const b = bench('cell', { line: () => 20 });
+    const error = (run: () => void) => {
+      try {
+        run();
+      } catch (e) {
+        return { message: (e as BenchError).message, line: (e as BenchError).line };
+      }
+      return undefined;
+    };
+    expect(
+      error(
+        () => b.table`
+          A B | Y
+          0 0 0`,
+      ),
+    ).toEqual({ message: 'table: a row needs one | between inputs and outputs', line: 22 });
+    expect(
+      error(
+        () => b.table`
+          A B | Y
+          0 7 | 0`,
+      ),
+    ).toEqual({ message: 'B: expected 0 or 1, got 7', line: 22 });
+    expect(error(() => b.table(3))).toMatchObject({
+      message: 'table: write it as b.table`A B | Y …` (a template) or with text',
+    });
+    // Without a line from the host, a row's error has none either.
+    expect(error(() => bench('cell').table('A | Y\n9 | 0'))).toEqual({
+      message: 'A: expected 0 or 1, got 9',
+      line: undefined,
+    });
+  });
+});
+
 describe('CircuitBench on the top circuit', () => {
   it('flips switches, presses buttons and sets DIP switches', () => {
     const b = bench('main');

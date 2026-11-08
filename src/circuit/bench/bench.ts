@@ -32,6 +32,7 @@ import { compileDesign, type Design } from '../design';
 import type { CircuitDocument } from '../document';
 import { Resolver } from '../resolve';
 import { circuitPorts } from '../subcircuit';
+import { parseTable, type Table } from './table';
 import {
   BenchError,
   bitsMatch,
@@ -148,6 +149,8 @@ export class CircuitBench {
   #netlist: Netlist;
   #sim: Simulator | undefined;
   #step: Time = DEFAULT_STEP;
+  /** The script line of the table row running, which the host's line would miss. */
+  #at: number | undefined;
 
   constructor(
     document: CircuitDocument,
@@ -260,6 +263,43 @@ export class CircuitBench {
     for (const [ref] of checks) this.#output(ref);
     this.#steps(levels, pulses);
     this.#check(checks, note);
+  }
+
+  /**
+   * Rows of a text table (`` b.table`…` ``, or a string), each one `row`; failures name the
+   * table's line in the script (when the host knows where the table starts).
+   */
+  table(strings: unknown, ...values: unknown[]): void {
+    const parts = typeof strings === 'string' ? [strings] : strings;
+    if (!Array.isArray(parts) || !parts.every((p) => typeof p === 'string')) {
+      throw new BenchError('table: write it as b.table`A B | Y …` (a template) or with text');
+    }
+    const start = this.#options.line?.();
+    const at = (offset: number) => (start === undefined ? undefined : start + offset);
+    let table: Table;
+    try {
+      table = parseTable(parts, values);
+    } catch (error) {
+      if (error instanceof BenchError && error.line !== undefined) {
+        throw new BenchError(error.message, at(error.line));
+      }
+      throw error;
+    }
+    for (const { offset, inputs, outputs } of table.rows) {
+      this.#at = at(offset);
+      try {
+        const pairs = (names: readonly string[], cells: readonly unknown[]) =>
+          Object.fromEntries(names.map((name, i) => [name, cells[i]]));
+        this.row(pairs(table.inputs, inputs), pairs(table.outputs, outputs));
+      } catch (error) {
+        if (error instanceof BenchError && error.line === undefined && this.#at !== undefined) {
+          throw new BenchError(error.message, this.#at);
+        }
+        throw error;
+      } finally {
+        this.#at = undefined;
+      }
+    }
   }
 
   /** Checks signals and memory cells now; a mismatch is a failure, the bench goes on. */
@@ -467,7 +507,7 @@ export class CircuitBench {
   }
 
   #line(): { line?: number } {
-    const line = this.#options.line?.();
+    const line = this.#at ?? this.#options.line?.();
     return line === undefined ? {} : { line };
   }
 

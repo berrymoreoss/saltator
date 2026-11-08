@@ -7,9 +7,13 @@ import { Level } from '../../core';
 
 /** A problem with what a script asked for: a bad reference, value or call. Ends the bench. */
 export class BenchError extends Error {
-  constructor(message: string) {
+  /** The script line at fault when it isn't the one running (a row of a table). */
+  readonly line?: number;
+
+  constructor(message: string, line?: number) {
     super(message);
     this.name = 'BenchError';
+    if (line !== undefined) this.line = line;
   }
 }
 
