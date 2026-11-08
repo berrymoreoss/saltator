@@ -168,6 +168,23 @@ test('Properties: rename, a taken designator is refused, edit a prop, undo it', 
   await expect(page.getByTestId('prop-delay')).toHaveValue('1 ns');
 });
 
+test('Properties: Escape reverts what was typed in a field, nothing is applied', async ({
+  page,
+}) => {
+  const grid = await newCircuit(page);
+  await place(page, grid, 'prim/nand', [0, 0]);
+  await clickAt(page, grid([0, 0]));
+  const label = page.getByTestId('prop-label');
+  await label.fill('typed');
+  await label.press('Escape');
+  await expect(label).toHaveValue('');
+  const designator = page.getByTestId('prop-designator');
+  await designator.fill('GATE');
+  await designator.press('Escape');
+  await expect(designator).toHaveValue('U1');
+  await expect(summary(page)).toHaveText('U1 · NAND');
+});
+
 test('the context menu edits the item under the pointer', async ({ page }) => {
   const grid = await newCircuit(page);
   await place(page, grid, 'prim/nand', [0, 0]);

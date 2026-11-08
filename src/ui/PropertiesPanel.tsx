@@ -207,6 +207,8 @@ function Field({
     setDraft(value);
     setFailure(undefined);
   }, [value]);
+  // Escape blurs the field, and the blur handler still sees the edited draft: skip that commit.
+  const reverting = useRef(false);
   const error = failure ?? (draft === value ? undefined : validate?.(draft));
   const commit = () => {
     if (draft === value) return;
@@ -238,10 +240,13 @@ function Field({
             e.stopPropagation();
             setDraft(value);
             setFailure(undefined);
+            reverting.current = true;
             e.currentTarget.blur();
+            reverting.current = false;
           }
         }}
         onBlur={() => {
+          if (reverting.current) return;
           if (error || validate?.(draft)) {
             setDraft(value);
             setFailure(undefined);
