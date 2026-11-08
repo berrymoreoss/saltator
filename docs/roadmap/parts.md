@@ -13,16 +13,16 @@ their architecture's track; analog behavior beyond digital models
 
 ## Items
 
-| ID    | Branch                | Title                                      | Needs | Status      |
-| ----- | --------------------- | ------------------------------------------ | ----- | ----------- |
-| R03   | `feat/io-basic`       | Basic IO parts                             | —     | done        |
-| R06   | `feat/74hc-gates`     | 74HC gates & bus buffers                   | —     | done        |
-| R08   | `feat/74hc-msi`       | 74HC combinational MSI                     | —     | done        |
-| R09a  | `feat/74hc-registers` | 74HC flip-flops, registers + timing checks | —     | done        |
-| R09b  | `feat/74hc-counters`  | 74HC counters & shift registers            | —     | done        |
-| R12a  | `feat/memory-chips`   | Memory chips                               | —     | done        |
-| LIB-1 | `feat/lcd-hd44780`    | Character LCD (HD44780)                    | —     | done        |
-| LIB-2 | `feat/lcd-st7789`     | TFT LCD (ST7789)                           | —     | in-progress |
+| ID    | Branch                | Title                                      | Needs | Status |
+| ----- | --------------------- | ------------------------------------------ | ----- | ------ |
+| R03   | `feat/io-basic`       | Basic IO parts                             | —     | done   |
+| R06   | `feat/74hc-gates`     | 74HC gates & bus buffers                   | —     | done   |
+| R08   | `feat/74hc-msi`       | 74HC combinational MSI                     | —     | done   |
+| R09a  | `feat/74hc-registers` | 74HC flip-flops, registers + timing checks | —     | done   |
+| R09b  | `feat/74hc-counters`  | 74HC counters & shift registers            | —     | done   |
+| R12a  | `feat/memory-chips`   | Memory chips                               | —     | done   |
+| LIB-1 | `feat/lcd-hd44780`    | Character LCD (HD44780)                    | —     | done   |
+| LIB-2 | `feat/lcd-st7789`     | TFT LCD (ST7789)                           | —     | done   |
 
 ## R03 · Basic IO parts — `feat/io-basic`
 

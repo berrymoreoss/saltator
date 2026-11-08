@@ -4,7 +4,7 @@
 | ---------- | ------------------------------------------------------------------------------------------------------ |
 | Branch     | `feat/lcd-st7789`                                                                                      |
 | Roadmap    | LIB-2 — TFT LCD (ST7789), track [Parts](../../docs/roadmap/parts.md)                                   |
-| Status     | in-progress                                                                                            |
+| Status     | done                                                                                                   |
 | Depends on | LIB-1 (`periph` family, controller patterns, merging outcomes), R09a (timing checks), R14b (snapshots) |
 | Created    | 2026-11-08                                                                                             |
 
@@ -541,14 +541,16 @@ displaymodule.com (cdn.shopify.com/s/files/1/0264/7629/files/DM-TFT114-397_Datas
 - 2026-11-09: acceptance verified. Two tests were added for criteria not yet backed by one: an
   unchanged TFT's snapshot ≤ 4 KiB (`stateBytes`), and the data sheet init plus a fill on every
   panel. `pnpm check`, `pnpm build` and `pnpm e2e` are green.
+- 2026-11-09: finished. `periph/st7789` is the ST7789V module at command level on 4-line SPI:
+  three panels with their windows as data, Table 6 and Table 9 checked, the waits as
+  `wait-violation` with an uncertain outcome drawn under a veil (Q5), unknowns by the same
+  model. The editor got raster images and `PartLive.epoch`. The TFT Color Bars example draws
+  SMPTE bars from two EEPROMs. ADR-0031. Merged with `--no-ff`.
 
 ## Handoff
 
-- **State:** all tasks done and every acceptance criterion verified; waiting for the user's
-  go-ahead to finish; `periph/st7789` (pins, `panel`, symbol, serial framing, command
-  table, registers, resets) and a basic `tft` drawer (board, dark or lit glass, pin names).
-- **Next step:** finish-branch after the user's go-ahead (merge `main` in, verify, close the
-  plan, LIB-2 → done, merge with `--no-ff`).
-- **Watch out:** the data sheets mark themselves "Sitronix Confidential". Cite them, never copy
-  them into the repo. ST7789V is a 3.3 V part.
-- **Verify with:** `pnpm check`.
+- **State:** merged into `main`; nothing pending.
+- **Follow-ups** (Parts ideas, "TFT follow-ups (LIB-2)"): the 8080 8-bit parallel interface and
+  reads; other TFT controllers (ILI9341, ST7735, GC9A01, ILI9488); the TE output;
+  `powerOn: unknown`; a voltage-domain check with level shifters. A 6502 driving the module
+  waits for the VIA (R18).
