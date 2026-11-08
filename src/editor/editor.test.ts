@@ -49,6 +49,17 @@ describe('Editor (headless)', () => {
     expect(y).toBeCloseTo(300);
   });
 
+  it('locates parts and wires together, or says none is there', () => {
+    const editor = new Editor(registry, circuit);
+    editor.view.update((view) => ({ ...view, viewport: { width: 800, height: 600 } }));
+    const wire = circuit.wires[0]!.id;
+    expect(editor.locateItems({ parts: ['U1'], wires: [wire, 'w-gone'] })).toBe(true);
+    const { selection } = editor.state.get();
+    expect([[...selection.parts], [...selection.wires]]).toEqual([['U1'], [wire]]);
+    expect(editor.locateItems({ parts: ['U9'] })).toBe(false);
+    expect([...editor.state.get().selection.parts]).toEqual(['U1']); // unchanged
+  });
+
   it('zooms in and out by ladder steps about the view center', () => {
     const editor = new Editor(registry, circuit);
     editor.view.update((view) => ({ ...view, viewport: { width: 800, height: 600 } }));

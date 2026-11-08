@@ -40,7 +40,10 @@ export function startBenchWorker(
   scope.addEventListener('message', ({ data, ports }) => {
     const port = ports[0];
     if (data !== CONNECT || !port) return;
-    let queue = Promise.resolve();
+    // Responses go out at once — a bench that never ends must not hold up its `started` — unless
+    // one before them waits for its syntax error's line.
+    let queue: Promise<void> | undefined;
+    let waiting = 0;
     const post = (response: BenchResponse) => port.postMessage(response);
     port.onmessage = ({ data: request }: MessageEvent<BenchRequest>) => {
       const sources = new Map<string, string>();
@@ -50,7 +53,18 @@ export function startBenchWorker(
       }
       serve(request, (response) => {
         const located = withSyntaxLine(response, sources, syntaxLine);
-        queue = located ? queue.then(() => located.then(post)) : queue.then(() => post(response));
+        if (!located && waiting === 0) {
+          post(response);
+          return;
+        }
+        waiting++;
+        const send = located ?? Promise.resolve(response);
+        queue = (queue ?? Promise.resolve()).then(() =>
+          send.then((r) => {
+            waiting--;
+            post(r);
+          }),
+        );
       });
     };
   });

@@ -1610,18 +1610,40 @@ export class Editor {
       if (component) this.locate({ component }, options);
       return;
     }
+    this.locateItems({ wires: wires.map((w) => w.id) }, options);
+  }
+
+  /**
+   * Selects parts and wires of the circuit open and brings them all into view; false when none
+   * of them is there.
+   */
+  locateItems(
+    items: { readonly parts?: readonly string[]; readonly wires?: readonly string[] },
+    options: { zoom?: boolean } = {},
+  ): boolean {
+    const scene = this.scene;
+    const parts = (items.parts ?? []).flatMap((id) => scene.partById.get(id) ?? []);
+    const wires = (items.wires ?? []).flatMap((id) => scene.wireById.get(id) ?? []);
+    if (parts.length === 0 && wires.length === 0) return false;
     this.setSelection(
       selectionOf(
-        [],
+        parts.map((p) => p.id),
         wires.map((w) => w.id),
       ),
     );
-    const xs = wires.flatMap((w) => [w.from[0], w.to[0]]);
-    const ys = wires.flatMap((w) => [w.from[1], w.to[1]]);
+    const xs = [
+      ...wires.flatMap((w) => [w.from[0], w.to[0]]),
+      ...parts.flatMap((p) => [p.bounds.x, p.bounds.x + p.bounds.width]),
+    ];
+    const ys = [
+      ...wires.flatMap((w) => [w.from[1], w.to[1]]),
+      ...parts.flatMap((p) => [p.bounds.y, p.bounds.y + p.bounds.height]),
+    ];
     const x = Math.min(...xs);
     const y = Math.min(...ys);
     const rect = { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y };
     this.#bringIntoView(rect, options.zoom === true);
+    return true;
   }
 
   /**

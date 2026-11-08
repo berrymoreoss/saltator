@@ -261,7 +261,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   the starter template; unit tests.
 - [x] 6. `ui`: the script editor (per Q3), lazy-loaded: highlighting, gutter marks, completion
   of the API and the circuit's references, document ↔ editor text, shortcuts kept inside it.
-- [ ] 7. `ui`: the Tests tab and its commands, Workbench wiring, settings (`BottomTab`), the
+- [x] 7. `ui`: the Tests tab and its commands, Workbench wiring, settings (`BottomTab`), the
   badge; going to a failure's line and signal (per Q4).
 - [ ] 8. `ui`: Insert Image… — dialog, the text it writes (tested by running it in a bench).
 - [ ] 9. e2e `tests/e2e/tests.spec.ts`: RAM by Hand passes in the app (M2); a broken expectation

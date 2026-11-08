@@ -6,8 +6,11 @@ import type { GateStyle, WheelMode } from '../editor';
 
 export type ThemeSetting = 'system' | 'dark' | 'light';
 export type PanelId = 'circuits' | 'parts' | 'properties' | 'bottom';
-/** Tabs of the bottom dock: design checks, what happened while simulating, the part, memories. */
-export type BottomTab = 'messages' | 'simulation' | 'part' | 'memory' | 'waves' | 'debug';
+/**
+ * Tabs of the bottom dock: design checks, what happened while simulating, the part, memories,
+ * waveforms, the debugger, the test benches.
+ */
+export type BottomTab = 'messages' | 'simulation' | 'part' | 'memory' | 'waves' | 'debug' | 'tests';
 const BOTTOM_TABS: readonly BottomTab[] = [
   'messages',
   'simulation',
@@ -15,6 +18,7 @@ const BOTTOM_TABS: readonly BottomTab[] = [
   'memory',
   'waves',
   'debug',
+  'tests',
 ];
 
 export interface PanelSettings {

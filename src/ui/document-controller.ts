@@ -40,6 +40,8 @@ export interface DocumentControllerOptions {
 
 export class DocumentController {
   readonly session: Store<DocumentSession>;
+  /** How many documents it has shown: what is kept for a document (test results) starts anew. */
+  readonly shown = new Store(0);
   readonly files: FileAccess;
   readonly #editor: Editor;
   readonly #askUnsaved: (name: string) => Promise<UnsavedChoice>;
@@ -116,6 +118,7 @@ export class DocumentController {
     });
     editor.setSelection(EMPTY_SELECTION);
     this.session.set(session);
+    this.shown.update((n) => n + 1);
   }
 
   async #exclusive(action: () => Promise<boolean>): Promise<boolean> {

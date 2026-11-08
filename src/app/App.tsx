@@ -25,6 +25,7 @@ import {
   sameFileHandle,
   sessionToRestore,
   TestRunner,
+  TestSession,
   Workbench,
 } from '../ui';
 import { EXAMPLE_FILES, exampleDocument } from './example-files';
@@ -75,7 +76,7 @@ const images = browserImageAccess();
 const runnerSource = () =>
   import('virtual:bench-runner').then(({ benchRunnerSource }) => benchRunnerSource);
 /** Lists scripts as they are typed; runs benches (two sandboxes: a run doesn't hold lists up). */
-const tests = {
+const runners = {
   checker: new TestRunner(iframeSandbox(runnerSource)),
   runner: new TestRunner(iframeSandbox(runnerSource)),
 };
@@ -85,6 +86,9 @@ const documents = new DocumentController({
   askUnsaved: askUnsavedVia(ui),
   report: reportVia(ui),
 });
+// Test results are of the document shown: another document starts them anew.
+const tests = new TestSession(editor, runners);
+documents.shown.subscribe(() => tests.reset());
 
 // The browser's storage for autosave and Open Recent; none where it is blocked (private mode).
 const database = await openDatabase().catch(() => undefined);
@@ -193,6 +197,7 @@ export function App() {
       ui={ui}
       examples={examples}
       images={images}
+      tests={tests}
     />
   );
 }

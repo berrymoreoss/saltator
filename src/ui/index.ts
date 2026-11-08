@@ -12,5 +12,6 @@ export * from './recent-files';
 export * from './settings';
 export * from './shortcuts';
 export * from './test-runner';
+export * from './test-session';
 export * from './ui-state';
 export { Workbench, type WorkbenchProps } from './Workbench';

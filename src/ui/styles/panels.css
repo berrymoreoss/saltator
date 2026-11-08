@@ -1412,3 +1412,215 @@ kbd {
 .sim-activity .check-label {
   margin: 0 0 2px;
 }
+
+/* ── Tests tab (bottom dock, R15b) ────────────────────────────────────────── */
+
+.panel-body:has(> .tests) {
+  overflow: hidden;
+}
+
+.tests {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.tests-toolbar {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tests-title {
+  overflow: hidden;
+  color: var(--fg-muted);
+  font-size: var(--text-small);
+  text-overflow: ellipsis;
+}
+
+.tests-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  padding-left: 8px;
+  overflow: hidden;
+  font-size: var(--text-small);
+  text-overflow: ellipsis;
+}
+
+.tests-status.running {
+  color: var(--accent);
+}
+
+.tests-status.notice {
+  color: var(--warning);
+}
+
+@keyframes tests-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spin {
+  animation: tests-spin 1s linear infinite;
+}
+
+.tests-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.tests-editor {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.script-editor {
+  height: 100%;
+}
+
+.tests-starter {
+  position: absolute;
+  top: 6px;
+  right: 10px;
+  border-color: var(--border);
+  background: var(--toolbar-bg);
+}
+
+.tests-results {
+  flex: none;
+  min-width: 220px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.tests-circuit-header {
+  width: 100%;
+  min-height: 24px;
+  gap: 4px;
+  justify-content: flex-start;
+  border-width: 0 0 1px;
+  font: inherit;
+  font-size: var(--text-small);
+  text-align: left;
+  cursor: pointer;
+}
+
+.tests-circuit-name {
+  overflow: hidden;
+  color: var(--fg);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tests-counts {
+  display: inline-flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.tests-counts .ok,
+.tests-icon.ok {
+  color: var(--ok);
+}
+
+.tests-counts .bad,
+.tests-icon.bad {
+  color: var(--error);
+}
+
+.tests-counts .stale {
+  color: var(--warning);
+}
+
+.tests-icon {
+  flex: none;
+}
+
+.tests-icon.muted {
+  color: var(--fg-subtle);
+}
+
+.tests-list {
+  margin: 0;
+  padding: 2px 0;
+  list-style: none;
+}
+
+.tests-bench {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--row);
+  padding: 0 6px 0 8px;
+}
+
+.tests-bench.is-stale .tests-name,
+.tests-bench.is-stale .tests-note {
+  opacity: 0.6;
+}
+
+.tests-bench .tests-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fg);
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tests-run-one {
+  flex: none;
+  visibility: hidden;
+}
+
+.tests-bench:hover .tests-run-one,
+.tests-run-one:focus-visible {
+  visibility: visible;
+}
+
+.tests-note {
+  flex: none;
+  margin-left: auto;
+  color: var(--fg-subtle);
+  font-size: var(--text-small);
+  font-variant-numeric: tabular-nums;
+}
+
+.tests-line {
+  padding: 1px 8px 1px 27px;
+  font-family: var(--font-mono);
+  font-size: var(--text-small);
+  overflow-wrap: anywhere;
+}
+
+.tests-line .link-button {
+  color: inherit;
+  text-align: left;
+}
+
+.tests-line.failure,
+.tests-line.error {
+  color: var(--error);
+}
+
+.tests-line.warning {
+  color: var(--warning);
+}
+
+.tests-line.log,
+.tests-line.more {
+  color: var(--fg-muted);
+}
+
+.tab-badge.ok {
+  background: color-mix(in srgb, var(--ok) 20%, transparent);
+  color: var(--ok);
+}

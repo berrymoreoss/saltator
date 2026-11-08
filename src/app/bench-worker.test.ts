@@ -83,6 +83,29 @@ describe('startBenchWorker', () => {
     expect(lines).toEqual(["bench('a', (b) => {});\nconst x = ;", '\nbench(']);
   });
 
+  it('posts each response at once: a bench that never ends doesn’t hold up its start', () => {
+    let listener: Listener | undefined;
+    const posted: string[] = [];
+    const port = { postMessage: (r: BenchResponse) => posted.push(r.kind), onmessage: null };
+    const seen: string[][] = [];
+    startBenchWorker(
+      { addEventListener: (_type, l) => (listener = l) },
+      noLine,
+      (request, reply) => {
+        reply({ kind: 'planned', job: request.job, benches: [] });
+        reply({ kind: 'started', job: request.job, index: 0 });
+        seen.push([...posted]); // the bench would run here, maybe for ever
+        reply({ kind: 'done', job: request.job });
+      },
+    );
+    listener!({ data: CONNECT, ports: [port as unknown as MessagePort] });
+    (port.onmessage as unknown as (e: { data: BenchRequest }) => void)({
+      data: { kind: 'load', job: 1, source: '' },
+    });
+    expect(seen).toEqual([['planned', 'started']]);
+    expect(posted).toEqual(['planned', 'started', 'done']);
+  });
+
   it('ignores messages before it is connected and other than connect', () => {
     let listener: Listener | undefined;
     startBenchWorker({ addEventListener: (_type, l) => (listener = l) }, noLine);

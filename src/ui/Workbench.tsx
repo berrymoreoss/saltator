@@ -34,7 +34,9 @@ import {
   type Settings,
 } from './settings';
 import { isMacPlatform } from './shortcuts';
+import { TestsBadge, TestsPanel } from './TestsPanel';
 import { Toolbar } from './Toolbar';
+import type { TestSession } from './test-session';
 import type { Example, UiState } from './ui-state';
 import { VcdExportAction, WaveformsPanel, WavesBadge } from './WaveformsPanel';
 import { createCommands, TOOLBAR, workbenchMenus } from './workbench-commands';
@@ -52,6 +54,8 @@ export interface WorkbenchProps {
   readonly examples: readonly Example[];
   /** Memory image files (`.bin`, Intel HEX) for the Memory tab. */
   readonly images?: ImageFileAccess;
+  /** The test benches: the Tests tab and the Test menu (R15b). */
+  readonly tests: TestSession;
 }
 
 const MAC = typeof navigator !== 'undefined' && isMacPlatform(navigator.platform);
@@ -69,6 +73,7 @@ export function Workbench({
   ui,
   examples,
   images,
+  tests,
 }: WorkbenchProps) {
   const settings = useStore(settingsStore);
   // Toolbar and menus read the tool, history and settings through their commands: re-render on
@@ -77,6 +82,8 @@ export function Workbench({
   useStore(editor.history);
   // Run/Pause, Step, Stop, Reset depend on the run state (not on the time, which ticks).
   useStoreValue(editor.simulation.status, (status) => status.state);
+  // Cancel Tests is on while a run goes on.
+  useStoreValue(tests.state, (state) => state.run !== undefined);
   useStoreValue(
     editor.state,
     (state) => state.selection.parts.size + state.selection.wires.size > 0,
@@ -98,9 +105,10 @@ export function Workbench({
           settings: settingsStore,
           ui,
           examples,
+          tests,
         }),
       ),
-    [editor, documents, recent, clipboard, settingsStore, ui, examples],
+    [editor, documents, recent, clipboard, settingsStore, ui, examples, tests],
   );
   const tool = useStore(editor.tool);
   const recentCount = useStoreValue(recent?.list ?? NO_RECENT, (list) => list.length);
@@ -395,6 +403,16 @@ export function Workbench({
                     Debug
                     <DebugBadge editor={editor} />
                   </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={tab === 'tests'}
+                    className={tab === 'tests' ? 'tab active' : 'tab'}
+                    onClick={() => showTab('tests')}
+                  >
+                    Tests
+                    <TestsBadge editor={editor} tests={tests} />
+                  </button>
                 </div>
               }
               actions={
@@ -461,6 +479,7 @@ export function Workbench({
                   }
                 />
               )}
+              {tab === 'tests' && <TestsPanel editor={editor} tests={tests} />}
             </Panel>
           </div>
         </>

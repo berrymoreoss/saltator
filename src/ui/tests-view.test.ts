@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   type BenchResult,
   type CircuitDocument,
+  compileCircuit,
+  documentRegistry,
   replaceCircuit,
   updateComponent,
 } from '../circuit';
@@ -15,7 +17,9 @@ import {
   benchStarted,
   EMPTY_TESTS,
   isStale,
+  marksOf,
   pruneTests,
+  refItems,
   resultLines,
   runEnded,
   runPlanned,
@@ -252,5 +256,91 @@ describe('starterScript', () => {
     };
     expect(starterScript(top, library)).toContain('// Switches, buttons and clocks: SW1, S1\n');
     expect(starterScript({ ...top, components: [] }, library)).toContain('No ports or switches');
+  });
+});
+
+describe('marksOf', () => {
+  const failing = (document: CircuitDocument) => {
+    let state = runStarted(EMPTY_TESTS, document, [{ circuit: 'reg' }]);
+    state = runPlanned(state, document, [{ circuit: 'reg', bench: 'holds', line: 5 }]);
+    return benchFinished(
+      state,
+      'reg',
+      result('holds', 'error', {
+        failures: [{ line: 6, time: us(1), message: 'Q is 0, expected 1' }],
+        failureCount: 1,
+        error: { message: 'U9: no part or net named U9', line: 8 },
+      }),
+    );
+  };
+
+  it('marks the failures and errors of the circuit’s results at their lines', () => {
+    const document = design();
+    expect(marksOf(failing(document), undefined, document, 'reg', '')).toEqual([
+      { line: 6, severity: 'error', message: 'holds: at 1 µs: Q is 0, expected 1' },
+      { line: 8, severity: 'error', message: 'holds: U9: no part or net named U9' },
+    ]);
+    expect(marksOf(failing(document), undefined, document, 'main', '')).toEqual([]);
+  });
+
+  it('marks the script’s error as listed instead, and nothing of stale results', () => {
+    const document = design();
+    const listing = {
+      circuit: 'reg',
+      source: 'bench(',
+      script: { benches: [], error: { message: 'SyntaxError: …', line: 1 } },
+    };
+    expect(marksOf(failing(document), listing, document, 'reg', 'bench(')).toEqual([
+      { line: 1, severity: 'error', message: 'SyntaxError: …' },
+    ]);
+    // A listing of another text is old: the results' marks show.
+    expect(marksOf(failing(document), listing, document, 'reg', 'other')).toHaveLength(2);
+    const reg = document.circuits[1]!;
+    const edited = replaceCircuit(document, { ...reg, testScript: ['// changed'] });
+    expect(marksOf(failing(document), undefined, edited, 'reg', '// changed')).toEqual([]);
+  });
+});
+
+describe('refItems', () => {
+  it('names a part for an instance path, a pin or a memory cell', () => {
+    const document = design();
+    const main = document.circuits[0]!;
+    const compiled = compileCircuit(main, documentRegistry(document, library));
+    expect(refItems('A1/U1.1Q', main, compiled)).toEqual({ parts: ['A1'], wires: [] });
+    expect(refItems('D1.Y', main, compiled)).toEqual({ parts: ['D1'], wires: [] });
+    expect(refItems('A2[1F]', main, compiled)).toEqual({ parts: ['A2'], wires: [] });
+  });
+
+  it('names a net’s wires, or its labels where it has none', () => {
+    const document = design();
+    const main = document.circuits[0]!;
+    const compiled = compileCircuit(main, documentRegistry(document, library));
+    expect(refItems('CLOCK', main, compiled)).toEqual({
+      parts: ['NLCLOCK0', 'NLCLOCK1', 'NLCLOCK2'],
+      wires: [],
+    });
+    expect(refItems('NOWHERE', main, compiled)).toEqual({ parts: [], wires: [] });
+    // A range of bits by name: with DA and DB renamed Q0 and Q1, Q[0..1] is both.
+    const named = (n: string) =>
+      compileCircuit(
+        {
+          ...main,
+          components: main.components.map((c) =>
+            c.type === 'net/label' && c.props.name === 'DA'
+              ? { ...c, props: { name: `${n}0` } }
+              : c.type === 'net/label' && c.props.name === 'DB'
+                ? { ...c, props: { name: `${n}1` } }
+                : c,
+          ),
+        },
+        documentRegistry(document, library),
+      );
+    expect(refItems('Q[0..1]', main, named('Q')).parts).toEqual([
+      'NLDA0',
+      'NLDA1',
+      'NLDB0',
+      'NLDB1',
+    ]);
+    expect(refItems('Q[1]', main, named('Q')).parts).toEqual(['NLDB0', 'NLDB1']);
   });
 });

@@ -8,10 +8,12 @@ import {
   type BenchResult,
   type Circuit,
   type CircuitDocument,
+  type CompileResult,
   circuitPorts,
   circuitsInside,
   type PlannedBench,
   type RunTarget,
+  type TestScript,
 } from '../circuit';
 import {
   type ComponentRegistry,
@@ -20,6 +22,7 @@ import {
   resolveProps,
   symbolOf,
 } from '../core';
+import type { ScriptMark } from './script-editor';
 import type { RunOutcome } from './test-runner';
 
 /** Where a bench stands: waiting in a run, running, its result, or left out of a run. */
@@ -363,6 +366,104 @@ function controlsOf(circuit: Circuit, registry: ComponentRegistry): string[] {
     }
   }
   return found;
+}
+
+/** The checker's list of a circuit's script: its benches, or why it doesn't load. */
+export interface Listing {
+  readonly circuit: string;
+  /** The text it listed. */
+  readonly source: string;
+  readonly script: TestScript;
+}
+
+/**
+ * The marks the editor shows for circuit `circuit` whose script is `source` now: the script's
+ * error as listed while typing, else the results' — failures and errors at their lines — that
+ * are not stale (their lines are of the text they ran).
+ */
+export function marksOf(
+  state: TestsState,
+  listing: Listing | undefined,
+  document: CircuitDocument,
+  circuit: string,
+  source: string,
+): ScriptMark[] {
+  const marks: ScriptMark[] = [];
+  const listed = listing?.circuit === circuit && listing.source === source ? listing : undefined;
+  const error = listed?.script.error;
+  if (error?.line !== undefined) {
+    marks.push({ line: error.line, severity: 'error', message: error.message });
+  }
+  if (error) return marks;
+  const tests = state.circuits.find((c) => c.circuit === circuit);
+  if (!tests) return marks;
+  const { scriptError } = tests;
+  if (scriptError?.line !== undefined && !isStale(scriptError.basis, document, circuit)) {
+    marks.push({ line: scriptError.line, severity: 'error', message: scriptError.message });
+  }
+  for (const row of tests.benches) {
+    const result = row.result;
+    if (!result || isStale(row.basis, document, circuit)) continue;
+    for (const f of result.failures) {
+      if (f.line === undefined) continue;
+      marks.push({
+        line: f.line,
+        severity: 'error',
+        message: `${row.name}: ${where(f.message, undefined, f.time)}`,
+      });
+    }
+    if (result.error?.line !== undefined) {
+      marks.push({
+        line: result.error.line,
+        severity: 'error',
+        message: `${row.name}: ${result.error.message}`,
+      });
+    }
+  }
+  return marks;
+}
+
+/**
+ * What a failing reference names in its circuit, to show on the canvas: an instance's, a
+ * memory's or a pin's part (`A1/U3.Q0` → A1, `U5[1F]` → U5, `U1.Q0` → U1), or the wires of a
+ * net or a bus by name (`CLK`, `D[0..7]`, `D3`).
+ */
+export function refItems(
+  ref: string,
+  circuit: Circuit,
+  compiled: CompileResult | undefined,
+): { readonly parts: readonly string[]; readonly wires: readonly string[] } {
+  const ids = new Set(circuit.components.map((c) => c.id));
+  const head = /^[^./[]+/.exec(ref)?.[0] ?? ref;
+  if (ids.has(head)) return { parts: [head], wires: [] };
+  const name = ref.replace(/\[.*$/, '');
+  const wires = new Set<string>();
+  // Nets joined by labels alone have no wires: their labels show where they are.
+  const labels = new Set<string>();
+  const add = (net: CompileResult['nets'][number]) => {
+    for (const w of net.wires) wires.add(w.id);
+    for (const pin of net.schematicPins) labels.add(pin.component);
+  };
+  for (const bus of compiled?.buses ?? []) {
+    if (!bus.names.includes(name)) continue;
+    for (const w of bus.wires) wires.add(w.id);
+    for (const pin of bus.pins) labels.add(pin.component);
+    for (const net of compiled?.nets ?? []) {
+      if (net.names.some((n) => bus.members.includes(n))) add(net);
+    }
+  }
+  // A range of bits by name (`D[0..7]` is D0…D7), one bit (`D[3]`), or a net's name.
+  const names = new Set([ref, name]);
+  const range = /^(.+)\[(\d+)(?:\.\.(\d+))?\]$/.exec(ref);
+  if (range) {
+    const [, base, from, to = from] = range as unknown as [string, string, string, string?];
+    const [lo, hi] = [Number(from), Number(to)].sort((x, y) => x - y) as [number, number];
+    for (let i = lo; i <= hi && i - lo < 256; i++) names.add(`${base}${i}`);
+  }
+  for (const net of compiled?.nets ?? []) {
+    if (net.names.some((n) => names.has(n))) add(net);
+  }
+  return { parts: [...labels].filter((id) => ids.has(id)), wires: [...wires] };
 }
 
 function updateRow(
