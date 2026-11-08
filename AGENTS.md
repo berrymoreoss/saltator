@@ -9,8 +9,9 @@ building them: _test before fab_. Start with [docs/vision.md](docs/vision.md) if
 ## Golden rules
 
 1. **Never commit to `main` directly.** One roadmap item = one branch = one plan in `.ai/plans/`.
-   Procedures: [.ai/workflows/](.ai/workflows/) (`start-branch`, `resume-branch`, `handoff`,
-   `finish-branch`).
+   Items belong to tracks that move in parallel, one branch per track at a time
+   ([docs/roadmap.md](docs/roadmap.md)). Procedures: [.ai/workflows/](.ai/workflows/)
+   (`start-branch`, `resume-branch`, `handoff`, `finish-branch`).
 2. **The plan is the state.** Read the branch's plan first (especially _Handoff_); keep checkboxes,
    progress log and handoff current. Anything not in the plan or in git is lost at `/clear`.
 3. **Ask at forks.** When a design choice has real alternatives, ask the user (offer a
@@ -32,7 +33,8 @@ building them: _test before fab_. Start with [docs/vision.md](docs/vision.md) if
 ```sh
 pnpm install          # setup (Node >= 24, pnpm via corepack)
 pnpm dev              # Vite dev server
-pnpm check            # typecheck + lint + layer check + tests — run before every commit
+pnpm check            # typecheck + lint + layer and roadmap checks + tests — before every commit
+pnpm roadmap          # where every roadmap track stands: heads, branches, milestones
 pnpm test             # tests once; pnpm test:watch for watch mode; pnpm test <path> for a subset
 pnpm coverage         # tests with coverage (v8)
 pnpm test:circuits    # the documents' test benches, headless (default: examples/*.logic.json)
@@ -50,6 +52,7 @@ pnpm 12 has no `-s` flag; use `pnpm <script>`.
 AGENTS.md, CLAUDE.md      agent instructions (CLAUDE.md imports this file)
 .ai/                      process memory: workflows, per-branch plans, lessons
 docs/                     vision, roadmap, architecture, simulation & component specs, ADRs
+docs/roadmap/             one file per roadmap track (index: docs/roadmap.md)
 examples/                 example circuits (.logic.json), opened from File ▸ Examples
 src/core/                 simulation kernel (pure)
 src/library/              part definitions + registry (pure)
@@ -90,7 +93,7 @@ Each `src/*` folder has a README with its rules.
 ## Git conventions
 
 - Branches: `feat/<slug>`, `fix/<slug>`, `chore/<slug>`, `docs/<slug>`, `example/<slug>`; roadmap
-  items use the branch name given in [docs/roadmap.md](docs/roadmap.md).
+  items use the branch name given in their track's items table (`docs/roadmap/<track>.md`).
 - Plan file: branch name with `/` replaced by `-` → `.ai/plans/feat-engine-core.md`.
 - Commits: [Conventional Commits](https://www.conventionalcommits.org/) — `feat(core): add event
   queue`, `test(library): …`, `docs(plan): …`. Small, focused, each one green.
@@ -109,5 +112,5 @@ Each `src/*` folder has a README with its rules.
 
 - All plan tasks done and acceptance criteria verified for real.
 - `pnpm check` and `pnpm build` green; UI changes looked at in the browser.
-- Docs, ADRs, lessons and roadmap updated; plan status `done`.
+- Docs, ADRs, lessons and roadmap (the track file, milestones) updated; plan status `done`.
 - Merged to `main` with the user's approval.

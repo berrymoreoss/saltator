@@ -1,12 +1,12 @@
 # Plan: <type>/<slug>
 
-| Field      | Value                                            |
-| ---------- | ------------------------------------------------ |
-| Branch     | `<type>/<slug>`                                  |
-| Roadmap    | RNN — <title> ([roadmap](../../docs/roadmap.md)) |
-| Status     | draft · approved · in-progress · done            |
-| Depends on | RNN, …                                           |
-| Created    | YYYY-MM-DD                                       |
+| Field      | Value                                                                 |
+| ---------- | --------------------------------------------------------------------- |
+| Branch     | `<type>/<slug>`                                                       |
+| Roadmap    | <ID> — <title>, track [<Track>](../../docs/roadmap/<track>.md) (or —) |
+| Status     | draft · approved · in-progress · done                                 |
+| Depends on | <ID>, … (the item's Needs and what it builds on)                      |
+| Created    | YYYY-MM-DD                                                            |
 
 ## Goal
 

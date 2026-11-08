@@ -3,7 +3,7 @@
 ## Claude Code specifics
 
 - Slash commands (in `.claude/skills/`, thin wrappers around `.ai/workflows/`):
-  `/start-branch [RNN]`, `/resume-branch`, `/handoff`, `/finish-branch`.
+  `/start-branch [item id | track | branch]`, `/resume-branch`, `/handoff`, `/finish-branch`.
 - Use the AskUserQuestion tool for design forks and a plan's open questions; put your
   recommendation first.
 - On a feature branch at the start of a session, read the branch's plan (Handoff section first)
