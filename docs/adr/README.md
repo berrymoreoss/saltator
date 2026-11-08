@@ -33,4 +33,6 @@ the alternatives we rejected. Format: [ADR-0001](0001-record-architecture-decisi
 | [0026](0026-test-bench-sandbox.md)                | Test benches in the app: an opaque-origin sandbox, no prompt, CodeMirror                        | accepted |
 
 New ADR: copy [template.md](template.md) to `NNNN-short-title.md` (next free number), fill it in,
-add a row here. Superseding: set the old one's status to `superseded by NNNN`; never delete ADRs.
+add a row here. Branches of different tracks can take the same number at the same time: the one
+merged second renumbers its ADR when it merges `main` (`.ai/workflows/finish-branch.md`).
+Superseding: set the old one's status to `superseded by NNNN`; never delete ADRs.
