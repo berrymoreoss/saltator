@@ -12,7 +12,8 @@ with alternatives are recorded in [adr/](adr/).
 
 Vite + TypeScript (strict) + React for the UI chrome, a custom Canvas2D renderer for the
 schematic, Vitest for tests, Biome for lint/format, pnpm. Rationale:
-[ADR-0002](adr/0002-tech-stack.md).
+[ADR-0002](adr/0002-tech-stack.md). The UI's packages: `lucide-react` (icons) and CodeMirror 6
+for the test script editor (R15b, [ADR-0026](adr/0026-test-bench-sandbox.md)).
 
 ## Layers
 
@@ -237,14 +238,16 @@ simulated time with zoom, cursors, bus values, a trigger and VCD export) and the
 session) and run statistics ([editor.md](editor.md#debugger),
 [ADR-0020](adr/0020-debugger.md)); R14b stepping back — Step Back, Step Back Clock, Reverse
 Continue, the waveforms' ruler, the status behind the present ([editor.md](editor.md#rewinding),
-[ADR-0021](adr/0021-rewind.md)).
+[ADR-0021](adr/0021-rewind.md)); R15b the Tests tab — a circuit's test script in a CodeMirror
+editor, its benches run in a sandbox with their failures a click from their lines
+([editor.md](editor.md#tests), [ADR-0026](adr/0026-test-bench-sandbox.md)).
 
 ```
 ┌───────────────────────── menu bar · toolbar (tools, zoom, grid, gate style) ─────────────────────────┐
 │ Parts    │                                canvas                                    │ Properties    │
 │ (search, │                                                                          │ (of the       │
 │ preview) │                                                                          │ selection)    │
-├──────────┴─── bottom dock: Messages · Simulation · Part · Memory · Waveforms · Debug ┴───────────────┤
+├──────────┴─ bottom dock: Messages · Simulation · Part · Memory · Waveforms · Debug · Tests ┴─────────┤
 │ status bar: cursor · zoom · selection · simulation · counts · issues                                  │
 ```
 
@@ -253,6 +256,30 @@ stores (`Store`) and consumed with `useSyncExternalStore`. React never owns simu
 Every user action is a command in one registry that drives menus, toolbar and shortcuts; view
 preferences (theme, gate style, wheel mode, dock layout) are settings kept in `localStorage`,
 never in documents.
+
+### Test runner
+
+A document's test script is someone's code, so the app runs it only in a **sandbox** (R15b,
+[ADR-0026](adr/0026-test-bench-sandbox.md)):
+
+```mermaid
+flowchart LR
+  ui["ui: TestSession → TestRunner"] -- "MessagePort: load / run" --> worker
+  subgraph iframe["iframe sandbox=allow-scripts (origin null, CSP: no network)"]
+    worker["Worker from a blob:<br/>src/app/bench-worker.ts<br/>(bench service, library, new Function)"]
+  end
+  worker -- "loaded · planned · started · result · done" --> ui
+```
+
+- `circuit`'s **bench service** is the protocol, pure; `src/app/bench-worker.ts` serves it on a
+  port inside the worker (and finds a syntax error's line in a nested worker).
+- The worker can load nothing from the app's origin, so the runner is **one script**:
+  `scripts/vite-bench-runner.ts`, a Vite plugin, bundles `src/app/bench-worker-main.ts` with
+  Vite's `build` into an IIFE and serves its text as `virtual:bench-runner` — in `vite dev`,
+  `vite build` (a lazy chunk) and vitest alike.
+- `ui`'s **`TestRunner`** starts the sandbox (`iframeSandbox`), queues requests, keeps the time
+  limits and restarts it after a limit or Cancel (removing the iframe ends the worker); the app
+  makes two (listing scripts while typing; runs).
 
 ## Persistence
 
@@ -277,9 +304,10 @@ runs, R12a); they load and save as `.bin` and Intel HEX in the Memory tab (R12b,
 - **Circuits**: a circuit's test script (`Circuit.testScript`, R15a) registers benches that run
   it as the top — through its ports or switches, in fixed steps, checks soft, simulation errors
   failing — on a pure runner in `circuit`; the script's text becomes code only in a script host
-  (a `node:vm` context in Node). Every example bench runs in `pnpm check`, and
-  `pnpm test:circuits` runs any document's in CI ([circuit.md](circuit.md#test-benches),
-  [ADR-0025](adr/0025-test-benches.md)).
+  (a `node:vm` context in Node, the app's sandbox in the browser). Every example bench runs in
+  `pnpm check`, and `pnpm test:circuits` runs any document's in CI
+  ([circuit.md](circuit.md#test-benches), [ADR-0025](adr/0025-test-benches.md)); the Tests tab
+  runs them in the app (R15b, `tests.spec.ts`).
 - **Editor/UI**: unit tests for pure logic (camera, scene, hit-testing, selection, shortcuts,
   settings) and a scenario test drawing every part; browser e2e tests with Playwright
   (`pnpm e2e`, R04a) for the shell and interaction.

@@ -24,7 +24,7 @@ A desktop CAD-style window (`Workbench`), dense like KiCad or Altium: 12 px UI t
 │ ▾ IO       │                                      │ Delay 1 ns   │
 │ ── preview │                                      │              │
 ├────────────┴──────────────────────────────────────┴──────────────┤
-│ MESSAGES  2 · SIMULATION  1 · PART · MEMORY · WAVEFORMS 3 · DEBUG 2 │
+│ MESSAGES 2 · SIMULATION 1 · PART · MEMORY · WAVES 3 · DEBUG 2 · TESTS ✓9│
 ├──────────────────────────────────────────────────────────────────┤
 │ X 12  Y 4 │ 100 % │ U1 · NAND │ hint …        14 parts · 20 wires │ ✖ 0 ⚠ 1 │
 └──────────────────────────────────────────────────────────────────┘
@@ -71,7 +71,8 @@ A desktop CAD-style window (`Workbench`), dense like KiCad or Altium: 12 px UI t
   the cells of a memory part, live while simulating ([Memory inspector](#memory-inspector)).
   **Waveforms** — the probed signals over simulated time ([Waveforms](#waveforms)). **Debug**
   — steps, breakpoints and watches ([Debugger](#debugger)); the Simulation tab also shows the
-  run statistics.
+  run statistics. **Tests** — the circuit's test script and its benches' results
+  ([Tests](#tests)).
 - **Status bar**: grid position under the pointer, zoom, a one-line selection summary, the
   simulation (state, simulated time, the speed reached when lagging, runtime problems; click opens
   the Simulation tab), a hint for the current tool and gesture (`statusHint`), part/wire counts,
@@ -154,6 +155,7 @@ the shortcuts dialog all read the same `CommandRegistry`, which rejects duplicat
 | Step Clock          | `F8`                       | Run For                    | `Shift+F8`                |
 | Step Back           | `Alt+F10`                  | Step Back Clock            | `Alt+F8`                  |
 | Reverse Continue    | `Alt+F5`                   | Go Into (Up)               | `Mod+↓` (`Mod+↑`)         |
+| Run Tests           | `Mod+Enter`                | Run All Tests              | `Mod+Shift+Enter`         |
 
 Commands marked `global` run while typing in a text field and keep their key from the browser
 even while disabled: F5 never reloads the page, `Mod+S` and `Mod+O` never show the browser's own
@@ -1017,6 +1019,113 @@ simulator kept across a same-structure edit may call its nets otherwise). On a r
 recorder seeks, its triggers resync, its hits are counted to the rewound instant, activity
 counting and the "last run" counters restart; on a divergence its recorder cuts (R14b).
 
+## Tests
+
+R15b ([ADR-0026](adr/0026-test-bench-sandbox.md)): a circuit's test benches
+([circuit.md](circuit.md#test-benches)) written and run in the app — "test before fab" on the
+workbench, the same scripts `pnpm test:circuits` runs in CI.
+
+### Tests tab
+
+```text
+ ▶ Run  ▶▶ Run All  ■ Cancel │ Insert Image… │ Decade Counter · 3 benches    Running 2 of 9: Main › counts…
+┌──────────────────────────────────────────────────┬─────────────────────────────────────────────┐
+│  1  // Circuit: Decade Counter                    │ ▾ Decade Counter                  ✓ 2 ✗ 1   │
+│  2  const clear = (b) => {                        │   ✓ counts to 9, carries…        13 µs     │
+│  3 ●  b.row({ '~{RST}': 0, EN: 1, CLK: 'C' }, …   │   ✗ holds while disabled  1 failure, 14 µs │
+│  4    b.set({ '~{RST}': 1 });                     │     line 3 at 1 µs: Q[0..3] is 0xX, …      │
+│  …                                                │ ▸ Counter Digit               ✓ 1  stale   │
+└──────────────────────────────────────────────────┴─────────────────────────────────────────────┘
+```
+
+The seventh bottom-dock tab (`TestsPanel.tsx`; pure pieces in `tests-view.ts`,
+`script-completions.ts`; its badge `✗ 2` when something failed, else `✓ 9`):
+
+- **The script** of the circuit open, in a code editor (`ScriptEditor.tsx`, CodeMirror 6,
+  loaded with the tab): JavaScript highlighting in the theme's colors (`--code-*` tokens), line
+  numbers, marks in the gutter and under their lines — the script's error, listed while typing
+  (300 ms after the last key), and the failures and errors of the results that aren't stale —
+  completion of `bench`, the time helpers, `b.…` (the API) and, inside strings and tables, the
+  circuit's references (ports with their direction, named nets, buses as `D[0..7]`, parts,
+  pins), search and replace (`Mod+F`; the stopgap for renamed parts), bracket matching. Typing
+  is an edit of the document (`Editor.setTestScript`): one undo step until the editor loses
+  focus, the run and its history untouched (a script is no part of the netlist); the editor's
+  own undo works while it has focus, Edit ▸ Undo after. An empty script offers **Starter
+  Script** (`starterScript`: the ports or the switches and buttons named, one bench).
+- **Toolbar**: Run (the circuit open), Run All (every circuit with a script), Cancel, Insert
+  Image…, the circuit and its bench count, and the run's progress (`Running 2 of 9: Main ›
+  counts…`) or why the last one ended early (`Cancelled: 3 benches didn't run`, a sandbox that
+  failed).
+- **Results** (right, a splitter between): by circuit, the open one first — a header with its
+  counts and `stale` when the circuit, a circuit inside it or its script changed since
+  (`isStale`: their parts, wires and the script compared by identity, so an undo makes them
+  fresh again) — then each bench: its state (passed, failed, error, running, waiting, not run),
+  name, a run button (one bench), its failures and simulated time; under it the result's lines
+  as the CLI prints them: logs, failures (`line 8 at 2 µs: D[0..7] is 0x55, expected 0x56`, the
+  first 100 then "… and N more"), the error, warnings. Before any run the open circuit's benches
+  are listed from the script. A script that doesn't load shows its error instead.
+- **Going to a failure**: a click on a failure, an error or a bench's name opens its circuit,
+  puts the editor at the line, and shows the failing reference on the canvas (`refItems`: the
+  part of a pin, a memory cell or an instance path; a net's wires, or its labels where it has
+  none; a range `D[0..7]` as D0…D7) through `Editor.locateItems`.
+- Results are kept for the session (not the file), dropped for a circuit deleted, forgotten when
+  another document is shown (`DocumentController.shown`).
+- **Commands**: the **Test** menu — Run Tests (`Mod+Enter`), Run All Tests (`Mod+Shift+Enter`;
+  both global, so they work while typing in the script), Cancel Tests, Insert Image…, Show
+  Tests. Each shows the tab.
+
+### Running
+
+- Scripts run only in the **sandbox** (`test-runner.ts`, `iframeSandbox`): a hidden
+  `<iframe sandbox="allow-scripts">` (an opaque origin: none of the app's storage, IndexedDB,
+  cookies) whose CSP allows no network, running the runner in a Worker started from a blob of
+  its bundle (`virtual:bench-runner`, [architecture](architecture.md#test-runner)) — off the UI
+  thread. No prompt before running a file's scripts (Q2 of the plan): nothing in the sandbox
+  reaches the app or the network.
+- Two runners (`TestRunner`), each answering one request at a time: one lists the open script
+  as it is typed (a newer text replaces one still waiting), the other runs benches.
+- **Time limits**: a script's top level 5 s, a bench 60 s (as the Node host). A bench over its
+  limit is an error (`the bench didn't finish within 60 s: stopped`) and the rest of the run goes
+  on in a fresh sandbox. **Cancel** ends the sandbox at once; the benches left are "not run".
+  A new run cancels the one going on.
+- A run takes the document as it was when it started; edits meanwhile make its results stale.
+
+### Insert Image…
+
+Reads a `.bin` or Intel HEX file (R12b's reader), asks for the memory — the circuit's memory
+parts by designator, or a path typed (`A1/U3`) — and, for a binary, the load address (checked
+against the memory's size), and writes at the editor's cursor:
+
+```js
+b.memory(
+  'U1',
+  0x0004,
+  `
+  41 42
+`,
+); // ab.bin: 0x0000–0x0001 · 2 bytes · sum 0x0083
+b.loadIntelHex(
+  'U2',
+  `
+  :048000000102030472
+  :00000001FF
+`,
+); // decoder.hex: 0x8000–0x8003 · 4 bytes · sum 0x000A
+```
+
+Sixteen bytes a line, as the Memory tab's rows; an Intel HEX file's records as they are (each
+loads where the file puts it). The call belongs inside a bench — for a ROM before anything else
+(its image is loaded before power-on).
+
+### Model
+
+`TestSession` (`src/ui/test-session.ts`, made by the app with the two runners): `state` (the
+results, `tests-view.ts`'s reducers applied as a run tells its plan, starts and results),
+`listing` (the checker's list of the open script), `run(targets)`, `runOpen`, `runAll`,
+`runBench`, `cancel`, `check(circuit, source)`, `reset`. The protocol is `circuit`'s bench
+service ([circuit.md](circuit.md#reports-and-hosts)). Dev builds expose the runners as
+`window.logicTests`.
+
 ## Editor API
 
 `new Editor(library, circuitOrDocument?, settings?, options?)` (`src/editor/editor.ts`) owns the
@@ -1043,11 +1152,13 @@ to open the context menu or to focus Properties).
   `copySelection`, `cutSelection` (both return clipboard text), `pasteText(text)`, `duplicate`,
   `renamePart`, `setPartLabel`, `setPartProp`, `setPartPlacement` (the last three return an error
   message instead of editing when the value isn't valid; `setPartProp` takes the undo step's
-  label and a coalesce key, as a memory's byte edits use them).
+  label and a coalesce key, as a memory's byte edits use them), `setTestScript(circuit, source)`
+  (R15b: one undo step while typing goes on, until `sealHistory`).
 - Tools: `setTool`, `placePart(type)`, `dragPart(type, client?)`, `dropPart(type, client)`,
   `swapWirePosture`, `escape`, `cancel`.
 - View and selection: `setSettings`, `setSelection`, `selectAll`, `clearSelection`, `zoomIn`,
   `zoomOut`, `zoomActual`, `zoomToFit`, `locate(item, { zoom? })` (the open circuit's ids),
+  `locateItems({ parts, wires }, { zoom? })` (several at once; false when none is there),
   `locatePart(id, { zoom? })` and `locateNet(net, { zoom? })` (design ids: into their instance).
 - Simulation (`editor.simulation`): `run`, `pause`, `toggle`, `step`, `stop`, `reset`,
   `setSpeed`, `action(component, payload)`, `clearDiagnostics`; `rewindTo`, `stepBack`,
@@ -1234,7 +1345,9 @@ edit, and save over the file.
   command registry, formatting, history, move, operations, wire routing, clipboard, prop input,
   document session, file access with injected pickers, document controller, autosave with a
   memory store and controlled timers, recent files, the hex view's layout and keys, the image
-  dialogs' file reading) — Vitest in Node, next to the code.
+  dialogs' file reading, the Tests tab's results and completions, the script editor's pieces
+  without a DOM, the test runner over a fake sandbox with timers by hand) — Vitest in Node,
+  next to the code.
 - Memory inspector — `src/editor/memory-inspector.test.ts` with a fake clock and real memories:
   the memories and their labels, cells stopped and live, the address on the pins, highlighting
   (lit, fading, frozen while paused, cleared by Reset), ROM edits coalesced and followed by a
@@ -1280,7 +1393,11 @@ edit, and save over the file.
   run, saved, reloaded, run again; memories (`memory.spec.ts`, R12a–R12b): the EEPROM decoder
   and RAM by Hand run, a byte edited in the Memory tab and undone, Intel HEX and `.bin` files
   loaded, a write lit, a poke read back, Save, a 62256 virtualized, the tab following the memory
-  picked on the canvas and Edit ▸ Inspect Memory. The File System Access pickers are stubbed with handles from
+  picked on the canvas and Edit ▸ Inspect Memory; tests (`tests.spec.ts`, R15b): RAM by Hand's
+  benches passing in the Tests tab (M2), a failure at its line and signal, a script error while
+  typing, a runaway bench cancelled with the app responsive, the sandbox keeping a script from
+  storage and the network (checked to fail without its policy), Insert Image…, the script back
+  after a reload. The File System Access pickers are stubbed with handles from
   the origin private file system (`tests/e2e/file-system.ts`); specs load the app with
   `openApp`, which waits for the start-up restore. Not part of `pnpm check` (it needs a
   browser); CI runs it after the build.

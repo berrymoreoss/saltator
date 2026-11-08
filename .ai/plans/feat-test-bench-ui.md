@@ -268,28 +268,34 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   fails with its line and the click goes there; `while (true)` is cancelled and times out, the
   next run works; the sandbox can't reach `localStorage`, `indexedDB`, `fetch`; Insert Image…
   writes a load that passes; the script survives undo and save/load.
-- [ ] 10. Docs: editor.md (Tests tab), circuit.md (browser host), architecture, ADR-0026,
+- [x] 10. Docs: editor.md (Tests tab), circuit.md (browser host), architecture, ADR-0026,
   `src/ui/README.md`, glossary, lessons; roadmap (R15b done, M2 acceptance, R16a next).
 
 ## Acceptance criteria
 
-- [ ] `pnpm check`, `pnpm build` and `pnpm e2e` are green; the Tests tab looked at in the browser.
-- [ ] RAM by Hand's benches (a memory loaded before power-on) pass in the Tests tab, as they do
-  in `pnpm test:circuits` (M2's "test bench with a memory setup passing in the app and headless
-  in CI").
-- [ ] A failing bench shows `line N at t: ref is …, expected …`; clicking it puts the editor at
-  line N.
-- [ ] A script with a syntax error or an exception at its top level shows the error at its line
-  while typing, before any run.
-- [ ] A `while (true)` bench is stopped by Cancel and by the time limit; the UI stays responsive
-  meanwhile; the next run passes.
-- [ ] A script in the app can't read `localStorage` or `indexedDB` or reach the network (e2e).
-- [ ] Editing a script while the simulation runs neither restarts it nor drops its history; the
-  edit is one undo step per burst of typing and survives save/load.
-- [ ] Insert Image… from a `.bin` and a `.hex` file writes a call that loads those bytes in a
-  bench.
-- [ ] The main bundle doesn't carry the runner or the code editor (lazy chunks; `pnpm build`
-  output).
+- [x] `pnpm check`, `pnpm build` and `pnpm e2e` are green (2 613 tests; e2e 85); the Tests tab
+  looked at in the browser (light and dark, Two-Digit Counter's six benches, RAM by Hand failing
+  and passing).
+- [x] RAM by Hand's benches (a memory loaded before power-on) pass in the Tests tab
+  (`tests.spec.ts`), as they do in `pnpm test:circuits` (9 of 9, exit 0) — M2 reached.
+- [x] A failing bench shows `line 8 at 2 µs: D[0..7] is 0x55, expected 0x56`; clicking it puts
+  the editor at line 8 and selects D0…D7's labels on the canvas (`tests.spec.ts`).
+- [x] A script with a syntax error shows it at its line while typing, before any run
+  (`tests.spec.ts`: `line 2: SyntaxError`); an exception at the top level likewise
+  (`test-runner.test.ts`, `bench-worker.test.ts`).
+- [x] A `while (true)` bench is stopped by Cancel with the app responsive and the next run
+  passing (`tests.spec.ts`); by the time limit, the rest of the run going on in a fresh sandbox
+  (`test-runner.test.ts`, timers by hand — the same stop as Cancel in the browser).
+- [x] A script in the app can't read `localStorage` or `indexedDB` or reach the network
+  (`tests.spec.ts`; without the policy the same test reads `xhr 200`).
+- [x] Editing a script while the simulation runs neither restarts it nor drops its history
+  (`simulation.test.ts`); one undo step per burst of typing (`documents.test.ts`; Edit ▸ Undo in
+  `tests.spec.ts`); it survives a reload (`tests.spec.ts`) and save/load (R15a's tests).
+- [x] Insert Image… from a `.bin` and a `.hex` file writes a call that loads those bytes in a
+  bench (`image-dialogs.test.ts` runs both; `tests.spec.ts` the `.bin` in the app).
+- [x] The main bundle carries neither the runner nor the code editor: `_virtual_bench-runner`
+  (222 KB) and `ScriptEditor` (494 KB) are lazy chunks; `index` 781 KB plus React split into a
+  shared chunk (was 846 KB together).
 
 ## Open questions
 
@@ -314,11 +320,20 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   rest of the plan runs in a fresh sandbox; Cancel removes the iframe (its worker goes with
   it). Verified in Chromium on `vite dev` (RAM by Hand passes, 110 ms; IndexedDB denied,
   `localStorage` undefined, origin `null`); the runner is a lazy 222 KB chunk in `pnpm build`.
+- 2026-11-08 — tasks 5–10 done. On the way: the worker now posts each answer at once (queued
+  in a microtask, a runaway bench kept its own `started` from the app); a failure's reference is
+  located by its part, its net's wires or labels, a range `D[0..7]` as D0…D7
+  (`Editor.locateItems`); Insert Image… is asked for by a one-shot flag (a counter misfired for
+  the panel the command mounts); `DocumentController.shown` resets the results per document;
+  the e2e network test aims at an answer a route gives and was checked by mutation. Acceptance
+  criteria verified; M2 reached.
 
 ## Handoff
 
-- **State:** plan approved, Q1–Q4 answered (all as proposed); no code yet.
-- **Next step:** task 1 (`Editor.setTestScript`).
+- **State:** all tasks done, acceptance criteria verified, docs and roadmap updated (R15b done,
+  M2 reached, R16a next); not merged — merging to `main` waits for the user's approval.
+- **Next step:** `/finish-branch` (status `done`, merge with `--no-ff`).
 - **Watch out:** never run a document's script in the page; `functionScriptHost` has no
-  isolation of its own.
-- **Verify with:** `pnpm check`; `pnpm e2e`.
+  isolation of its own. The sandbox's CSP is load-bearing (`'unsafe-eval'` for the host, nothing
+  that reaches the network); the e2e network test guards it.
+- **Verify with:** `pnpm check`; `pnpm e2e`; `pnpm test:circuits`.

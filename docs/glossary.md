@@ -236,8 +236,12 @@ next): cheap, but its outputs change one after another, passing through wrong va
 74HC107 chain going 15 → 0 shows 14, 12, 8 on the way, 19 ns apart; a 74HC4040 ripples 10 ns
 per stage). Gates decoding its outputs glitch.
 
+**Sandbox** — where the app runs a document's test script (R15b): a Worker inside an
+opaque-origin iframe whose policy allows no network, so a script reaches neither the app's
+storage nor anything outside; Cancel and the time limits end it.
+
 **Script host** — where a test script's text becomes code (R15a): a `node:vm` context in Node
-(`pnpm test:circuits`), `new Function` in a trusted realm, a browser sandbox in the app (R15b).
+(`pnpm test:circuits`), `new Function` in a trusted realm, inside the app's sandbox (R15b).
 
 **Subcircuit (instance)** — a circuit of the document placed inside another, drawn as a box whose
 pins are its ports (`A1`, `A2`: IEEE 315's `A` for an assembly). Every instance has its own
@@ -324,7 +328,8 @@ steps (inputs at the start, a clock pulse from ¼ to ¾, checks at the end); a p
 `Bench`) test one part from its data sheet.
 
 **Test script** — a circuit's JavaScript in the document registering its test benches with
-`bench(name, (b) => …)` (R15a); `pnpm test:circuits` runs them headless.
+`bench(name, (b) => …)` (R15a); `pnpm test:circuits` runs them headless, the Tests tab in the
+app (R15b).
 
 **Test vector** — one row of a test bench table: inputs to apply and outputs expected
 (`` b.table`A B | Y …` ``, `b.row`).

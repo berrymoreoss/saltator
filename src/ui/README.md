@@ -28,6 +28,10 @@ R13: `WaveformsPanel` (the Waveforms tab, the Trigger and Export VCD dialogs; pu
 `waveforms-view.ts` and `vcd-export.ts`), the Probe tool and Add to Waveforms commands.
 R14: `DebugPanel` (the Debug tab and the breakpoint dialog; pure pieces in `debug-view.ts`;
 conditions shared with the Trigger dialog in `condition-terms.ts`), run statistics in
-`SimulationPanel`, the debug commands, the debug setup in `autosave`.
+`SimulationPanel`, the debug commands, the debug setup in `autosave`. R15b: `TestsPanel` (the
+Tests tab; pure pieces in `tests-view.ts` and `script-completions.ts`), `ScriptEditor`
+(CodeMirror 6, loaded with the tab; its DOM-free pieces in `script-editor.ts`), `test-runner`
+(the sandbox and the client of the bench service), `test-session` (runs and results of the
+document shown), Insert Image… in `ImageDialogs`, the Test menu.
 
 Spec: [docs/editor.md](../../docs/editor.md#shell).
