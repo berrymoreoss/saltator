@@ -120,13 +120,23 @@ export function createCommands({
     const spot = editor.contextProbe;
     return spot && !isBusName(spot.ref) ? spot.ref : undefined;
   };
-  /** The circuit the instance selected alone on the canvas places, if one is. */
+  /** The designator of the instance selected alone on the canvas, if a subcircuit instance is. */
   const selectedInstance = () => {
     const { selection, circuit } = editor.state.get();
     if (selection.parts.size !== 1) return undefined;
     const [id] = selection.parts;
     const part = circuit.components.find((c) => c.id === id);
-    return part && subcircuitOf(part.type);
+    return part && subcircuitOf(part.type) !== undefined ? part.id : undefined;
+  };
+  /** Where Go Up goes: `Main`, `A2 (Chain)`; undefined at the top or placed nowhere. */
+  const parentOf = () => {
+    const { path, design, document } = editor.state.get();
+    if (!path) return undefined;
+    const slash = path.lastIndexOf('/');
+    if (slash < 0) return document.circuits[0]!.name;
+    const parent = path.slice(0, slash);
+    const circuit = document.circuits.find((c) => c.id === design.circuitAt(parent));
+    return `${parent} (${circuit?.name ?? '?'})`;
   };
   /** Shows the open circuit's name in Properties, ready to type. */
   const focusCircuitName = () => {
@@ -215,22 +225,38 @@ export function createCommands({
       },
     },
     {
-      id: 'circuit.openSubcircuit',
-      label: 'Open Subcircuit',
+      id: 'circuit.goInto',
+      label: 'Go Into Instance',
+      menuLabel: () => {
+        const id = selectedInstance();
+        return id === undefined ? 'Go Into Instance' : `Go Into ${id}`;
+      },
+      shortcuts: ['Mod+ArrowDown'],
       enabled: () => selectedInstance() !== undefined,
       run: () => {
-        const inner = selectedInstance();
-        if (inner !== undefined) editor.openCircuit(inner);
+        const id = selectedInstance();
+        if (id !== undefined) editor.goInto(id);
       },
     },
     {
-      id: 'circuit.openTop',
-      label: 'Open Top Circuit',
+      id: 'circuit.goUp',
+      label: 'Go Up',
+      menuLabel: () => {
+        const parent = parentOf();
+        return parent === undefined ? 'Go Up' : `Go Up to ${parent}`;
+      },
+      shortcuts: ['Mod+ArrowUp'],
+      enabled: () => parentOf() !== undefined,
+      run: () => editor.goUp(),
+    },
+    {
+      id: 'circuit.goTop',
+      label: 'Go to Top Circuit',
       enabled: () => {
         const { circuit, design } = editor.state.get();
         return circuit.id !== design.top;
       },
-      run: () => editor.openCircuit(editor.state.get().design.top),
+      run: () => editor.goTop(),
     },
     {
       id: 'file.gallery',
@@ -941,8 +967,9 @@ export function workbenchMenus(examples: readonly Example[], recentCount?: numbe
         SEPARATOR,
         'circuit.setTop',
         SEPARATOR,
-        'circuit.openSubcircuit',
-        'circuit.openTop',
+        'circuit.goInto',
+        'circuit.goUp',
+        'circuit.goTop',
       ],
     },
     {
@@ -1058,7 +1085,7 @@ export const ITEM_CONTEXT_MENU: readonly MenuEntry[] = [
   'edit.flipV',
   SEPARATOR,
   'edit.properties',
-  'circuit.openSubcircuit',
+  'circuit.goInto',
   'edit.partInfo',
   'edit.inspectMemory',
   'waves.toggleProbe',
@@ -1074,6 +1101,8 @@ export const CANVAS_CONTEXT_MENU: readonly MenuEntry[] = [
   SEPARATOR,
   'edit.selectAll',
   'view.zoomFit',
+  SEPARATOR,
+  'circuit.goUp',
 ];
 
 /** Toolbar groups, separated by dividers. */

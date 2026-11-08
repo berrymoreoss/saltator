@@ -83,13 +83,13 @@ test('a subcircuit made in the app: ports, an instance in Main, wired and runnin
   await clickAt(page, grid(SWITCH));
   await expect(level(page, 'A')).toHaveText(before ?? '');
 
-  // A double-click on the instance opens its circuit; Main simulates on, drawn elsewhere.
+  // A double-click on the instance goes into it (R11b): Inverter open, in A1.
   await page.keyboard.press('v');
   await page.mouse.dblclick(...grid(INSTANCE));
   await expect(circuits(page).getByRole('button', { name: /Inverter/ })).toHaveAttribute(
     'aria-current',
     'page',
   );
-  await expect(page.getByTestId('not-simulated')).toContainText('Main simulates');
+  await expect(page.getByTestId('breadcrumbs')).toContainText('A1 · Inverter');
   expect(errors).toEqual([]);
 });

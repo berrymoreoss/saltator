@@ -429,6 +429,113 @@ button {
   touch-action: none;
 }
 
+/* Where the open circuit is in the design (R11b): floats over the canvas's top left corner. */
+.breadcrumbs {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  max-width: calc(100% - 12px);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--row);
+  padding: 0 8px 0 2px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--panel-bg) 92%, transparent);
+  color: var(--fg);
+  font-size: var(--text-ui);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.crumb-up {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: none;
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.crumb-up:hover:not(:disabled) {
+  background: var(--hover-bg);
+}
+
+.crumb-up:disabled {
+  color: var(--fg-subtle);
+  cursor: default;
+}
+
+.crumbs {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.crumbs li {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 4px;
+  border: 0;
+  border-radius: 3px;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.crumb:hover {
+  background: var(--hover-bg);
+}
+
+.crumb.current {
+  color: var(--fg);
+  font-weight: 600;
+  cursor: default;
+}
+
+.crumb svg {
+  color: var(--warning);
+}
+
+.crumb-separator {
+  color: var(--fg-subtle);
+}
+
+.crumb-instances {
+  height: 18px;
+  padding: 0 2px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--input-bg);
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: var(--text-small);
+}
+
+.crumb-note {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--fg-muted);
+  font-size: var(--text-small);
+}
+
 /* ── Status bar ───────────────────────────────────────────────────────────── */
 
 .statusbar {

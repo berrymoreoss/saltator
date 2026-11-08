@@ -145,8 +145,9 @@ brightness history.
 
 ### Breadcrumb bar
 
-A 22 px strip over the canvas, shown when the document has more than one circuit (Q2; a
-hierarchy tree is backlog):
+A 22 px bar floating over the canvas's top left corner (so the canvas keeps its size when a
+second circuit is added), shown when the document has more than one circuit (Q2; a hierarchy
+tree is backlog):
 
 ```
  ↑ │ ★ Main › A1 · Counter Digit › A1 · Decade Counter ▾      edits change every instance: A1/A1, A2/A1
@@ -184,7 +185,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   menu's spot; `locate`/`locateNet` by flat ids going into the instance; tests.
 - [x] 4. `editor`: double-click goes into the instance; Go Up selects the instance one came
   from, in view; tests.
-- [ ] 5. `ui`: the breadcrumb bar (crumbs, instance switcher, Up, the edits note, the unplaced
+- [x] 5. `ui`: the breadcrumb bar (crumbs, instance switcher, Up, the edits note, the unplaced
   note), Circuit menu and context menu entries, `Mod+↓`/`Mod+↑`, the status bar note removed;
   Simulation tab locating into instances; looked at in the browser, light and dark.
 - [ ] 6. `ui`: autosave and session restore keep the path; tests.
