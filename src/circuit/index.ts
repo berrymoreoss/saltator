@@ -26,6 +26,13 @@ export {
   scriptSource,
   type TestScript,
 } from './bench/script';
+export {
+  type BenchRequest,
+  type BenchResponse,
+  type BenchService,
+  benchService,
+  type RunTarget,
+} from './bench/service';
 export { BenchError } from './bench/values';
 export { CircuitBuilder, type PlaceOptions, type WirePoint } from './builder';
 export type {
