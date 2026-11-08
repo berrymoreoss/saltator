@@ -231,7 +231,8 @@ name as the stem and a range of indices 0…99 either way round, at most 32 char
 R11a (`src/circuit/subcircuit.ts`). A circuit's **ports** ([components.md](components.md#ports-net-port))
 are its interface: each joins the net or bus of its name inside, like a net label. Net and bus
 labels join only within their circuit; the power names (`VCC`, `GND`) are the same net
-everywhere. The flattening into one netlist with instance paths (`A1/U3`) _(planned, R11a)_.
+everywhere. The kernel never sees the hierarchy: the top circuit is flattened into one netlist
+with instance paths (`A1/U3`, [below](#flattening)).
 
 - **Instances**: a circuit placed in another is an ordinary component of type
   `sub/<circuit id>` (`subcircuitType`; the `sub` family is reserved), with no props and the
@@ -260,6 +261,51 @@ everywhere. The flattening into one netlist with instance paths (`A1/U3`) _(plan
   circuit's netlist (`CircuitNet.instancePins`): an instance output or bidirectional pin is a
   possible driver of its net, never a push-pull output (`shorted-outputs` doesn't count it,
   what drives it is inside); an instance input on a net nothing drives is `undriven-input`.
+
+### Flattening
+
+`src/circuit/design.ts`. The **design** is a document's top circuit (its first, or another
+given as `top`) with every instance expanded, for the simulator and the tools:
+
+```ts
+const design = compileDesign(document, library, { cache }); // cache: a CompileCache, optional
+new Simulator(design.netlist, design.registry);
+design.circuits.get('decade-counter'); // that circuit compiled on its own (its scene, its checks)
+design.instances; // [{ path: 'A1', designator: 'A1', parent: '', circuit: 'digit' }, { path: 'A1/A1', … }]
+design.netOf('A1/A1', 'CLK'); // the flat net of a circuit's local net in an instance
+design.circuitAt('A1/A1'); // 'decade-counter'
+design.issues; // every circuit's issues with their `circuit`, and the hierarchy's; errors first
+```
+
+- **Each circuit is compiled once, on its own**, with the document registry (`compileCircuit`):
+  that result is its scene and its design checks wherever it is placed. A `CompileCache` keeps
+  results while the circuit and the definitions of the parts it uses stay the same objects, and
+  the last document registry (`cache.registry(document, library)`), so an edit inside one
+  module recompiles only it — and the circuits placing it when its ports change.
+- **Expansion** walks the instances from the top, depth first in document order. An inner
+  simulated part becomes `<path>/<id>` (`A1/U3`, `A1/A2/U1`: paths are designators from the
+  top down); components keep that order, so `sameNetlistStructure` holds across edits that
+  change no connections.
+- **Ports join nets**: an instance pin's net outside ∪ the net of the port's name inside. A bus
+  port joins the outer bus at the instance's bus pin member by member (bit 0 with bit 0, by the
+  members' names on both sides; a member nothing else names is a net of its own, so a named bus
+  between two instances connects them). A bus of another width — or, on bus lines or with other
+  bus pins, an unnamed one — is a `bus-port-width` warning; the bits that exist connect.
+- **Global names**: the names a simulated part's pin joins (`PinDef.net` of the VCC and GND
+  symbols: `VCC`, `GND`) are one net everywhere — a module's own VCC symbol, or a net label named
+  `GND` inside it, is the top's. Every other name is local: `CLK` inside `A1` is `A1/CLK`.
+- **Flat net ids**: a set of joined nets is called by its outermost member — the fewest path
+  segments, then the first made: a top-level net keeps its id (so the top's scene maps one to
+  one), a net only inside `A1` is `A1/<its local id>` (`A1/CLK`, `A1/U2.Y`), an open instance
+  pin's net its pin (`A1.Y`), power nets `VCC`/`GND`. A key already taken (a top-level label
+  named `A1/X`) gets `#2`. Every net of every instance is in the netlist, pins or not.
+- **A flat document** (no instances) gives exactly `compileCircuit(top).netlist`.
+- **Recursion**: an instance whose circuit would contain itself, directly or through others, is a
+  `recursive-subcircuit` error in the circuit where the loop closes (`recursiveInstances` checks
+  every circuit, used or not); it is left empty, so flattening always ends.
+- Never throws on user mistakes; `ok` is false while any circuit has an error. Measured
+  (`pnpm bench`): 16 instances of a 50-part cell in two levels compile and flatten in ≈ 0.65 ms,
+  ≈ 0.5 ms with the circuits cached.
 
 ## Compiler
 
@@ -308,17 +354,19 @@ interface CompileResult {
 `DesignIssue = { severity: 'error' | 'warning', code, message, component?, pin?, wire?, net?,
 at? }` — enough to locate the issue on the canvas.
 
-| Code                 | Severity | When                                                                                                                                                                                                        |
-| -------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `unknown-type`       | error    | the part type isn't in the registry                                                                                                                                                                         |
-| `invalid-props`      | error    | `resolveProps` rejects the props (message names the prop)                                                                                                                                                   |
-| `shorted-outputs`    | error    | two or more strong push-pull (`out`, not `weak`) pins on one net; outputs tied to the same level (`constant`, e.g. two VCC symbols) count as one                                                            |
-| `undriven-input`     | warning  | an `in` pin (not `sense`) on a net with no possible driver: unconnected, or only inputs and wires                                                                                                           |
-| `dangling-wire`      | warning  | a wire or bus line end that touches nothing (often: one cell short of a pin); a wire ending on a bus line says "use a bus entry"                                                                            |
-| `multiple-net-names` | warning  | a net with more than one name (labels `CLK` and `CLOCK` on one wire, a label on a VCC wire), or a bus with more than one; it is called by its first name, the issue sits at the first pin giving the second |
-| `single-net-label`   | warning  | a net label or bus entry whose name no other label, entry or VCC/GND symbol uses: it joins nothing by name (a typo?); bus labels never                                                                      |
-| `bus-entry-member`   | warning  | a bus entry on a named bus whose name isn't one of the bus's members (`D9` on `D[0..7]`)                                                                                                                    |
-| `duplicate-port`     | error    | a port giving a name another port of the circuit gives already: two ports `CLK`, or `D3` beside the bus port `D[0..7]` (R11a)                                                                               |
+| Code                   | Severity | When                                                                                                                                                                                                        |
+| ---------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `unknown-type`         | error    | the part type isn't in the registry                                                                                                                                                                         |
+| `invalid-props`        | error    | `resolveProps` rejects the props (message names the prop)                                                                                                                                                   |
+| `shorted-outputs`      | error    | two or more strong push-pull (`out`, not `weak`) pins on one net; outputs tied to the same level (`constant`, e.g. two VCC symbols) count as one                                                            |
+| `undriven-input`       | warning  | an `in` pin (not `sense`) on a net with no possible driver: unconnected, or only inputs and wires                                                                                                           |
+| `dangling-wire`        | warning  | a wire or bus line end that touches nothing (often: one cell short of a pin); a wire ending on a bus line says "use a bus entry"                                                                            |
+| `multiple-net-names`   | warning  | a net with more than one name (labels `CLK` and `CLOCK` on one wire, a label on a VCC wire), or a bus with more than one; it is called by its first name, the issue sits at the first pin giving the second |
+| `single-net-label`     | warning  | a net label or bus entry whose name no other label, entry or VCC/GND symbol uses: it joins nothing by name (a typo?); bus labels never                                                                      |
+| `bus-entry-member`     | warning  | a bus entry on a named bus whose name isn't one of the bus's members (`D9` on `D[0..7]`)                                                                                                                    |
+| `duplicate-port`       | error    | a port giving a name another port of the circuit gives already: two ports `CLK`, or `D3` beside the bus port `D[0..7]` (R11a)                                                                               |
+| `recursive-subcircuit` | error    | an instance whose circuit would contain itself, directly or through others; it is left empty ([Flattening](#flattening))                                                                                    |
+| `bus-port-width`       | warning  | a bus port on a bus of another width, or on an unnamed bus; the bits that exist connect ([Flattening](#flattening))                                                                                         |
 
 An `out` pin with a pull resistor (`weak` pin) or with tri-state outputs is legal; conflicts
 between drivers that can actually disagree at run time are the kernel's `contention` diagnostic.

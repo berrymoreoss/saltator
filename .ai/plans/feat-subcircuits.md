@@ -268,7 +268,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 3. `circuit`: `documentRegistry` — generated `sub/<id>` definitions (pins from ports,
   symbol ordered by drawing, cached by ports and name); the subcircuit symbol drawer; outer
   checks treat instance pins as possible drivers, never push-pull.
-- [ ] 4. `circuit`: `compileDesign` — per-circuit compiles, flattening with path ids, port and
+- [x] 4. `circuit`: `compileDesign` — per-circuit compiles, flattening with path ids, port and
   bus-port joins, global power names, net ids, `recursive-subcircuit`, `bus-port-width`,
   `netOf`/`busOf`; scenario tests with real chips (two instances of one module, two levels);
   bench.
@@ -342,6 +342,14 @@ Checkable statements; verified one by one in the finish-branch workflow.
 
 - 2026-11-08 — plan drafted; Q1–Q7 answered; approved, branch started (R11 split into R11a/R11b
   in the roadmap).
+- 2026-11-08 — tasks 1–4: schema v4; the port part (looked at in the browser, light and dark);
+  the document registry and the subcircuit symbol (looked at); `compileDesign`. Design notes:
+  instance pins are `CircuitNet.instancePins` (out of a circuit's own netlist); an open instance
+  pin's flat net is called by the pin (`A1.Y`); a bus port's members join by name on both
+  sides, creating a net for a member nothing names (a bus between two instances); a top-level
+  key that collides with a path gets `#2`. Bench: 16 × 50-part cells, two levels: compile and
+  flatten 0.65 ms, flatten with circuits cached 0.49 ms (M3 Pro). Mutation-checked the checks and
+  the flattening (three survivors became tests).
 
 ## Handoff
 

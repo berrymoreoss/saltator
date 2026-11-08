@@ -17,7 +17,9 @@ export type DesignIssueCode =
   | 'multiple-net-names'
   | 'single-net-label'
   | 'bus-entry-member'
-  | 'duplicate-port';
+  | 'duplicate-port'
+  | 'recursive-subcircuit'
+  | 'bus-port-width';
 
 export interface DesignIssue {
   readonly severity: 'error' | 'warning';
