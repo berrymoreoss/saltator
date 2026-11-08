@@ -234,6 +234,19 @@ describe('resolveProps', () => {
     expect(() => resolveProps(def, { name: 3 })).toThrow('prop "name" must be a string, got 3');
   });
 
+  it('keeps the line breaks of a multiline string prop', () => {
+    const def = defineComponent({
+      type: 'test/multiline',
+      name: 'T',
+      title: 'Multiline',
+      pins: [],
+      props: [{ key: 'text', label: 'Text', type: 'string', default: '', multiline: true }],
+      create: () => ({}),
+    });
+    expect(resolveProps(def, { text: 'one\n\n  two\t3\n' })).toEqual({ text: 'one\n\n  two\t3\n' });
+    expect(() => resolveProps(def, { text: ['a'] })).toThrow('must be a string');
+  });
+
   it('reports "none" for parts without props', () => {
     const def = defineComponent({
       type: 'test/none',

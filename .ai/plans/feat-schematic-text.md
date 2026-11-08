@@ -132,7 +132,7 @@ the pull-ups, y ≥ 33).
 Small, ordered, each committable on its own with its tests (`pnpm check` green).
 
 - [x] 1. ADR-0029 (graphics as schematic-only parts) + roadmap row/section PLT-1 and ideas.
-- [ ] 2. `core`: `PropDef.multiline` (docs in components.md#properties); `string` validation
+- [x] 2. `core`: `PropDef.multiline` (docs in components.md#properties); `string` validation
   unchanged otherwise.
 - [ ] 3. `library`: `draw/text` with `textBlockSize` and its tests (sizes, tabs, empty lines,
   the registry); family `draw` in the registry; the gallery example lists it.

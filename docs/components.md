@@ -186,6 +186,7 @@ interface PropDef {
   unit?: string; // display unit: 'Hz'
   si?: boolean; // 'number' entered and shown with SI prefixes: '4.7 kΩ', '100 nF'
   pattern?: { regex: RegExp; hint: string }; // what a 'string' allows; hint ends "must be …"
+  multiline?: boolean; // a 'string' that may hold line breaks (a text's text)
 }
 ```
 
@@ -197,6 +198,8 @@ interface PropDef {
   an address, a colon, the bytes; unlisted bytes erased, `0xFF`); `max` is the size in bytes
   (`parseImage`, `formatImage` in core; [Memories](#contents-in-the-document)). Properties
   shows them as a summary (`214 of 2048 bytes programmed`).
+- `string` props with `multiline` may hold line breaks (`\n`): a schematic text's text
+  ([Graphics](#graphics-draw)); Properties edits them in a text area.
 - Props are part of the saved document; changing one recompiles the netlist.
 - `resolveProps(definition, raw)` (used by the netlist resolver) fills in defaults and rejects
   unknown keys, wrong types, non-integers for `integer`/`time`, out-of-range values and unknown
