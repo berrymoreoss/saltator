@@ -138,9 +138,9 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   the registry); family `draw` in the registry; the gallery example lists it.
 - [x] 4. `editor`: `SymbolGraphics.textBlock` (canvas + recording) with placement tests; the
   `text` drawer; no designator in the scene; texts hit after other parts; tests.
-- [ ] 5. `ui`: Graphics group in Parts; Place ▸ Text (`T`); the `TextArea` field for multiline
+- [x] 5. `ui`: Graphics group in Parts; Place ▸ Text (`T`); the `TextArea` field for multiline
   props; the focus request on a text; tests (prop-input, commands).
-- [ ] 6. e2e: place a text with `T`, type two lines in Properties, apply, check the document and
+- [x] 6. e2e: place a text with `T`, type two lines in Properties, apply, check the document and
   the canvas; undo.
 - [ ] 7. Example: the description and listing texts in 6502 ROM and RAM; the listing-vs-ROM
   scenario test; looked at in the browser (light and dark).
