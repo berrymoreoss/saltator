@@ -159,6 +159,39 @@ export const COMMANDS: ReadonlyMap<number, CommandInfo> = new Map<number, Comman
 /** No command is taking data (after a reset, a read, an unknown command's bytes run out). */
 const NONE = -1;
 
+/**
+ * Registers whose value is unknown (`Controller.unknown`): a command whose effect is uncertain (a
+ * wait violated, an unknown bit) leaves what it sets unknown where its outcomes differ.
+ */
+export const Unknown = {
+  SLEEP: 1 << 0,
+  DISPLAY: 1 << 1,
+  INVERSION: 1 << 2,
+  IDLE: 1 << 3,
+  PARTIAL: 1 << 4,
+  MADCTL: 1 << 5,
+  PTLAR: 1 << 6,
+  /** VSCRDEF or VSCSAD. */
+  SCROLL: 1 << 7,
+  COLMOD: 1 << 8,
+  /** CASET or RASET. */
+  WINDOW: 1 << 9,
+  RAMCTRL: 1 << 10,
+  /** The counters and whether data is memory data (an uncertain RAMWR, a lost interface). */
+  WRITE: 1 << 11,
+} as const;
+
+/** The modes that change how the memory shows (`st7789Frame`). */
+export const SHOWN =
+  Unknown.SLEEP |
+  Unknown.DISPLAY |
+  Unknown.INVERSION |
+  Unknown.IDLE |
+  Unknown.PARTIAL |
+  Unknown.MADCTL |
+  Unknown.PTLAR |
+  Unknown.SCROLL;
+
 /** A frame memory word: R6 G6 B6 in bits 17–0 and this flag when the pixel is unknown. */
 export const PIXEL_X = 1 << 18;
 
@@ -207,6 +240,8 @@ export interface Controller {
   /** Bytes of the pixel (or pixel pair, 12-bit) collected so far, and their bits. */
   phase: number;
   acc: number;
+  /** Registers whose value is unknown (`Unknown` bits). */
+  unknown: number;
   /** Frame memory, `GRAM_WIDTH × GRAM_HEIGHT` words row by row (see `PIXEL_X`). */
   gram: Uint32Array;
   /** Counts every change the glass could show, so a drawer can cache its frame. */
@@ -217,6 +252,7 @@ export interface Controller {
 function setHardwareDefaults(c: Controller): void {
   c.colmod = 0x06; // "18 bit/pixel" (RDDCOLMOD: 0000 0110)
   c.madctl = 0x00;
+  c.unknown = 0;
   setSoftwareDefaults(c);
 }
 
@@ -248,6 +284,10 @@ function setSoftwareDefaults(c: Controller): void {
   c.row = 0;
   c.phase = 0;
   c.acc = 0;
+  // A reset knows every register again, except what it leaves as it was.
+  c.unknown &= Unknown.COLMOD | Unknown.MADCTL;
+  // …and the window's ends follow an MV it doesn't know.
+  if (c.unknown & Unknown.MADCTL) c.unknown |= Unknown.WINDOW;
   c.version++;
 }
 
@@ -280,6 +320,7 @@ export function createController(): Controller {
     row: 0,
     phase: 0,
     acc: 0,
+    unknown: 0,
     gram: new Uint32Array(GRAM_WIDTH * GRAM_HEIGHT).fill(PIXEL_X),
     version: 0,
   };

@@ -56,7 +56,9 @@ export {
   type Controller as St7789Controller,
   PIXEL_X,
   St7789Diagnostic,
+  Unknown as St7789Unknown,
 } from './st7789-controller';
+export { FRAME_UNCERTAIN, FRAME_UNKNOWN, type St7789Frame, st7789Frame } from './st7789-frame';
 export {
   GRAM_HEIGHT,
   GRAM_WIDTH,

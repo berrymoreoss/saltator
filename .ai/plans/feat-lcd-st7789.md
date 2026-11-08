@@ -330,7 +330,7 @@ The alternatives considered:
 - [x] 3. `library`: memory writes: CASET/RASET/RAMWR/WRMEMC, MADCTL MX/MY/MV, window wrap,
   out-of-range ignored; COLMOD 12/16/18 with EPF and the RGB bit. Tests: all 8 orientations
   as §8.12 draws them, and each format.
-- [ ] 4. `library`: the display modes and `st7789Frame` with the panel windows. Tests: on/off,
+- [x] 4. `library`: the display modes and `st7789Frame` with the panel windows. Tests: on/off,
   sleep, inversion, idle, partial, scroll; a 240 × 240 with MY = 1 shows an unknown band
   without the row offset and a clean picture with it.
 - [ ] 5. `library`: timing. The Table 6 checks, the reset pulse and its spike rejection, the
@@ -465,13 +465,19 @@ displaymodule.com (cdn.shopify.com/s/files/1/0264/7629/files/DM-TFT114-397_Datas
   is: the only reading that matches all 8 vendor offsets), 12/16/18-bit and 16M truncated, EPF;
   an undefined COLMOD makes the window unknown (`bad-format`). Note: with EPF 11 (default) pure
   green 07E0h is stored with R0 = B0 = 1.
+- 2026-11-09: task 4. `st7789-frame.ts`: pixels as 0xRRGGBB plus `FRAME_UNKNOWN` (memory X)
+  and `FRAME_UNCERTAIN` (a shown mode unknown, scroll undefined). `Controller.unknown` with
+  `Unknown` bits (filled by tasks 5–6). Decisions: scrolling always maps (the defaults give
+  identity; no separate scroll mode, since the data sheet names no exit); the partial
+  non-display area is black (PARCTRL's NDL not modeled); the blank page is black; ML = 1
+  exchanges the fixed areas.
 
 ## Handoff
 
-- **State:** tasks 1–3 done (memory writes: window, MADCTL mapping, formats, EPF); `periph/st7789` (pins, `panel`, symbol, serial framing, command
+- **State:** tasks 1–4 done (memory writes; the frame with display modes, panels, flags); `periph/st7789` (pins, `panel`, symbol, serial framing, command
   table, registers, resets) and a basic `tft` drawer (board, dark or lit glass, pin names).
-- **Next step:** task 4: display modes and `st7789Frame` (unknown SDA/DC bits are still dropped
-  in `clockIn`, replaced in task 6).
+- **Next step:** task 5: timing (Table 6 checks, reset pulse, waits with merged outcomes);
+  unknown SDA/DC bits are still dropped in `clockIn`, replaced in task 6.
 - **Watch out:** the data sheets mark themselves "Sitronix Confidential". Cite them, never copy
   them into the repo. ST7789V is a 3.3 V part.
 - **Verify with:** `pnpm check`.

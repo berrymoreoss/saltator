@@ -6,7 +6,8 @@
 import { ms, ns, type Time } from '../../core';
 import { Bench } from '../../core/testing';
 import { type St7789Props, st7789, st7789Controller } from './st7789';
-import type { Controller } from './st7789-controller';
+import { Cmd, type Controller, createController, receiveByte } from './st7789-controller';
+import { GRAM_WIDTH } from './st7789-panels';
 
 /** One SCL period's halves: LOW (SDA and DC change here), then HIGH. */
 export interface Clock {
@@ -99,5 +100,42 @@ export class TftBench {
     this.select();
     for (const b of bytes) this.bits(1, b);
     return this.deselect();
+  }
+}
+
+/** A controller fed bytes directly (no serial interface), and the warnings it gave. */
+export class Fed {
+  readonly c: Controller = createController();
+  readonly warnings: string[] = [];
+
+  command(code: number, ...params: number[]): this {
+    receiveByte(this.c, 0, 0, code, (kind) => this.warnings.push(kind));
+    return this.data(...params);
+  }
+
+  data(...bytes: number[]): this {
+    for (const b of bytes) receiveByte(this.c, 0, 1, b, (kind) => this.warnings.push(kind));
+    return this;
+  }
+
+  window(xs: number, xe: number, ys: number, ye: number): this {
+    return this.command(Cmd.CASET, xs >> 8, xs & 0xff, xe >> 8, xe & 0xff).command(
+      Cmd.RASET,
+      ys >> 8,
+      ys & 0xff,
+      ye >> 8,
+      ye & 0xff,
+    );
+  }
+
+  /** 16-bit pixels after RAMWR. */
+  pixels565(...words: number[]): this {
+    this.command(Cmd.RAMWR);
+    for (const w of words) this.data(w >> 8, w & 0xff);
+    return this;
+  }
+
+  at(x: number, y: number): number {
+    return this.c.gram[y * GRAM_WIDTH + x]!;
   }
 }
