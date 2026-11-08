@@ -32,6 +32,28 @@ describe('draw/text', () => {
     expect(lineWidth('', 'sans')).toBe(0);
   });
 
+  it('errs a little wide of the system UI font at 10 px', () => {
+    // Chromium on macOS (SF Pro), `measureText` at 10 px, in font sizes, to 0.01.
+    const measured: [string, number][] = [
+      [
+        'A W65C02S CPU (U1) runs the program in the AT28C256 EEPROM (U2) and keeps a count and its',
+        47.2,
+      ],
+      ['RDY, IRQB, NMIB, BE and SOB high. DS1-DS4 show the address bus in hex.', 36.11],
+      ['6502 ROM and RAM', 9.77],
+      ['Wait for it: the LED blinks at 1 Hz.', 16.09],
+      ['abcdefghijklmnopqrstuvwxyz', 14.07],
+      ['ABCDEFGHIJKLMNOPQRSTUVWXYZ', 17.86],
+      ['0123456789', 6.17],
+      ['mmmmmmmmmm', 8.82],
+      ['          ', 2.93],
+    ];
+    for (const [line, width] of measured) {
+      expect(lineWidth(line, 'sans'), line).toBeGreaterThanOrEqual(width - 0.01);
+      expect(lineWidth(line, 'sans'), line).toBeLessThan(width * 1.1);
+    }
+  });
+
   it('grows with the size and the longest line', () => {
     const long = 'The program counts in RAM';
     const small = textBlockSize(long, 'small', 'sans');

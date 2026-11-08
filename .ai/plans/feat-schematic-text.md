@@ -142,7 +142,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   props; the focus request on a text; tests (prop-input, commands).
 - [x] 6. e2e: place a text with `T`, type two lines in Properties, apply, check the document and
   the canvas; undo.
-- [ ] 7. Example: the description and listing texts in 6502 ROM and RAM; the listing-vs-ROM
+- [x] 7. Example: the description and listing texts in 6502 ROM and RAM; the listing-vs-ROM
   scenario test; looked at in the browser (light and dark).
 - [ ] 8. Docs: components.md (family `draw`, `draw/text`), editor.md (Place ▸ Text, Properties,
   double-click), architecture.md, library/editor READMEs, lessons; roadmap status.

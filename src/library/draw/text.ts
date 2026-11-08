@@ -24,18 +24,20 @@ const TAB_WIDTH = 4;
 const MONO_WIDTH = 0.6;
 
 /**
- * Widths of the sans-serif font's characters, in font sizes, by class — rounded up from the
- * system UI fonts (SF Pro, Segoe UI, Roboto), so the box errs wide. The pure layers have no font
- * metrics (ADR-0029); the drawer starts at the box's top-left, so a short guess never clips.
+ * Widths of the sans-serif font's characters, in font sizes, by class. The pure layers have no
+ * font metrics (ADR-0029): these follow the system UI font at 10 px — on screen a text is mostly
+ * 7–16 px, and SF Pro runs ~5 % wider at 7 px and ~6 % narrower at 16 px (optical sizes) — and
+ * round up within each class, so the box errs wide. The drawer starts at the box's top-left, so a
+ * short guess never clips; it only shows in the selection outline.
  */
 const SANS_WIDTHS: readonly (readonly [RegExp, number])[] = [
-  [/[il|!.,:;'`]/, 0.3],
-  [/[ Ijft()[\]{}"/\\-]/, 0.4],
-  [/[r]/, 0.42],
+  [/ /, 0.3],
+  [/[iIjl|!.,:;'`]/, 0.28],
+  [/[ftr()[\]{}/\\"*-]/, 0.44],
   [/[mw]/, 0.9],
-  [/[MW@%]/, 1],
-  [/[a-z]/, 0.58],
-  [/[A-Z]/, 0.72],
+  [/[MW@%]/, 0.94],
+  [/[a-z]/, 0.57],
+  [/[A-Z]/, 0.7],
   [/[0-9]/, 0.62],
 ];
 
