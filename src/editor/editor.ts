@@ -39,6 +39,7 @@ import {
   SCHEMA_VERSION,
   sameCircuit,
   sameDocument,
+  scriptLines,
   subcircuitOf,
   transformPoint,
   transformRect,
@@ -1132,6 +1133,23 @@ export class Editor {
     });
     this.#rememberProps(instance.type, props);
     return undefined;
+  }
+
+  /**
+   * Sets the test script of circuit `circuitId` (R15b) to `source`: one undo step while typing
+   * goes on (edits in a row coalesce until `sealHistory`), the circuit open stays open. The
+   * script is no part of the netlist, so a run and its history go on through it.
+   */
+  setTestScript(circuitId: string, source: string): boolean {
+    const { document } = this.state.get();
+    const circuit = document.circuits.find((c) => c.id === circuitId);
+    if (!circuit) return false;
+    const testScript = scriptLines(source);
+    return this.editDocument(
+      document.circuits.length > 1 ? `Edit Test Script of ${circuit.name}` : 'Edit Test Script',
+      replaceCircuit(document, { ...circuit, testScript }),
+      { coalesce: `script:${circuitId}` },
+    );
   }
 
   /**

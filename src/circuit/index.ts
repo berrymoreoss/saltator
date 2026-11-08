@@ -62,6 +62,7 @@ export {
   type ProbeRadix,
   SCHEMA_VERSION,
   type SignalProbe,
+  scriptLines,
   type Wire,
 } from './document';
 export {

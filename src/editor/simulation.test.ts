@@ -1321,6 +1321,23 @@ describe('Simulation: rewinding', () => {
     expect(simulation.rewindTo(ms(20))).toBe(false);
   });
 
+  it('a test script edit is no edit of the circuit: the run and its history go on', () => {
+    const { clock, editor, simulation } = rewinding();
+    simulation.run();
+    clock.frames(4);
+    simulation.pause();
+    simulation.rewindTo(ms(30));
+    const { simulator, timeline } = simulation;
+    const history = simulation.history.get();
+    expect(history.behind).toBe(true);
+    expect(editor.setTestScript('main', "bench('blinks', (b) => {});")).toBe(true);
+    expect(simulation.simulator).toBe(simulator);
+    expect(simulation.timeline).toBe(timeline);
+    expect(simulation.history.get()).toEqual(history);
+    expect(now(simulation)).toBe(ms(30));
+    expect(simulation.rewindTo(ms(20))).toBe(true);
+  });
+
   it('forgets the history on Stop and starts a new one at every power-on', () => {
     const { clock, simulation } = rewinding();
     simulation.run();

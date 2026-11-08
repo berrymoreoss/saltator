@@ -19,6 +19,7 @@ import {
   ID_PATTERN,
   type Probe,
   SCHEMA_VERSION,
+  scriptLines,
   type Wire,
 } from './document';
 import { isAxisAligned, type Point, type Rotation, samePoint } from './geometry';
@@ -136,7 +137,7 @@ export class CircuitBuilder {
 
   /** Sets the circuit's test script (R15a), split into its lines. */
   tests(source: string): this {
-    this.testScript = source === '' ? [] : source.split(/\r?\n/);
+    this.testScript = scriptLines(source);
     return this;
   }
 
