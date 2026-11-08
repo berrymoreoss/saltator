@@ -176,7 +176,8 @@ model with no special case: MY = 1 writes MCU row 0 to physical row 319, which i
   - 16-bit: 2 bytes per pixel. G6 is taken as is. R0 and B0 come from EPF (RAMCTRL, p. 259):
     00 → 0, 01 → 1, 10 → each channel's MSB, 11 (the default, F0h) → G0.
   - 18-bit: 3 bytes, the top 6 bits of each.
-  - MADCTL RGB swaps R and B on write.
+  - MADCTL RGB swaps R and B where the driver's outputs meet the panel (the MADCTL figure
+    draws it there), so the frame applies it at display time: toggling it swaps what is shown.
 - **Display modes**, applied by the frame function and never to the memory:
   - `DISPOFF` and sleep-in show a blank page (black on IPS);
   - `INVON` XORs the color;
@@ -326,7 +327,7 @@ The alternatives considered:
   the serial interface (framing, phase, break and recovery); the command table with
   parameter counts; H/W and S/W reset defaults. Tests: framing, recovery (Figures 20–21),
   defaults.
-- [ ] 3. `library`: memory writes: CASET/RASET/RAMWR/WRMEMC, MADCTL MX/MY/MV, window wrap,
+- [x] 3. `library`: memory writes: CASET/RASET/RAMWR/WRMEMC, MADCTL MX/MY/MV, window wrap,
   out-of-range ignored; COLMOD 12/16/18 with EPF and the RGB bit. Tests: all 8 orientations
   as §8.12 draws them, and each format.
 - [ ] 4. `library`: the display modes and `st7789Frame` with the panel windows. Tests: on/off,
@@ -458,13 +459,19 @@ displaymodule.com (cdn.shopify.com/s/files/1/0264/7629/files/DM-TFT114-397_Datas
   SWRESET, window ends follow MV), `st7789-panels.ts`, a test bench. Warnings: unknown command,
   read not simulated, stray data, partial byte. A basic `tft` drawer keeps the
   symbol-drawing test green, and the image arrives in task 7.
+- 2026-11-09: task 3. Memory writes: RAMWR/WRMEMC counters, §8.12 counter table (a window
+  starting past its end wraps after every pixel, with a `bad-window` warning), pixels past the
+  memory ignored but counted, `gramIndex` (MX/MY mirror the memory's columns/rows whatever MV
+  is: the only reading that matches all 8 vendor offsets), 12/16/18-bit and 16M truncated, EPF;
+  an undefined COLMOD makes the window unknown (`bad-format`). Note: with EPF 11 (default) pure
+  green 07E0h is stored with R0 = B0 = 1.
 
 ## Handoff
 
-- **State:** tasks 1–2 done: `periph/st7789` (pins, `panel`, symbol, serial framing, command
+- **State:** tasks 1–3 done (memory writes: window, MADCTL mapping, formats, EPF); `periph/st7789` (pins, `panel`, symbol, serial framing, command
   table, registers, resets) and a basic `tft` drawer (board, dark or lit glass, pin names).
-- **Next step:** task 3: memory writes (`receiveByte` data after RAMWR/WRMEMC is counted but
-  not stored yet; unknown SDA/DC bits are still dropped in `clockIn`, replaced in task 6).
+- **Next step:** task 4: display modes and `st7789Frame` (unknown SDA/DC bits are still dropped
+  in `clockIn`, replaced in task 6).
 - **Watch out:** the data sheets mark themselves "Sitronix Confidential". Cite them, never copy
   them into the repo. ST7789V is a 3.3 V part.
 - **Verify with:** `pnpm check`.

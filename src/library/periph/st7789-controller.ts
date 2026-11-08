@@ -15,6 +15,10 @@ export const St7789Diagnostic = {
   READ: 'read-not-simulated',
   /** A data byte no command takes (after a command's last parameter, or before any command). */
   STRAY_DATA: 'stray-data',
+  /** A memory write with XS > XE or YS > YE ("XS must always be equal to or less than XE"). */
+  BAD_WINDOW: 'bad-window',
+  /** COLMOD's interface format is none of 12, 16 or 18 bits per pixel: what a write does is unknown. */
+  BAD_FORMAT: 'bad-format',
   /** CS rose in the middle of a byte: the bits so far are dropped (§8.5). */
   PARTIAL_BYTE: 'partial-byte',
 } as const;
@@ -197,6 +201,12 @@ export interface Controller {
   param: number;
   /** 1 while the bytes are a read's or an unknown command's: ignored until the next command. */
   ignore: number;
+  /** The column and row counters of a memory write (logical: before MADCTL's mapping). */
+  col: number;
+  row: number;
+  /** Bytes of the pixel (or pixel pair, 12-bit) collected so far, and their bits. */
+  phase: number;
+  acc: number;
   /** Frame memory, `GRAM_WIDTH × GRAM_HEIGHT` words row by row (see `PIXEL_X`). */
   gram: Uint32Array;
   /** Counts every change the glass could show, so a drawer can cache its frame. */
@@ -234,6 +244,10 @@ function setSoftwareDefaults(c: Controller): void {
   c.cmd = NONE;
   c.param = 0;
   c.ignore = 0;
+  c.col = 0;
+  c.row = 0;
+  c.phase = 0;
+  c.acc = 0;
   c.version++;
 }
 
@@ -262,6 +276,10 @@ export function createController(): Controller {
     cmd: NONE,
     param: 0,
     ignore: 0,
+    col: 0,
+    row: 0,
+    phase: 0,
+    acc: 0,
     gram: new Uint32Array(GRAM_WIDTH * GRAM_HEIGHT).fill(PIXEL_X),
     version: 0,
   };
@@ -341,6 +359,18 @@ function command(c: Controller, now: Time, code: number, report: Reporter): void
     case Cmd.IDMON:
       set(c, 'idle', 1);
       break;
+    case Cmd.RAMWR:
+      // "The column and the page register are reset to the start column/start page."
+      c.col = c.xs;
+      c.row = c.ys;
+      c.phase = 0;
+      checkWindow(c, now, report);
+      break;
+    case Cmd.WRMEMC:
+      // Continues from where the last write left the counters; a pixel begins afresh.
+      c.phase = 0;
+      checkWindow(c, now, report);
+      break;
   }
   if (info.params === 0) c.cmd = NONE;
 }
@@ -366,8 +396,8 @@ function data(c: Controller, value: number, report: Reporter): void {
     return;
   }
   const index = c.param++;
-  if (info.params === STREAM) return;
-  parameter(c, index, value);
+  if (info.params === STREAM) memoryByte(c, value, index, report);
+  else parameter(c, index, value);
 }
 
 /** Stores parameter `index` of the current command as it arrives (§8.5: sent ones stand). */
@@ -405,6 +435,141 @@ function parameter(c: Controller, index: number, value: number): void {
       break;
     default:
       return; // accepted, no effect on the glass
+  }
+  c.version++;
+}
+
+function checkWindow(c: Controller, now: Time, report: Reporter): void {
+  if (c.xs <= c.xe && c.ys <= c.ye) return;
+  report(
+    St7789Diagnostic.BAD_WINDOW,
+    `memory write at ${formatTime(now)} with columns ${c.xs}–${c.xe}, rows ${c.ys}–${c.ye}: the start must not be past the end`,
+  );
+}
+
+/** COLMOD's control interface format (D2–D0). */
+export const Format = {
+  RGB444: 0b011,
+  RGB565: 0b101,
+  RGB666: 0b110,
+  /** "16M truncated": 3 bytes, each truncated to 6 bits, as RGB666. */
+  RGB888: 0b111,
+} as const;
+
+/** A 4-bit channel as 6 bits: the data sheet's 4K look-up table isn't given (our choice). */
+const from4 = (v: number) => (v << 2) | (v >> 2);
+
+const rgb444 = (r: number, g: number, b: number) => (from4(r) << 12) | (from4(g) << 6) | from4(b);
+
+/** An RGB 5-6-5 word as R6 G6 B6: R0 and B0 from RAMCTRL's EPF (p. 259). */
+function rgb565(c: Controller, word: number): number {
+  const r5 = word >> 11;
+  const g6 = (word >> 5) & 0x3f;
+  const b5 = word & 0x1f;
+  let r0: number;
+  let b0: number;
+  switch ((c.ramctrl2 >> 4) & 3) {
+    case 0:
+      r0 = 0;
+      b0 = 0;
+      break;
+    case 1:
+      r0 = 1;
+      b0 = 1;
+      break;
+    case 2:
+      r0 = r5 >> 4;
+      b0 = b5 >> 4;
+      break;
+    default:
+      r0 = g6 & 1;
+      b0 = g6 & 1;
+  }
+  return (((r5 << 1) | r0) << 12) | (g6 << 6) | ((b5 << 1) | b0);
+}
+
+/** One byte of memory data after RAMWR/WRMEMC (`index`: its position in the stream). */
+function memoryByte(c: Controller, value: number, index: number, report: Reporter): void {
+  switch (c.colmod & 7) {
+    case Format.RGB444:
+      // R1 G1 | B1 R2 | G2 B2: the first pixel is complete with the second byte's high nibble.
+      if (c.phase === 0) {
+        c.acc = value;
+        c.phase = 1;
+      } else if (c.phase === 1) {
+        writePixel(c, rgb444(c.acc >> 4, c.acc & 0xf, value >> 4));
+        c.acc = value & 0xf;
+        c.phase = 2;
+      } else {
+        writePixel(c, rgb444(c.acc, value >> 4, value & 0xf));
+        c.phase = 0;
+      }
+      return;
+    case Format.RGB565:
+      if (c.phase === 0) {
+        c.acc = value;
+        c.phase = 1;
+      } else {
+        writePixel(c, rgb565(c, (c.acc << 8) | value));
+        c.phase = 0;
+      }
+      return;
+    case Format.RGB666:
+    case Format.RGB888:
+      c.acc = (c.acc << 6) | (value >> 2);
+      if (++c.phase < 3) return;
+      writePixel(c, c.acc & 0x3ffff);
+      c.acc = 0;
+      c.phase = 0;
+      return;
+    default:
+      // How many bytes make a pixel is unknown: anything in the window may have been written.
+      if (index === 0) {
+        report(
+          St7789Diagnostic.BAD_FORMAT,
+          `COLMOD ${hex(c.colmod)} has no 12-, 16- or 18-bit interface format: the window's pixels become unknown`,
+        );
+        unknownWindow(c);
+      }
+  }
+}
+
+/** Where a logical (column, row) lands in the frame memory, or -1 outside it (ignored). */
+export function gramIndex(madctl: number, col: number, row: number): number {
+  const mv = (madctl & 0x20) !== 0;
+  // MV exchanges the counters: the column counter then runs down the memory's rows (§8.12).
+  let x = mv ? row : col;
+  let y = mv ? col : row;
+  if (x >= GRAM_WIDTH || y >= GRAM_HEIGHT) return -1;
+  // MX and MY mirror the memory's columns and rows whatever MV is (checked against the vendor
+  // offsets of the 135 × 240 and 240 × 240 panels in all four orientations).
+  if (madctl & 0x40) x = GRAM_WIDTH - 1 - x;
+  if (madctl & 0x80) y = GRAM_HEIGHT - 1 - y;
+  return y * GRAM_WIDTH + x;
+}
+
+/** Writes a pixel where the counters point, then moves them (§8.12's counter table). */
+function writePixel(c: Controller, word: number): void {
+  const at = gramIndex(c.madctl, c.col, c.row);
+  if (at >= 0) c.gram[at] = word;
+  c.version++;
+  // "Larger than XE": a start past the end (XS > XE) wraps after every pixel, as the table says.
+  if (++c.col > c.xe) {
+    c.col = c.xs;
+    if (++c.row > c.ye) c.row = c.ys;
+  }
+}
+
+/** Every pixel of the window becomes unknown (clipped to the memory). */
+function unknownWindow(c: Controller): void {
+  // Either counter reaches 319 at most (with MV); anything past that is ignored anyway.
+  const cols = Math.min(c.xe, GRAM_HEIGHT - 1);
+  const rows = Math.min(c.ye, GRAM_HEIGHT - 1);
+  for (let row = c.ys; row <= rows; row++) {
+    for (let col = c.xs; col <= cols; col++) {
+      const at = gramIndex(c.madctl, col, row);
+      if (at >= 0) c.gram[at] = PIXEL_X;
+    }
   }
   c.version++;
 }

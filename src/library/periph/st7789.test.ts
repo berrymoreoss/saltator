@@ -209,3 +209,31 @@ describe('ST7789 commands it doesn’t take', () => {
     expect(tft.diagnostics()).toEqual([]);
   });
 });
+
+describe('ST7789 memory over the serial interface', () => {
+  const fill = (tft: TftBench, word: number) => {
+    tft
+      .command(Cmd.COLMOD, [0x55])
+      .command(Cmd.CASET, [0, 0, 0, 1])
+      .command(Cmd.RASET, [0, 0, 0, 0]);
+    tft.command(Cmd.RAMWR, [word >> 8, word & 0xff, word >> 8, word & 0xff]);
+  };
+
+  it('writes pixels in a window', () => {
+    const tft = new TftBench();
+    fill(tft, 0xffff);
+    expect([tft.controller.gram[0], tft.controller.gram[1], tft.controller.gram[2]]).toEqual([
+      0x3ffff,
+      0x3ffff,
+      PIXEL_X,
+    ]);
+    expect(tft.diagnostics()).toEqual([]);
+  });
+
+  it('keeps the memory through a RESX pulse and SWRESET ("not cleared")', () => {
+    const tft = new TftBench();
+    fill(tft, 0xffff);
+    tft.reset(us(20)).command(Cmd.SWRESET);
+    expect(tft.controller.gram[0]).toBe(0x3ffff);
+  });
+});
