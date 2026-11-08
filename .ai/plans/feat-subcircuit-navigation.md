@@ -4,7 +4,7 @@
 | ---------- | ------------------------------------------------------------------------------ |
 | Branch     | `feat/subcircuit-navigation`                                                   |
 | Roadmap    | R11b — Navigation into instances ([roadmap](../../docs/roadmap.md))            |
-| Status     | in-progress                                                                    |
+| Status     | done                                                                           |
 | Depends on | R11a (subcircuits, `Design`, resolver paths), R05 (live drawing), R13 (probes) |
 | Created    | 2026-11-08                                                                     |
 
@@ -247,12 +247,15 @@ Checkable statements; verified one by one in the finish-branch workflow.
   stopped before the same edge (R14a; fixed with a regression test, `#beforeEdge`); a
   `Simulation.sync` path guard no editor test reached (a host test now). Every acceptance
   criterion verified.
+- 2026-11-08 — finished: R11b done (10 commits: the instance open, live levels by path, the
+  tools and locating inside, going in and out, the breadcrumb bar and the Go commands, autosave
+  of the path, the Step Clock fix, the e2e test, docs and ADR-0024); every acceptance criterion
+  verified; merged into `main` with the user's approval. Next: R15 (test benches).
 
 ## Handoff
 
-- **State:** all tasks done, every acceptance criterion verified; not merged.
-- **Next step:** the finish-branch workflow (plan and roadmap to `done`, R15 `next`, merge with
-  the user's approval).
-- **Watch out:** the Step Clock fix (`Simulation.#beforeEdge`) touches R14a's stepping; the
-  rewind property tests pass.
+- **State:** merged; nothing pending.
+- **Next step:** R15 `feat/test-benches`.
+- **Watch out:** navigation follow-ups (hierarchy tree, levels on an instance's box, the Memory
+  and Debug tabs following the instance open) are in the roadmap's backlog.
 - **Verify with:** `pnpm check`; `pnpm e2e`.
