@@ -13,35 +13,36 @@ How to read this file:
 
 ## Overview
 
-| ID   | Branch                       | Title                                      | Status  |
-| ---- | ---------------------------- | ------------------------------------------ | ------- |
-| R00  | — (initial commit on `main`) | Foundation                                 | done    |
-| R01  | `feat/engine-core`           | Simulation kernel                          | done    |
-| R02  | `feat/circuit-model`         | Circuit document & netlist compiler        | done    |
-| R03  | `feat/io-basic`              | Basic IO parts (headless)                  | done    |
-| R04a | `feat/editor-canvas`         | App shell & schematic view                 | done    |
-| R04b | `feat/editor-tools`          | Schematic editing                          | done    |
-| R05  | `feat/sim-ui`                | Running simulations in the editor          | done    |
-| R06  | `feat/74hc-gates`            | 74HC gates & bus buffers                   | done    |
-| R07  | `feat/persistence`           | Save, load, examples                       | done    |
-| R08  | `feat/74hc-msi`              | 74HC combinational MSI                     | done    |
-| R09a | `feat/74hc-registers`        | 74HC flip-flops, registers + timing checks | done    |
-| R09b | `feat/74hc-counters`         | 74HC counters & shift registers            | done    |
-| R10a | `feat/net-labels`            | Net labels                                 | done    |
-| R10b | `feat/buses`                 | Buses, rippers, bus values                 | done    |
-| R12a | `feat/memory-chips`          | Memory chips (EEPROM, SRAM)                | done    |
-| R12b | `feat/memory-inspector`      | Memory inspector, image files              | done    |
-| R13  | `feat/logic-analyzer`        | Waveforms & probes                         | done    |
-| R14a | `feat/debugger`              | Breakpoints, stepping, watches             | done    |
-| R14b | `feat/rewind`                | Snapshots & rewind                         | done    |
-| R11  | `feat/subcircuits`           | Hierarchical design                        | next    |
-| R15  | `feat/test-benches`          | Circuit test benches ("test before fab")   | planned |
-| R16a | `example/sap-1-modules`      | SAP-1 modules as tested subcircuits        | planned |
-| R16b | `example/sap-1`              | Ben Eater SAP-1 reference build            | planned |
-| R17  | `feat/cpu-6502`              | W65C02S CPU                                | planned |
-| R18  | `feat/peripherals`           | VIA, serial, buzzer, keypad                | planned |
-| R19  | `feat/toolchain`             | 6502 assembler & flashing                  | planned |
-| R20  | `example/be6502`             | Ben Eater 6502 reference build             | planned |
+| ID   | Branch                       | Title                                      | Status      |
+| ---- | ---------------------------- | ------------------------------------------ | ----------- |
+| R00  | — (initial commit on `main`) | Foundation                                 | done        |
+| R01  | `feat/engine-core`           | Simulation kernel                          | done        |
+| R02  | `feat/circuit-model`         | Circuit document & netlist compiler        | done        |
+| R03  | `feat/io-basic`              | Basic IO parts (headless)                  | done        |
+| R04a | `feat/editor-canvas`         | App shell & schematic view                 | done        |
+| R04b | `feat/editor-tools`          | Schematic editing                          | done        |
+| R05  | `feat/sim-ui`                | Running simulations in the editor          | done        |
+| R06  | `feat/74hc-gates`            | 74HC gates & bus buffers                   | done        |
+| R07  | `feat/persistence`           | Save, load, examples                       | done        |
+| R08  | `feat/74hc-msi`              | 74HC combinational MSI                     | done        |
+| R09a | `feat/74hc-registers`        | 74HC flip-flops, registers + timing checks | done        |
+| R09b | `feat/74hc-counters`         | 74HC counters & shift registers            | done        |
+| R10a | `feat/net-labels`            | Net labels                                 | done        |
+| R10b | `feat/buses`                 | Buses, rippers, bus values                 | done        |
+| R12a | `feat/memory-chips`          | Memory chips (EEPROM, SRAM)                | done        |
+| R12b | `feat/memory-inspector`      | Memory inspector, image files              | done        |
+| R13  | `feat/logic-analyzer`        | Waveforms & probes                         | done        |
+| R14a | `feat/debugger`              | Breakpoints, stepping, watches             | done        |
+| R14b | `feat/rewind`                | Snapshots & rewind                         | done        |
+| R11a | `feat/subcircuits`           | Subcircuits                                | in-progress |
+| R11b | `feat/subcircuit-navigation` | Navigation into instances                  | planned     |
+| R15  | `feat/test-benches`          | Circuit test benches ("test before fab")   | planned     |
+| R16a | `example/sap-1-modules`      | SAP-1 modules as tested subcircuits        | planned     |
+| R16b | `example/sap-1`              | Ben Eater SAP-1 reference build            | planned     |
+| R17  | `feat/cpu-6502`              | W65C02S CPU                                | planned     |
+| R18  | `feat/peripherals`           | VIA, serial, buzzer, keypad                | planned     |
+| R19  | `feat/toolchain`             | 6502 assembler & flashing                  | planned     |
+| R20  | `example/be6502`             | Ben Eater 6502 reference build             | planned     |
 
 ---
 
@@ -345,13 +346,27 @@ on every example and every part. Spec: [simulation.md](simulation.md#snapshots),
 [editor.md](editor.md#rewinding). Decision: [ADR-0021](adr/0021-rewind.md). Plan:
 `.ai/plans/feat-rewind.md`.
 
-### R11 · Hierarchical design — `feat/subcircuits` — `next`
+R11 (hierarchical design) was split at its start into the hierarchy itself (R11a) and going
+into instances while simulating (R11b): the compiler, the document model, editing several
+circuits and the tools' instance paths are one layer; live levels, interaction and probing
+inside an instance build on it.
 
-Multiple circuits per project, subcircuit instances with generated or custom symbols, navigation
-into instances while simulating. A subcircuit's interface pins (ports) join the Place menu (R10a).
-Extends the part and net resolver (R12b) with instance paths, so the memory inspector, probes,
-watches and breakpoints reach into instances, and test benches (R15) can test a subcircuit as a
-unit.
+### R11a · Subcircuits — `feat/subcircuits` — `in-progress`
+
+Several circuits per document, the first one the top circuit that simulates; subcircuit
+instances (`sub/<circuit id>`, designators `A1`, …) with a generated box symbol whose pins are
+the circuit's ports (`net/port`: name, direction, side; bus ports), ordered as the ports are
+drawn. The compiler flattens the hierarchy into the kernel's flat netlist with instance paths
+(`A1/U3`); net labels join only within their circuit, the power names everywhere. The resolver
+(R12b) takes instance paths (`A1/U3.Q0`, `A1/CLK`, `A1/U5[1F]`), so the memory inspector,
+probes, watches and breakpoints reach into instances, and test benches (R15) can test a
+subcircuit as a unit. A CIRCUITS list, subcircuits in the Parts panel, Place ▸ Port, one undo
+history per document. Example: Two-Digit Counter. Plan: `.ai/plans/feat-subcircuits.md`.
+
+### R11b · Navigation into instances — `feat/subcircuit-navigation`
+
+Going into an instance while simulating: its circuit drawn with that instance's live levels and
+indicators, Interact and the Probe tool inside, breadcrumbs and gestures to go in and out.
 
 ### R15 · Circuit test benches — `feat/test-benches`
 
