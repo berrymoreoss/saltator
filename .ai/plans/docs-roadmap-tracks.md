@@ -4,7 +4,7 @@
 | ---------- | ---------------------------------------------------- |
 | Branch     | `docs/roadmap-tracks`                                |
 | Roadmap    | — (process change; [roadmap](../../docs/roadmap.md)) |
-| Status     | in-progress                                          |
+| Status     | done                                                 |
 | Depends on | R15b (the last item merged)                          |
 | Created    | 2026-11-08                                           |
 
@@ -86,7 +86,8 @@ Existing items, by track:
 
 - `platform`: R00, R01, R02, R04a, R04b, R05, R07, R10a, R10b, R12b, R13, R14a, R14b, R11a,
   R11b, R15a, R15b (all done).
-- `parts`: R03, R06, R08, R09a, R09b, R12a, the HD44780 LCD (no id; came off the roadmap).
+- `parts`: R03, R06, R08, R09a, R09b, R12a, and the HD44780 LCD, which came off the roadmap
+  without an id and becomes LIB-1 (so that `Needs` can name it: R20 does).
 - `sap-1`: R16a (`next`), R16b.
 - `mos6502`: R17, R18, R19, R20 (`planned`; the track starts when the user decides).
 
@@ -122,25 +123,30 @@ run by `scripts/roadmap-cli.ts`:
 
 ## Tasks
 
-- [ ] 1. Track files: items moved verbatim, split/move notes with them, ideas sorted.
-- [ ] 2. Index: concepts and rules, tracks, milestones with needs and acceptance, track ideas,
+- [x] 1. Track files: items moved verbatim, split/move notes with them, ideas sorted.
+- [x] 2. Index: concepts and rules, tracks, milestones with needs and acceptance, track ideas,
   the note on the old phases.
-- [ ] 3. `scripts/roadmap.ts` + tests; `pnpm roadmap`, `pnpm check:roadmap` in `pnpm check` (Q4).
-- [ ] 4. Process: workflows, `.ai/README.md`, plan template, skills, `AGENTS.md`, `CLAUDE.md`,
+- [x] 3. `scripts/roadmap.ts` + tests; `pnpm roadmap`, `pnpm check:roadmap` in `pnpm check` (Q4).
+- [x] 4. Process: workflows, `.ai/README.md`, plan template, skills, `AGENTS.md`, `CLAUDE.md`,
   `README.md`, `docs/README.md`.
-- [ ] 5. Parallel safety: `.gitattributes`, the ADR numbering rule in `docs/adr/README.md`.
-- [ ] 6. ADR-0027; lessons.
+- [x] 5. Parallel safety: `.gitattributes`, the ADR numbering rule in `docs/adr/README.md`.
+- [x] 6. ADR-0027; lessons.
 - [ ] 7. Merge to `main` with the user's approval.
 
 ## Acceptance criteria
 
-- [ ] `pnpm check` and `pnpm build` are green.
-- [ ] Every item of the old roadmap is in exactly one track with its text unchanged; every
-  backlog idea is in exactly one place (checked by a script against `main`'s file).
-- [ ] No broken relative links in `docs/`, `.ai/`, `README.md`, `AGENTS.md`.
-- [ ] `pnpm roadmap` shows R16a as the head of `sap-1`; `pnpm check:roadmap` fails on a
+- [x] `pnpm check` and `pnpm build` are green.
+- [x] Every item of the old roadmap is in exactly one track with its text unchanged; every
+  backlog idea is in exactly one place (checked by a script against `main`'s file: 65 of 80
+  paragraphs and bullets verbatim, links rebased; the other 15 rewritten on purpose — the
+  how-to-read header, the milestones' acceptance labels, "Off the roadmap", R18's link to the LCD,
+  M5's last sentence, the backlog intro, the CPUs bullet, the LCD follow-ups' "(LIB-1)").
+- [x] No broken relative links in `docs/`, `.ai/`, `README.md`, `AGENTS.md` (none new; on
+  `main` already: `components.md#ports-net-port` — GitHub's anchor is `#ports-netport` — and
+  `#contents-in-the-document` in `components.md`).
+- [x] `pnpm roadmap` shows R16a as the head of `sap-1`; `pnpm check:roadmap` fails on a
   duplicated id, two heads in one track and an unknown `Needs` (unit tests).
-- [ ] The workflows name the new files; `start-branch` without an argument has a defined path.
+- [x] The workflows name the new files; `start-branch` without an argument has a defined path.
 
 ## Open questions
 
@@ -157,10 +163,20 @@ run by `scripts/roadmap-cli.ts`:
 ## Progress log
 
 - 2026-11-08 — plan drafted; Q1–Q4 answered as proposed; started.
+- 2026-11-08 — built:
+  - Track files generated from `main`'s roadmap by a script (texts verbatim, links rebased to
+    `docs/roadmap/`, split and move notes at the top of the items they concern), backlog sorted
+    into Platform's grouped ideas and Parts' ideas; the index rewritten.
+  - `scripts/roadmap.ts` + 21 tests; `pnpm roadmap`, `pnpm check:roadmap` in `pnpm check`.
+  - Workflows, template, skills, AGENTS.md, CLAUDE.md, READMEs; `.gitattributes` (union merge
+    tried in a scratch repo first); the ADR numbering rule; ADR-0027; a lesson.
+- 2026-11-08 — finished: acceptance verified, `pnpm check` and `pnpm build` green.
 
 ## Handoff
 
-- **State:** plan approved, nothing built yet.
-- **Next step:** task 1 — the track files.
-- **Watch out:** Biome formats Markdown (`pnpm lint:fix` after editing docs).
-- **Verify with:** `pnpm check`.
+- **State:** done; merged after the user's approval.
+- **Next step:** `/start-branch` — SAP-1's head is R16a; MOS 6502 starts when its R17 is marked
+  `next`.
+- **Watch out:** worktrees for simultaneous sessions are not set up (a later `chore/` branch if
+  needed).
+- **Verify with:** `pnpm roadmap`, `pnpm check`.
