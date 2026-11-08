@@ -20,8 +20,10 @@
     "coverage": "vitest run --coverage",
     "e2e": "playwright test",
     "check:layers": "node scripts/check-layers.ts",
+    "check:roadmap": "node scripts/roadmap-cli.ts --check",
+    "roadmap": "node scripts/roadmap-cli.ts",
     "test:circuits": "node --import ./scripts/resolve-hooks.ts scripts/test-circuits.ts",
-    "check": "pnpm typecheck && pnpm lint && pnpm check:layers && pnpm test",
+    "check": "pnpm typecheck && pnpm lint && pnpm check:layers && pnpm check:roadmap && pnpm test",
     "bench": "vitest bench --run --reporter=verbose --experimental.viteModuleRunner=false --execArgv=--import=./scripts/resolve-hooks.ts"
   },
   "dependencies": {
