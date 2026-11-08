@@ -1,12 +1,12 @@
 # Plan: feat/lcd-st7789
 
-| Field      | Value                                                                                         |
-| ---------- | --------------------------------------------------------------------------------------------- |
-| Branch     | `feat/lcd-st7789`                                                                             |
-| Roadmap    | LIB-2 — TFT LCD (ST7789), track [Parts](../../docs/roadmap/parts.md)                          |
-| Status     | in-progress                                                                                   |
+| Field      | Value                                                                                                  |
+| ---------- | ------------------------------------------------------------------------------------------------------ |
+| Branch     | `feat/lcd-st7789`                                                                                      |
+| Roadmap    | LIB-2 — TFT LCD (ST7789), track [Parts](../../docs/roadmap/parts.md)                                   |
+| Status     | in-progress                                                                                            |
 | Depends on | LIB-1 (`periph` family, controller patterns, merging outcomes), R09a (timing checks), R14b (snapshots) |
-| Created    | 2026-11-08                                                                                    |
+| Created    | 2026-11-08                                                                                             |
 
 ## Goal
 
@@ -136,11 +136,11 @@ A module without CS (the 7-pin 1.3" boards) is this part with CS tied to GND.
 Props: one, `panel`. Each panel is data: its glass size and its window in the physical
 frame memory.
 
-| `panel`             | Module (source)        | Window (columns × rows)     |
-| ------------------- | ---------------------- | --------------------------- |
-| `240x320` (default) | 2.0", MSP2008          | 0–239 × 0–319               |
-| `240x240`           | 1.3", MSP1308 (7-pin)  | 0–239 × 0–239               |
-| `135x240`           | 1.14", MSP1141         | 52–186 × 40–279             |
+| `panel`             | Module (source)       | Window (columns × rows) |
+| ------------------- | --------------------- | ----------------------- |
+| `240x320` (default) | 2.0", MSP2008         | 0–239 × 0–319           |
+| `240x240`           | 1.3", MSP1308 (7-pin) | 0–239 × 0–239           |
+| `135x240`           | 1.14", MSP1141        | 52–186 × 40–279         |
 
 The vendor offsets in task 1 confirm every window. Other sizes (170 × 320, 172 × 320,
 240 × 280) had no module data sheet, so they are left out. All three panels are "normally
@@ -185,36 +185,38 @@ model with no special case: MY = 1 writes MCU row 0 to physical row 319, which i
   - `VSCRDEF`/`VSCSAD` roll the scroll area (TFA + VSA + BFA = 320, otherwise undefined: shown
     as unknown).
 - **Reset:** the H/W reset (RESX) and `SWRESET` set the registers to their columns in each
-  command's "Default" table: sleep in, display off, normal mode, inversion off, COLMOD 66h,
-  MADCTL 00h, window 0–239 × 0–319. The frame memory is not cleared ("not cleared"). At power-on
+  command's "Default" table: sleep in, display off, normal mode, inversion off, COLMOD 06h,
+  MADCTL 00h, window 0–239 × 0–319 (COLMOD 06h, MADCTL 00h are "No change" at `SWRESET`). The frame memory is not cleared ("not cleared"). At power-on
   the registers take their power-on defaults and the frame memory is unknown ("set randomly").
 
 ### Timing (Table 6, write; Table 9; command restrictions)
 
 These are timing checks against the minima (Table 6, VDDI 1.65–3.3 V):
 
-| Check        | Spec                                                               |
-| ------------ | ------------------------------------------------------------------ |
-| `tCSS`       | 15 ns, CS↓ → first SCL↑                                            |
-| `tCSH`       | 15 ns, last SCL↑ → CS↑                                             |
-| `tCHW`       | 40 ns, CS HIGH                                                     |
-| `tSCYCW`     | 66 ns                                                              |
-| `tSHW`       | 15 ns                                                              |
-| `tSLW`       | 15 ns                                                              |
-| `tSDS`/`tSDH` | 10 ns each                                                        |
-| `tDCS`/`tDCH` | 10 ns each, `armed` on the 8th edge only                          |
-| `tRW`        | RESX LOW ≥ 10 µs (< 5 µs rejected silently, 5–9 µs reported and uncertain) |
+| Check         | Spec                                                                       |
+| ------------- | -------------------------------------------------------------------------- |
+| `tCSS`        | 15 ns, CS↓ → first SCL↑                                                    |
+| `tCSH`        | 15 ns, last SCL↑ → CS↑                                                     |
+| `tCHW`        | 40 ns, CS HIGH                                                             |
+| `tSCYCW`      | 66 ns                                                                      |
+| `tSHW`        | 15 ns                                                                      |
+| `tSLW`        | 15 ns                                                                      |
+| `tSDS`/`tSDH` | 10 ns each                                                                 |
+| `tDCS`/`tDCH` | 10 ns each, `armed` on the 8th edge only                                   |
+| `tRW`         | RESX LOW ≥ 10 µs (< 5 µs rejected silently, 5–9 µs reported and uncertain) |
 
 Waits after a command (Q5): anything sent sooner is a `*-violation` error (`wait-violation`),
 and its effect is **uncertain**. The data sheet says "it will be necessary to wait" but not what
 happens otherwise, and vendor code that skips the waits works on the bench. So both outcomes,
 applied and not applied, are merged (ADR-0014):
+
 - a register or mode it sets becomes unknown where the two outcomes differ;
 - pixel data that may not have been written makes the target pixels unknown where old and new
   differ;
 - an early `SWRESET` makes every register it resets unknown.
 
 The frame then has three kinds of pixel:
+
 - **known**;
 - **uncertain**: the memory color is known but how it shows is not, because display on, sleep,
   inversion or idle is unknown. It is drawn as its color under the `X` veil, so the picture
@@ -223,12 +225,12 @@ The frame then has three kinds of pixel:
 
 A later command sent in time resolves the mode again.
 
-| After          | Wait                                                                      |
-| -------------- | ------------------------------------------------------------------------- |
-| RESX↑          | 5 ms before any command; 120 ms before `SLPOUT`                           |
-| `SWRESET`      | 5 ms before any command; in sleep-in, 120 ms before `SLPOUT`              |
-| `SLPOUT`       | 5 ms before the next command; 120 ms before `SLPIN`                       |
-| `SLPIN`        | 5 ms before the next command                                              |
+| After     | Wait                                                         |
+| --------- | ------------------------------------------------------------ |
+| RESX↑     | 5 ms before any command; 120 ms before `SLPOUT`              |
+| `SWRESET` | 5 ms before any command; in sleep-in, 120 ms before `SLPOUT` |
+| `SLPOUT`  | 5 ms before the next command; 120 ms before `SLPIN`          |
+| `SLPIN`   | 5 ms before the next command                                 |
 
 ### Unknowns
 
@@ -299,6 +301,7 @@ Either way, the example shows the waits checked: shorten the gap and the simulat
 ### ADR-0031: TFT modules
 
 The ADR records:
+
 - the module at command level over SPI;
 - the frame memory as the only storage, with the frame computed from it;
 - the panel's window as data;
@@ -307,6 +310,7 @@ The ADR records:
 - what is not simulated.
 
 The alternatives considered:
+
 - a part per panel;
 - scanning the panel line by line (it would show tearing, but costs a lot and gives little);
 - an RGBA buffer kept in the state (it doubles the snapshots);
@@ -315,79 +319,79 @@ The alternatives considered:
 ## Tasks
 
 - [x] 1. Data sheets: the module pinout and the BLK circuit; the panel windows (a module data
-      sheet per panel; keep only those with a source); the EPF and LUT rules from the rendered
-      §8.8 and RAMCTRL pages; each command's defaults and parameter counts into "Data sheet
-      numbers" below; ST7789V vs VW differences.
-- [ ] 2. `library`: the `periph/st7789` skeleton: pins, props, the symbol per panel, the state;
-      the serial interface (framing, phase, break and recovery); the command table with
-      parameter counts; H/W and S/W reset defaults. Tests: framing, recovery (Figures 20–21),
-      defaults.
+  sheet per panel; keep only those with a source); the EPF and LUT rules from the rendered
+  §8.8 and RAMCTRL pages; each command's defaults and parameter counts into "Data sheet
+  numbers" below; ST7789V vs VW differences.
+- [x] 2. `library`: the `periph/st7789` skeleton: pins, props, the symbol per panel, the state;
+  the serial interface (framing, phase, break and recovery); the command table with
+  parameter counts; H/W and S/W reset defaults. Tests: framing, recovery (Figures 20–21),
+  defaults.
 - [ ] 3. `library`: memory writes: CASET/RASET/RAMWR/WRMEMC, MADCTL MX/MY/MV, window wrap,
-      out-of-range ignored; COLMOD 12/16/18 with EPF and the RGB bit. Tests: all 8 orientations
-      as §8.12 draws them, and each format.
+  out-of-range ignored; COLMOD 12/16/18 with EPF and the RGB bit. Tests: all 8 orientations
+  as §8.12 draws them, and each format.
 - [ ] 4. `library`: the display modes and `st7789Frame` with the panel windows. Tests: on/off,
-      sleep, inversion, idle, partial, scroll; a 240 × 240 with MY = 1 shows an unknown band
-      without the row offset and a clean picture with it.
+  sleep, inversion, idle, partial, scroll; a 240 × 240 with MY = 1 shows an unknown band
+  without the row offset and a clean picture with it.
 - [ ] 5. `library`: timing. The Table 6 checks, the reset pulse and its spike rejection, the
-      waits as errors with the outcome merged (Q5). Tests: each one just inside (silent) and
-      just outside (reported, the touched state unknown); the MSP2008 vendor initialization
-      shows its picture under the veil, and a later timely command resolves it.
+  waits as errors with the outcome merged (Q5). Tests: each one just inside (silent) and
+  just outside (reported, the touched state unknown); the MSP2008 vendor initialization
+  shows its picture under the veil, and a later timely command resolves it.
 - [ ] 6. `library`: unknowns. `X` bits, merging an uncertain D/CX or command, the caps, a lost
-      interface. Tests for each.
+  interface. Tests for each.
 - [ ] 7. `editor`: the `image` primitive (canvas, recording) and the `tft` drawer with its
-      cache, dropped on restore. Symbol-drawing and drawer tests; measure the budget.
+  cache, dropped on restore. Symbol-drawing and drawer tests; measure the budget.
 - [ ] 8. Scenarios: an SPI driver helper (like `lcd-program.ts`), a common initialization
-      written from the data sheet, then drawing; the carry-over and rewind properties with the
-      TFT; a benchmark of the SPI stream with and without the TFT.
+  written from the data sheet, then drawing; the carry-over and rewind properties with the
+  TFT; a benchmark of the SPI stream with and without the TFT.
 - [ ] 9. The TFT Color Bars example (Q3): design the streamer (record it in Design), a
-      generator for the circuit and both ROM images (every net checked), a gallery entry, a
-      scenario test (the frame equals the expected bars; no diagnostics) and a browser test.
+  generator for the circuit and both ROM images (every net checked), a gallery entry, a
+  scenario test (the frame equals the expected bars; no diagnostics) and a browser test.
 - [ ] 10. Docs: components.md (the ST7789 section), editor.md (`tft`, `image`), glossary
-      (frame memory, MADCTL, window), ADR-0031, the roadmap section, READMEs, lessons.
+  (frame memory, MADCTL, window), ADR-0031, the roadmap section, READMEs, lessons.
 
 ## Acceptance criteria
 
 - [ ] `pnpm check` and `pnpm build` are green.
 - [ ] Every simulated command has a function test from the data sheet, and the 8 MADCTL
-      orientations write as §8.12 draws them.
+  orientations write as §8.12 draws them.
 - [ ] `SWRESET` → `SLPOUT` → `COLMOD 55h` → `MADCTL` → `INVON` → `NORON` → `DISPON` and a fill
-      show the expected frame on every panel. Without `INVON`, an IPS panel shows inverted
-      colors. A rotated 240 × 240 needs its row offset.
+  show the expected frame on every panel. Without `INVON`, an IPS panel shows inverted
+  colors. A rotated 240 × 240 needs its row offset.
 - [ ] Each SPI write requirement and each wait is silent just inside and reported just outside.
-      A command sent too early leaves what it sets uncertain (Q5).
+  A command sent too early leaves what it sets uncertain (Q5).
 - [ ] The frame memory powers on unknown and is drawn as unknown. RESX and `SWRESET` don't
-      clear it.
+  clear it.
 - [ ] TFT Color Bars runs headless and in the browser, shows the SMPTE bars and reports no
-      diagnostics. With the post-`SLPOUT` gap shortened it reports the wait violation.
+  diagnostics. With the post-`SLPOUT` gap shortened it reports the wait violation.
 - [ ] The carry-over and rewind properties pass with the TFT. A snapshot of an unchanged TFT
-      costs ≤ 4 KiB.
+  costs ≤ 4 KiB.
 - [ ] The drawer stays within its budget, and the benchmark numbers are recorded here.
 - [ ] Docs, ADR-0031, the roadmap and lessons are updated.
 
 ## Open questions
 
 - [x] Q1. Interfaces — _proposed:_ only the 4-line SPI (the breakout modules); 8080 8-bit
-      parallel → ideas. — **answer:** only SPI (2026-11-08). 8080 is in the Parts ideas.
+  parallel → ideas. — **answer:** only SPI (2026-11-08). 8080 is in the Parts ideas.
 - [x] Q2. Reads — _proposed:_ not simulated. A read command (`04h`, `09h`, `0Ah`–`0Fh`,
-      `2Eh`, `DAh`–`DCh`…) is reported as a warning ("the module would drive SDA now"),
-      because on the bench it would fight the host's SDA. — **answer:** as proposed: a warning
-      (`read-not-simulated`); reads are in the ideas.
+  `2Eh`, `DAh`–`DCh`…) is reported as a warning ("the module would drive SDA now"),
+  because on the bench it would fight the host's SDA. — **answer:** as proposed: a warning
+  (`read-not-simulated`); reads are in the ideas.
 - [x] Q3. Examples — _proposed:_ **TFT from ROM**: a clock, a 74HC4040, an AT28C256 and a
-      74HC165 stream an initialization and a picture into a panel. A 6502 example waits for the
-      VIA. — **answer:** TFT from ROM, and the picture is **SMPTE color bars**. See "The
-      example" in Design.
+  74HC165 stream an initialization and a picture into a panel. A 6502 example waits for the
+  VIA. — **answer:** TFT from ROM, and the picture is **SMPTE color bars**. See "The
+  example" in Design.
 - [x] Q5. A command sent during a wait (5 ms after RESX↑, `SWRESET`, `SLPOUT` or `SLPIN`;
-      120 ms before `SLPOUT`). The data sheet says "it will be necessary to wait" but not what
-      the chip does otherwise, and the MSP1308/MSP2008 vendor code skips both waits and works on
-      the bench (task 1). — _proposed:_ an error, and the command's effect is uncertain: the
-      registers it sets become unknown (ADR-0014: `X` where outcomes differ), and the glass
-      shows the picture under the `X` veil instead of blanking it. _Alternatives:_ an error with
-      the command lost (ADR-0022's busy rule; it would blank the vendors' working code), or an
-      error with the command applied. — **answer:** as proposed (2026-11-08): an error, both
-      outcomes merged, the picture drawn under the `X` veil.
+  120 ms before `SLPOUT`). The data sheet says "it will be necessary to wait" but not what
+  the chip does otherwise, and the MSP1308/MSP2008 vendor code skips both waits and works on
+  the bench (task 1). — _proposed:_ an error, and the command's effect is uncertain: the
+  registers it sets become unknown (ADR-0014: `X` where outcomes differ), and the glass
+  shows the picture under the `X` veil instead of blanking it. _Alternatives:_ an error with
+  the command lost (ADR-0022's busy rule; it would blank the vendors' working code), or an
+  error with the command applied. — **answer:** as proposed (2026-11-08): an error, both
+  outcomes merged, the picture drawn under the `X` veil.
 - [x] Q4. Module and panels — _proposed:_ the generic 8-pin header (GND VCC SCL SDA RES DC CS
-      BLK); panels 240 × 320 (default), 240 × 240 and 135 × 240, plus any others with a module
-      data sheet. — **answer:** as proposed.
+  BLK); panels 240 × 320 (default), 240 × 240 and 135 × 240, plus any others with a module
+  data sheet. — **answer:** as proposed.
 
 ## Data sheet numbers
 
@@ -406,7 +410,7 @@ displaymodule.com (cdn.shopify.com/s/files/1/0264/7629/files/DM-TFT114-397_Datas
     A0h (MY MV) → (40, 52).
   - 240 × 240: 00h → (0, 0), 60h → (0, 0), C0h → (0, 80), A0h → (80, 0).
   - 240 × 320: no offsets.
-  These are the orientation tests of task 4.
+    These are the orientation tests of task 4.
 - Vendor initializations:
   - MSP1141: RES LOW 20 ms, HIGH, 20 ms, then 120 ms, `SLPOUT`, 120 ms, `36h 00`, `3Ah 05`,
     `21h`, then the panel tuning (`B2`, `B7`, `BB`, `C0`, `C2`, `C3`, `C4`, `C6`, `D0`, `D6`,
@@ -433,7 +437,7 @@ displaymodule.com (cdn.shopify.com/s/files/1/0264/7629/files/DM-TFT114-397_Datas
   initializes the interface. CS may be grounded permanently (§8.16).
 - RAMCTRL (B0h) default 00h/F0h: EPF = 11, ENDIAN = 0. Little endian applies only to the
   8/9-bit parallel buses.
-- COLMOD: 03h is 12-bit, 05h 16-bit, 06h 18-bit, 07h 16M truncated. Default 66h (18-bit).
+- COLMOD: 03h is 12-bit, 05h 16-bit, 06h 18-bit, 07h 16M truncated. Default 06h (18-bit; RDDCOLMOD 0000 0110).
 - VSCRDEF: TFA + VSA + BFA = 320, otherwise undefined.
 
 ## Progress log
@@ -448,11 +452,19 @@ displaymodule.com (cdn.shopify.com/s/files/1/0264/7629/files/DM-TFT114-397_Datas
   `INVON` in every init, the EPF rules (p. 259), and the missing 4K LUT. Vendor code for
   MSP2008/MSP1308 skips the `SLPOUT` waits, so Q5 was asked: an uncertain outcome, drawn under
   a veil. Props reduced to `panel`.
+- 2026-11-08: task 2. `st7789.ts` (pins, symbol, CS/SCL/RES framing),
+  `st7789-controller.ts` (the command table with parameter counts from the data sheet's table
+  rows, registers stored per parameter, H/W and S/W defaults: COLMOD/MADCTL "No change" at
+  SWRESET, window ends follow MV), `st7789-panels.ts`, a test bench. Warnings: unknown command,
+  read not simulated, stray data, partial byte. A basic `tft` drawer keeps the
+  symbol-drawing test green, and the image arrives in task 7.
 
 ## Handoff
 
-- **State:** task 1 done (data sheet numbers below, Q5 decided); no code yet.
-- **Next step:** task 2 (the `periph/st7789` skeleton, serial interface, command table, resets).
+- **State:** tasks 1–2 done: `periph/st7789` (pins, `panel`, symbol, serial framing, command
+  table, registers, resets) and a basic `tft` drawer (board, dark or lit glass, pin names).
+- **Next step:** task 3: memory writes (`receiveByte` data after RAMWR/WRMEMC is counted but
+  not stored yet; unknown SDA/DC bits are still dropped in `clockIn`, replaced in task 6).
 - **Watch out:** the data sheets mark themselves "Sitronix Confidential". Cite them, never copy
   them into the repo. ST7789V is a 3.3 V part.
 - **Verify with:** `pnpm check`.

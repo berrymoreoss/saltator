@@ -91,6 +91,7 @@ describe('createDefaultRegistry', () => {
       ...MEMORIES,
       'cpu/w65c02s',
       'periph/hd44780',
+      'periph/st7789',
       'draw/text',
     ]);
   });
@@ -143,6 +144,7 @@ describe('createDefaultRegistry', () => {
       ...Object.fromEntries(MEMORIES.map((type) => [type, 'U'])),
       'cpu/w65c02s': 'U',
       'periph/hd44780': 'DS',
+      'periph/st7789': 'DS',
       'draw/text': 'TXT',
     });
   });
