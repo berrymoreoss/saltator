@@ -985,12 +985,13 @@ Circuits are `.logic.json` files ([circuit.md](circuit.md#loading-versioning-sav
 
 ### Document session
 
-`DocumentSession` (`src/ui/document-session.ts`, pure) is the open document around the editor's
-circuit: its **name** (the file name without `.logic.json`, `Untitled`, or an example's title),
-the **document** as loaded (the editor edits the first circuit; the others are written back
-unchanged), the **file** Save writes to (a File System Access handle) and the circuit as last
-**saved**. Unsaved changes = the editor's circuit differs from the saved one, by identity then
-by value (`sameCircuit`): undoing back to the saved state is clean again. File names map both
+`DocumentSession` (`src/ui/document-session.ts`, pure) is the open document around the editor's:
+its **name** (the file name without `.logic.json`, `Untitled`, or an example's title), the
+**document** as loaded (the editor edits every circuit of it, R11a), the **file** Save writes to
+(a File System Access handle) and the document as last **saved**. Unsaved changes = the editor's
+document differs from the saved one, by identity then by value (`sameDocument`: the same circuits
+in the same order, `sameCircuit` each) — an edit in any circuit, a circuit added, removed or
+made the top; undoing back to the saved state is clean again. File names map both
 ways (`fileNameOf` replaces characters no file system accepts; `nameOfFile` strips
 `.logic.json` or `.json`).
 
@@ -1031,8 +1032,10 @@ keeps its handle where the browser gives one.
 The open document is restored as it was after a reload or a closed tab (`src/ui/autosave.ts`):
 
 - `Autosave` writes a `StoredSession` — name, the document text in the file format, unsaved
-  flag, file handle, camera, the debug setup (R14), time — at most **500 ms** after a change of
-  the circuit, the session, the view or the debug setup (later changes in that time ride along; selection and pointer moves don't count),
+  flag, file handle, the circuit open when it isn't the top (`open`, R11a), its camera, the debug
+  setup (R14), time — at most **500 ms** after a change of the document, the circuit open, the
+  session, the view or the debug setup (later changes in that time ride along; selection and
+  pointer moves don't count),
   at once when the page is hidden, and synchronously to `localStorage` on `pagehide`
   (`logic.unload.<id>`, without the handle: IndexedDB writes started while a page unloads don't
   finish). At start-up `recoverUnloadWrites` moves those into IndexedDB when newer.
@@ -1043,8 +1046,8 @@ The open document is restored as it was after a reload or a closed tab (`src/ui/
   the session.
 - **Start-up** (`src/app/App.tsx`, before the first render): `?example=<id>` (or `?gallery`) opens
   that example; else this tab's session, else the most recent one (a new tab), else Hello, LED
-  (a first launch). A restored session keeps its view and unsaved state; the history starts
-  empty and the simulation stopped. Blocked storage means nothing is restored or kept.
+  (a first launch). A restored session keeps the circuit open, its view and the unsaved state;
+  the history starts empty and the simulation stopped. Blocked storage means nothing is restored or kept.
 
 ### Open Recent
 

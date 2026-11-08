@@ -284,7 +284,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [ ] 9. `ui`: Circuits list and Circuit menu, Subcircuits in Parts, Open Subcircuit
   (double-click, context menu), Properties of an instance and of the circuit, Messages per
   circuit, New Document; status bar note.
-- [ ] 10. `ui`: document session, autosave and Open Recent over every circuit; the gallery's
+- [x] 10. `ui`: document session, autosave and Open Recent over every circuit; the gallery's
   thumbnails; clipboard across documents.
 - [ ] 11. Example (Q6) with probes into its instances; examples test; e2e test that adds a
   circuit, places ports, places an instance in Main, wires it, runs it and sees the LED.
@@ -358,17 +358,19 @@ Checkable statements; verified one by one in the finish-branch workflow.
 
 ## Handoff
 
-- **State:** tasks 1–6 done (all pure layers): schema v4, `net/port`, `DocumentRegistry` +
-  subcircuit drawer, `compileDesign` (`src/circuit/design.ts`), `Resolver` over a `Design`
-  (instance paths), document operations (`src/circuit/document-edit.ts`). The editor still edits
-  and simulates one circuit with the library registry: nothing in the app places instances yet.
-- **Next step:** task 7 — the editor on documents: `EditorState` gains `document` and `design`;
-  `circuit`/`scene` stay the open circuit's (scene built with `design.registry` and the open
-  circuit's cached compile); `edit()` replaces the open circuit in the document;
-  `editDocument()`; one history of documents; `setDocument()`; a camera per circuit. Then task 8
-  moves the simulation host, analyzer, debugger, memory inspector to `design` (they use
-  `scene.compiled` today: grep `scene.compiled` and `new Resolver(`).
-- **Watch out:** `signalMap` in `simulation.ts` finds sim nets through simulated pins only; map by
-  flat net id via the design instead. Visual check script: scratchpad `look.mjs` (Vite on 5207).
-  Test-label pattern now allows `/`.
+- **State:** tasks 1–8 done: all pure layers, the editor on documents (`EditorState.document`,
+  `design`; `edit`/`editDocument`/`setDocument`/`openCircuit`; `partAt`/`setPartPropAt`), the
+  simulation host on a `SimulationModel`, analyzer/debugger/memory inspector on the design. Tests:
+  `src/editor/documents.test.ts`. The UI still opens/saves only the first circuit
+  (`document-session.ts`, `document-controller.ts`, `autosave.ts`, `App.tsx` use
+  `circuits[0]`/`state.circuit`) and has no Circuits list.
+- **Next step:** task 10 first (session over the whole document: `setDocument` on open, save
+  `state.document`, unsaved = `sameDocument`, autosave the document + open circuit + cameras),
+  then task 9 (Circuits list in the left dock, Subcircuits group in Parts filtered by
+  `circuitsContaining`, Open Subcircuit on double-click/context menu, Properties of an instance
+  and of the circuit, Messages from `design.issues` with their circuit, New Document).
+- **Watch out:** `Editor.registry` is now a getter (the document registry); `Editor.library` is
+  the library. `SignalMap.nets` is keyed by flat ids. Visual check script: scratchpad
+  `look.mjs` (Vite on 5207; uses `logicEditor.registry =` which no longer works — use
+  `logicEditor.setDocument(doc)` instead).
 - **Verify with:** `pnpm check`; `pnpm bench tests/bench/circuit.bench.ts`.

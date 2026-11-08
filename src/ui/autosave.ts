@@ -5,7 +5,7 @@
  * session; a new tab starts from the most recent one. The storage is behind `SessionStore`
  * (IndexedDB in the app, in memory in tests).
  */
-import { type Circuit, DocumentError, parseDocument } from '../circuit';
+import { type CircuitDocument, DocumentError, parseDocument } from '../circuit';
 import {
   type Camera,
   type DebugSetup,
@@ -32,6 +32,9 @@ export interface StoredSession {
   readonly unsaved: boolean;
   /** The file Save writes to (a File System Access handle, kept by IndexedDB). */
   readonly file?: FileRef;
+  /** The id of the circuit open (R11a); the top when missing. */
+  readonly open?: string;
+  /** The open circuit's camera. */
   readonly camera?: Camera;
   /** The debugger's breakpoints, watches and steps (R14): kept with the session, not the file. */
   readonly debug?: DebugSetup;
@@ -75,7 +78,8 @@ export class MemorySessionStore implements SessionStore {
 /** A stored session ready to show; `undefined` if its text no longer loads. */
 export interface RestoredSession {
   readonly session: DocumentSession;
-  readonly circuit: Circuit;
+  readonly document: CircuitDocument;
+  readonly open?: string;
   readonly camera?: Camera;
   readonly debug?: DebugSetup;
 }
@@ -88,18 +92,18 @@ export function restoreSession(stored: StoredSession): RestoredSession | undefin
     if (error instanceof DocumentError) return undefined;
     throw error;
   }
-  const circuit = document.circuits[0]!;
   const session: DocumentSession = {
     name: stored.name,
     document,
-    // With unsaved changes there is no saved circuit to compare against until the next Save.
-    ...(!stored.unsaved && { saved: circuit }),
+    // With unsaved changes there is no saved document to compare against until the next Save.
+    ...(!stored.unsaved && { saved: document }),
     ...(stored.file && { file: stored.file }),
   };
   const debug = parseDebugSetup(stored.debug);
   return {
     session,
-    circuit,
+    document,
+    ...(stored.open !== undefined && { open: stored.open }),
     ...(stored.camera && { camera: stored.camera }),
     ...(debug && { debug }),
   };
@@ -124,7 +128,8 @@ export interface AutosaveOptions {
 export const AUTOSAVE_DELAY = 500;
 
 interface Written {
-  readonly circuit: Circuit;
+  readonly document: CircuitDocument;
+  readonly open: string;
   readonly session: DocumentSession;
   readonly camera: Camera;
   readonly debug: DebugSetup;
@@ -158,7 +163,8 @@ export class Autosave {
     const onChange = () => {
       const now = this.#current();
       if (
-        now.circuit === seen.circuit &&
+        now.document === seen.document &&
+        now.open === seen.open &&
         now.session === seen.session &&
         now.camera === seen.camera &&
         now.debug === seen.debug
@@ -222,8 +228,10 @@ export class Autosave {
 
   #current(): Written {
     const { editor, documents } = this.#options;
+    const state = editor.state.get();
     return {
-      circuit: editor.state.get().circuit,
+      document: state.document,
+      open: state.circuit.id,
       session: documents.session.get(),
       camera: editor.view.get().camera,
       debug: editor.debug.setup.get(),
@@ -236,7 +244,8 @@ export class Autosave {
     const last = this.#last;
     if (
       last &&
-      now.circuit === last.circuit &&
+      now.document === last.document &&
+      now.open === last.open &&
       now.session === last.session &&
       now.debug === last.debug &&
       sameCamera(now.camera, last.camera)
@@ -244,12 +253,13 @@ export class Autosave {
       return undefined;
     }
     this.#last = now;
-    const { session, circuit, camera, debug } = now;
+    const { session, document, open, camera, debug } = now;
     return {
       id: this.#options.id,
       name: session.name,
-      text: documentText(session, circuit),
-      unsaved: hasUnsavedChanges(session, circuit),
+      text: documentText(document),
+      unsaved: hasUnsavedChanges(session, document),
+      ...(open !== document.circuits[0]!.id && { open }),
       camera,
       ...(debug !== EMPTY_DEBUG_SETUP && { debug }),
       updated: this.#options.now(),

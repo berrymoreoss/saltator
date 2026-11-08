@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
+import { documentRegistry } from '../circuit';
 import type { ComponentRegistry } from '../core';
 import { type CanvasTheme, drawCircuitPreview, type GateStyle } from '../editor';
 import { Dialog } from './Dialogs';
@@ -66,7 +67,11 @@ function Thumbnail({
   readonly gateStyle: GateStyle;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
-  const circuit = useMemo(() => example.document().circuits[0]!, [example]);
+  // The top circuit, its subcircuit instances drawn with the document's parts (R11a).
+  const { circuit, parts } = useMemo(() => {
+    const document = example.document();
+    return { circuit: document.circuits[0]!, parts: documentRegistry(document, registry) };
+  }, [example, registry]);
   useEffect(() => {
     const element = canvas.current;
     const ctx = element?.getContext('2d');
@@ -74,8 +79,8 @@ function Thumbnail({
     const dpr = window.devicePixelRatio || 1;
     element.width = Math.round(THUMBNAIL.width * dpr);
     element.height = Math.round(THUMBNAIL.height * dpr);
-    drawCircuitPreview(ctx, registry, circuit, THUMBNAIL, { theme, gateStyle, dpr });
-  }, [circuit, registry, theme, gateStyle]);
+    drawCircuitPreview(ctx, parts, circuit, THUMBNAIL, { theme, gateStyle, dpr });
+  }, [circuit, parts, theme, gateStyle]);
   return (
     <canvas
       ref={canvas}

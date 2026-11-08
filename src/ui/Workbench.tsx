@@ -113,7 +113,9 @@ export function Workbench({
 
   // A boolean, so an edit re-renders the shell only when it changes.
   const session = useStore(documents.session);
-  const unsaved = useStoreValue(editor.state, (state) => hasUnsavedChanges(session, state.circuit));
+  const unsaved = useStoreValue(editor.state, (state) =>
+    hasUnsavedChanges(session, state.document),
+  );
   useEffect(() => {
     document.title = documentTitle(session.name, unsaved);
   }, [session.name, unsaved]);

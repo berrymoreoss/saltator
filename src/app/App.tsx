@@ -124,11 +124,10 @@ const restored =
       )
     : undefined;
 if (restored) {
-  documents.show(
-    restored.session,
-    restored.circuit,
-    restored.camera && { camera: restored.camera },
-  );
+  documents.show(restored.session, restored.document, {
+    ...(restored.open !== undefined && { open: restored.open }),
+    ...(restored.camera && { camera: restored.camera }),
+  });
   // After the document: showing one starts the debugger afresh.
   if (restored.debug) editor.debug.load(restored.debug);
 } else {
