@@ -173,7 +173,7 @@ read inside (Q4).
 
 Small, ordered, each committable on its own with its tests (`pnpm check` green).
 
-- [ ] 1. `editor`: `EditorState.path` — derived and kept by `#stateOf` (kept while it leads to
+- [x] 1. `editor`: `EditorState.path` — derived and kept by `#stateOf` (kept while it leads to
   the open circuit, else the first instance, else undefined); `openInstance`, `goUp`, `goTop`,
   `openCircuit` to the first instance (Q1); `Snapshot.path` in the history; tests (edits,
   undo/redo across circuits, instance renames and deletes, Set as Top).
