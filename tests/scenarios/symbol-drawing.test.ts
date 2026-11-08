@@ -87,8 +87,15 @@ describe('symbol drawing', () => {
           const g = new RecordingGraphics();
           drawPartBody(g, part, style, 'red');
           const where = `${definition.type} ${JSON.stringify(props)} ${style}`;
-          expect(g.strokes + g.fills, where).toBeGreaterThan(0);
+          expect(g.strokes + g.fills + g.textBlocks.length, where).toBeGreaterThan(0);
           expect(within(g.points, part.localBounds), where).toBe(true);
+          for (const { box } of g.textBlocks) {
+            const corners = [
+              [box.x, box.y],
+              [box.x + box.width, box.y + box.height],
+            ] as const;
+            expect(within(corners, part.localBounds), `${where}: text block`).toBe(true);
+          }
           for (const text of g.texts) {
             expect(within([text.at], part.localBounds), `${where}: "${text.text}"`).toBe(true);
           }
@@ -200,8 +207,15 @@ describe('symbol drawing while simulating', () => {
           const g = new RecordingGraphics();
           drawPartBody(g, part, 'ansi', 'red', liveOrNet(part, light));
           const where = `${definition.type} ${JSON.stringify(props)} light ${light}`;
-          expect(g.strokes + g.fills, where).toBeGreaterThan(0);
+          expect(g.strokes + g.fills + g.textBlocks.length, where).toBeGreaterThan(0);
           expect(within(g.points, part.localBounds), where).toBe(true);
+          for (const { box } of g.textBlocks) {
+            const corners = [
+              [box.x, box.y],
+              [box.x + box.width, box.y + box.height],
+            ] as const;
+            expect(within(corners, part.localBounds), `${where}: text block`).toBe(true);
+          }
           for (const text of g.texts) {
             expect(within([text.at], part.localBounds), `${where}: "${text.text}"`).toBe(true);
           }

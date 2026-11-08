@@ -50,6 +50,30 @@ describe('hitTest', () => {
   });
 });
 
+describe('hitTest on graphics', () => {
+  // A text across U1 and the wire w1: 12 × 2 cells from (2, 0).
+  const noted = buildScene(
+    new CircuitBuilder(registry)
+      .add('SW1', 'io/switch', { at: [0, 0] })
+      .add('U1', 'prim/nand', { at: [10, 0] })
+      .connect('SW1.Y', 'U1.A')
+      .add('TXT1', 'draw/text', { at: [2, 0], props: { text: 'A note over U1\nand its wire' } })
+      .build(),
+    registry,
+  );
+
+  it('hits a text where nothing else is', () => {
+    expect(noted.partById.get('TXT1')!.body).toMatchObject({ x: 2, y: 0, height: 2 });
+    expect(hitTest(noted, [6, 1.6], 0.2)).toEqual({ kind: 'part', id: 'TXT1' });
+  });
+
+  it('lets parts, pins and wires under a text take the click', () => {
+    expect(hitTest(noted, [12, 1], 0.2)).toEqual({ kind: 'part', id: 'U1' });
+    expect(hitTest(noted, [7, 1.1], 0.2)).toEqual({ kind: 'wire', id: 'w1' });
+    expect(hitTest(noted, [1, 1], 0.2)).toEqual({ kind: 'part', id: 'SW1' });
+  });
+});
+
 describe('boxHits', () => {
   it('selects only items entirely inside in inside mode', () => {
     expect(boxHits(scene, { x: -1, y: -1, width: 12, height: 4 }, 'inside')).toEqual({

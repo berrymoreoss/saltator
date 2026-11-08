@@ -111,6 +111,21 @@ function galleryRows(dev: boolean): GalleryItem[][] {
       ...ROTATIONS.map((rotation) => ({ type: 'net/bus-entry', props: { name: 'D0' }, rotation })),
       { type: 'net/bus-entry', props: { name: 'A15' }, flip: true },
     ],
+    [
+      { type: 'draw/text', props: { text: 'Title', size: 'title' } },
+      { type: 'draw/text', props: { text: 'A note on the schematic,\nover two lines' } },
+      {
+        type: 'draw/text',
+        props: { text: 'loop: INC $10\n      BRA loop', font: 'mono', size: 'small' },
+      },
+      { type: 'draw/text', props: { text: 'Large', size: 'large' } },
+      ...ROTATIONS.slice(1).map((rotation) => ({
+        type: 'draw/text',
+        props: { text: `Turned ${rotation}°\nsecond line` },
+        rotation,
+      })),
+      { type: 'draw/text', props: { text: 'Flipped\nsecond line' }, flip: true },
+    ],
     chips74xx.map((chip) => ({ type: chip.type })),
     (['astable', 'monostable', 'bistable'] as const).map((mode) => ({
       type: 'timer/ne555',

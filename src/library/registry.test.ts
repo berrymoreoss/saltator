@@ -55,7 +55,7 @@ const CHIPS = [
 ];
 
 describe('createDefaultRegistry', () => {
-  it('contains every primitive, IO part, net part, chip, CPU and peripheral', () => {
+  it('contains every primitive, IO part, net part, chip, CPU, peripheral and graphic', () => {
     expect(
       createDefaultRegistry()
         .list()
@@ -91,6 +91,7 @@ describe('createDefaultRegistry', () => {
       ...MEMORIES,
       'cpu/w65c02s',
       'periph/hd44780',
+      'draw/text',
     ]);
   });
 
@@ -99,7 +100,7 @@ describe('createDefaultRegistry', () => {
       expect(d.name, d.type).not.toBe('');
       expect(d.title, d.type).not.toBe('');
       expect(d.keywords?.length, d.type).toBeGreaterThan(0);
-      expect(['prim', 'io', 'net', '74xx', 'timer', 'mem', 'cpu', 'periph']).toContain(
+      expect(['prim', 'io', 'net', '74xx', 'timer', 'mem', 'cpu', 'periph', 'draw']).toContain(
         familyOf(d.type),
       );
     }
@@ -142,6 +143,7 @@ describe('createDefaultRegistry', () => {
       ...Object.fromEntries(MEMORIES.map((type) => [type, 'U'])),
       'cpu/w65c02s': 'U',
       'periph/hd44780': 'DS',
+      'draw/text': 'TXT',
     });
   });
 

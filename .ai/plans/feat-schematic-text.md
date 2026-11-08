@@ -134,9 +134,9 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 1. ADR-0029 (graphics as schematic-only parts) + roadmap row/section PLT-1 and ideas.
 - [x] 2. `core`: `PropDef.multiline` (docs in components.md#properties); `string` validation
   unchanged otherwise.
-- [ ] 3. `library`: `draw/text` with `textBlockSize` and its tests (sizes, tabs, empty lines,
+- [x] 3. `library`: `draw/text` with `textBlockSize` and its tests (sizes, tabs, empty lines,
   the registry); family `draw` in the registry; the gallery example lists it.
-- [ ] 4. `editor`: `SymbolGraphics.textBlock` (canvas + recording) with placement tests; the
+- [x] 4. `editor`: `SymbolGraphics.textBlock` (canvas + recording) with placement tests; the
   `text` drawer; no designator in the scene; texts hit after other parts; tests.
 - [ ] 5. `ui`: Graphics group in Parts; Place ▸ Text (`T`); the `TextArea` field for multiline
   props; the focus request on a text; tests (prop-input, commands).

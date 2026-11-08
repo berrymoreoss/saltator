@@ -289,6 +289,9 @@ export function layoutBounds(layout: PartLayout): Rect {
   return { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
 }
 
+/** Symbol kinds drawn without a designator or label beside them. */
+const UNLABELED_KINDS: ReadonlySet<string> = new Set(['net-label', 'bus-entry', 'port', 'text']);
+
 function partTexts(
   instance: ComponentInstance,
   definition: AnyComponentDefinition | undefined,
@@ -297,8 +300,9 @@ function partTexts(
   bounds: Rect,
 ): SceneText[] {
   const symbolKind = drawing.kind === 'symbol' ? drawing.symbol.kind : undefined;
-  // Net labels, bus entries and ports show their names; their designators are never drawn.
-  if (symbolKind === 'net-label' || symbolKind === 'bus-entry' || symbolKind === 'port') return [];
+  // Net labels, bus entries and ports show their names, texts are their text; their
+  // designators are never drawn.
+  if (symbolKind !== undefined && UNLABELED_KINDS.has(symbolKind)) return [];
   if (definition && symbolKind !== undefined && RAIL_KINDS.has(symbolKind)) {
     const lines: TextLine[] = [{ text: instance.label ?? definition.name, role: 'name' }];
     return placeTextBlock(lines, bounds, textSide([], pins[0]?.side));

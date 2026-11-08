@@ -25,6 +25,7 @@ describe('parts filter', () => {
       'Primitives',
       'Input / Output',
       'Nets',
+      'Graphics',
     ]);
     expect(groups.flatMap((g) => g.parts)).toHaveLength(parts.length);
   });
