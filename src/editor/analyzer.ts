@@ -6,6 +6,7 @@
  * Spec: docs/editor.md#waveforms.
  */
 import {
+  type Design,
   type GroupProbe,
   isGroupProbe,
   type Probe,
@@ -13,6 +14,7 @@ import {
   type ProbeTarget,
   Resolver,
   renameInProbes,
+  replaceCircuit,
   type SignalProbe,
 } from '../circuit';
 import {
@@ -30,7 +32,7 @@ import {
   type TriggerTerm,
 } from '../core';
 import type { Editor } from './editor';
-import type { Scene } from './scene';
+
 import { Store } from './store';
 
 /** One probe as the Waveforms tab shows it. */
@@ -180,7 +182,7 @@ export class Analyzer {
   /** Grows whenever the record or the channels changed: the waveform view redraws on it. */
   readonly revision = new Store(0);
   readonly #editor: Editor;
-  #scene: Scene | undefined;
+  #design: Design | undefined;
   #sim: Simulator | undefined;
   /** Recorder channel by bit reference. */
   #bits = new Map<string, number>();
@@ -216,8 +218,9 @@ export class Analyzer {
 
   // ── Probes (document edits) ──────────────────────────────────────────────────────────────
 
+  /** The top circuit's probes: what simulates is the top, flattened (R11a). */
   get probes(): readonly Probe[] {
-    return this.#editor.state.get().circuit.probes;
+    return this.#editor.state.get().document.circuits[0]!.probes;
   }
 
   /** The index of the probe on `ref` (a signal probe), or −1. */
@@ -324,12 +327,13 @@ export class Analyzer {
   }
 
   #editProbes(label: string, probes: readonly Probe[]): void {
-    const { circuit } = this.#editor.state.get();
-    this.#editor.edit(label, { ...circuit, probes });
+    const { document } = this.#editor.state.get();
+    const top = document.circuits[0]!;
+    this.#editor.editDocument(label, replaceCircuit(document, { ...top, probes }));
   }
 
   #resolver(): Resolver {
-    return new Resolver(this.#editor.state.get().scene.compiled, this.#editor.registry);
+    return new Resolver(this.#editor.state.get().design, this.#editor.registry);
   }
 
   // ── Values ───────────────────────────────────────────────────────────────────────────────
@@ -646,11 +650,11 @@ export class Analyzer {
   }
 
   #sync(): void {
-    const { scene, renames } = this.#editor.state.get();
+    const { design, document, renames } = this.#editor.state.get();
     let changed = false;
-    if (scene !== this.#scene) {
-      this.#scene = scene;
-      changed = this.#rebuild(scene, renames);
+    if (design !== this.#design) {
+      this.#design = design;
+      changed = this.#rebuild(design, document.circuits[0]!.probes, renames);
     }
     const sim = this.#editor.simulation.simulator;
     if (sim !== this.#sim) {
@@ -701,8 +705,12 @@ export class Analyzer {
     this.recorder.attach(sim, nets);
   }
 
-  /** Channels for the scene's probes; true when anything a recording depends on changed. */
-  #rebuild(scene: Scene, renames: ReadonlyMap<string, string> | undefined): boolean {
+  /** Channels for the top's probes; true when anything a recording depends on changed. */
+  #rebuild(
+    design: Design,
+    probes: readonly Probe[],
+    renames: ReadonlyMap<string, string> | undefined,
+  ): boolean {
     if (renames) {
       let bits = this.#bits;
       for (const [from, to] of renames) {
@@ -715,10 +723,10 @@ export class Analyzer {
       }
       this.#bits = bits;
     }
-    const resolver = new Resolver(scene.compiled, this.#editor.registry);
+    const resolver = new Resolver(design, this.#editor.registry);
     const used = new Set<string>();
     const nets = new Map<string, string>();
-    const channels = scene.circuit.probes.map((probe, index): AnalyzerChannel => {
+    const channels = probes.map((probe, index): AnalyzerChannel => {
       const keys = bitKeys(probe);
       const target: ProbeTarget | string = resolver.probe(probe);
       const bits = keys.map((key, i) => {

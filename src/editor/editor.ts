@@ -606,6 +606,12 @@ export class Editor {
       ...design.instances.filter((i) => i.circuit === circuit).map((i) => `${i.path}/`),
     ];
     const flat = new Map<string, string>();
+    // An instance renamed: its path too, for references to nets inside it (`A1/CLK`).
+    for (const scope of scopes) {
+      for (const [from, to] of renames) {
+        if (design.circuitAt(scope + from) !== undefined) flat.set(scope + from, scope + to);
+      }
+    }
     for (const { id } of design.netlist.components) {
       for (const scope of scopes) {
         if (!id.startsWith(scope)) continue;
@@ -906,6 +912,51 @@ export class Editor {
     this.editDocument(`Rename ${from}`, renamePartInDocument(document, circuit.id, from, to), {
       selection: selectionOf([to]),
       renames: new Map([[from, to]]),
+    });
+    return undefined;
+  }
+
+  /**
+   * The circuit and the part a netlist id names: `U5` the top circuit's, `A1/U3` part U3 of the
+   * circuit instance A1 places (its definition, shared by every instance).
+   */
+  partAt(id: string): { readonly circuit: Circuit; readonly part: ComponentInstance } | undefined {
+    const { document, design } = this.state.get();
+    const slash = id.lastIndexOf('/');
+    const circuitId = design.circuitAt(slash < 0 ? '' : id.slice(0, slash));
+    const circuit = document.circuits.find((c) => c.id === circuitId);
+    const part = circuit?.components.find((c) => c.id === id.slice(slash + 1));
+    return circuit && part ? { circuit, part } : undefined;
+  }
+
+  /**
+   * `setPartProp` for a part of the design by netlist id (`A1/U3`): inside an instance it edits
+   * the circuit the instance places — every instance of it changes.
+   */
+  setPartPropAt(
+    id: string,
+    key: string,
+    value: PropValue,
+    options: { readonly label?: string; readonly coalesce?: string } = {},
+  ): string | undefined {
+    const found = this.partAt(id);
+    if (!found) return `"${id}" can't be edited.`;
+    if (found.circuit.id === this.state.get().circuit.id) {
+      return this.setPartProp(found.part.id, key, value, options);
+    }
+    const definition = this.registry.get(found.part.type);
+    if (!definition) return `"${id}" can't be edited.`;
+    let props: Readonly<Record<string, PropValue>>;
+    try {
+      props = resolveProps(definition, { ...found.part.props, [key]: value }, id);
+    } catch (error) {
+      return (error as Error).message;
+    }
+    const label =
+      options.label ?? `Change ${definition.props?.find((p) => p.key === key)?.label ?? key}`;
+    const circuit = updateComponent(found.circuit, found.part.id, { props });
+    this.editDocument(label, replaceCircuit(this.state.get().document, circuit), {
+      ...(options.coalesce !== undefined && { coalesce: options.coalesce }),
     });
     return undefined;
   }
@@ -1589,6 +1640,12 @@ export class Editor {
 
   #spotAt(screen: Point): ProbeSpot | string | undefined {
     const { camera } = this.view.get();
+    const { circuit, design, document } = this.state.get();
+    // Probes, watches and breakpoints are of what simulates: the top circuit as drawn.
+    if (circuit.id !== design.top) {
+      const top = document.circuits[0]!.name;
+      return `Only ${top}, the top circuit, simulates as drawn: probe there, or type a path in Waveforms (A1/U1.Y)`;
+    }
     return probeSpotAt(
       this.scene,
       this.registry,

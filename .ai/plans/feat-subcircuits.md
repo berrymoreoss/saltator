@@ -278,7 +278,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   set top; part renames rewriting references across circuits; copy/paste carrying circuits.
 - [x] 7. `editor`: the editor on documents — `document`, `design`, open circuit, `edit` /
   `editDocument`, `setDocument`, document-wide history, a camera per circuit.
-- [ ] 8. `editor`: simulation host, timeline, analyzer, debugger, memory inspector on the
+- [x] 8. `editor`: simulation host, timeline, analyzer, debugger, memory inspector on the
   design; renames expanded by path; live drawing only for the top; tests of editing a
   definition while running (carry-over keeps the other instances' state).
 - [ ] 9. `ui`: Circuits list and Circuit menu, Subcircuits in Parts, Open Subcircuit
