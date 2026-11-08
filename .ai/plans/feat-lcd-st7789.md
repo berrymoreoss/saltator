@@ -350,7 +350,7 @@ The alternatives considered:
 - [x] 8. Scenarios: an SPI driver helper (like `lcd-program.ts`), a common initialization
   written from the data sheet, then drawing; the carry-over and rewind properties with the
   TFT; a benchmark of the SPI stream with and without the TFT.
-- [ ] 9. The TFT Color Bars example (Q3): design the streamer (record it in Design), a
+- [x] 9. The TFT Color Bars example (Q3): design the streamer (record it in Design), a
   generator for the circuit and both ROM images (every net checked), a gallery entry, a
   scenario test (the frame equals the expected bars; no diagnostics) and a browser test.
 - [ ] 10. Docs: components.md (the ST7789 section), editor.md (`tft`, `image`), glossary
@@ -517,13 +517,21 @@ displaymodule.com (cdn.shopify.com/s/files/1/0264/7629/files/DM-TFT114-397_Datas
   the simulator: the PL̅ race and the power-on floating reads (see "The example"). Tests: EEPROM
   contents equal `tft-program.ts`; after RESET the first block draws exact rows with no
   diagnostics (the full picture was checked once: exact); 1 MHz breaks the waits.
+- 2026-11-09: task 9, browser. `tests/e2e/tft.spec.ts`: dark glass before RESET, bars after.
+  Looking in the browser (Playwright screenshots, scratchpad `tft-*.png`): the picture is
+  upright in landscape and builds top to bottom over the red power-on noise. At 199 % the
+  pixels are sharp. Labels point away from the bodies, and the actual speed is ≈ 0.33 s/s, so
+  the whole picture takes ≈ 13 s of wall time. That first run also showed red noise before
+  RESET: CS was `X` from the counters not yet reset, and the module counted that as lost. Now
+  a CS or SCL never yet known is no activity (the project's rule for unknown controls, as for
+  E and WE̅).
 
 ## Handoff
 
-- **State:** tasks 1–8 done (controller, frame, timing, unknowns, drawer, scenarios, bench); `periph/st7789` (pins, `panel`, symbol, serial framing, command
+- **State:** tasks 1–9 done (the part, the drawer, scenarios, bench, the example with tests); `periph/st7789` (pins, `panel`, symbol, serial framing, command
   table, registers, resets) and a basic `tft` drawer (board, dark or lit glass, pin names).
-- **Next step:** task 9's browser test (Playwright: open TFT Color Bars, RESET, read the glass
-  pixels) and a look in the browser (layout of labels, the rotated module); then task 10.
+- **Next step:** task 10, the docs (components.md, editor.md, glossary, ADR-0031, roadmap
+  section, READMEs, lessons). Then the definition of done: `pnpm build`, full `pnpm e2e`.
 - **Watch out:** the data sheets mark themselves "Sitronix Confidential". Cite them, never copy
   them into the repo. ST7789V is a 3.3 V part.
 - **Verify with:** `pnpm check`.

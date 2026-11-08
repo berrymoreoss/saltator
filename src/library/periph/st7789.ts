@@ -178,8 +178,9 @@ export interface St7789State {
   /** 1 while the bit phase is unknown (an uncertain clock or select): bytes count as unknown. */
   lost: number;
   /**
-   * 1 once CS (SCL) was known: an unknown level before that is the power-on transient of the
-   * logic driving it, not worth a warning (the interface still counts as lost if it clocks).
+   * 1 once CS (SCL) was known. Before that an unknown level is the power-on state of the logic
+   * driving it (a counter not reset yet): no activity, as unknown controls count everywhere
+   * else only once they were known (an LCD's E, a RAM's WE̅).
    */
   csKnown: number;
   sclKnown: number;
@@ -286,10 +287,10 @@ export const st7789 = defineComponent<St7789Props, St7789State>({
     };
 
     /** The bit phase is lost: whatever comes in until CS↑ or a reset can't be placed. */
-    const lose = (ctx: EvalContext<St7789State>, why: string, pin: number, tell = true) => {
+    const lose = (ctx: EvalContext<St7789State>, why: string, pin: number) => {
       const st = ctx.state;
       if (!st.lost) {
-        if (tell) ctx.report({ kind: St7789Diagnostic.UNCERTAIN, message: why, pin });
+        ctx.report({ kind: St7789Diagnostic.UNCERTAIN, message: why, pin });
         lost(st.ctl);
       }
       st.lost = 1;
@@ -435,7 +436,6 @@ export const st7789 = defineComponent<St7789Props, St7789State>({
                 ctx,
                 `CS is ${levelName(st.cs as Level)} in the middle of a byte: the bit phase is lost`,
                 CS,
-                st.csKnown === 1,
               );
             }
           } else if (shortDeselect) {
@@ -446,17 +446,17 @@ export const st7789 = defineComponent<St7789Props, St7789State>({
         const sclChanged = ctx.changed(SCL);
         const scl = sclChanged ? ctx.read(SCL) : Level.L0;
         const sclUnknown = sclChanged && scl !== Level.L0 && scl !== Level.L1;
-        if (csUnknown && !st.resetting && sclChanged && (scl === Level.L1 || sclUnknown)) {
+        const sclRose = sclChanged && (scl === Level.L1 || sclUnknown);
+        if (csUnknown && st.csKnown && !st.resetting && sclRose) {
           lose(
             ctx,
             `SCL rose while CS was ${levelName(st.cs as Level)}: the bit phase is lost`,
             SCL,
-            st.csKnown === 1,
           );
         }
         if (listening && !st.resetting) {
           if (sclUnknown) {
-            lose(ctx, `SCL is ${levelName(scl)}: the bit phase is lost`, SCL, st.sclKnown === 1);
+            if (st.sclKnown) lose(ctx, `SCL is ${levelName(scl)}: the bit phase is lost`, SCL);
           } else if (badClock || lateSelect) {
             lose(
               ctx,

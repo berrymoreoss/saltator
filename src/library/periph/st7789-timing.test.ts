@@ -288,7 +288,7 @@ describe('ST7789 unknown inputs', () => {
     expect(tft.diagnostics()).toEqual([`${St7789Diagnostic.UNCERTAIN} CS`]);
   });
 
-  it('says nothing of a CS never known yet (the power-on transient) but counts it as lost', () => {
+  it('takes a CS never known yet (logic not reset after power-on) as no activity', () => {
     const b = new Bench(st7789, {});
     b.set({ SCL: 0, SDA: 0, DC: 0, CS: 'X', RES: 1, BLK: 1 });
     b.run(ns(100));
@@ -297,7 +297,7 @@ describe('ST7789 unknown inputs', () => {
     b.set({ SCL: 0 });
     b.run(ns(100));
     expect(b.diagnostics).toEqual([]);
-    expect(st7789Controller(b.sim.stateOf('DUT'))!.unknown).not.toBe(0);
+    expect(st7789Controller(b.sim.stateOf('DUT'))!.unknown).toBe(0);
   });
 
   it('RES unknown: the controller may be resetting', () => {
