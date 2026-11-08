@@ -424,6 +424,24 @@ them) and return the same circuit when nothing changes.
   and wires (the clipboard holds it as a one-circuit document); `pasteFragment(circuit, fragment,
   offset, registry)` adds it moved by `offset`, keeping designators that are free, renumbering
   taken ones with their part's prefix, giving wires fresh ids and keeping labels.
+- **Circuits** (R11a, `src/circuit/document-edit.ts`): pure `CircuitDocument → CircuitDocument`
+  operations that keep unchanged circuits — `addCircuit` (empty, an id from the name),
+  `renameCircuit` (the name only: instances keep their type), `duplicateCircuit` (right after
+  it, "<name> copy"), `removeCircuit` (with every instance of it; never the last circuit),
+  `setTopCircuit` (moved to the front), `replaceCircuit`; `circuitUses` (where a circuit is
+  placed), `circuitsContaining` (the circuits that contain one, itself included: placing any of
+  them in it would recurse), `placementsOf(document, root, target)` (the instance paths of
+  `target` below `root`).
+- **Renames across circuits**: `renamePartInDocument(document, circuit, from, to)` renames a part
+  of any circuit and rewrites the probe references that reach it from every circuit, through
+  each instance path that leads into it (`A1/U5.A0`); renaming an instance rewrites the paths
+  through it.
+- **Fragments with instances**: `fragmentDocument(document, fragment)` is the clipboard document
+  of a copy — the fragment first, then every circuit its instances need, transitively;
+  `importCircuits(document, clipboard)` brings those into the document a paste lands in: a
+  circuit of the same id and content is reused, one with a free id added, one whose id holds
+  something else added under a new id (`cell-2`) with its instances retargeted, inner circuits
+  first.
 
 ## Resolver
 

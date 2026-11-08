@@ -42,6 +42,20 @@ export {
   type Wire,
 } from './document';
 export {
+  addCircuit,
+  circuitsContaining,
+  circuitUses,
+  duplicateCircuit,
+  fragmentDocument,
+  importCircuits,
+  placementsOf,
+  removeCircuit,
+  renameCircuit,
+  renamePartInDocument,
+  replaceCircuit,
+  setTopCircuit,
+} from './document-edit';
+export {
   addComponents,
   addWires,
   type ComponentPatch,

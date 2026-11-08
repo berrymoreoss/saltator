@@ -274,7 +274,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   bench.
 - [x] 5. `circuit`: resolver over a design — instance paths for parts, pins, nets, buses, cells;
   `memories()` with paths; `netReference`; `renameReference` for instance and inner renames.
-- [ ] 6. `circuit`: document edit operations — add, rename, duplicate, delete (with instances),
+- [x] 6. `circuit`: document edit operations — add, rename, duplicate, delete (with instances),
   set top; part renames rewriting references across circuits; copy/paste carrying circuits.
 - [ ] 7. `editor`: the editor on documents — `document`, `design`, open circuit, `edit` /
   `editDocument`, `setDocument`, document-wide history, a camera per circuit.
