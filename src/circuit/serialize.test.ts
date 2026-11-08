@@ -4,7 +4,7 @@ import { parseDocument } from './schema';
 import { serializeDocument } from './serialize';
 
 const document: CircuitDocument = {
-  schemaVersion: 4,
+  schemaVersion: 5,
   circuits: [
     {
       id: 'main',
@@ -32,13 +32,14 @@ const document: CircuitDocument = {
         { ref: 'D[0..7]', name: 'data', radix: 'bin' },
         { name: 'PC', members: ['U1.Y', 'U2.Y'], radix: 'dec' },
       ],
+      testScript: ["bench('latches', (b) => {", '  b.row({ S: 0 }, { Q: 1 }); // "set"', '});'],
     },
-    { id: 'sub', name: 'Empty', components: [], wires: [], probes: [] },
+    { id: 'sub', name: 'Empty', components: [], wires: [], probes: [], testScript: [] },
   ],
 };
 
 const text = `{
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "circuits": [
     {
       "id": "main",
@@ -56,6 +57,11 @@ const text = `{
         { "ref": "U1.Y" },
         { "ref": "D[0..7]", "name": "data", "radix": "bin" },
         { "name": "PC", "members": ["U1.Y", "U2.Y"], "radix": "dec" }
+      ],
+      "testScript": [
+        "bench('latches', (b) => {",
+        "  b.row({ S: 0 }, { Q: 1 }); // \\"set\\"",
+        "});"
       ]
     },
     {
@@ -69,7 +75,7 @@ const text = `{
 `;
 
 describe('serializeDocument', () => {
-  it('writes one line per component, wire and probe, with defaults omitted', () => {
+  it('writes one line per component, wire, probe and script line, with defaults omitted', () => {
     expect(serializeDocument(document)).toBe(text);
   });
 

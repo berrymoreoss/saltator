@@ -39,6 +39,7 @@ describe('CircuitBuilder', () => {
       ],
       wires: [],
       probes: [],
+      testScript: [],
     });
   });
 
@@ -130,6 +131,12 @@ describe('CircuitBuilder', () => {
     b.add('H1', 'test/high', { at: [0, 0] });
     expect(before.components).toEqual([]);
     expect(b.build()).toMatchObject({ id: 'clock', name: 'Clock module' });
+  });
+
+  it('takes a test script as text, kept line by line', () => {
+    const b = builder().tests("bench('x', (b) => {\r\n  b.wait(us(1));\n});");
+    expect(b.build().testScript).toEqual(["bench('x', (b) => {", '  b.wait(us(1));', '});']);
+    expect(b.tests('').build().testScript).toEqual([]);
   });
 
   it('throws on programming mistakes', () => {

@@ -4,7 +4,8 @@
  */
 
 export type { FunctionTable } from '../function-table';
-export { Bench, type BenchValue, type BenchValues, testDriver, toLevel } from './bench';
+export { testDriver } from '../test-driver';
+export { Bench, type BenchValue, type BenchValues, toLevel } from './bench';
 export {
   checkableRows,
   type FunctionTableOptions,

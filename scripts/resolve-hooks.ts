@@ -1,6 +1,7 @@
 /**
- * Node module hooks for running benchmarks on native `import` (no Vite module runner, whose
- * export getters distort hot-loop timings). Resolves the bundler-style specifiers used in src/:
+ * Node module hooks for running `src/` on native `import`: benchmarks (no Vite module runner,
+ * whose export getters distort hot-loop timings) and `pnpm test:circuits`. Resolves the
+ * bundler-style specifiers used in src/:
  * extensionless files (`./logic` → `./logic.ts`) and directories (`../core` → `../core/index.ts`).
  * Node strips the types itself (the code base is erasable-syntax only).
  */

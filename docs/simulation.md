@@ -451,8 +451,8 @@ sim.restore(copy.snapshot());
 ## Recorder
 
 `Recorder` (`src/core/recorder.ts`, R13) keeps the levels of chosen nets over simulated time —
-the data behind the waveform view ([editor.md](editor.md#waveforms)) and, later, headless test
-benches (R15):
+the data behind the waveform view ([editor.md](editor.md#waveforms)) and the debugger's
+breakpoints (R14):
 
 ```ts
 const recorder = new Recorder({ budget: 4_000_000 }); // changes kept across every channel
@@ -580,6 +580,12 @@ $end
 - `date` and `version` come from the caller: core never reads the clock.
 
 ## Test bench
+
+Two kinds: **circuit test benches** test a circuit of a document from a JavaScript test script
+in it, headless and (R15b) in the app — the user's, in `circuit`
+([circuit.md](circuit.md#test-benches), R15a); and **core's `Bench`** below tests one part —
+the library's, for every part's data sheet tests. Both drive inputs with core's `testDriver`
+(`test/driver`: a tri-state source set by an action, released until set).
 
 `src/core/testing` provides utilities used by every part test (pure: failures are thrown as plain
 `Error`s, no test-framework imports):

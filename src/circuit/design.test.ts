@@ -39,6 +39,7 @@ const circuit = (id: string, components: ComponentInstance[], wires: Wire[] = []
   components,
   wires,
   probes: [],
+  testScript: [],
 });
 const doc = (...circuits: Circuit[]): CircuitDocument => ({
   schemaVersion: SCHEMA_VERSION,

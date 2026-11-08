@@ -19,7 +19,7 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
   console output only show with `--reporter=verbose`.
 - 2026-11-06 (R01) — Vite's module runner (vitest default) turns every imported binding into a
   getter, making kernel hot loops ~3× slower than the real bundle. Benchmark on native `import`
-  (`pnpm bench` does: `--experimental.viteModuleRunner=false` + `scripts/bench-resolve-hooks.ts`);
+  (`pnpm bench` does: `--experimental.viteModuleRunner=false` + `scripts/resolve-hooks.ts`);
   never tune the kernel to numbers taken under the module runner.
 - 2026-11-06 (R01) — In 4-state simulation a feedback loop that starts at `X` stays `X`
   (`not X = X`): a plain inverter ring never oscillates. Start oscillators through a NAND with an
@@ -370,3 +370,19 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
   on the same netlist and scene, but the editor builds a new scene on every change, so a missing
   `path` comparison there survived mutation. Test a host's contract at the host
   (`sync` with one scene, two paths).
+- 2026-11-08 (R15a) — V8 keeps 10 stack frames by default: from inside a bench (script → API →
+  row → check → fail → line) the script's frame is already cut off, so a failure had no line.
+  Script hosts raise `Error.stackTraceLimit` around every load and call; a `vm` context has an
+  `Error` of its own to raise too.
+- 2026-11-08 (R15a) — A Node `vm` context is not empty: V8 gives it a `console` of its own
+  (`typeof console` was `object`). Delete what a sandboxed script must not use (`console`,
+  `Date`, `Math.random`) in a prelude, and test for it.
+- 2026-11-08 (R15a) — `tests/` is typed by `tsconfig.app.json` (DOM, no Node types): a scenario
+  importing `scripts/script-host.ts` failed typecheck on `node:vm` though vitest passed. Tests
+  that need Node go next to their scripts in `scripts/` (typed by `tsconfig.node.json`).
+- 2026-11-08 (R15a) — A clock pulse on an input that was never driven rises from `Z`, which is
+  no edge to a flip-flop (`prev` isn't `0`): the 74HC74 went `X` and the first bench "failed".
+  A bench's pulse drives the input LOW from the step's start, as 0 → 1 → 0 means on the board.
+- 2026-11-08 (R15a) — Scripts from `new Function` and `vm` run sloppy by default: assigning to a
+  frozen `b.now` did nothing and a typo made a global. Prefix `'use strict';` on the script's
+  first line (same line, so line numbers hold).

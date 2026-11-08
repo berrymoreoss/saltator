@@ -60,7 +60,7 @@ function counter(registry: ComponentRegistry) {
 
 /** The document: the top drives the counter from two test drivers; a VCC rail. */
 function design(): CircuitDocument {
-  const empty = { id: 'main', name: 'Main', components: [], wires: [], probes: [] };
+  const empty = { id: 'main', name: 'Main', components: [], wires: [], probes: [], testScript: [] };
   const modules = [toggle(library)];
   const withToggle = documentRegistry(
     { schemaVersion: SCHEMA_VERSION, circuits: [empty, ...modules] },

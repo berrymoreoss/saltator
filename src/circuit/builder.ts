@@ -43,6 +43,7 @@ export class CircuitBuilder {
   private readonly components: ComponentInstance[] = [];
   private readonly wires: Wire[] = [];
   private readonly probes: Probe[] = [];
+  private testScript: string[] = [];
   private readonly ids = new Set<string>();
   private readonly pins = new Map<string, Point>(); // 'U1.Y' → grid point
   private nextWire = 1;
@@ -133,6 +134,12 @@ export class CircuitBuilder {
     return this;
   }
 
+  /** Sets the circuit's test script (R15a), split into its lines. */
+  tests(source: string): this {
+    this.testScript = source === '' ? [] : source.split(/\r?\n/);
+    return this;
+  }
+
   /** The circuit built so far (a snapshot; the builder can keep going). */
   build(): Circuit {
     return {
@@ -141,6 +148,7 @@ export class CircuitBuilder {
       components: [...this.components],
       wires: [...this.wires],
       probes: [...this.probes],
+      testScript: [...this.testScript],
     };
   }
 

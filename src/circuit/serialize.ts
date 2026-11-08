@@ -1,7 +1,7 @@
 /**
  * Writing documents as JSON: fixed key order, defaults omitted, one line per component, per
- * wire and per probe, so a saved file diffs well in git (one edit = one changed line). A circuit
- * without probes leaves the key out.
+ * wire, per probe and per line of the test script, so a saved file diffs well in git (one edit =
+ * one changed line). A circuit without probes or a test script leaves the key out.
  */
 import {
   type CircuitDocument,
@@ -13,19 +13,21 @@ import {
 
 /** Serializes a document to JSON text (ends with a newline). `loadDocument` reads it back. */
 export function serializeDocument(document: CircuitDocument): string {
-  const circuits = document.circuits.map((circuit) =>
-    [
-      '    {',
-      `      "id": ${JSON.stringify(circuit.id)},`,
-      `      "name": ${JSON.stringify(circuit.name)},`,
-      `      "components": ${list(circuit.components.map(componentJson), '      ')},`,
-      `      "wires": ${list(circuit.wires.map(wireJson), '      ')}${circuit.probes.length > 0 ? ',' : ''}`,
+  const circuits = document.circuits.map((circuit) => {
+    const fields = [
+      `"id": ${JSON.stringify(circuit.id)}`,
+      `"name": ${JSON.stringify(circuit.name)}`,
+      `"components": ${list(circuit.components.map(componentJson), '      ')}`,
+      `"wires": ${list(circuit.wires.map(wireJson), '      ')}`,
       ...(circuit.probes.length > 0
-        ? [`      "probes": ${list(circuit.probes.map(probeJson), '      ')}`]
+        ? [`"probes": ${list(circuit.probes.map(probeJson), '      ')}`]
         : []),
-      '    }',
-    ].join('\n'),
-  );
+      ...(circuit.testScript.length > 0
+        ? [`"testScript": ${list(circuit.testScript, '      ')}`]
+        : []),
+    ];
+    return ['    {', fields.map((f) => `      ${f}`).join(',\n'), '    }'].join('\n');
+  });
   return [
     '{',
     `  "schemaVersion": ${document.schemaVersion},`,
@@ -59,7 +61,7 @@ function wireJson(w: Wire): Record<string, unknown> {
 }
 
 /** A JSON array with one inline item per line. */
-function list(items: readonly Record<string, unknown>[], indent: string): string {
+function list(items: readonly unknown[], indent: string): string {
   if (items.length === 0) return '[]';
   return `[\n${items.map((item) => `${indent}  ${inline(item)}`).join(',\n')}\n${indent}]`;
 }

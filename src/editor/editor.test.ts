@@ -60,6 +60,22 @@ describe('Editor (headless)', () => {
     expect(editor.view.get().camera.scale).toBeCloseTo(16 / Math.SQRT2);
   });
 
+  it('keeps a circuit’s test script through edits, undo and redo; editing it is an edit', () => {
+    const tested = { ...circuit, testScript: ["bench('nand', (b) => {});"] };
+    const editor = new Editor(registry, tested);
+    editor.edit('Move', updateComponent(tested, 'U1', { x: 12 }));
+    expect(editor.state.get().circuit.testScript).toEqual(tested.testScript);
+    const rewritten = { ...editor.state.get().circuit, testScript: ['// none yet'] };
+    expect(editor.edit('Edit Tests', rewritten)).toBe(true);
+    editor.undo();
+    expect(editor.state.get().circuit.testScript).toEqual(tested.testScript);
+    editor.undo();
+    expect(editor.state.get().circuit).toBe(tested);
+    editor.redo();
+    editor.redo();
+    expect(editor.state.get().circuit.testScript).toEqual(['// none yet']);
+  });
+
   it('records each edit as one undo step and restores circuit and selection', () => {
     const editor = new Editor(registry, circuit);
     editor.setSelection(selectionOf(['U1']));

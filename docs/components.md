@@ -876,7 +876,7 @@ Alliance Memory for the 62256.
 
 `src/core/image-files.ts` (R12b): memory images as EEPROM programmers and assemblers write them,
 read into chunks of bytes at their addresses and placed into a memory. Pure, so the Memory tab,
-test bench setups (R15) and the toolchain (R19) share it.
+test benches (`b.loadIntelHex`, R15a) and the toolchain (R19) share it.
 
 - **Binary** (`.bin`, `.rom`): every byte from address 0. An empty file is refused.
 - **Intel HEX** (`.hex`, `.ihx`, `.ihex`, `.mcs`): records 00 (data), 01 (end of file), 02

@@ -12,7 +12,7 @@ produce new values.
 
 ```ts
 interface CircuitDocument {
-  schemaVersion: 4;
+  schemaVersion: 5;
   circuits: Circuit[]; // at least one; the first is the top circuit (R11a)
 }
 
@@ -22,6 +22,7 @@ interface Circuit {
   components: ComponentInstance[];
   wires: Wire[];
   probes: Probe[]; // the Waveforms tab's signals, in its order (R13); left out of files when empty
+  testScript: string[]; // the circuit's test script, one line each (R15a); left out when empty
 }
 
 type Probe =
@@ -103,14 +104,16 @@ interface Wire {
   (`"probes"` on a circuit), so both migrations change nothing; v4 (R11a) gave the circuits after
   the first a meaning (subcircuits) and made circuit ids slugs: its migration turns other ids
   into slugs (only `main` was ever written). The bump makes an older app refuse a document whose
-  subcircuits it would ignore.
+  subcircuits it would ignore. v5 (R15a) added test scripts (`"testScript"` on a circuit, its
+  lines; a line break inside one is a load error); its migration changes nothing.
 - `serializeDocument(doc)` writes stable JSON: fixed key order, defaults omitted, one line per
-  component, per wire and per probe (no `probes` key without any), so a saved file diffs well in
-  git. Round trip is lossless: `parseDocument(serializeDocument(doc))` equals `doc`.
+  component, per wire, per probe and per line of the test script (no `probes` or `testScript`
+  key without any), so a saved file diffs well in git. Round trip is lossless:
+  `parseDocument(serializeDocument(doc))` equals `doc`.
 
 ```text
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "circuits": [
     {
       "id": "main",
@@ -126,6 +129,11 @@ interface Wire {
       "probes": [
         { "ref": "U1.Y" },
         { "name": "PC", "members": ["U3.Q0", "U3.Q1", "U3.Q2", "U3.Q3"], "radix": "dec" }
+      ],
+      "testScript": [
+        "bench('inverts', (b) => {",
+        "  b.row({ SW1: 1 }, { 'U2.Y': 0 });",
+        "});"
       ]
     }
   ]
@@ -395,6 +403,7 @@ const document = new CircuitBuilder(registry)
   .wire([7, 1], [7, 3], 'U1.B') // polyline through points and pins; T-junction at (7, 1)
   .connect('U1.Y', 'U2.A', [19, 2]) // via points; L-shaped where not aligned, horizontal first
   .bus('BE1.B', [12, 9], [20, 9]) // a bus line through points and bus pins
+  .tests("bench('inverts', (b) => b.row({ S: 1 }, { 'U2.Y': 1 }));") // the test script (R15a)
   .document(); // or .build() for the Circuit
 builder.pin('U1.Y'); // → [16, 2]
 ```
@@ -453,7 +462,8 @@ them) and return the same circuit when nothing changes.
 `src/circuit/resolve.ts` (R12b, [ADR-0018](adr/0018-memory-inspector.md)): references as the
 app writes them, turned into the parts and nets of a compiled design (or of one compiled
 circuit). The memory inspector, probes (R13), watches and breakpoints (R14) and test benches
-(R15) find what they show through it; R11a added instance paths in this one place.
+([test benches](#test-benches), R15a) find what they show through it; R11a added instance
+paths in this one place.
 
 ```ts
 const resolver = new Resolver(compileDesign(document, registry), registry); // or a CompileResult
@@ -509,6 +519,136 @@ resolver.resolve('A1.CLK'); // instance A1's pin: the net it is on, { kind: 'net
   first. `renameReference(ref, from, to)` rewrites a signal reference after a part rename: its
   pins only (`U5.A0` → `U7.A0`; a net or a bus may be called like a designator).
 - `compareDesignators` orders designators as people count them (`U2` before `U10`).
+
+## Test benches
+
+A circuit carries its own **test script** (`Circuit.testScript`, R15a,
+[ADR-0025](adr/0025-test-benches.md)): JavaScript registering benches with `bench(name, fn)`,
+each run on its own fresh simulation of that circuit **as the top** — a subcircuit tested as a
+unit through its ports, the top circuit through its switches and buttons, as a hand on the
+board would. `src/circuit/bench/`: values, tables, the bench (`CircuitBench`) and the scripts
+(`runBench`, `runTestScript`); pure — the text becomes code only in a script host.
+
+```js
+// Circuit: Decade Counter (ports CLK, EN, ~{RST} in; Q[0..3], CO out)
+const clear = (b) => {
+  b.row({ '~{RST}': 0, EN: 1, CLK: 'C' }, { 'Q[0..3]': 0, CO: 0 });
+  b.set({ '~{RST}': 1 });
+};
+
+bench('counts to 9, carries, and starts again', (b) => {
+  clear(b);
+  for (let n = 1; n <= 12; n++) {
+    b.row({ CLK: 'C' }, { 'Q[0..3]': n % 10, CO: n % 10 === 9 ? 1 : 0 }, `pulse ${n}`);
+  }
+});
+
+bench('holds while disabled, without a carry', (b) => {
+  clear(b);
+  b.clock('CLK', 9);
+  b.table`
+    EN CLK | Q[0..3] CO
+    1  -   | 9       1
+    0  -   | 9       0     # CO only while enabled
+    0  C   | 9       0     # disabled: holds
+  `;
+});
+```
+
+### Scripts
+
+- The script's top level registers benches (names unique) and may define helpers and
+  constants; it sees `bench` and the time helpers `ps`, `ns`, `us`, `ms`, `s` (numbers in
+  picoseconds, as core's) — no `Math.random`, no `Date`, no `console`, nothing of the host. It
+  runs in strict mode (a typo is an error, `b` is read-only).
+- **Each bench loads the script afresh** and runs on a new simulation: benches can't leak state
+  into each other, and the same document gives the same report.
+- Benches are **synchronous**: a function returning a Promise is an error.
+
+### The API (`b`)
+
+| Call                                  | Does                                                                                                                                                                     |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `b.set({ ref: value, … })`            | Inputs now: a port's driver (`0`, `1`, `'X'`, `'Z'`, a number for a bus port), a switch (`0`/`1`), a button (`0`/`1` pressed), a DIP switch (a number, switch 1 = bit 0) |
+| `b.press(ref)`, `b.release(ref)`      | A button                                                                                                                                                                 |
+| `b.action(ref, payload)`              | Any part's action (`sim.action`), for parts the bench doesn't operate itself                                                                                             |
+| `b.clock(ref, count = 1)`             | `count` steps of a pulse: LOW at the start, rising at ¼, falling at ¾ (a port's driver, a button's press, a manual clock's `step`)                                       |
+| `b.wait(time)`                        | Time passes, inputs held (`us(10)` or `'10us'`)                                                                                                                          |
+| `b.row(inputs, outputs, note?)`       | One step: inputs at its start (`'C'` pulses, `'-'` leaves one as it is), outputs checked at its end (`'-'`: not checked)                                                 |
+| `` b.table`…` ``                      | Rows of a text table, each one `b.row` ([below](#tables))                                                                                                                |
+| `b.expect({ ref: value, … }, note?)`  | Check now: signals (net, pin, bus, instance path) and memory cells (`U5[1F]`, a range takes an array)                                                                    |
+| `b.get(ref)`                          | A value now: a number when every bit is known (a BigInt beyond 2⁵³), else as a report writes it (`'X'`, `'Z'`, `'0xX5'`); an array for a range of cells                  |
+| `b.memory(ref, address, bytes)`       | Bytes into a memory: an array or hex text (`'2A 55 FF'`); `b.loadIntelHex(ref, text)` loads a file's text                                                                |
+| `b.setStep(time)`, `b.step`, `b.now`  | The step a row or a pulse takes (default `us(1)`); the simulated time                                                                                                    |
+| `b.random()`, `b.log(…)`, `b.fail(m)` | A number in [0, 1) seeded by the bench's name; a line in the report; a failure that ends the bench                                                                       |
+
+- **Inputs**: the circuit's `in` and `bidir` ports (or one bit of a bus port), each driven by a
+  test driver (core's `testDriver`, released until set, so an input never set floats), and the
+  interactive parts anywhere in the design (`SW1`, `A1/SW1`), operated by their symbol kind as
+  the Interact tool does: `switch`, `button`, `dip-switch`, `clock` (manual only). Anything
+  else is refused with the reason.
+- **Values**: numbers or BigInts within the width, `0`/`1`, `'X'`, `'Z'`, or text: decimal,
+  `0x2A`, `$2A`, `0b101` (`_` between digits), hex and binary digits `X` or `Z`. Expected, `'X'`
+  (whole or a digit) is **don't care**, as in data sheets and Digital; `'unknown'` expects every
+  bit `X`. A weakly pulled level counts as its value.
+- **Time** (Q4 of the plan): a step (default 1 µs) sets the inputs at its start, a pulse rises a
+  quarter step later (data set up for a quarter step) and falls at three quarters, and outputs
+  are checked at its end, before the next step changes anything. A pulsed port is driven LOW
+  from the step's start: a rise from a released `Z` or an unknown level is no edge to a
+  flip-flop. A change and a check at one instant see nothing of each other: let time pass.
+- **Failures are soft**: a mismatch is recorded with what was there and the bench goes on (all
+  failing rows at once, as `functionTable` does); the first 100 are kept, the rest counted.
+  Simulation **errors** (contention, `*-violation`s, oscillation) are failures at their
+  instant; **warnings** (floating inputs, …) are listed. An exception, a bad reference or a
+  halted simulation ends the bench as an `error`; `b.fail` ends it as failed.
+- **Memories**: a RAM takes `b.memory` at any time through its `poke`; a ROM's image (its
+  `image`-type prop) is replaced in the bench's flattened netlist — that instance only — and
+  only before the simulation starts (before anything else in the bench). Addresses are numbers
+  or hex text as the Memory tab's Go to takes them.
+- Design errors in the circuit or the circuits it places make every bench of it an `error`
+  listing them.
+
+### Tables
+
+```text
+  ~{RST} EN CLK | Q[0..3] CO
+  0      1  C   | 0       0     # comment
+  1      1  C   | ${n}    -
+```
+
+The first line is the header (inputs `|` outputs); cells are separated by spaces; `-` leaves an
+input as it is or doesn't check an output; `C` pulses an input; values as above (`unknown`
+too); `${…}` puts a script value in a cell of its own. A table's failures and mistakes name the
+row's line in the script. `b.table` also takes a plain string.
+
+### Reports and hosts
+
+```ts
+interface ScriptHost {
+  load(source: string, globals: Readonly<Record<string, unknown>>): void; // a fresh scope each time
+  call(fn: unknown, args: readonly unknown[]): unknown; // within the host's limits
+  line(error?: unknown): number | undefined; // the script line, from a stack
+}
+runBench(document, circuitId, name, library, host); // a BenchResult
+runTestScript(document, circuitId, library, host); // { error?, results }
+loadTestScript(source, host); // { benches: [{ name, line }], error? }
+```
+
+- A result: `status` (`pass`, `fail`, `error`), `failures` (`{ line, time, message, ref,
+  expected, actual }`: `line 3 at 1 µs: Q[0..3] is 0xX, expected 0x0`), `failureCount`,
+  `error` (`{ message, line }`), `warnings` (the simulation's, merged), `logs`, `time`, `events`.
+  It never throws for the script's sake.
+- **Hosts**: `functionScriptHost()` runs the script as a `new Function` in this realm (tests;
+  inside R15b's browser sandbox) — no isolation, no time limit. The Node host
+  (`scripts/script-host.ts`) runs each script in a `node:vm` context holding only its globals,
+  with a time limit (60 s) on its top level and on every bench, lines from stack frames. Neither
+  is a security boundary: the app (R15b) runs scripts in a browser sandbox.
+- **Headless**: `pnpm test:circuits [--timeout=ms] [files…]` (default: `examples/*.logic.json`)
+  prints one line per bench, every failure, log and error, and a summary; exit 0 when all
+  passed, 1 when one failed or erred or a script didn't load, 2 when a file didn't load. CI runs
+  it; `pnpm check` runs every example bench (`tests/scenarios/example-benches.test.ts`).
+- References are not rewritten when a part is renamed (they are strings in code, maybe
+  computed): the bench then says `U9: no part or net named U9`.
 
 ## Performance
 

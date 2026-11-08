@@ -172,7 +172,10 @@ export function sameDocument(a: CircuitDocument, b: CircuitDocument): boolean {
   );
 }
 
-/** True if two circuits hold the same parts, wires and probes in the same order (by value). */
+/**
+ * True if two circuits hold the same parts, wires, probes and test script in the same order (by
+ * value).
+ */
 export function sameCircuit(a: Circuit, b: Circuit): boolean {
   if (a === b) return true;
   if (a.id !== b.id || a.name !== b.name) return false;
@@ -180,6 +183,7 @@ export function sameCircuit(a: Circuit, b: Circuit): boolean {
     return false;
   }
   if (!sameProbes(a.probes, b.probes)) return false;
+  if (!sameLines(a.testScript, b.testScript)) return false;
   for (let i = 0; i < a.components.length; i++) {
     const x = a.components[i]!;
     const y = b.components[i]!;
@@ -201,6 +205,11 @@ export function sameCircuit(a: Circuit, b: Circuit): boolean {
     }
   }
   return true;
+}
+
+/** Two lists of lines alike. */
+function sameLines(a: readonly string[], b: readonly string[]): boolean {
+  return a === b || (a.length === b.length && a.every((line, i) => line === b[i]));
 }
 
 /** Two probe lists alike, item by item. */
@@ -527,7 +536,8 @@ export function copyFragment(circuit: Circuit, items: ItemIds): Circuit {
     name: circuit.name,
     components: circuit.components.filter((c) => parts.has(c.id)),
     wires: circuit.wires.filter((w) => wires.has(w.id)),
-    probes: [], // probes belong to the circuit, not to a selection
+    probes: [], // probes and the test script belong to the circuit, not to a selection
+    testScript: [],
   };
 }
 

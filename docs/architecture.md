@@ -173,10 +173,13 @@ Implemented in R02. Full spec: [circuit.md](circuit.md). Rationale:
   the net of every wire and the junction dots for the editor. It never throws on user mistakes.
 - **Resolver** (R12b): references (`U5`, `U5.A0`, `CLK`, `D[0..7]`, and inside instances
   `A1/U3.Q0`, R11a) to the compiled design's parts and nets, for the memory inspector, probes
-  (R13), watches and breakpoints (R14; memory cells `U5[1F]`) and later test benches
+  (R13), watches and breakpoints (R14; memory cells `U5[1F]`) and test benches (R15a)
   ([circuit.md](circuit.md#resolver)).
 - **Probes** (R13): the Waveforms tab's signals as resolver references in the circuit
   (`Circuit.probes`, schema v3), never compiled ([ADR-0019](adr/0019-waveforms.md)).
+- **Test scripts** (R15a): a circuit's JavaScript benches (`Circuit.testScript`, schema v5),
+  never compiled; `CircuitBench` runs the circuit as the top with drivers on its ports
+  ([circuit.md](circuit.md#test-benches), [ADR-0025](adr/0025-test-benches.md)).
 - **Design checks** (pre-simulation): unknown part types, invalid props, shorted push-pull
   outputs, undriven inputs, dangling wires, nets with several names, lone net labels, bus
   entries that aren't members of their bus; later power-pin checks.
@@ -271,7 +274,12 @@ runs, R12a); they load and save as `.bin` and Intel HEX in the Memory tab (R12b,
   pulse filtering, latch behavior, contention, floating inputs, determinism).
 - **Parts**: every part has a test generated from its datasheet function table plus at least one
   timing assertion, using the core test bench.
-- **Circuits**: example projects ship with test benches (R15) that run headless in CI.
+- **Circuits**: a circuit's test script (`Circuit.testScript`, R15a) registers benches that run
+  it as the top — through its ports or switches, in fixed steps, checks soft, simulation errors
+  failing — on a pure runner in `circuit`; the script's text becomes code only in a script host
+  (a `node:vm` context in Node). Every example bench runs in `pnpm check`, and
+  `pnpm test:circuits` runs any document's in CI ([circuit.md](circuit.md#test-benches),
+  [ADR-0025](adr/0025-test-benches.md)).
 - **Editor/UI**: unit tests for pure logic (camera, scene, hit-testing, selection, shortcuts,
   settings) and a scenario test drawing every part; browser e2e tests with Playwright
   (`pnpm e2e`, R04a) for the shell and interaction.

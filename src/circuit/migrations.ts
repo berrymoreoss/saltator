@@ -21,6 +21,8 @@ export const MIGRATIONS: Migrations = {
   // v4 (R11a) gave the other circuits a meaning and made circuit ids slugs (`main`), the part
   // half of an instance's type; v3 only ever wrote `main`, others are turned into slugs.
   3: slugCircuitIds,
+  // v5 added test scripts (`"testScript"` on a circuit, R15a); v4 documents have none.
+  4: (doc) => doc,
 };
 
 function slugCircuitIds(doc: RawDocument): RawDocument {

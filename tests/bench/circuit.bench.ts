@@ -67,6 +67,7 @@ describe('design', () => {
     components: place(4, 'sub/cell'),
     wires: [],
     probes: [],
+    testScript: [],
   };
   const top: Circuit = {
     id: 'main',
@@ -74,6 +75,7 @@ describe('design', () => {
     components: place(4, 'sub/row'),
     wires: [],
     probes: [],
+    testScript: [],
   };
   const document: CircuitDocument = { schemaVersion: SCHEMA_VERSION, circuits: [top, row, cell] };
   const parts = compileDesign(document, registry).netlist.components.length;

@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "circuits": [
     {
       "id": "main",
@@ -64,6 +64,38 @@
         { "ref": "A1/A1/Q[0..3]", "name": "ONES", "radix": "dec" },
         { "ref": "CARRY" },
         { "ref": "A2/A1/Q[0..3]", "name": "TENS", "radix": "dec" }
+      ],
+      "testScript": [
+        "// Two-Digit Counter: Counter Digits A1 (ones) and A2 (tens) on a free-running 10 Hz clock X1;",
+        "// RESET is SW1, a button with a pull-up.",
+        "bench('counts the clock from 00 after RESET, round past 99', (b) => {",
+        "  b.press('SW1'); // a hand on RESET over a few clock edges,",
+        "  b.wait(ms(250) + 123457); // let go off the clock's edges",
+        "  b.release('SW1');",
+        "  b.wait(ns(100));",
+        "  b.expect({ 'A2/Q[0..3]': 0, 'A1/Q[0..3]': 0 });",
+        "  // Read between edges (every 100 ms); the counters settle within nanoseconds.",
+        "  for (const [at, tens, ones] of [",
+        "    [ms(1025), 0, 7],",
+        "    [ms(4525), 4, 2],",
+        "    [ms(10025), 9, 7],",
+        "    [ms(10825), 0, 5], // round past 99",
+        "  ]) {",
+        "    b.wait(at - b.now);",
+        "    b.expect({ 'A2/Q[0..3]': tens, 'A1/Q[0..3]': ones }, `at ${at / 1e9} ms`);",
+        "  }",
+        "});",
+        "",
+        "bench('lights the displays through the digits’ segment ports', (b) => {",
+        "  b.press('SW1');",
+        "  b.wait(ms(250) + 123457);",
+        "  b.release('SW1');",
+        "  b.wait(ms(1025) - b.now); // 07",
+        "  b.table`",
+        "    | TENa TENb TENc TENd TENe TENf TENg ONEa ONEb ONEc ONEd ONEe ONEf ONEg",
+        "    | 1    1    1    1    1    1    0    1    1    1    0    0    0    0",
+        "  `;",
+        "});"
       ]
     },
     {
@@ -98,6 +130,24 @@
       ],
       "wires": [
         { "id": "w1", "from": [19, 2], "to": [23, 2], "bus": true }
+      ],
+      "testScript": [
+        "// Counter Digit: a Decade Counter (A1) and a 74HC4511 decoding its count onto segments a–g.",
+        "const DIGITS = { 0: 'abcdef', 1: 'bc', 2: 'abdeg', 3: 'abcdg', 7: 'abc', 8: 'abcdefg' };",
+        "const shows = (b, digit) => {",
+        "  const lit = DIGITS[digit];",
+        "  b.expect(Object.fromEntries([...'abcdefg'].map((s) => [s, lit.includes(s) ? 1 : 0])), `${digit}`);",
+        "};",
+        "",
+        "bench('shows its count on the segments', (b) => {",
+        "  b.row({ '~{RST}': 0, EN: 1, CLK: 'C' }, { 'Q[0..3]': 0 });",
+        "  b.set({ '~{RST}': 1 });",
+        "  shows(b, 0);",
+        "  for (let n = 1; n <= 10; n++) {",
+        "    b.row({ CLK: 'C' }, { 'Q[0..3]': n % 10, CO: n % 10 === 9 ? 1 : 0 });",
+        "    if (DIGITS[n % 10]) shows(b, n % 10);",
+        "  }",
+        "});"
       ]
     },
     {
@@ -150,7 +200,44 @@
         { "id": "NL34", "type": "net/label", "x": 16, "y": 29, "props": { "name": "GND" } },
         { "id": "NL35", "type": "net/label", "x": 16, "y": 28, "props": { "name": "GND" } }
       ],
-      "wires": []
+      "wires": [],
+      "testScript": [
+        "// Decade Counter: a 74HC163 cleared synchronously after 9 while enabled; CO is high at 9.",
+        "const clear = (b) => {",
+        "  b.row({ '~{RST}': 0, EN: 1, CLK: 'C' }, { 'Q[0..3]': 0, CO: 0 });",
+        "  b.set({ '~{RST}': 1 });",
+        "};",
+        "",
+        "bench('counts to 9, carries, and starts again', (b) => {",
+        "  clear(b);",
+        "  for (let n = 1; n <= 12; n++) {",
+        "    b.row({ CLK: 'C' }, { 'Q[0..3]': n % 10, CO: n % 10 === 9 ? 1 : 0 }, `pulse ${n}`);",
+        "  }",
+        "});",
+        "",
+        "bench('holds while disabled, without a carry', (b) => {",
+        "  clear(b);",
+        "  b.clock('CLK', 9);",
+        "  b.table`",
+        "    EN CLK | Q[0..3] CO",
+        "    1  -   | 9       1",
+        "    0  -   | 9       0     # CO only while enabled",
+        "    0  C   | 9       0     # disabled: holds",
+        "    1  C   | 0       0",
+        "  `;",
+        "});",
+        "",
+        "bench('clears on RESET at the next edge', (b) => {",
+        "  clear(b);",
+        "  b.clock('CLK', 5);",
+        "  b.table`",
+        "    ~{RST} CLK | Q[0..3]",
+        "    0      -   | 5          # synchronous: nothing until the edge",
+        "    0      C   | 0",
+        "    1      C   | 1",
+        "  `;",
+        "});"
+      ]
     }
   ]
 }

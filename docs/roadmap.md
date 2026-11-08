@@ -36,7 +36,8 @@ How to read this file:
 | R14b | `feat/rewind`                | Snapshots & rewind                         | done    |
 | R11a | `feat/subcircuits`           | Subcircuits                                | done    |
 | R11b | `feat/subcircuit-navigation` | Navigation into instances                  | done    |
-| R15  | `feat/test-benches`          | Circuit test benches ("test before fab")   | next    |
+| R15a | `feat/test-benches`          | Test benches: scripts, headless runner     | done    |
+| R15b | `feat/test-bench-ui`         | Test benches in the app                    | next    |
 | R16a | `example/sap-1-modules`      | SAP-1 modules as tested subcircuits        | planned |
 | R16b | `example/sap-1`              | Ben Eater SAP-1 reference build            | planned |
 | R17  | `feat/cpu-6502`              | W65C02S CPU                                | planned |
@@ -359,7 +360,7 @@ the circuit's ports (`net/port`: name, direction, side; bus ports), ordered as t
 drawn. The compiler flattens the hierarchy into the kernel's flat netlist with instance paths
 (`A1/U3`); net labels join only within their circuit, the power names everywhere. The resolver
 (R12b) takes instance paths (`A1/U3.Q0`, `A1/CLK`, `A1/U5[1F]`), so the memory inspector,
-probes, watches and breakpoints reach into instances, and test benches (R15) can test a
+probes, watches and breakpoints reach into instances, and test benches (R15a) can test a
 subcircuit as a unit. Schema v4 (circuit ids are slugs, following the name until placed); a
 document registry generating `sub/<id>` definitions; checks `duplicate-port`,
 `recursive-subcircuit`, `bus-port-width`. The editor holds the whole document (one undo history,
@@ -386,12 +387,33 @@ instances. Found on the way: Step Clock after a button pressed while paused stop
 same edge (fixed). Spec: [editor.md](editor.md#instances). Decision:
 [ADR-0024](adr/0024-instance-navigation.md). Plan: `.ai/plans/feat-subcircuit-navigation.md`.
 
-### R15 · Circuit test benches — `feat/test-benches` — `next`
+R15 (circuit test benches) was split at its start into the scripts and their headless runner
+(R15a) and running them in the app (R15b): the document field, the bench API and the runner are
+pure and fully testable in Node; the Tests tab, the browser sandbox a script needs and the
+results view build on them.
 
-Test vectors (table of inputs/expected outputs over time) and scripted benches for user circuits;
-run in the app and headless (Node/CI); pass/fail report. The core of "test before fab". A
-bench's setup runs like an init script before the simulation starts and loads memories (a RAM's
-program, a ROM image from a file), through R12b's image formats and `poke` (R12b, Q2).
+### R15a · Test benches: scripts and headless runner — `feat/test-benches` — `done`
+
+A test script per circuit in the document (`Circuit.testScript`, schema v5): JavaScript with
+`bench(name, fn)` calls on a synchronous API `b` (the user chose JavaScript over the proposed
+text DSL, Q3) — drive ports and interactive parts (by symbol kind, as Interact does), pulse
+clocks and step rows of test vectors in fixed steps (inputs at the start, a pulse LOW → HIGH at
+¼ → LOW at ¾, checks at the end; text tables `` b.table`A B | Y …` `` inside the script), wait,
+check signals and memory cells, load memories before power-on (RAM `poke`, a ROM's image,
+Intel HEX). A pure runner in `circuit` tests a circuit as the top (a subcircuit through its
+ports, drivers on its inputs); soft failures with the script line, instant, signal, expected
+and actual value; simulation errors fail, warnings are listed. Script hosts make the text code:
+`node:vm` in Node (no `Math.random`, `Date`, `console`; a time limit), `new Function` where
+trusted. Benches for Half Adder, RAM by Hand (a memory loaded before power-on) and the
+Two-Digit Counter's three circuits run in `pnpm check`; `pnpm test:circuits` runs any document's
+(exit codes; a CI step). Spec: [circuit.md](circuit.md#test-benches). Decision:
+[ADR-0025](adr/0025-test-benches.md). Plan: `.ai/plans/feat-test-benches.md`.
+
+### R15b · Test benches in the app — `feat/test-bench-ui` — `next`
+
+The Tests tab: a circuit's test script edited with its errors, its benches run in a browser
+sandbox off the UI thread with progress and Cancel, results with the failing lines; Insert
+Image… writes a memory load from a `.bin`/`.hex` file. The core of "test before fab" in the app.
 
 **M2 acceptance:** on example circuits — a memory inspected live and programmed from a file; a
 bus captured in the waveform view with a trigger and exported; a run stopped at a breakpoint and
@@ -542,5 +564,10 @@ Promote to a numbered item when needed.
   history's reach and marked on the ruler (Q3); re-running the past with an edited circuit and
   the same inputs ("what if", Q2); hit counts in Reverse Continue; the history's start marked on
   the waveforms' ruler.
+- Test bench follow-ups (R15a): rewriting a script's references when a part is renamed (they
+  are strings in code; a find-and-replace at least); `b.settle()` (run until quiet) if fixed
+  steps prove a chore; JUnit/JSON reports for CI dashboards; coverage (which nets a bench
+  toggled); forcing a net against its driver (an injector); the examples' TypeScript scenario
+  tests moved into their documents' scripts; line numbers from non-V8 engines' stacks.
 - Documents (R07 follow-ups): several documents open in one window (tabs); a title, notes and
   simulation settings (speed) stored in the file (schema v2).

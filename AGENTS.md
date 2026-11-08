@@ -35,6 +35,7 @@ pnpm dev              # Vite dev server
 pnpm check            # typecheck + lint + layer check + tests — run before every commit
 pnpm test             # tests once; pnpm test:watch for watch mode; pnpm test <path> for a subset
 pnpm coverage         # tests with coverage (v8)
+pnpm test:circuits    # the documents' test benches, headless (default: examples/*.logic.json)
 pnpm e2e              # browser tests (Playwright, Chromium; not part of check)
 pnpm bench            # benchmarks (tests/bench), on native imports for realistic numbers
 pnpm lint:fix         # format + autofix with Biome

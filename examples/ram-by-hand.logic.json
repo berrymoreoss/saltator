@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "circuits": [
     {
       "id": "main",
@@ -81,6 +81,29 @@
         { "id": "w10", "from": [20, 19], "to": [22, 19] },
         { "id": "w11", "from": [20, 21], "to": [30, 21] },
         { "id": "w12", "from": [20, 27], "to": [22, 27] }
+      ],
+      "testScript": [
+        "// RAM by Hand: a 6116 (U1) on the bus D[0..7]. SW1 is ADDRESS (S1 = A0), SW2 DATA (S1 = D0),",
+        "// SW3 PROGRAM (off: the RAM drives the bus), SW4 WRITE.",
+        "bench('reads what was loaded before power-on', (b) => {",
+        "  b.memory('U1', 0x000, [0x2a, 0x55, 0xff]);",
+        "  b.table`",
+        "    SW1 | D[0..7]",
+        "    0   | 0x2A",
+        "    1   | 0x55",
+        "    2   | 0xFF",
+        "    3   | unknown      # never written: the RAM powers on unknown",
+        "  `;",
+        "});",
+        "",
+        "bench('stores DATA at ADDRESS on WRITE in PROGRAM mode', (b) => {",
+        "  b.set({ SW3: 1 }); // PROGRAM: the 74HC245 puts the DATA switches on the bus",
+        "  b.row({ SW1: 2, SW2: 0x21 }, { 'D[0..7]': 0x21 });",
+        "  b.clock('SW4'); // WRITE: pressed from a quarter to three quarters of a step",
+        "  b.row({ SW3: 0 }, { 'D[0..7]': 0x21, 'U1[2]': 0x21 }); // the RAM drives what it stored",
+        "  b.row({ SW1: 3 }, { 'D[0..7]': 'unknown' });",
+        "  b.row({ SW1: 2 }, { 'D[0..7]': 0x21 });",
+        "});"
       ]
     }
   ]

@@ -23,6 +23,12 @@ and bus pins (`PinDef.bus`) are a second layer, connected apart from wires and p
 (`CompileResult.buses`); `addWires` and `normalizeWires` keep the layers apart. Probes
 (`Circuit.probes`, schema v3, R13) are references kept with the circuit for the Waveforms tab,
 never compiled.
+Test benches (`bench/`, R15a): `values.ts` (what a bench drives and expects, as bits; how a
+report writes them), `table.ts` (text tables of vectors), `bench.ts` (`CircuitBench`: a circuit
+as the top with drivers on its ports, steps, checks, memories, the report), `script.ts` (test
+scripts: `ScriptHost`, `runBench`, `runTestScript`, the API object `b`), `function-host.ts`
+(an in-realm host); its own test parts and circuits are `bench/test-*.ts`. A test script
+(`Circuit.testScript`, schema v5) is never compiled; its text becomes code only in a host.
 `test-parts.ts` holds small part definitions for unit tests: this layer may not import `library`,
 not even in tests; scenarios with real parts live in `tests/scenarios/`.
 
