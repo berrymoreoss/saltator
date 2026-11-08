@@ -281,7 +281,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   `example-benches.test.ts`.
 - [x] 10. CLI `pnpm test:circuits`, `scripts/resolve-hooks.ts`; tests of the report and the exit
   codes.
-- [ ] 11. Docs: circuit.md (Test benches), simulation.md, architecture, glossary, ADR-0025,
+- [x] 11. Docs: circuit.md (Test benches), simulation.md, architecture, glossary, ADR-0025,
   lessons; roadmap (R15a done, R15b next).
 
 ## Acceptance criteria

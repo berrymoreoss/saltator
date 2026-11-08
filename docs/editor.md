@@ -707,7 +707,7 @@ way a programmer's buffer or a debugger's memory window does.
 - **Cells**: while simulating, the instance's cells, read in place every frame; while stopped, a
   ROM's image (its `contents` prop). A stopped RAM has none: "A RAM holds data only while
   simulating. Step (F10) powers on at t = 0, paused, to edit or load it before running." (RAMs
-  stay volatile; a test bench's setup loads them before t = 0, R15.)
+  stay volatile; a test bench loads them before t = 0 with `b.memory`, R15a.)
 - **Hex view** (`MemoryPanel.tsx`, pure pieces in `memory-view.ts`): rows of 8, 16 or 32 cells,
   as many as fit the dock's width (`bytesPerRow`), with the row address (at least 4 hex digits)
   and an ASCII column (printable ASCII, else `.`). Unknown bits show as `X` nibbles in the `X`

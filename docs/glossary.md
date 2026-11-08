@@ -236,6 +236,9 @@ next): cheap, but its outputs change one after another, passing through wrong va
 74HC107 chain going 15 → 0 shows 14, 12, 8 on the way, 19 ns apart; a 74HC4040 ripples 10 ns
 per stage). Gates decoding its outputs glitch.
 
+**Script host** — where a test script's text becomes code (R15a): a `node:vm` context in Node
+(`pnpm test:circuits`), `new Function` in a trusted realm, a browser sandbox in the app (R15b).
+
 **Subcircuit (instance)** — a circuit of the document placed inside another, drawn as a box whose
 pins are its ports (`A1`, `A2`: IEEE 315's `A` for an assembly). Every instance has its own
 parts and state; editing the circuit changes them all. A module of a breadboard computer.
@@ -316,9 +319,15 @@ key: Alt+F10, Alt+F8, Alt+F5.
 editor): run, pause, step, stop, reset, speed, frame budget, following edits.
 
 **Test bench** — a harness that applies stimulus to a part or circuit and checks the outputs over
-time.
+time. A circuit's benches (R15a) run it as the top through its ports or switches, in fixed
+steps (inputs at the start, a clock pulse from ¼ to ¾, checks at the end); a part's (core's
+`Bench`) test one part from its data sheet.
 
-**Test vector** — one row of a test bench table: inputs to apply and outputs expected.
+**Test script** — a circuit's JavaScript in the document registering its test benches with
+`bench(name, (b) => …)` (R15a); `pnpm test:circuits` runs them headless.
+
+**Test vector** — one row of a test bench table: inputs to apply and outputs expected
+(`` b.table`A B | Y …` ``, `b.row`).
 
 **Top circuit** — the document's first circuit, starred in the Circuits list: the one that
 simulates, with every instance in it flattened. Set as Top Circuit makes another one the top.
