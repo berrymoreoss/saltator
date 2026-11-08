@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { type Circuit, emptyCircuit, type Rect } from '../../circuit';
+import {
+  type Circuit,
+  documentRegistry,
+  emptyCircuit,
+  type Rect,
+  SCHEMA_VERSION,
+} from '../../circuit';
 import { Level, levelChar, type PropValue, Registry } from '../../core';
 import {
   createDefaultRegistry,
@@ -113,6 +119,58 @@ describe('net drawers', () => {
       'A15',
     ]);
     expect(entry.texts).toEqual([]);
+  });
+});
+
+describe('subcircuit drawer', () => {
+  it('draws a box with the circuit name and every port name inside, overlines marked', () => {
+    const port = (id: string, name: string, x: number, y: number, props = {}) => ({
+      id,
+      type: 'net/port',
+      x,
+      y,
+      rotation: 0 as const,
+      flip: false,
+      props: { name, direction: 'in', side: 'auto', ...props },
+    });
+    const module: Circuit = {
+      ...emptyCircuit('counter', 'Counter'),
+      components: [
+        port('P1', 'CLK', 0, 0),
+        port('P2', '~{CLR}', 0, 2),
+        port('P3', 'Q[0..3]', 9, 0, { direction: 'out' }),
+        port('P4', 'EN', 4, 0, { side: 'top' }),
+        port('P5', 'CO', 4, 9, { direction: 'out', side: 'bottom' }),
+      ],
+    };
+    const top: Circuit = {
+      ...emptyCircuit(),
+      components: [
+        { id: 'A1', type: 'sub/counter', x: 0, y: 0, rotation: 0, flip: false, props: {} },
+      ],
+    };
+    const docRegistry = documentRegistry(
+      { schemaVersion: SCHEMA_VERSION, circuits: [top, module] },
+      registry,
+    );
+    const instance = buildScene(top, docRegistry).parts[0]!;
+    const g = new RecordingGraphics();
+    drawPartBody(g, instance, 'ansi', 'red');
+    expect(within(g.points, instance.localBounds)).toBe(true);
+    expect(g.texts.map((t) => [t.text, t.style.overline ?? false])).toEqual([
+      ['Counter', false],
+      ['CLK', false],
+      ['CLR', true],
+      ['Q[0..3]', false],
+      ['EN', false],
+      ['CO', false],
+    ]);
+    for (const t of g.texts) {
+      expect(within([t.at], instance.layout.body), t.text).toBe(true);
+    }
+    expect(g.texts.filter((t) => t.style.rotate === 90).map((t) => t.text)).toEqual(['EN', 'CO']);
+    // The designator is the scene's text, outside the body.
+    expect(instance.texts.map((t) => t.text)).toEqual(['A1']);
   });
 });
 

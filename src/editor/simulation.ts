@@ -1306,6 +1306,7 @@ export function signalMap(scene: Scene, sim: Simulator): SignalMap {
     }
     for (const pin of net.pins) points.set(pointKey(pin.at), index);
     for (const pin of net.schematicPins) points.set(pointKey(pin.at), index);
+    for (const pin of net.instancePins) points.set(pointKey(pin.at), index);
     for (const name of net.names) named.set(name, index);
   }
   const buses = new Map<string, Int32Array>();

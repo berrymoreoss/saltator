@@ -228,11 +228,38 @@ name as the stem and a range of indices 0…99 either way round, at most 32 char
 
 ## Subcircuits
 
-R11a. A circuit's **ports** ([components.md](components.md#ports-net-port)) are its interface:
-each joins the net or bus of its name inside, like a net label. Net and bus labels join only
-within their circuit; the power names (`VCC`, `GND`) are the same net everywhere. Instances of
-a circuit placed in another, their generated symbols and the flattening into one netlist with
-instance paths (`A1/U3`) _(planned, R11a)_.
+R11a (`src/circuit/subcircuit.ts`). A circuit's **ports** ([components.md](components.md#ports-net-port))
+are its interface: each joins the net or bus of its name inside, like a net label. Net and bus
+labels join only within their circuit; the power names (`VCC`, `GND`) are the same net
+everywhere. The flattening into one netlist with instance paths (`A1/U3`) _(planned, R11a)_.
+
+- **Instances**: a circuit placed in another is an ordinary component of type
+  `sub/<circuit id>` (`subcircuitType`; the `sub` family is reserved), with no props and the
+  designator prefix `A` (IEEE 315's assembly: a board, a module).
+- **Document registry**: `documentRegistry(document, library)` is a `ComponentRegistry` with the
+  library's parts and a generated definition per circuit of the document, so layouts, scenes,
+  drawing and the editor's panels treat an instance like any part. Built from the previous one
+  (`documentRegistry(document, library, previous)`), it keeps each definition whose circuit's
+  name and ports didn't change, so layouts and scenes built on it stay; the editor caches
+  layouts by definition object, not by type. `circuitOf(type)` is the circuit an instance
+  places. A generated definition has no behavior: creating one throws (instances are
+  flattened).
+- **Pins**: one per port (`circuitPorts`), named after it; `in`, `out`, `bidir` as the port's
+  direction, a bus port a bus pin (`nc`, `bus`); an overlined name (`~{CLR}`) has a marked
+  `label` (C̅L̅R̅). A port giving a name an earlier port gives already is left out (it is a
+  `duplicate-port` error).
+- **Symbol** (`kind: 'subcircuit'`): a box with the circuit's name in bold on its title row, each
+  port's name inside next to its pin. Pins sit on their port's side (`auto`: inputs left, the
+  others right) **in the order the ports are drawn**: left and right by y then x, top and bottom
+  by x then y — so moving ports in a circuit reorders its instances' pins. Side pins are one
+  cell apart below the title; top and bottom pins are one cell apart, centered, their names
+  reading across the edge, with rows kept for them (`subcircuitRoom`). Width from the names
+  and the title, at least 4 cells. A change of ports moves the pins of every instance: wires
+  there may come loose, and the design checks say so.
+- **In the outer circuit** an instance's pins connect like any pins but stay out of that
+  circuit's netlist (`CircuitNet.instancePins`): an instance output or bidirectional pin is a
+  possible driver of its net, never a push-pull output (`shorted-outputs` doesn't count it,
+  what drives it is inside); an instance input on a net nothing drives is `undriven-input`.
 
 ## Compiler
 
@@ -244,7 +271,7 @@ const sim = new Simulator(result.netlist, registry);
 ```ts
 interface CompileResult {
   netlist: Netlist; // components (id, type, props as given) + one net per connected group
-  nets: CircuitNet[]; // each net with its placed pins and wires, in netlist order
+  nets: CircuitNet[]; // each net with its placed pins (simulated, schematic-only, instance) and wires
   wireNets: ReadonlyMap<string, string>; // plain wire id → net id (coloring wires by level)
   buses: CircuitBus[]; // each bus with its names, members, bus pins and bus lines
   wireBuses: ReadonlyMap<string, string>; // bus line id → bus id

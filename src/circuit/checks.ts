@@ -44,6 +44,11 @@ export interface PlacedPin {
   readonly net?: string;
   /** The pin of a port (R11a): the circuit's interface pin of that direction, named `net`. */
   readonly port?: PortDirection;
+  /**
+   * The pin of a subcircuit instance (R11a): it connects through to the instance's inside, so
+   * what drives it is there — a possible driver here, never a push-pull output.
+   */
+  readonly instance?: true;
   readonly at: Point;
 }
 
@@ -59,6 +64,8 @@ export interface CircuitNet {
   readonly pins: readonly PlacedPin[];
   /** Pins of schematic-only parts (net labels): drawn and connected, never simulated. */
   readonly schematicPins: readonly PlacedPin[];
+  /** Pins of subcircuit instances (R11a): they join nets inside the instances when flattened. */
+  readonly instancePins: readonly PlacedPin[];
   readonly wires: readonly Wire[];
 }
 
@@ -129,10 +136,11 @@ export function undrivenInputs(
 ): DesignIssue[] {
   const issues: DesignIssue[] = [];
   for (const net of nets) {
-    if (net.pins.some((p) => isDriverPin(p.dir))) continue;
+    const inputs = [...net.pins, ...net.instancePins];
+    if (inputs.some((p) => isDriverPin(p.dir))) continue;
     if (net.names.some((name) => driven.has(name))) continue;
-    const alone = net.pins.length === 1 && net.wires.length === 0 && net.schematicPins.length === 0;
-    for (const pin of net.pins) {
+    const alone = inputs.length === 1 && net.wires.length === 0 && net.schematicPins.length === 0;
+    for (const pin of inputs) {
       if (pin.dir !== 'in' || pin.sense) continue;
       issues.push({
         severity: 'warning',

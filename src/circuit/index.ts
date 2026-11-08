@@ -101,3 +101,17 @@ export {
 } from './resolve';
 export { DocumentError, type LoadOptions, loadDocument, parseDocument } from './schema';
 export { serializeDocument } from './serialize';
+export {
+  type CircuitPort,
+  circuitPorts,
+  DocumentRegistry,
+  documentRegistry,
+  SUBCIRCUIT_FAMILY,
+  SUBCIRCUIT_PIN_FONT,
+  SUBCIRCUIT_PREFIX,
+  SUBCIRCUIT_TITLE_FONT,
+  subcircuitDefinition,
+  subcircuitOf,
+  subcircuitRoom,
+  subcircuitType,
+} from './subcircuit';

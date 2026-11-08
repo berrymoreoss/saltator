@@ -111,20 +111,26 @@ const BROKEN_LAYOUT: PartLayout = { body: { x: 0, y: 0, width: 4, height: 2 }, p
 
 /**
  * Layouts depend only on the definition and props, so they are cached across scene rebuilds.
- * Create one per editor (the key includes the props of prop-dependent parts).
+ * Create one per editor. Keyed by the definition object, not its type: a subcircuit's generated
+ * definition is replaced when its ports change (R11a), and its old layout must not be reused.
  */
 export class LayoutCache {
-  readonly #layouts = new Map<string, PartLayout>();
+  readonly #layouts = new WeakMap<AnyComponentDefinition, Map<string, PartLayout>>();
 
   get(definition: AnyComponentDefinition, props: Readonly<Record<string, PropValue>>): PartLayout {
     const key =
       typeof definition.pins === 'function' || typeof definition.symbol === 'function'
-        ? `${definition.type} ${JSON.stringify(props)}`
-        : definition.type;
-    let layout = this.#layouts.get(key);
+        ? JSON.stringify(props)
+        : '';
+    let layouts = this.#layouts.get(definition);
+    if (!layouts) {
+      layouts = new Map();
+      this.#layouts.set(definition, layouts);
+    }
+    let layout = layouts.get(key);
     if (!layout) {
       layout = partLayout(definition, props);
-      this.#layouts.set(key, layout);
+      layouts.set(key, layout);
     }
     return layout;
   }
@@ -143,6 +149,7 @@ export function buildScene(
   for (const net of compiled.nets) {
     for (const pin of net.pins) pinNet.set(`${pin.component}.${pin.pin}`, net.id);
     for (const pin of net.schematicPins) pinNet.set(`${pin.component}.${pin.pin}`, net.id);
+    for (const pin of net.instancePins) pinNet.set(`${pin.component}.${pin.pin}`, net.id);
   }
   const busPins = new Set<string>();
   for (const bus of compiled.buses) {

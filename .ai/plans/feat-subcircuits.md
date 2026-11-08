@@ -265,7 +265,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 2. `library` + `editor`: the port part `net/port` (props, pins, symbol, drawer, Place ▸
   Port) and its checks in a single circuit (`duplicate-port`, no `single-net-label`, a driver
   for `undriven-input`); components.md.
-- [ ] 3. `circuit`: `documentRegistry` — generated `sub/<id>` definitions (pins from ports,
+- [x] 3. `circuit`: `documentRegistry` — generated `sub/<id>` definitions (pins from ports,
   symbol ordered by drawing, cached by ports and name); the subcircuit symbol drawer; outer
   checks treat instance pins as possible drivers, never push-pull.
 - [ ] 4. `circuit`: `compileDesign` — per-circuit compiles, flattening with path ids, port and
