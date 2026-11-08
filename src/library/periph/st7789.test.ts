@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { pinsOf, resolveProps, us } from '../../core';
+import { freezeState, pinsOf, resolveProps, stateBytes, us } from '../../core';
 import { st7789, st7789Symbol } from './st7789';
 import { Cmd, COMMANDS, PIXEL_X, STREAM, St7789Diagnostic } from './st7789-controller';
-import { ST7789_PANELS } from './st7789-panels';
+import { FRAME_UNKNOWN, st7789Frame } from './st7789-frame';
+import { ST7789_PANELS, st7789Glass } from './st7789-panels';
 import { SETTLE, TftBench } from './st7789-test-helpers';
 
 const pins = pinsOf(st7789, resolveProps(st7789, {}));
@@ -237,4 +238,50 @@ describe('ST7789 memory over the serial interface', () => {
     tft.reset(us(20)).command(Cmd.SWRESET);
     expect(tft.controller.gram[0]).toBe(0x3ffff);
   });
+});
+
+describe('ST7789 in snapshots', () => {
+  it('costs little when unchanged: the frame memory’s pages are shared (≤ 4 KiB)', () => {
+    const tft = new TftBench();
+    tft
+      .command(Cmd.COLMOD, [0x55])
+      .command(Cmd.CASET, [0, 0, 0, 239])
+      .command(Cmd.RASET, [0, 0, 0, 0]);
+    tft.command(
+      Cmd.RAMWR,
+      Array.from({ length: 480 }, () => 0xff),
+    );
+    const state = tft.bench.sim.stateOf('DUT');
+    const first = freezeState(state);
+    tft.run(us(100)); // time passes, nothing written
+    const second = freezeState(state, first);
+    expect(stateBytes(second, first)).toBeLessThanOrEqual(4096);
+    expect(stateBytes(first)).toBeGreaterThan(300_000); // the memory itself
+  });
+});
+
+describe('ST7789 initialized and filled on every panel', () => {
+  it.each(ST7789_PANELS)(
+    '%s: SWRESET, SLPOUT, COLMOD, MADCTL, INVON, NORON, DISPON, a fill',
+    (panel) => {
+      const glass = st7789Glass(panel);
+      const tft = new TftBench({ panel });
+      tft.command(Cmd.SWRESET, [], SETTLE).command(Cmd.SLPOUT, [], SETTLE);
+      tft.command(Cmd.COLMOD, [0x55]).command(Cmd.MADCTL, [0x00]).command(Cmd.INVON);
+      tft.command(Cmd.NORON).command(Cmd.DISPON);
+      // The panel's window, a few rows of it (a fill of all of it is the same loop, longer).
+      const xs = glass.column;
+      const xe = glass.column + glass.width - 1;
+      tft.command(Cmd.CASET, [xs >> 8, xs & 0xff, xe >> 8, xe & 0xff]);
+      tft.command(Cmd.RASET, [0, glass.row, 0, glass.row + 1]);
+      tft.command(
+        Cmd.RAMWR,
+        Array.from({ length: glass.width * 2 * 2 }, () => 0xff),
+      );
+      const frame = st7789Frame(tft.controller, panel);
+      expect(frame.pixels.slice(0, 2 * glass.width).every((p) => p === 0xffffff)).toBe(true);
+      expect(frame.pixels[2 * glass.width]).toBe(FRAME_UNKNOWN);
+      expect(tft.diagnostics()).toEqual([]);
+    },
+  );
 });

@@ -358,22 +358,29 @@ The alternatives considered:
 
 ## Acceptance criteria
 
-- [ ] `pnpm check` and `pnpm build` are green.
-- [ ] Every simulated command has a function test from the data sheet, and the 8 MADCTL
-  orientations write as §8.12 draws them.
-- [ ] `SWRESET` → `SLPOUT` → `COLMOD 55h` → `MADCTL` → `INVON` → `NORON` → `DISPON` and a fill
-  show the expected frame on every panel. Without `INVON`, an IPS panel shows inverted
-  colors. A rotated 240 × 240 needs its row offset.
-- [ ] Each SPI write requirement and each wait is silent just inside and reported just outside.
-  A command sent too early leaves what it sets uncertain (Q5).
-- [ ] The frame memory powers on unknown and is drawn as unknown. RESX and `SWRESET` don't
+Verified 2026-11-09, before the finish (the finish workflow repeats this after merging `main`).
+
+- [x] `pnpm check` and `pnpm build` are green (3145 unit tests; `pnpm e2e` 92 passed).
+- [x] Every simulated command has a function test from the data sheet, and the 8 MADCTL
+  orientations write as §8.12 draws them (`st7789.test.ts`, `st7789-controller.test.ts`
+  "address mapping", plus the 8 vendor offsets).
+- [x] `SWRESET` → `SLPOUT` → `COLMOD 55h` → `MADCTL` → `INVON` → `NORON` → `DISPON` and a fill
+  show the expected frame on every panel ("initialized and filled on every panel"). Without
+  `INVON`, an IPS panel shows inverted colors. A rotated 240 × 240 needs its row offset
+  (`st7789-frame.test.ts`).
+- [x] Each SPI write requirement and each wait is silent just inside and reported just outside.
+  A command sent too early leaves what it sets uncertain (Q5) (`st7789-timing.test.ts`).
+- [x] The frame memory powers on unknown and is drawn as unknown. RESX and `SWRESET` don't
   clear it.
-- [ ] TFT Color Bars runs headless and in the browser, shows the SMPTE bars and reports no
-  diagnostics. With the post-`SLPOUT` gap shortened it reports the wait violation.
-- [ ] The carry-over and rewind properties pass with the TFT. A snapshot of an unchanged TFT
-  costs ≤ 4 KiB.
-- [ ] The drawer stays within its budget, and the benchmark numbers are recorded here.
-- [ ] Docs, ADR-0031, the roadmap and lessons are updated.
+- [x] TFT Color Bars runs headless and in the browser, shows the SMPTE bars and reports no
+  diagnostics: the first block in the test, the whole picture once (exact, 0 diagnostics). It
+  reports the wait violation when run faster: clocked at 1 MHz, the post-`SLPOUT` gap is
+  2.6 ms. That stands in for "the gap shortened", since the gap is a count of bytes.
+- [x] The carry-over and rewind properties pass with the TFT. A snapshot of an unchanged TFT
+  costs ≤ 4 KiB ("in snapshots").
+- [x] The drawer stays within its budget (0.37 ms a changed 240 × 320 frame), and the benchmark
+  numbers are recorded here (progress log, task 8).
+- [x] Docs, ADR-0031, the roadmap and lessons are updated.
 
 ## Open questions
 
@@ -531,10 +538,14 @@ displaymodule.com (cdn.shopify.com/s/files/1/0264/7629/files/DM-TFT114-397_Datas
   lessons I found a known pitfall in my code (lessons, R17a): the SCL checks were joined with
   `||`, which hid a cycle violation behind a pulse-width one at the same edge. Fixed, with a
   test of both at once. Full `pnpm e2e`: 92 passed. The Part tab was checked in the browser.
+- 2026-11-09: acceptance verified. Two tests were added for criteria not yet backed by one: an
+  unchanged TFT's snapshot ≤ 4 KiB (`stateBytes`), and the data sheet init plus a fill on every
+  panel. `pnpm check`, `pnpm build` and `pnpm e2e` are green.
 
 ## Handoff
 
-- **State:** all tasks done (1–10); acceptance criteria to verify, then ready for finish-branch; `periph/st7789` (pins, `panel`, symbol, serial framing, command
+- **State:** all tasks done and every acceptance criterion verified; waiting for the user's
+  go-ahead to finish; `periph/st7789` (pins, `panel`, symbol, serial framing, command
   table, registers, resets) and a basic `tft` drawer (board, dark or lit glass, pin names).
 - **Next step:** finish-branch after the user's go-ahead (merge `main` in, verify, close the
   plan, LIB-2 → done, merge with `--no-ff`).
