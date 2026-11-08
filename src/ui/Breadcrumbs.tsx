@@ -59,7 +59,10 @@ export function Breadcrumbs({
                   type="button"
                   className="crumb"
                   title={i === 0 ? 'Go to the top circuit' : `Go up to ${crumb.path}`}
-                  onClick={() => editor.openInstance(crumb.path ?? '')}
+                  onClick={() => {
+                    // Placed nowhere, the top crumb only opens the top; else it goes up to it.
+                    if (!editor.goUpTo(crumb.path ?? '')) editor.goTop();
+                  }}
                 >
                   {label}
                 </button>

@@ -588,9 +588,20 @@ export class Editor {
     const path = this.state.get().path;
     if (!path) return false;
     const slash = path.lastIndexOf('/');
-    const parent = slash < 0 ? '' : path.slice(0, slash);
-    const designator = path.slice(slash + 1);
-    this.openInstance(parent);
+    return this.goUpTo(slash < 0 ? '' : path.slice(0, slash));
+  }
+
+  /**
+   * Goes up to `ancestor`, an instance the open one is inside (`''` the top), with the instance
+   * on the way down selected and in view (from `A2/A1`: `A1` in A2, `A2` at the top). False
+   * when the open instance isn't inside it.
+   */
+  goUpTo(ancestor: string): boolean {
+    const path = this.state.get().path;
+    if (!path || (ancestor !== '' && !path.startsWith(`${ancestor}/`))) return false;
+    const rest = ancestor === '' ? path : path.slice(ancestor.length + 1);
+    const designator = rest.split('/')[0]!;
+    this.openInstance(ancestor);
     const part = this.scene.partById.get(designator);
     if (!part) return true;
     this.setSelection(selectionOf([part.id]));

@@ -55,6 +55,12 @@ describe('Editor: the instance open', () => {
     expect(where(editor)).toEqual(['main', '']);
     expect([...editor.state.get().selection.parts]).toEqual(['A2']);
     expect(editor.goUp()).toBe(false);
+    // Up several levels at once: the instance on the way down selected.
+    editor.openInstance('A2/A1');
+    expect(editor.goUpTo('A1')).toBe(false);
+    expect(editor.goUpTo('')).toBe(true);
+    expect(where(editor)).toEqual(['main', '']);
+    expect([...editor.state.get().selection.parts]).toEqual(['A2']);
     editor.openInstance('A9');
     expect(where(editor)).toEqual(['main', '']);
     editor.openInstance('A1/A2');
