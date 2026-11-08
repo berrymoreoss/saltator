@@ -192,7 +192,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 7. e2e: the Two-Digit Counter — run, double-click a digit, see its levels, go into its
   Decade Counter, probe a wire (a row `A1/A1/…` in Waveforms), switch to the other digit, go up
   by the breadcrumb and by the shortcut.
-- [ ] 8. Docs: editor.md (Shell: breadcrumbs, Circuits; Simulation: live drawing and Interact
+- [x] 8. Docs: editor.md (Shell: breadcrumbs, Circuits; Simulation: live drawing and Interact
   inside instances; Probing inside), circuit.md if the resolver changes, glossary (open
   instance), ADR-0024, roadmap (R11b done, backlog items), lessons.
 

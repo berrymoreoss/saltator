@@ -19,8 +19,9 @@ flat netlist and carries a run over edits by component id (ADR-0010).
   (`compileDesign`): inner parts by instance path (`A1/U3`, `A1/A2/U1`), nets joined through
   ports. The kernel, the parts, carry-over and rewind don't change; every circuit is compiled
   once on its own (its scene, its checks) and cached.
-- **The first circuit is the top** and is what simulates; another circuit open is drawn without
-  levels (R11b goes into an instance). Set as Top Circuit reorders.
+- **The first circuit is the top** and is what simulates; another circuit open was drawn
+  without levels (R11b goes into an instance: [ADR-0024](0024-instance-navigation.md)). Set as
+  Top Circuit reorders.
 - **Instances are parts of type `sub/<circuit id>`** served by a document registry that
   generates a definition per circuit — pins from its ports, a box symbol — so layouts, drawing,
   hit-testing and the panels treat an instance like any part. Circuit ids are slugs (schema v4),

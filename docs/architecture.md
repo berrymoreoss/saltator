@@ -102,7 +102,8 @@ restore a whole simulation and replay it in a replica (R14b); the history of che
 user actions and the rewinds built on it are the host's (`Timeline`,
 [ADR-0021](adr/0021-rewind.md)); R11a the Circuits list above Parts, the Circuit menu, the Parts
 panel's Subcircuits and Properties of a circuit ([editor.md](editor.md#shell),
-[ADR-0023](adr/0023-subcircuits.md)). This keeps core pure and makes
+[ADR-0023](adr/0023-subcircuits.md)); R11b the breadcrumb bar over the canvas
+([ADR-0024](adr/0024-instance-navigation.md)). This keeps core pure and makes
 moving the kernel into a Web Worker a host-only change _(planned, backlog)_.
 
 ## Component library
@@ -147,7 +148,9 @@ Implemented in R02. Full spec: [circuit.md](circuit.md). Rationale:
   (`A1/U3`), nets joined through ports and bus ports, net labels local to their circuit and the
   power names global. A document registry serves a generated definition per circuit (pins from
   its ports, a box symbol), so the editor treats an instance like any part. The kernel never sees
-  the hierarchy ([ADR-0023](adr/0023-subcircuits.md)).
+  the hierarchy ([ADR-0023](adr/0023-subcircuits.md)). The editor shows the open circuit in one
+  instance (`EditorState.path`, R11b): the host maps its one scene to that instance's flat nets
+  and parts ([ADR-0024](adr/0024-instance-navigation.md)).
 - **A component's id is its designator** (`U1`, `SW1`): readable in netlists, diagnostics and
   test benches. `label` is free display text.
 - **Pin positions are derived** from part definitions (`partLayout`: DIP drawing for packages,

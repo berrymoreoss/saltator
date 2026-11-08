@@ -374,8 +374,17 @@ circuits. Example: Two-Digit Counter (Decade Counter inside Counter Digit, twice
 
 ### R11b · Navigation into instances — `feat/subcircuit-navigation` — `in-progress`
 
-Going into an instance while simulating: its circuit drawn with that instance's live levels and
-indicators, Interact and the Probe tool inside, breadcrumbs and gestures to go in and out.
+Going into an instance while simulating: the open circuit is seen in one instance of the design
+(`EditorState.path`: `''` the top, `A2`, `A2/A1`), its scene mapped to that instance's flat nets
+and parts, so wires, buses, labels, lights, part states and Properties' badges show its levels,
+the Interact tool presses its buttons (`A2/SW1`) and the Probe tool probes by path, named as read
+inside (`A1/MID`, Q4). Double-click, Go Into (`Mod+↓`), Go Up (`Mod+↑`, the instance left
+selected), Go to Top; the Circuits list opens a circuit in its first instance (Q1); a breadcrumb
+bar floats over the canvas — Up, the crumbs, the instance switcher, "edits change all N
+instances" (Q2); the history and autosave keep the path; the Simulation tab locates into
+instances. Found on the way: Step Clock after a button pressed while paused stopped before the
+same edge (fixed). Spec: [editor.md](editor.md#instances). Decision:
+[ADR-0024](adr/0024-instance-navigation.md). Plan: `.ai/plans/feat-subcircuit-navigation.md`.
 
 ### R15 · Circuit test benches — `feat/test-benches`
 
@@ -519,6 +528,10 @@ Promote to a numbered item when needed.
   (props, a ROM image per instance); a static shorted-outputs check across the hierarchy (the
   kernel's `contention` reports it while running); importing circuits from another file (a
   module library); a confirmation before deleting a circuit with instances (it is undoable).
+- Navigation follow-ups (R11b): a hierarchy tree of instances (a navigator in the Circuits
+  panel, Q2); live levels on an instance's box at the parent (its pin stubs, Properties' badges
+  for its ports, a "peek" of the inside); the Memory tab and the Debug tab following the instance
+  open (preselecting `A1/U3`); a camera per instance if modules grow large.
 - Debugger follow-ups (R14a): breakpoints on memory accesses (break when `U5[0x0F]` is written
   or read; with R17, on the CPU's program counter and instructions); log points (report instead
   of pausing); breakpoint and watch marks on the canvas; break on chosen diagnostic kinds

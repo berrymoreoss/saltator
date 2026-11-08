@@ -194,6 +194,10 @@ on a bus line and names that bus.
 **On-time / brightness** — how long an indicator's light has been on; its share of a frame is
 the brightness drawn, so a multiplexed display or an LED on a fast clock shows its average.
 
+**Open instance** — the instance of the open circuit the canvas shows (`EditorState.path`,
+R11b): its levels drawn while simulating, the Interact and Probe tools acting on its parts. The
+breadcrumb bar over the canvas shows where it is (`Main › A2 · Counter Digit`).
+
 **Port** — a subcircuit's interface pin (KiCad's hierarchical label): a flag named like a net
 (or a bus, `D[0..7]`) inside the circuit, a pin of that name on every instance of it. Its
 direction shapes the flag and the instance symbol's side; electrically it is a plain connection.

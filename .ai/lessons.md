@@ -356,3 +356,17 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
   members' names (labels `Q0`…`Q3` on the chip's pins), and so does a bus label at an instance's
   bus pin outside. Checks had to learn that such members are used (no `single-net-label`) and,
   at an output port, driven (no `undriven-input`).
+- 2026-11-08 (R11b) — Step Clock took "the next instant" for the edge it was paused before; a
+  button pressed there queues its gates' instants first, so the step stopped before the same
+  edge again (the e2e test holding RESET over one clock found it, not the unit tests). A step
+  defined by "the next instant" assumes nothing was queued since the last stop: actions do.
+- 2026-11-08 (R11b) — macOS file systems ignore case: `Breadcrumbs.tsx` beside `breadcrumbs.ts`
+  is one file to the resolver (`TS1261`, "differs only in casing"). Give the pure module of a
+  component another name (`breadcrumb-view.ts`).
+- 2026-11-08 (R11b) — The e2e helpers map grid points to pixels from the canvas box once; a bar
+  that resized the canvas when a second circuit appeared would move every point. Float UI over
+  the canvas (the breadcrumb bar) rather than taking its room.
+- 2026-11-08 (R11b) — A guard that never runs passes every test: `Simulation.sync` returned early
+  on the same netlist and scene, but the editor builds a new scene on every change, so a missing
+  `path` comparison there survived mutation. Test a host's contract at the host
+  (`sync` with one scene, two paths).
