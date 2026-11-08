@@ -23,8 +23,9 @@ components as schematic-only parts ([ADR-0015](0015-net-labels.md)).
   reach the simulator or the design checks, and the file format doesn't change.
 - **A text's box is estimated in the pure layers.** `circuit` and `library` have no font
   metrics, so `textBlockSize` measures lines with fixed character widths (exact for the mono
-  font, a table of character classes for sans, erring wide). The drawer starts the text at the
-  box's top-left, so an estimate that falls short only shows in the selection outline.
+  font; for sans a table of character classes following the system UI font at 10 px, erring
+  wide). The drawer starts the text at the box's top-left, so an estimate that falls short only
+  shows in the selection outline.
 - **Multi-line text is a string prop** (`PropDef.multiline`): validated as any string, edited in
   Properties in a text area.
 - **Text reads upright as a block**: `SymbolGraphics.textBlock` lays the lines out inside the
@@ -32,7 +33,7 @@ components as schematic-only parts ([ADR-0015](0015-net-labels.md)).
 - **Graphics sit under the circuit for the pointer**: hit-testing tries them after other parts
   and wires, so a text over a chip doesn't take the chip's clicks.
 
-Details: [components.md](../components.md#graphics-draw), [editor.md](../editor.md#text).
+Details: [components.md](../components.md#graphics-draw), [editor.md](../editor.md#schematic-text).
 
 ## Consequences
 

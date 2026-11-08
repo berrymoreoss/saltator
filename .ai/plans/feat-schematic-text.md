@@ -144,7 +144,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   the canvas; undo.
 - [x] 7. Example: the description and listing texts in 6502 ROM and RAM; the listing-vs-ROM
   scenario test; looked at in the browser (light and dark).
-- [ ] 8. Docs: components.md (family `draw`, `draw/text`), editor.md (Place ▸ Text, Properties,
+- [x] 8. Docs: components.md (family `draw`, `draw/text`), editor.md (Place ▸ Text, Properties,
   double-click), architecture.md, library/editor READMEs, lessons; roadmap status.
 
 ## Acceptance criteria
@@ -170,10 +170,20 @@ Checkable statements; verified one by one in the finish-branch workflow.
 ## Progress log
 
 - 2026-11-08 — plan drafted; Q1, Q2 answered; approved, started.
+- 2026-11-08 — tasks 1–8 done. `draw/text` with `textBlockSize`; `SymbolGraphics.textBlock`;
+  graphics hit last; Properties text area; Place ▸ Text (`T`); e2e `text.spec.ts`. The sans
+  width table was first guessed from 100 px metrics (14 % wide on screen): SF Pro is wider at
+  small sizes (optical sizes), so it follows 10 px now, with a calibration test. The example
+  got a title, a description and the listing (top band, `large`, readable at the 60 % fit);
+  `rom-listing.test.ts` keeps the listing equal to U2 (checked by mutating a byte). Found and
+  fixed (own commit, e2e regression test): Escape in Properties' fields applied the typed text
+  instead of reverting it — the blur after Escape committed the stale draft.
 
 ## Handoff
 
-- **State:** plan approved; nothing built yet.
-- **Next step:** task 1.
-- **Watch out:** —
-- **Verify with:** `pnpm check`.
+- **State:** all tasks done; verifying acceptance criteria (finish-branch).
+- **Next step:** finish-branch: merge `main`, `pnpm check`, `pnpm build`, `pnpm e2e`, the
+  user's approval to merge.
+- **Watch out:** a sans text's box is an estimate (see `SANS_WIDTHS`); texts sit under the
+  circuit for the pointer (hit last).
+- **Verify with:** `pnpm check`, `pnpm e2e tests/e2e/text.spec.ts`, open 6502 ROM and RAM.
