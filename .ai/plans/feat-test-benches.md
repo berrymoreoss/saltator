@@ -4,7 +4,7 @@
 | ---------- | ------------------------------------------------------------------------------------ |
 | Branch     | `feat/test-benches`                                                                  |
 | Roadmap    | R15a — Test benches: scripts and headless runner ([roadmap](../../docs/roadmap.md))  |
-| Status     | in-progress                                                                          |
+| Status     | done                                                                                 |
 | Depends on | R11a (`compileDesign` with `top`, ports, resolver paths), R12b (images, `poke`), R14 |
 | Created    | 2026-11-08                                                                           |
 
@@ -286,15 +286,22 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 
 ## Acceptance criteria
 
-- [ ] `pnpm check` and `pnpm build` are green.
-- [ ] A test script in a document survives save, load, undo/redo and copy/paste of its circuit.
-- [ ] A subcircuit's bench drives its ports and passes; breaking the circuit (a wire removed)
-  makes it fail with the line, instant, signal, expected and actual value.
-- [ ] A clock pulse that violates a 74HC part's set-up time fails the bench with the violation.
-- [ ] The RAM by Hand bench loads its memory before power-on and passes headless in
-  `pnpm check` and in `pnpm test:circuits` (exit 0); a document with a failing bench exits 1.
-- [ ] Every example bench is deterministic (two runs, equal reports); a script can't reach
-  `Math.random`, `Date` or the host; `while (true)` ends as an error after the time limit.
+- [x] `pnpm check` and `pnpm build` are green (2 561 tests; `pnpm e2e` green too: 78, the saved
+  schema is v5).
+- [x] A test script in a document survives save, load, undo/redo and copy/paste of its circuit
+  (`serialize.test.ts`, `examples.test.ts`, `editor.test.ts`, `document-edit.test.ts`,
+  `edit.test.ts`).
+- [x] A subcircuit's bench drives its ports and passes; breaking the circuit (the Decade
+  Counter's clear gate taken out) makes it fail with the line, instant, signal, expected and
+  actual value: `line 3 at 1 µs: Q[0..3] is 0xX, expected 0x0` (`example-benches.test.ts`).
+- [x] A clock pulse that violates a 74HC part's set-up time fails the bench with the violation:
+  the 74HC74 at a 40 ns step, `setup-violation U1` at the edge (`test-benches.test.ts`).
+- [x] The RAM by Hand bench loads its memory before power-on and passes headless in
+  `pnpm check` and in `pnpm test:circuits` (exit 0); a document with a failing bench exits 1
+  (`scripts/test-circuits.test.ts`, and by hand).
+- [x] Every example bench is deterministic (two runs, equal reports); a script can't reach
+  `Math.random`, `Date` or the host (`process`, `require`, `console`); `while (true)` ends as
+  an error after the time limit (`scripts/script-host.test.ts`).
 
 ## Open questions
 
@@ -320,6 +327,10 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - 2026-11-08 — plan drafted; Q1–Q9 answered (JavaScript scripts instead of the proposed DSL);
   R15 split into R15a/R15b.
 - 2026-11-08 — plan approved; branch started (roadmap: R15a in-progress, R15b planned).
+- 2026-11-08 — tasks 9–11 done: the examples' scripts (Half Adder; RAM by Hand with a memory
+  loaded before power-on; the Two-Digit Counter's three circuits — 9 benches, all passing the
+  first time, all failing without the Decade Counter's clear gate), `pnpm test:circuits` (and a
+  CI step), docs and ADR-0025. Acceptance criteria verified; `pnpm e2e` green.
 - 2026-11-08 — tasks 1–8 done. Decisions on the way: inputs are operated by symbol kind as the
   Interact tool does (`switch`, `button`, `dip-switch`, `clock`); a pulsed port is driven LOW
   from the step's start (a rise from a released `Z` is no edge: the 74HC74 went `X`); scripts
@@ -330,11 +341,11 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 
 ## Handoff
 
-- **State:** plan approved; nothing implemented yet.
-- **Next step:** task 1.
-- **Watch out:** R13 lesson — a new document field must be in `sameCircuit`, the schema, the
-  serializer and a migration; vm realms — no `instanceof Array` on script values. Lessons to
-  write in task 11: V8's 10-frame stack limit hides the script frame (hosts raise it); a Node
-  `vm` context has a `console` of its own; tests/ can't import Node APIs (typed by
-  tsconfig.app.json) — Node-side tests go in scripts/; a pulse from `Z` is no edge.
+- **State:** done; merging to `main` waits for the user's approval.
+- **Next step:** R15b `feat/test-bench-ui` — the Tests tab; its open questions are listed above
+  (the browser sandbox and asking before running a file's scripts, the editor, debugging a
+  failure).
+- **Watch out:** a script's references aren't rewritten on renames (backlog); hosts must raise
+  V8's stack limit to find lines; `functionScriptHost` has no isolation — the app runs it only
+  inside a sandbox.
 - **Verify with:** `pnpm check`; `pnpm test:circuits`.

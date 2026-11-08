@@ -47,13 +47,17 @@ describe('example benches', () => {
     }
   });
 
-  it.each(benches)('$example › $circuit › $bench passes', ({ example, circuit, bench }) => {
-    const report = runBench(exampleDocument(example), circuit, bench, registry, host);
-    expect(report.failures).toEqual([]);
-    expect(report.error).toBeUndefined();
-    expect(report.status).toBe('pass');
-    expect(report.warnings).toEqual([]);
-  });
+  it.each(benches)(
+    '$example › $circuit › $bench passes, the same twice',
+    ({ example, circuit, bench }) => {
+      const report = runBench(exampleDocument(example), circuit, bench, registry, host);
+      expect(report.failures).toEqual([]);
+      expect(report.error).toBeUndefined();
+      expect(report.status).toBe('pass');
+      expect(report.warnings).toEqual([]);
+      expect(runBench(exampleDocument(example), circuit, bench, registry, host)).toEqual(report);
+    },
+  );
 
   it('load the RAM before power-on (M2: a bench with a memory setup)', () => {
     const report = runBench(
