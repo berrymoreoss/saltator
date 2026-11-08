@@ -36,12 +36,21 @@ A desktop CAD-style window (`Workbench`), dense like KiCad or Altium: 12 px UI t
 - **Circuits** (R11a, `CircuitsPanel.tsx`): the document's circuits in order — the top circuit
   first, starred (it simulates), the open one highlighted, each with the number of its instances
   placed (`2×`); a click opens one (`Editor.openCircuit`: not an edit; each circuit keeps its
-  camera), a right click opens it and shows Rename…, Duplicate, Delete, Set as Top Circuit;
+  camera) in its first instance (R11b, below), a right click opens it and shows Rename…,
+  Duplicate, Delete, Set as Top Circuit;
   **+ Add Circuit** adds `Circuit N` and opens it with its name ready in Properties. The
   **Circuit** menu has the same commands on the open circuit — Add Circuit, Rename Circuit…,
   Duplicate Circuit, Delete Circuit (named "and N Instances" when it has some: they go with it,
-  one undo step), Set as Top Circuit — and Open Subcircuit (the selected instance's circuit,
-  also in the canvas context menu) and Open Top Circuit.
+  one undo step), Set as Top Circuit — and **Go Into A1** (`Mod+↓`: the selected instance; also
+  in the item context menu and Properties), **Go Up to …** (`Mod+↑`; also in the empty canvas's
+  context menu) and **Go to Top Circuit** ([Instances](#instances)).
+- **Breadcrumb bar** (R11b, `Breadcrumbs.tsx`, `breadcrumbView`): while the document has several
+  circuits, a bar floats over the canvas's top left corner (so the canvas keeps its size):
+  `↑ │ ★ Main › A2 · Counter Digit › A1 · Decade Counter [A2/A1 ▾]  Edits change all 2
+  instances`. Up (`Mod+↑`), the top, then each instance down to the one open — a click goes up
+  to it, the instance on the way down selected; the open circuit's instances in the design to
+  switch to (when it has several); and that an edit changes them all. A circuit placed nowhere:
+  `★ Main › Spare  Placed nowhere in Main: drawn without levels`.
 - **Parts**: families as collapsible groups (Subcircuits — the document's circuits, except the
   open one and those containing it, which would place a circuit inside itself — 74HC Logic,
   Timers, Primitives, Input / Output, Nets, and Developer Fixtures in dev builds); a search box (`/` or `Mod+F`) matching every word against name, title,
@@ -65,8 +74,7 @@ A desktop CAD-style window (`Workbench`), dense like KiCad or Altium: 12 px UI t
   run statistics.
 - **Status bar**: grid position under the pointer, zoom, a one-line selection summary, the
   simulation (state, simulated time, the speed reached when lagging, runtime problems; click opens
-  the Simulation tab; while a circuit other than the top is open, "Main simulates; this circuit is
-  drawn without levels"), a hint for the current tool and gesture (`statusHint`), part/wire counts,
+  the Simulation tab), a hint for the current tool and gesture (`statusHint`), part/wire counts,
   redraw time (dev builds), error/warning counts (click opens Messages).
 - **Context menu** (right click on the canvas): over a part or wire (selected first) — Cut, Copy,
   Paste, Duplicate, Delete, Rotate, Rotate Counter-clockwise, Flip Horizontal, Flip Vertical,
@@ -145,7 +153,7 @@ the shortcuts dialog all read the same `CommandRegistry`, which rejects duplicat
 | Net Label           | `L`                        | Probe tool                 | `P`                       |
 | Step Clock          | `F8`                       | Run For                    | `Shift+F8`                |
 | Step Back           | `Alt+F10`                  | Step Back Clock            | `Alt+F8`                  |
-| Reverse Continue    | `Alt+F5`                   |                            |                           |
+| Reverse Continue    | `Alt+F5`                   | Go Into (Up)               | `Mod+↓` (`Mod+↑`)         |
 
 Commands marked `global` run while typing in a text field and keep their key from the browser
 even while disabled: F5 never reloads the page, `Mod+S` and `Mod+O` never show the browser's own
@@ -330,8 +338,8 @@ another tool is chosen or Escape. The editor's `mode` store says what is going o
   (`U1`, `U2`, `SW1`, … filling gaps) — and **every resolved prop** written into the document.
 - **Subcircuit instances** (R11a) are placed the same way from the Parts panel's Subcircuits
   group (`A1`, `A2`); the editor refuses a circuit that contains the open one (from the panel, a
-  paste or a script). A **double-click** on an instance opens its circuit (R11b: while
-  simulating, the instance itself).
+  paste or a script). A **double-click** on an instance goes into it
+  ([Instances](#instances)).
 - **Place menu** (the menu bar's Place, and right click on empty canvas ▸ Place): Power (VCC),
   Ground (GND), Pull-up, Pull-down, Wire (`W`), Bus (`B`), Net Label (`L`), Bus Entry (`Z`,
   KiCad's key), Find Part…. A part item arms the place
@@ -518,14 +526,15 @@ the toolbar group (Run/Pause, Step Back, Step, Step Clock, Stop, Reset, speed se
 
 What simulates is the document's **design** (R11a): the top circuit flattened, its instances'
 parts by path (`A1/U3`). The host gets a `SimulationModel` — the design's netlist, the open
-circuit's scene, and how the scene's ids map to the netlist's (the top circuit open: one to one;
-another circuit open: nothing, so it is drawn as when stopped and the status bar says what
-simulates; R11b shows an instance's levels). An edit in any circuit, the top's or a
-subcircuit's, changes the design, so editing a module while running carries the run over and
-every instance of it keeps its state. The Interact and Probe tools act on the top circuit; the
-Memory tab lists every memory by path (`A1/U3`; a ROM's image edited inside an instance is its
-circuit's, shared by every instance), the Waveforms tab shows the top circuit's probes, and
-watches, breakpoints and probes take paths (`A1/U3.Q0`).
+circuit's scene, the instance open (`path`) and how the scene's ids map to the netlist's in it
+(R11b): the top's one to one, inside `A1` nets by `Design.netOf('A1', net)` and parts as
+`A1/<id>`; a circuit placed nowhere maps nothing and is drawn as when stopped. The host
+re-maps a scene when only the path changes (another instance of the same circuit). An edit in
+any circuit, the top's or a subcircuit's, changes the design, so editing a module while running
+carries the run over and every instance of it keeps its state. The Interact and Probe tools act
+in the instance open; the Memory tab lists every memory by path (`A1/U3`; a ROM's image edited
+inside an instance is its circuit's, shared by every instance), the Waveforms tab shows the top
+circuit's probes, and watches, breakpoints and probes take paths (`A1/U3.Q0`).
 
 Every committed edit, undo and redo is followed (`Simulation.sync`, from `editor.state`):
 
@@ -537,6 +546,28 @@ Every committed edit, undo and redo is followed (`Simulation.sync`, from `editor
   the edit's renames ([simulation.md](simulation.md#editing-while-running-carry-over)): unchanged
   parts keep everything, parts with other props power on without an `X` glitch, new parts power
   on. A halted simulation becomes paused.
+
+### Instances
+
+R11b ([ADR-0024](adr/0024-instance-navigation.md)): the open circuit is always seen **in one
+instance** of the design — `EditorState.path`, its instance path: `''` the top, `A2`, `A2/A1` —
+whose levels the canvas draws while simulating, as a scope probe on one board of a breadboard
+computer. Running or stopped alike:
+
+- **Going in**: a double-click on an instance (Select or Interact tool), Go Into (`Mod+↓`, the
+  selected instance), Properties' Go Into A1. Inside `A2` an inner `A1` is `A2/A1`.
+- **Going out**: Go Up (`Mod+↑`; the bar's ↑; empty canvas's context menu) opens the instance
+  it is placed in with the one left selected and, if the view hides it, brought into view; a
+  crumb goes up several levels the same way; Go to Top Circuit.
+- **By circuit** (the Circuits list, Messages, an undo of an edit elsewhere): the circuit's
+  first instance in design order (Q1); one already open stays in its instance. The bar's
+  switcher goes to another instance of the open circuit.
+- **Kept** across edits, undo and redo (the history records the path: an undone edit comes back
+  in the instance it was made in) while the path still places the open circuit; else the
+  longest end of it that does (`A1/A2` → `A2` once Chain is the top), else the first instance,
+  else none — a circuit placed nowhere is drawn without levels.
+- The camera stays **one per circuit**: the instances of a module share a view.
+- **Editing inside an instance edits its circuit**, every instance of it (R11a); the bar says so.
 
 ### Interacting with parts
 
@@ -551,13 +582,19 @@ The **Interact tool** (`I`, a pointing hand): a press on a part looks up its sym
 | `io/dip-switch`         | `toggle` the switch on that row | —         |
 | `io/clock`, manual mode | `step` (one pulse)              | —         |
 
-A held button is released when the press ends, is cancelled, the window loses focus or the tool
-changes. Elsewhere a click selects (Properties shows live levels) and a drag pans; over an
-interactive part the pointer is a hand. While stopped the tool only selects and pans. While
-paused, an action's zero-delay effects are applied at once (`runUntil(now)`); gate delays wait for
-time to move.
+Inside an instance (R11b) the action goes to that instance's part (`A2/SW1`): the other
+instances of the module keep theirs. A held button is released when the press ends, is
+cancelled, the window loses focus or the tool changes. Elsewhere a click selects (Properties
+shows live levels) and a drag pans; over an interactive part the pointer is a hand. While
+stopped the tool only selects and pans. While paused, an action's zero-delay effects are applied
+at once (`runUntil(now)`); gate delays wait for time to move.
 
 ### Live drawing
+
+Everything below is drawn for the instance open ([Instances](#instances)): its wires, buses,
+labels, ports, lights and part states, and Properties' level badges, through the
+`SimulationModel`'s map; nothing live in a circuit placed nowhere. Indicator brightness is kept
+per flat part, so each instance's lights have their own.
 
 - **Bus lines** have no level: drawn in the bus color when every member is 0 or 1 (`BUS`), in
   the `X` color when a member is unknown, in contention or only some float, in the `Z` color
@@ -594,8 +631,9 @@ time to move.
   `floating-input`, `oscillation`, part-reported kinds) in order of first occurrence: kind,
   message, first time, last time and count, where (`U1.A`, `net U1.Y`). Contention,
   oscillation and timing violations (set-up, hold, pulse width, recovery — R09a) are errors, the
-  rest warnings. Click locates the part, or selects the wires of the
-  net (`Editor.locateNet`); double-click zooms. **Clear** hides the current entries until they
+  rest warnings. Click locates the part (`Editor.locatePart`), or selects the wires of the
+  net (`Editor.locateNet`), going into the instance it is in first (`A1/U3`, `A1/CLK`: R11b);
+  double-click zooms. **Clear** hides the current entries until they
   happen again. The tab shows the counts; so does the status bar's simulation cell.
 - **Properties** shows a live level badge (`0`, `1`, `Z`, `X`; weak levels paler, contention red)
   next to each pin of the selected part, the net of a selected wire and the pins on it. A
@@ -744,6 +782,11 @@ and shown as a timing diagram, as a logic analyzer does.
   net (its name, else a driving pin on it: `Resolver.netReference`), a bus line, a bus label or
   a bus entry's bus end by the bus's name (`D[0..7]`), a bus entry's bit end by its member
   (`D3`). An unnamed bus or a wire on no pin can't be probed, and the tab says why.
+- **Inside an instance** (R11b, Q4) the reference takes its path, named as read there:
+  `A1/A2/U1.Y`, `A1/MID`, `A1/D[0..7]` — not the outer net's name (`CNT0`), so a signal probed
+  inside and again outside is two rows, as two names of one net are. The context menu's Add to
+  Waveforms, Break When … Rises and Watch take the same reference. A circuit placed nowhere
+  can't be probed (it doesn't simulate).
 
 ### Waveforms tab
 
@@ -919,7 +962,10 @@ error break, and are cancelled by Pause; Run turns one into a normal run.
   named `CLK`, else the output of the first `io/clock` or `timer/ne555` — through its next active
   edge and **right before the one after** (the kernel's `stopBefore` lookahead): the cycle has
   settled, registers show what the last edge loaded and their inputs what the next will load;
-  `F10` then steps into the edge. From stopped it powers on and pauses before the first edge. A
+  `F10` then steps into the edge. From stopped it powers on and pauses before the first edge;
+  from mid-cycle (after Step or Run For) it goes to right before the next edge. Paused right
+  before an edge, a button pressed there queues its gates' instants ahead of the edge: until
+  time moves, Step Clock still passes that edge (a reset held over one clock, Ben Eater's way). A
   **manual** `io/clock` (a clock module's step button) has no edge coming: Step Clock gives it
   one pulse (its `step` action) and runs one period of its props — high, then low, as a hand
   pressing the button again later; from stopped, power-on and the low time. A pause asked for
@@ -978,19 +1024,21 @@ document, the circuit open and its scene, the flattened design, the selection, t
 the cameras, the tool and the simulator host
 (`editor.simulation`; `options.simulation` injects its clock in tests). The UI mounts it with
 `editor.mount(canvas)` (returns the detach function) and reads through `useSyncExternalStore`:
-`editor.state` (document, circuit, scene, design, selection, renames), `editor.view` (camera, viewport, pointer
-position, last redraw time — changes often, keep consumers small), `editor.tool`, `editor.mode`,
-`editor.history` and `editor.requests` (the editor asking the UI to open the context menu or to
-focus Properties).
+`editor.state` (document, circuit, path, scene, design, selection, renames), `editor.view`
+(camera, viewport, pointer position, last redraw time — changes often, keep consumers small),
+`editor.tool`, `editor.mode`, `editor.history` and `editor.requests` (the editor asking the UI
+to open the context menu or to focus Properties).
 
-- Document: `setDocument(document, { open?, fit?, camera? })` (load; clears history; `camera`
-  restores a view instead of zooming to fit; `setCircuit(circuit, …)` loads a one-circuit
-  document), `openCircuit(id)`, `cameras`, `edit(label, circuit, options)` (the open circuit),
+- Document: `setDocument(document, { open?, path?, fit?, camera? })` (load; clears history;
+  `camera` restores a view instead of zooming to fit; `setCircuit(circuit, …)` loads a
+  one-circuit document), `openCircuit(id)` (in its first instance), `openInstance(path)`,
+  `goInto(designator)`, `goUp()`, `goUpTo(ancestor)`, `goTop()` (R11b), `cameras`,
+  `edit(label, circuit, options)` (the open circuit),
   `editDocument(label, document, { open?, … })`, `undo`, `redo`, `undoLabel`, `redoLabel`;
   `registry` (the document registry: library parts and `sub/<id>`), `library`; `partAt(id)` and
   `setPartPropAt(id, …)` for a part of the design by netlist id (`A1/U3`: its circuit's part),
-  `flatPart(id)` (a part of the open circuit as the simulator calls it, if it simulates as
-  drawn).
+  `flatPart(id)` (a part of the open circuit as the simulator calls it in the instance open:
+  `A1/U1`; undefined in a circuit placed nowhere).
 - Editing: `deleteSelection`, `rotate(clockwise)`, `flip(direction)`, `nudge(dx, dy)`,
   `copySelection`, `cutSelection` (both return clipboard text), `pasteText(text)`, `duplicate`,
   `renamePart`, `setPartLabel`, `setPartProp`, `setPartPlacement` (the last three return an error
@@ -999,7 +1047,8 @@ focus Properties).
 - Tools: `setTool`, `placePart(type)`, `dragPart(type, client?)`, `dropPart(type, client)`,
   `swapWirePosture`, `escape`, `cancel`.
 - View and selection: `setSettings`, `setSelection`, `selectAll`, `clearSelection`, `zoomIn`,
-  `zoomOut`, `zoomActual`, `zoomToFit`, `locate(item, { zoom? })`, `locateNet(net, { zoom? })`.
+  `zoomOut`, `zoomActual`, `zoomToFit`, `locate(item, { zoom? })` (the open circuit's ids),
+  `locatePart(id, { zoom? })` and `locateNet(net, { zoom? })` (design ids: into their instance).
 - Simulation (`editor.simulation`): `run`, `pause`, `toggle`, `step`, `stop`, `reset`,
   `setSpeed`, `action(component, payload)`, `clearDiagnostics`; `rewindTo`, `stepBack`,
   `searchBack`, `toPresent`, `onRewind`, `onDiverge` ([Rewinding](#rewinding)); `state`,
@@ -1074,7 +1123,8 @@ keeps its handle where the browser gives one.
 The open document is restored as it was after a reload or a closed tab (`src/ui/autosave.ts`):
 
 - `Autosave` writes a `StoredSession` — name, the document text in the file format, unsaved
-  flag, file handle, the circuit open when it isn't the top (`open`, R11a), its camera, the debug
+  flag, file handle, the circuit open when it isn't the top (`open`, R11a) and the instance of it
+  (`path`, R11b), its camera, the debug
   setup (R14), time — at most **500 ms** after a change of the document, the circuit open, the
   session, the view or the debug setup (later changes in that time ride along; selection and
   pointer moves don't count),
@@ -1088,7 +1138,8 @@ The open document is restored as it was after a reload or a closed tab (`src/ui/
   the session.
 - **Start-up** (`src/app/App.tsx`, before the first render): `?example=<id>` (or `?gallery`) opens
   that example; else this tab's session, else the most recent one (a new tab), else Hello, LED
-  (a first launch). A restored session keeps the circuit open, its view and the unsaved state;
+  (a first launch). A restored session keeps the circuit and instance open, its view and the
+  unsaved state;
   the history starts empty and the simulation stopped. Blocked storage means nothing is restored or kept.
 
 ### Open Recent

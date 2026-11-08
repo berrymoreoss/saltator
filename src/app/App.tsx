@@ -126,6 +126,7 @@ const restored =
 if (restored) {
   documents.show(restored.session, restored.document, {
     ...(restored.open !== undefined && { open: restored.open }),
+    ...(restored.path !== undefined && { path: restored.path }),
     ...(restored.camera && { camera: restored.camera }),
   });
   // After the document: showing one starts the debugger afresh.

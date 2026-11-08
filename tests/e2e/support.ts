@@ -4,7 +4,7 @@
  * layouts the app uses (a part placed by a click is centered on it).
  */
 import { expect, type Page } from '@playwright/test';
-import { loadDocument, type Point, partLayout } from '../../src/circuit';
+import { documentRegistry, loadDocument, type Point, partLayout } from '../../src/circuit';
 import { resolveProps } from '../../src/core';
 import { buildScene, fitRect, layoutBounds } from '../../src/editor';
 import { createDefaultRegistry } from '../../src/library';
@@ -124,7 +124,18 @@ export async function openExample(page: Page, id: string, title: string, documen
   await page.getByTestId('example-gallery').locator(`[data-example="${id}"]`).click();
   await expect(page).toHaveTitle(`${title} — Logic`);
   await expect(page.getByTestId('bottom-panel')).toContainText('No problems found');
-  const scene = buildScene(loadDocument(document).circuits[0]!, registry);
+  return fitted(page, document);
+}
+
+/**
+ * Where the parts of circuit `circuit` of a document (default: its top) are on screen when it is
+ * shown zoomed to fit — as an example opens, and a circuit opened for the first time (R11b).
+ */
+export async function fitted(page: Page, document: unknown, circuit?: string) {
+  const loaded = loadDocument(document);
+  const parts = documentRegistry(loaded, registry);
+  const shown = loaded.circuits.find((c) => c.id === circuit) ?? loaded.circuits[0]!;
+  const scene = buildScene(shown, parts);
   const box = (await canvas(page).boundingBox())!;
   const camera = fitRect(scene.bounds!, { width: box.width, height: box.height });
   const screen = ([x, y]: Point): Point => [
@@ -140,6 +151,11 @@ export async function openExample(page: Page, id: string, title: string, documen
     /** A pin's tip. */
     pin(id: string, pin: string): Point {
       return screen(scene.partById.get(id)!.pins.find((p) => p.name === pin)!.at);
+    },
+    /** The middle of a pin's stub (clear of a label at its tip). */
+    stub(id: string, pin: string): Point {
+      const { base, at } = scene.partById.get(id)!.pins.find((p) => p.name === pin)!;
+      return screen([(base[0] + at[0]) / 2, (base[1] + at[1]) / 2]);
     },
     /** The middle of a wire (`bus`: the first bus line). */
     wire(bus = false): Point {

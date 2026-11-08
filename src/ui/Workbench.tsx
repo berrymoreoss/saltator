@@ -1,6 +1,7 @@
 import { Eraser } from 'lucide-react';
 import { useEffect, useMemo, useRef } from 'react';
 import { DARK_CANVAS, type Editor, LIGHT_CANVAS, Store } from '../editor';
+import { Breadcrumbs } from './Breadcrumbs';
 import { CircuitsPanel } from './CircuitsPanel';
 import { ContextMenu } from './ContextMenu';
 import { ClipboardBridge } from './clipboard';
@@ -301,7 +302,7 @@ export function Workbench({
             />
           </>
         )}
-        <CanvasHost editor={editor} />
+        <CanvasHost editor={editor} commands={commands} />
         {properties.visible && (
           <>
             <Splitter
@@ -510,7 +511,13 @@ export function Workbench({
   );
 }
 
-function CanvasHost({ editor }: { readonly editor: Editor }) {
+function CanvasHost({
+  editor,
+  commands,
+}: {
+  readonly editor: Editor;
+  readonly commands: CommandRegistry;
+}) {
   const canvas = useRef<HTMLCanvasElement>(null);
   useEffect(() => editor.mount(canvas.current!), [editor]);
   const dragged = (e: React.DragEvent) =>
@@ -541,6 +548,7 @@ function CanvasHost({ editor }: { readonly editor: Editor }) {
       }}
     >
       <canvas ref={canvas} tabIndex={0} aria-label="Schematic" data-testid="schematic" />
+      <Breadcrumbs editor={editor} commands={commands} mac={MAC} />
     </div>
   );
 }

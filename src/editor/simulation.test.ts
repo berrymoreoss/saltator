@@ -303,6 +303,22 @@ describe('Simulation: steps', () => {
     expect(sim.nextEventTime).toBe(ns(2500));
   });
 
+  it('Step Clock passes the edge it paused before, even after an action queued instants', () => {
+    const { editor, simulation } = powered();
+    const goal = stepClock(simulation);
+    const sim = simulation.simulator!;
+    simulation.runTo(goal);
+    expect(sim.nextEventTime).toBe(ns(500));
+    // A switch flipped right before the edge: its gate's change comes first.
+    simulation.action('SW1', { type: 'toggle' });
+    expect(sim.nextEventTime).toBeLessThan(ns(500));
+    simulation.runTo(goal);
+    expect(simulation.status.get()).toMatchObject({ state: 'paused', reason: 'Step Clock' });
+    expect(sim.now).toBe(ns(1000)); // through the edge and the fall, before the next edge
+    expect(sim.nextEventTime).toBe(ns(1500));
+    expect(pin(editor, 'U1', 'Y')).toBe('0');
+  });
+
   it('Step Clock from stopped pauses before the first edge', () => {
     const { simulation } = setup(hello(1e6));
     simulation.runTo({ kind: 'edge', net: 'X1.Y', level: Level.L1, label: 'Step Clock' });

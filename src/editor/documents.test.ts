@@ -2,9 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   addCircuit,
   type Circuit,
-  CircuitBuilder,
   type CircuitDocument,
-  type ComponentInstance,
   emptyCircuit,
   type Point,
   renameCircuit,
@@ -15,8 +13,8 @@ import { Level, ns, strong } from '../core';
 import { testDriver } from '../core/testing';
 import { createDefaultRegistry } from '../library';
 import { Editor, type PointerInput } from './editor';
-import { FakeClock } from './fake-clock';
 import { selectionOf } from './selection';
+import { inverterCircuit, latchedRegisters, port } from './test-documents';
 
 // The editor on documents with several circuits (R11a), headless: pointer input at 16 px a cell.
 const registry = createDefaultRegistry();
@@ -31,37 +29,7 @@ function click(editor: Editor, at: Point): void {
   editor.pointerUp(input(at));
 }
 
-const port = (
-  id: string,
-  name: string,
-  x: number,
-  y: number,
-  direction = 'in',
-): ComponentInstance => ({
-  id,
-  type: 'net/port',
-  x,
-  y,
-  rotation: 0,
-  flip: false,
-  props: { name, direction, side: 'auto' },
-});
-
-/** `inverter`: a 74HC04 gate between ports A (in) and Y (out), joined by labels at its pins. */
-function inverter(): Circuit {
-  const b = new CircuitBuilder(registry, { id: 'inverter', name: 'Inverter' });
-  b.add('U1', 'prim/not', { at: [10, 0] });
-  const [a, y] = [b.pin('U1.A'), b.pin('U1.Y')];
-  const circuit = b.build();
-  return {
-    ...circuit,
-    components: [
-      ...circuit.components,
-      port('P1', 'A', a[0], a[1]),
-      port('P2', 'Y', y[0], y[1], 'out'),
-    ],
-  };
-}
+const inverter = () => inverterCircuit(registry);
 
 function document(): CircuitDocument {
   const main = {
@@ -224,91 +192,7 @@ describe('Editor on documents', () => {
 
 describe('Editor on documents: simulating the design', () => {
   const library = createDefaultRegistry().register(testDriver);
-  const label = (id: string, name: string, at: Point): ComponentInstance => ({
-    id,
-    type: 'net/label',
-    x: at[0],
-    y: at[1],
-    rotation: 0,
-    flip: false,
-    props: { name },
-  });
-
-  /** `reg`: a 74HC74 latching D on CP's rising edge to Q; set, reset and the spare tied high. */
-  function reg(): Circuit {
-    const b = new CircuitBuilder(library, { id: 'reg', name: 'Register' });
-    b.add('U1', '74xx/74hc74', { at: [10, 0] });
-    b.add('PWR1', 'io/vcc', { at: [30, 0] });
-    const pins = (names: string[]) => names.map((n) => b.pin(`U1.${n}`));
-    const circuit = b.build();
-    const high = pins(['1SD', '1RD', '2SD', '2RD', '2D', '2CP']).map((at, i) =>
-      label(`NL${i}`, 'VCC', at),
-    );
-    const [d, cp, q] = pins(['1D', '1CP', '1Q']) as [Point, Point, Point];
-    return {
-      ...circuit,
-      components: [
-        ...circuit.components,
-        ...high,
-        port('P1', 'D', d[0], d[1]),
-        port('P2', 'CP', cp[0], cp[1]),
-        port('P3', 'Q', q[0], q[1], 'out'),
-      ],
-    };
-  }
-
-  /** Two registers: drivers D1, D2 on their D inputs, CK on both clocks. */
-  function design(): CircuitDocument {
-    const module = reg();
-    const shell = {
-      ...emptyCircuit(),
-      components: [
-        { id: 'A1', type: 'sub/reg', x: 30, y: 0, rotation: 0, flip: false, props: {} },
-        { id: 'A2', type: 'sub/reg', x: 30, y: 20, rotation: 0, flip: false, props: {} },
-      ] as ComponentInstance[],
-    };
-    const draft: CircuitDocument = { schemaVersion: SCHEMA_VERSION, circuits: [shell, module] };
-    const top = new CircuitBuilder(new Editor(library, draft).registry);
-    top.add('A1', 'sub/reg', { at: [30, 0] });
-    top.add('A2', 'sub/reg', { at: [30, 20] });
-    top.add('D1', 'test/driver', { at: [0, 0] });
-    top.add('D2', 'test/driver', { at: [0, 10] });
-    top.add('CK', 'test/driver', { at: [0, 20] });
-    const joins: [string, string[]][] = [
-      ['DA', ['D1.Y', 'A1.D']],
-      ['DB', ['D2.Y', 'A2.D']],
-      ['CLOCK', ['CK.Y', 'A1.CP', 'A2.CP']],
-    ];
-    for (const [name, pins] of joins) {
-      for (const [i, pin] of pins.entries()) {
-        top.add(`NL${name}${i}`, 'net/label', { at: top.pin(pin), props: { name } });
-      }
-    }
-    return { schemaVersion: SCHEMA_VERSION, circuits: [top.build(), module] };
-  }
-
-  /** Latches 1 into A1 and 0 into A2, while running, then pauses. */
-  function latched() {
-    const clock = new FakeClock();
-    clock.cost = 0.001;
-    const editor = new Editor(library, design(), {}, { simulation: { clock } });
-    const { simulation } = editor;
-    const step = (until: number) => {
-      simulation.runTo({ kind: 'time', until, label: 'test' });
-      for (let i = 0; i < 1000 && simulation.state === 'running'; i++) clock.frame(16);
-    };
-    simulation.run();
-    simulation.pause();
-    const act = (id: string, level: Level) => simulation.action(id, strong(level));
-    act('D1', Level.L1);
-    act('D2', Level.L0);
-    act('CK', Level.L0);
-    step(ns(100));
-    act('CK', Level.L1);
-    step(ns(200));
-    const q = (path: string) => simulation.simulator!.pinLevel(path, '1Q');
-    return { editor, simulation, step, q };
-  }
+  const latched = () => latchedRegisters(library);
 
   it('simulates the instances, each with its own state', () => {
     const { q } = latched();
@@ -329,16 +213,6 @@ describe('Editor on documents: simulating the design', () => {
     expect([q('A1/U7'), q('A2/U7')]).toEqual([Level.L1, Level.L0]);
   });
 
-  it('draws only the top circuit with live levels and parts', () => {
-    const { editor, simulation } = latched();
-    const view = simulation.signalView()!;
-    expect(view.part('D1')).toBeDefined();
-    editor.openCircuit('reg');
-    const inside = simulation.signalView()!;
-    expect(inside.part('U1')).toBeUndefined();
-    expect(editor.flatPart('U1')).toBeUndefined();
-  });
-
   it('probes and watches signals inside instances by path', () => {
     const { editor, step } = latched();
     expect(editor.analyzer.addProbe({ ref: 'A1/U1.1Q' })).toBeUndefined();
@@ -347,7 +221,7 @@ describe('Editor on documents: simulating the design', () => {
     expect(editor.debug.addWatch('A2/Q')).toBeUndefined();
     step(ns(300));
     expect(editor.debug.watches.get().map((w) => [w.label, w.value])).toEqual([['A2/Q', '0']]);
-    // Probing from the canvas works on the top only.
+    // The probes are the top circuit's, whichever circuit is open.
     editor.openCircuit('reg');
     expect(editor.analyzer.probes).toEqual([{ ref: 'A1/U1.1Q' }]);
   });

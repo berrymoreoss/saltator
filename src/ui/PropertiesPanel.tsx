@@ -276,9 +276,10 @@ function PartProperties({
             type="button"
             className="link-button"
             data-testid="open-subcircuit"
-            onClick={() => editor.openCircuit(placed)}
+            title={`Open ${definition.name} in this instance`}
+            onClick={() => editor.goInto(instance.id)}
           >
-            Open {definition.name}
+            Go Into {instance.id}
           </button>
         </div>
       )}

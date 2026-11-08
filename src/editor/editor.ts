@@ -66,6 +66,7 @@ import {
   invertRenames,
   pushEntry,
   redoEntry,
+  type Snapshot,
   sealHistory,
   undoEntry,
 } from './history';
@@ -172,6 +173,11 @@ export interface EditorState {
   readonly document: CircuitDocument;
   /** The circuit open on the canvas, the one edits go to. */
   readonly circuit: Circuit;
+  /**
+   * The instance of it open (R11b), whose levels the canvas shows: its instance path, `''` the
+   * top circuit, `A1`, `A1/A2`; undefined when the design places the circuit nowhere.
+   */
+  readonly path: string | undefined;
   /** The open circuit's scene. */
   readonly scene: Scene;
   /** The top circuit flattened: what simulates, what the tools resolve against. */
@@ -325,6 +331,34 @@ const samePoint = (a: Point, b: Point) => a[0] === b[0] && a[1] === b[1];
 const cell = (p: Point): Point => [Math.round(p[0]), Math.round(p[1])];
 const rot = (r: number): Rotation => (((r % 360) + 360) % 360) as Rotation;
 
+/**
+ * The instance of circuit `circuit` to open: `''` for the top; `wanted` if it places the
+ * circuit, else the longest end of it that does (`A1/A2` → `A2` once the circuit A1 placed is
+ * the top); else its first instance in design order; undefined if the design places it nowhere.
+ */
+function instancePath(
+  design: Design,
+  circuit: string,
+  wanted: string | undefined,
+): string | undefined {
+  if (circuit === design.top) return '';
+  for (let rest = wanted; rest; ) {
+    if (design.circuitAt(rest) === circuit) return rest;
+    const slash = rest.indexOf('/');
+    rest = slash < 0 ? undefined : rest.slice(slash + 1);
+  }
+  return design.instances.find((i) => i.circuit === circuit)?.path;
+}
+
+function snapshotOf(state: EditorState): Snapshot {
+  return {
+    document: state.document,
+    open: state.circuit.id,
+    ...(state.path !== undefined && { path: state.path }),
+    selection: state.selection,
+  };
+}
+
 export class Editor {
   /** The library's parts; `registry` adds the document's circuits (R11a). */
   readonly library: ComponentRegistry;
@@ -430,34 +464,42 @@ export class Editor {
     return this.state.get().scene;
   }
 
-  /** The netlist id of a part of the open circuit, if it simulates as drawn (the top is open). */
+  /**
+   * The netlist id of a part of the open circuit in the instance open (`U1` at the top,
+   * `A1/U1` inside A1); undefined in a circuit the design places nowhere.
+   */
   flatPart(id: string): string | undefined {
     return this.#model(this.state.get()).flatPart(id);
   }
 
-  /** What the simulation host runs and shows for a state. */
+  /** What the simulation host runs and shows for a state: the open scene in its instance. */
   #model(state: EditorState): SimulationModel {
     let model = this.#models.get(state);
     if (!model) {
-      const { design, scene } = state;
-      const simulated = state.circuit.id === design.top;
+      const { design, scene, path } = state;
+      const prefix = path ? `${path}/` : '';
       model = {
         netlist: design.netlist,
         scene,
-        flatNet: simulated ? (net) => design.netOf('', net) : () => undefined,
-        flatPart: simulated ? (id) => id : () => undefined,
+        path,
+        flatNet: path === undefined ? () => undefined : (net) => design.netOf(path, net),
+        flatPart: path === undefined ? () => undefined : (id) => prefix + id,
       };
       this.#models.set(state, model);
     }
     return model;
   }
 
-  /** A state for a document with circuit `open` on the canvas (the top if it has no such circuit). */
+  /**
+   * A state for a document with circuit `open` on the canvas (the top if it has no such
+   * circuit), in the instance at `path` if that places it, else in its first instance.
+   */
   #stateOf(
     document: CircuitDocument,
     open: string,
     selection: Selection,
     renames?: ReadonlyMap<string, string>,
+    path?: string,
   ): EditorState {
     const design = compileDesign(document, this.library, { cache: this.#cache });
     const circuit = document.circuits.find((c) => c.id === open) ?? document.circuits[0]!;
@@ -468,6 +510,7 @@ export class Editor {
     return {
       document,
       circuit,
+      path: instancePath(design, circuit.id, path),
       scene,
       design,
       selection: pruneSelection(selection, scene),
@@ -495,20 +538,17 @@ export class Editor {
    */
   setDocument(
     document: CircuitDocument,
-    options: { open?: string; fit?: boolean; camera?: Camera } = {},
+    options: { open?: string; path?: string; fit?: boolean; camera?: Camera } = {},
   ): void {
     this.cancel();
     this.analyzer.clear();
     this.debug.load(EMPTY_DEBUG_SETUP);
     this.#cameras.clear();
     const open = options.open ?? document.circuits[0]!.id;
-    this.#show(
-      document,
-      open,
-      this.state.get().selection,
-      undefined,
-      options.fit && !options.camera,
-    );
+    this.#show(document, open, this.state.get().selection, {
+      fit: options.fit === true && !options.camera,
+      ...(options.path !== undefined && { path: options.path }),
+    });
     this.history.set(EMPTY_HISTORY);
     if (options.camera) {
       this.#fitPending = false;
@@ -517,14 +557,82 @@ export class Editor {
   }
 
   /**
-   * Opens another circuit of the document on the canvas — not an edit. The camera the circuit
-   * was left with comes back; one never shown is zoomed to fit.
+   * Opens another circuit of the document on the canvas — not an edit — in its first instance
+   * (R11b). The camera the circuit was left with comes back; one never shown is zoomed to fit.
    */
   openCircuit(id: string): void {
     const state = this.state.get();
     if (id === state.circuit.id || !state.document.circuits.some((c) => c.id === id)) return;
     this.cancel();
-    this.#show(state.document, id, EMPTY_SELECTION, undefined);
+    this.#show(state.document, id, EMPTY_SELECTION);
+  }
+
+  /**
+   * Goes into the instance at instance path `path` (`A1/A2`; `''` the top): its circuit open,
+   * drawn with its levels while simulating (R11b). Not an edit; the circuit's camera comes back.
+   */
+  openInstance(path: string): void {
+    const state = this.state.get();
+    const circuit = state.design.circuitAt(path);
+    if (circuit === undefined || path === state.path) return;
+    this.cancel();
+    const same = circuit === state.circuit.id;
+    this.#show(state.document, circuit, same ? state.selection : EMPTY_SELECTION, { path });
+  }
+
+  /**
+   * Leaves the instance open for the one it is placed in, with it selected and in view. Returns
+   * false at the top or in a circuit the design doesn't place.
+   */
+  goUp(): boolean {
+    const path = this.state.get().path;
+    if (!path) return false;
+    const slash = path.lastIndexOf('/');
+    return this.goUpTo(slash < 0 ? '' : path.slice(0, slash));
+  }
+
+  /**
+   * Goes up to `ancestor`, an instance the open one is inside (`''` the top), with the instance
+   * on the way down selected and in view (from `A2/A1`: `A1` in A2, `A2` at the top). False
+   * when the open instance isn't inside it.
+   */
+  goUpTo(ancestor: string): boolean {
+    const path = this.state.get().path;
+    if (!path || (ancestor !== '' && !path.startsWith(`${ancestor}/`))) return false;
+    const rest = ancestor === '' ? path : path.slice(ancestor.length + 1);
+    const designator = rest.split('/')[0]!;
+    this.openInstance(ancestor);
+    const part = this.scene.partById.get(designator);
+    if (!part) return true;
+    this.setSelection(selectionOf([part.id]));
+    if (this.#fitPending) return true;
+    const { camera, viewport } = this.view.get();
+    const [x0, y0] = toWorld(camera, [0, 0]);
+    const [x1, y1] = toWorld(camera, [viewport.width, viewport.height]);
+    const { x, y, width, height } = part.bounds;
+    const visible = x >= x0 && y >= y0 && x + width <= x1 && y + height <= y1;
+    if (!visible) this.#bringIntoView(part.bounds, false);
+    return true;
+  }
+
+  /**
+   * Goes into instance `designator` of the open circuit, in the instance open (`A1` inside
+   * `A2` is `A2/A1`); from a circuit placed nowhere, into the first instance of its circuit.
+   * Returns false when it is no subcircuit instance.
+   */
+  goInto(designator: string): boolean {
+    const { scene, path } = this.state.get();
+    const type = scene.partById.get(designator)?.instance.type;
+    const inner = type === undefined ? undefined : subcircuitOf(type);
+    if (inner === undefined) return false;
+    if (path === undefined) this.openCircuit(inner);
+    else this.openInstance(path === '' ? designator : `${path}/${designator}`);
+    return true;
+  }
+
+  /** Goes to the top circuit (its instance path `''`). */
+  goTop(): void {
+    this.openInstance('');
   }
 
   /** The camera of each circuit but the open one, as it was left (sessions keep them). */
@@ -577,13 +685,16 @@ export class Editor {
     const before = this.state.get();
     const renames =
       options.renames && this.#flatRenames(before.design, before.circuit.id, options.renames);
-    this.#show(document, open, options.selection ?? before.selection, renames, options.fit);
+    this.#show(document, open, options.selection ?? before.selection, {
+      ...(renames && { renames }),
+      ...(options.fit !== undefined && { fit: options.fit }),
+    });
     const after = this.state.get();
     this.history.update((history) =>
       pushEntry(history, {
         label,
-        before: { document: before.document, open: before.circuit.id, selection: before.selection },
-        after: { document: after.document, open: after.circuit.id, selection: after.selection },
+        before: snapshotOf(before),
+        after: snapshotOf(after),
         ...(options.coalesce !== undefined && { coalesce: options.coalesce }),
         ...(renames && renames.size > 0 && { renames }),
       }),
@@ -639,8 +750,12 @@ export class Editor {
     if (this.#cancelGesture()) return;
     const step = undoEntry(this.history.get());
     if (!step) return;
-    const { document, open, selection } = step.entry.before;
-    this.#show(document, open, selection, invertRenames(step.entry.renames));
+    const { document, open, path, selection } = step.entry.before;
+    const renames = invertRenames(step.entry.renames);
+    this.#show(document, open, selection, {
+      ...(renames && { renames }),
+      ...(path !== undefined && { path }),
+    });
     this.history.set(step.history);
   }
 
@@ -648,8 +763,12 @@ export class Editor {
     if (this.#cancelGesture()) return;
     const step = redoEntry(this.history.get());
     if (!step) return;
-    const { document, open, selection } = step.entry.after;
-    this.#show(document, open, selection, step.entry.renames);
+    const { document, open, path, selection } = step.entry.after;
+    const { renames } = step.entry;
+    this.#show(document, open, selection, {
+      ...(renames && { renames }),
+      ...(path !== undefined && { path }),
+    });
     this.history.set(step.history);
   }
 
@@ -658,16 +777,27 @@ export class Editor {
     this.history.update(sealHistory);
   }
 
+  /**
+   * Shows a document with circuit `open` on the canvas in the instance at `path`; without one,
+   * the instance open stays if the circuit does, else its first instance.
+   */
   #show(
     document: CircuitDocument,
     open: string,
     selection: Selection,
-    renames: ReadonlyMap<string, string> | undefined,
-    fit = false,
+    options: {
+      readonly renames?: ReadonlyMap<string, string>;
+      readonly fit?: boolean;
+      readonly path?: string;
+    } = {},
   ): void {
+    const { renames } = options;
+    let fit = options.fit === true;
     const old = this.state.get();
     const previous = old.circuit.id;
-    const state = this.#stateOf(document, open, selection, renames);
+    // Where an edit breaks the path (its instance deleted), the circuit's first instance.
+    const path = options.path ?? (open === previous ? old.path : undefined);
+    const state = this.#stateOf(document, open, selection, renames, path);
     // Another circuit on the canvas (opened, or an undo there): each keeps its own camera. The
     // same circuit under a new id (renamed while placed nowhere) is no other circuit.
     const index = old.document.circuits.findIndex((c) => c.id === previous);
@@ -1438,15 +1568,27 @@ export class Editor {
   }
 
   /**
-   * Selects the wires of a net the simulator names (a diagnostic's `net`) and brings them into
-   * view; a net without wires (pin on pin) locates the part its id starts with (`U1.Y`).
+   * `locate` for a part of the design by netlist id (`U5`, `A1/U3`, a diagnostic's
+   * `component`): goes into the instance it is in first (R11b).
+   */
+  locatePart(id: string, options: { zoom?: boolean } = {}): void {
+    const { path, local } = this.#enter(id);
+    if (path !== undefined) this.locate({ component: local }, options);
+  }
+
+  /**
+   * Selects the wires of a net the simulator names (a diagnostic's `net`: `CLK`, `A1/U2.Y`) and
+   * brings them into view, in the instance its id is in (its outermost); a net without wires
+   * (pin on pin) locates the part its id starts with (`U2.Y`).
    */
   locateNet(net: string, options: { zoom?: boolean } = {}): void {
+    const { path, local } = this.#enter(net);
+    if (path === undefined) return;
     const wires = this.simulation
       .wiresOfNet(net)
       .flatMap((id) => this.scene.wireById.get(id) ?? []);
     if (wires.length === 0) {
-      const component = net.split('.')[0];
+      const component = local.split('.')[0];
       if (component) this.locate({ component }, options);
       return;
     }
@@ -1462,6 +1604,19 @@ export class Editor {
     const y = Math.min(...ys);
     const rect = { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y };
     this.#bringIntoView(rect, options.zoom === true);
+  }
+
+  /**
+   * Goes into the instance a flat id is in (`A1/U3` → A1, `U5` → the top): its path and the id
+   * inside it, or no path when the design has no such instance.
+   */
+  #enter(id: string): { readonly path: string | undefined; readonly local: string } {
+    const slash = id.lastIndexOf('/');
+    const path = slash < 0 ? '' : id.slice(0, slash);
+    const local = id.slice(slash + 1);
+    if (this.state.get().design.circuitAt(path) === undefined) return { path: undefined, local };
+    this.openInstance(path);
+    return { path, local };
   }
 
   #bringIntoView(rect: Rect, zoom: boolean): void {
@@ -1646,18 +1801,21 @@ export class Editor {
 
   #spotAt(screen: Point): ProbeSpot | string | undefined {
     const { camera } = this.view.get();
-    const { circuit, design, document } = this.state.get();
-    // Probes, watches and breakpoints are of what simulates: the top circuit as drawn.
-    if (circuit.id !== design.top) {
-      const top = document.circuits[0]!.name;
-      return `Only ${top}, the top circuit, simulates as drawn: probe there, or type a path in Waveforms (A1/U1.Y)`;
-    }
-    return probeSpotAt(
+    const { circuit, document, path } = this.state.get();
+    const spot = probeSpotAt(
       this.scene,
       this.registry,
       toWorld(camera, screen),
       HIT_TOLERANCE / camera.scale,
     );
+    if (spot === undefined || typeof spot === 'string' || path === '') return spot;
+    // Probes, watches and breakpoints are of what simulates: inside an instance, by its path,
+    // named as read there (R11b, Q4: `A1/Q0`, not the outer net's name).
+    if (path === undefined) {
+      const top = document.circuits[0]!.name;
+      return `${circuit.name} isn't placed in ${top}, so it doesn't simulate: place it to probe it.`;
+    }
+    return { ...spot, ref: `${path}/${spot.ref}` };
   }
 
   /** The Probe tool's click: adds what is under the pointer to the waveforms, or removes it. */
@@ -1915,8 +2073,8 @@ export class Editor {
   }
 
   /**
-   * Double-click: finishes a wire (Wire tool), opens the circuit of a subcircuit instance (R11a),
-   * or asks the UI to edit the part's properties.
+   * Double-click: finishes a wire (Wire tool), goes into a subcircuit instance (R11b), or asks
+   * the UI to edit the part's properties.
    */
   doubleClick(input: PointerInput): void {
     if (input.button !== 0) return;
@@ -1927,12 +2085,7 @@ export class Editor {
     const tool = this.tool.get();
     if (tool !== 'select' && tool !== 'interact') return;
     const hit = this.#hitAt(input.at);
-    const type = hit?.kind === 'part' ? this.scene.partById.get(hit.id)?.instance.type : undefined;
-    const inner = type === undefined ? undefined : subcircuitOf(type);
-    if (inner !== undefined) {
-      this.openCircuit(inner);
-      return;
-    }
+    if (hit?.kind === 'part' && this.goInto(hit.id)) return;
     if (tool !== 'select') return;
     if (hit?.kind === 'part') {
       this.setSelection(selectHit(hit));

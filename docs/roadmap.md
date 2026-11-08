@@ -35,8 +35,8 @@ How to read this file:
 | R14a | `feat/debugger`              | Breakpoints, stepping, watches             | done    |
 | R14b | `feat/rewind`                | Snapshots & rewind                         | done    |
 | R11a | `feat/subcircuits`           | Subcircuits                                | done    |
-| R11b | `feat/subcircuit-navigation` | Navigation into instances                  | next    |
-| R15  | `feat/test-benches`          | Circuit test benches ("test before fab")   | planned |
+| R11b | `feat/subcircuit-navigation` | Navigation into instances                  | done    |
+| R15  | `feat/test-benches`          | Circuit test benches ("test before fab")   | next    |
 | R16a | `example/sap-1-modules`      | SAP-1 modules as tested subcircuits        | planned |
 | R16b | `example/sap-1`              | Ben Eater SAP-1 reference build            | planned |
 | R17  | `feat/cpu-6502`              | W65C02S CPU                                | planned |
@@ -372,12 +372,21 @@ circuits. Example: Two-Digit Counter (Decade Counter inside Counter Digit, twice
 [components.md](components.md#ports-net-port). Decision:
 [ADR-0023](adr/0023-subcircuits.md). Plan: `.ai/plans/feat-subcircuits.md`.
 
-### R11b · Navigation into instances — `feat/subcircuit-navigation` — `next`
+### R11b · Navigation into instances — `feat/subcircuit-navigation` — `done`
 
-Going into an instance while simulating: its circuit drawn with that instance's live levels and
-indicators, Interact and the Probe tool inside, breadcrumbs and gestures to go in and out.
+Going into an instance while simulating: the open circuit is seen in one instance of the design
+(`EditorState.path`: `''` the top, `A2`, `A2/A1`), its scene mapped to that instance's flat nets
+and parts, so wires, buses, labels, lights, part states and Properties' badges show its levels,
+the Interact tool presses its buttons (`A2/SW1`) and the Probe tool probes by path, named as read
+inside (`A1/MID`, Q4). Double-click, Go Into (`Mod+↓`), Go Up (`Mod+↑`, the instance left
+selected), Go to Top; the Circuits list opens a circuit in its first instance (Q1); a breadcrumb
+bar floats over the canvas — Up, the crumbs, the instance switcher, "edits change all N
+instances" (Q2); the history and autosave keep the path; the Simulation tab locates into
+instances. Found on the way: Step Clock after a button pressed while paused stopped before the
+same edge (fixed). Spec: [editor.md](editor.md#instances). Decision:
+[ADR-0024](adr/0024-instance-navigation.md). Plan: `.ai/plans/feat-subcircuit-navigation.md`.
 
-### R15 · Circuit test benches — `feat/test-benches`
+### R15 · Circuit test benches — `feat/test-benches` — `next`
 
 Test vectors (table of inputs/expected outputs over time) and scripted benches for user circuits;
 run in the app and headless (Node/CI); pass/fail report. The core of "test before fab". A
@@ -519,6 +528,10 @@ Promote to a numbered item when needed.
   (props, a ROM image per instance); a static shorted-outputs check across the hierarchy (the
   kernel's `contention` reports it while running); importing circuits from another file (a
   module library); a confirmation before deleting a circuit with instances (it is undoable).
+- Navigation follow-ups (R11b): a hierarchy tree of instances (a navigator in the Circuits
+  panel, Q2); live levels on an instance's box at the parent (its pin stubs, Properties' badges
+  for its ports, a "peek" of the inside); the Memory tab and the Debug tab following the instance
+  open (preselecting `A1/U3`); a camera per instance if modules grow large.
 - Debugger follow-ups (R14a): breakpoints on memory accesses (break when `U5[0x0F]` is written
   or read; with R17, on the CPU's program counter and instructions); log points (report instead
   of pausing); breakpoint and watch marks on the canvas; break on chosen diagnostic kinds

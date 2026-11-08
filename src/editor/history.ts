@@ -12,6 +12,8 @@ export interface Snapshot {
   readonly document: CircuitDocument;
   /** The id of the circuit open (and edited). */
   readonly open: string;
+  /** The instance of it open (R11b): its instance path, `''` the top; absent: none placed. */
+  readonly path?: string;
   readonly selection: Selection;
 }
 

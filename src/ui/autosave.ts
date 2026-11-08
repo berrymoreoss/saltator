@@ -34,6 +34,8 @@ export interface StoredSession {
   readonly file?: FileRef;
   /** The id of the circuit open (R11a); the top when missing. */
   readonly open?: string;
+  /** The instance of it open (R11b), by instance path; its first instance when missing. */
+  readonly path?: string;
   /** The open circuit's camera. */
   readonly camera?: Camera;
   /** The debugger's breakpoints, watches and steps (R14): kept with the session, not the file. */
@@ -80,6 +82,7 @@ export interface RestoredSession {
   readonly session: DocumentSession;
   readonly document: CircuitDocument;
   readonly open?: string;
+  readonly path?: string;
   readonly camera?: Camera;
   readonly debug?: DebugSetup;
 }
@@ -104,6 +107,7 @@ export function restoreSession(stored: StoredSession): RestoredSession | undefin
     session,
     document,
     ...(stored.open !== undefined && { open: stored.open }),
+    ...(typeof stored.path === 'string' && { path: stored.path }),
     ...(stored.camera && { camera: stored.camera }),
     ...(debug && { debug }),
   };
@@ -130,6 +134,7 @@ export const AUTOSAVE_DELAY = 500;
 interface Written {
   readonly document: CircuitDocument;
   readonly open: string;
+  readonly path: string | undefined;
   readonly session: DocumentSession;
   readonly camera: Camera;
   readonly debug: DebugSetup;
@@ -165,6 +170,7 @@ export class Autosave {
       if (
         now.document === seen.document &&
         now.open === seen.open &&
+        now.path === seen.path &&
         now.session === seen.session &&
         now.camera === seen.camera &&
         now.debug === seen.debug
@@ -232,6 +238,7 @@ export class Autosave {
     return {
       document: state.document,
       open: state.circuit.id,
+      path: state.path,
       session: documents.session.get(),
       camera: editor.view.get().camera,
       debug: editor.debug.setup.get(),
@@ -246,6 +253,7 @@ export class Autosave {
       last &&
       now.document === last.document &&
       now.open === last.open &&
+      now.path === last.path &&
       now.session === last.session &&
       now.debug === last.debug &&
       sameCamera(now.camera, last.camera)
@@ -253,13 +261,14 @@ export class Autosave {
       return undefined;
     }
     this.#last = now;
-    const { session, document, open, camera, debug } = now;
+    const { session, document, open, path, camera, debug } = now;
     return {
       id: this.#options.id,
       name: session.name,
       text: documentText(document),
       unsaved: hasUnsavedChanges(session, document),
       ...(open !== document.circuits[0]!.id && { open }),
+      ...(path && { path }),
       camera,
       ...(debug !== EMPTY_DEBUG_SETUP && { debug }),
       updated: this.#options.now(),

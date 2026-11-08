@@ -99,17 +99,19 @@ export class DocumentController {
   /**
    * Shows `session` in the editor without asking (start-up, a restored session). `document` is
    * the editor's when it differs from the session's saved one (restored unsaved changes); `open`
-   * opens that circuit instead of the top; `camera` restores its view instead of zooming to fit.
+   * opens that circuit instead of the top, in the instance at `path` if it is one (R11b);
+   * `camera` restores its view instead of zooming to fit.
    */
   show(
     session: DocumentSession,
     document: CircuitDocument = session.document,
-    options: { readonly camera?: Camera; readonly open?: string } = {},
+    options: { readonly camera?: Camera; readonly open?: string; readonly path?: string } = {},
   ): void {
     const editor = this.#editor;
     editor.simulation.stop();
     editor.setDocument(document, {
       ...(options.open !== undefined && { open: options.open }),
+      ...(options.path !== undefined && { path: options.path }),
       ...(options.camera ? { camera: options.camera } : { fit: true }),
     });
     editor.setSelection(EMPTY_SELECTION);

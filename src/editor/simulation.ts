@@ -159,6 +159,11 @@ type HostRun = RunStatus | 'action';
 interface Step {
   readonly goal: StepGoal;
   passed: boolean;
+  /**
+   * An edge goal: the run is right before the edge it passes first (`passed` follows). False
+   * only when paused right before that edge with an action's instants queued ahead of it.
+   */
+  ahead?: boolean;
   done?: string;
 }
 
@@ -200,13 +205,18 @@ export interface BusLive {
 
 /**
  * What the host simulates and what the canvas shows of it (R11a): the design's flat netlist
- * and the scene of the circuit open, with the way from the scene's local ids to the netlist's.
- * The top circuit open, local ids are the flat ones; another circuit open isn't simulated as
- * drawn (R11b: an instance's), so it maps nothing.
+ * and the scene of the circuit open, with the way from the scene's local ids to the netlist's
+ * in the instance open (R11b) — the top's are the flat ones, `A1`'s are `A1/…`; a circuit the
+ * design places nowhere maps nothing.
  */
 export interface SimulationModel {
   readonly netlist: Netlist;
   readonly scene: Scene;
+  /**
+   * The instance path the scene is mapped through (`''` the top; undefined: nowhere). Another
+   * instance of the same circuit is the same netlist and scene, mapped otherwise.
+   */
+  readonly path: string | undefined;
   /** The flat net id of a net of the scene (its id in the scene's compile result). */
   flatNet(net: string): string | undefined;
   /** The netlist id of a part of the scene (`U1`), if the scene is what simulates. */
@@ -218,6 +228,7 @@ export function sceneModel(scene: Scene): SimulationModel {
   return {
     netlist: scene.compiled.netlist,
     scene,
+    path: '',
     flatNet: (net) => net,
     flatPart: (id) => id,
   };
@@ -392,6 +403,11 @@ export class Simulation {
   #pauseRequest: string | undefined;
   #breaks = 0;
   #step: Step | undefined;
+  /**
+   * Where an edge step paused, right before its edge: until time moves, the next step to that
+   * edge passes it first, whatever instants actions queued ahead of it meanwhile.
+   */
+  #beforeEdge: { readonly net: string; readonly level: Level; readonly time: Time } | undefined;
   #timeline: Timeline | undefined;
   readonly #historyOptions: TimelineOptions;
   #search: Search | undefined;
@@ -671,7 +687,14 @@ export class Simulation {
       }
     }
     this.#unschedule();
-    this.#step = { goal, passed };
+    const before = this.#beforeEdge;
+    const resumed =
+      goal.kind === 'edge' &&
+      !passed &&
+      before?.net === goal.net &&
+      before.level === goal.level &&
+      before.time === this.#sim!.now;
+    this.#step = { goal, passed, ...(goal.kind === 'edge' && { ahead: !resumed }) };
     this.#lastWall = this.#clock.now();
     this.#lagFrames = 0;
     this.#actual = 0;
@@ -910,13 +933,16 @@ export class Simulation {
   // ── Following the document ──────────────────────────────────────────────────────────────
 
   /**
-   * The document or the circuit shown changed (`renames`: old netlist id → new). Same
-   * structure: the simulator goes on as it is. Otherwise the simulation continues in the
+   * The document, the circuit shown or its instance changed (`renames`: old netlist id → new).
+   * Same structure: the simulator goes on as it is. Otherwise the simulation continues in the
    * recompiled netlist.
    */
   sync(model: SimulationModel | Scene, renames?: ReadonlyMap<string, string>): void {
     const next = 'netlist' in model ? model : sceneModel(model);
-    if (next.netlist === this.#model.netlist && next.scene === this.#model.scene) return;
+    const last = this.#model;
+    if (next.netlist === last.netlist && next.scene === last.scene && next.path === last.path) {
+      return;
+    }
     this.#model = next;
     const netlist = next.netlist;
     const previous = this.#netlist;
@@ -939,6 +965,7 @@ export class Simulation {
   /** A fresh simulator at t = 0 for the current netlist; false if it can't be built. */
   #powerOn(): boolean {
     this.#lights.clear();
+    this.#beforeEdge = undefined;
     this.#pauseAt = undefined;
     this.#pauseRequest = undefined;
     if (!this.#build(undefined)) return false;
@@ -1138,9 +1165,27 @@ export class Simulation {
       step.done = `${goal.label}: no net ${goal.net}`;
       return 'idle';
     }
+    if (!step.passed && step.ahead === false) {
+      // Paused right before the edge, an action queued instants ahead of it (a button pressed,
+      // then Step Clock): they aren't the edge, so run to right before it again first.
+      const limit = sim.now + Math.max(0, Math.min(MAX_SETTLE, pauseAt - sim.now));
+      const result = this.#advance(sim, limit, (l) =>
+        sim.settle({
+          maxTime: Math.max(0, l - sim.now),
+          maxEvents: CHUNK_EVENTS,
+          stopBefore: { net, level: goal.level },
+        }),
+      );
+      if (result === 'idle') {
+        step.done = `${goal.label}: nothing left to happen`;
+        return 'idle';
+      }
+      if (result !== 'before') return result;
+      step.ahead = true;
+    }
     if (!step.passed) {
-      // Through the next instant first: right before an edge, that is the edge itself (a
-      // recorded action on the way is delivered first, then the edge passed).
+      // Through the next instant: the edge itself (a recorded action on the way is delivered
+      // first, then the edge passed).
       const next = sim.nextEventTime;
       if (next === Number.POSITIVE_INFINITY) {
         step.done = `${goal.label}: nothing left to happen`;
@@ -1159,8 +1204,10 @@ export class Simulation {
         stopBefore: { net, level: goal.level },
       }),
     );
-    if (result === 'before') step.done = goal.label;
-    else if (result === 'idle') step.done = `${goal.label}: nothing left to happen`;
+    if (result === 'before') {
+      step.done = goal.label;
+      this.#beforeEdge = { net: goal.net, level: goal.level, time: sim.now };
+    } else if (result === 'idle') step.done = `${goal.label}: nothing left to happen`;
     return result; // `reached` after an hour without the edge: the next frame goes on
   }
 
