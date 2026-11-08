@@ -12,26 +12,26 @@ terminal) comes with that architecture's item.
 
 ## Items
 
-| ID    | Branch                       | Title                                     | Needs | Status      |
-| ----- | ---------------------------- | ----------------------------------------- | ----- | ----------- |
-| R00   | —                            | Foundation                                | —     | done        |
-| R01   | `feat/engine-core`           | Simulation kernel                         | —     | done        |
-| R02   | `feat/circuit-model`         | Circuit document & netlist compiler       | —     | done        |
-| R04a  | `feat/editor-canvas`         | App shell & schematic view                | —     | done        |
-| R04b  | `feat/editor-tools`          | Schematic editing                         | —     | done        |
-| R05   | `feat/sim-ui`                | Running simulations in the editor         | —     | done        |
-| R07   | `feat/persistence`           | Save, load, examples                      | —     | done        |
-| R10a  | `feat/net-labels`            | Net labels                                | —     | done        |
-| R10b  | `feat/buses`                 | Buses, rippers, bus values                | —     | done        |
-| R12b  | `feat/memory-inspector`      | Memory inspector, image files             | —     | done        |
-| R13   | `feat/logic-analyzer`        | Waveforms & probes                        | —     | done        |
-| R14a  | `feat/debugger`              | Breakpoints, stepping, watches            | —     | done        |
-| R14b  | `feat/rewind`                | Snapshots & rewind                        | —     | done        |
-| R11a  | `feat/subcircuits`           | Subcircuits                               | —     | done        |
-| R11b  | `feat/subcircuit-navigation` | Navigation into instances                 | —     | done        |
-| R15a  | `feat/test-benches`          | Test benches: scripts and headless runner | —     | done        |
-| R15b  | `feat/test-bench-ui`         | Test benches in the app                   | —     | done        |
-| PLT-1 | `feat/schematic-text`        | Schematic text                            | —     | in-progress |
+| ID    | Branch                       | Title                                     | Needs | Status |
+| ----- | ---------------------------- | ----------------------------------------- | ----- | ------ |
+| R00   | —                            | Foundation                                | —     | done   |
+| R01   | `feat/engine-core`           | Simulation kernel                         | —     | done   |
+| R02   | `feat/circuit-model`         | Circuit document & netlist compiler       | —     | done   |
+| R04a  | `feat/editor-canvas`         | App shell & schematic view                | —     | done   |
+| R04b  | `feat/editor-tools`          | Schematic editing                         | —     | done   |
+| R05   | `feat/sim-ui`                | Running simulations in the editor         | —     | done   |
+| R07   | `feat/persistence`           | Save, load, examples                      | —     | done   |
+| R10a  | `feat/net-labels`            | Net labels                                | —     | done   |
+| R10b  | `feat/buses`                 | Buses, rippers, bus values                | —     | done   |
+| R12b  | `feat/memory-inspector`      | Memory inspector, image files             | —     | done   |
+| R13   | `feat/logic-analyzer`        | Waveforms & probes                        | —     | done   |
+| R14a  | `feat/debugger`              | Breakpoints, stepping, watches            | —     | done   |
+| R14b  | `feat/rewind`                | Snapshots & rewind                        | —     | done   |
+| R11a  | `feat/subcircuits`           | Subcircuits                               | —     | done   |
+| R11b  | `feat/subcircuit-navigation` | Navigation into instances                 | —     | done   |
+| R15a  | `feat/test-benches`          | Test benches: scripts and headless runner | —     | done   |
+| R15b  | `feat/test-bench-ui`         | Test benches in the app                   | —     | done   |
+| PLT-1 | `feat/schematic-text`        | Schematic text                            | —     | done   |
 
 ## R00 · Foundation
 
@@ -312,11 +312,20 @@ run and its history untouched). Spec: [editor.md](../editor.md#tests). Decision:
 
 ## PLT-1 · Schematic text — `feat/schematic-text`
 
-Graphic elements without logic, starting with text: a `draw` family of schematic-only parts
-without pins (never simulated, placed, moved, copied and saved like any part), and its first
-part `draw/text` — a block of multi-line text with a size and a sans or mono font, edited in
-Properties, placed from Parts ▸ Graphics or Place ▸ Text (`T`). The 6502 ROM and RAM example
-gets its description and its program listing on the canvas. Plan: `.ai/plans/feat-schematic-text.md`.
+Graphic elements without logic, starting with text. The family `draw` holds schematic-only parts
+without pins: never compiled or checked, placed, moved, rotated, copied, undone and saved like
+any part, hit-tested after everything else so a note over a chip doesn't take its clicks.
+`draw/text`: a block of multi-line text (`PropDef.multiline`) with a size (Small, Normal, Large,
+Title) and a sans-serif or monospaced font; its box in whole cells estimated in the pure layers
+(`textBlockSize`: exact for mono, a character-class table for sans calibrated at 10 px), drawn
+upright as a block whatever the placement (`SymbolGraphics.textBlock`), no designator. Placed
+from Parts ▸ Graphics or Place ▸ Text (`T`); edited in Properties in a text area (Enter: a
+line, `Mod+Enter` or leaving: apply, Escape: revert), which a double-click focuses. The 6502 ROM
+and RAM example got a title, a description of the computer and what to watch, and the program's
+listing with bytes and cycles, kept equal to the ROM by a scenario test. Found on the way:
+Escape in Properties' fields applied the typed text; it reverts now. Spec:
+[components.md](../components.md#graphics-draw), [editor.md](../editor.md#schematic-text).
+Decision: [ADR-0029](../adr/0029-schematic-graphics.md). Plan: `.ai/plans/feat-schematic-text.md`.
 
 ## Ideas
 

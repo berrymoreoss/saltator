@@ -4,7 +4,7 @@
 | ---------- | ----------------------------------------------------------------------------------- |
 | Branch     | `feat/schematic-text`                                                               |
 | Roadmap    | PLT-1 — Schematic text, track [Platform](../../docs/roadmap/platform.md)            |
-| Status     | in-progress                                                                         |
+| Status     | done                                                                                |
 | Depends on | R04b (place tool, Properties), R10a (schematic-only parts), R17a (the 6502 example) |
 | Created    | 2026-11-08                                                                          |
 
@@ -151,13 +151,13 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 
 Checkable statements; verified one by one in the finish-branch workflow.
 
-- [ ] `pnpm check` and `pnpm build` are green; `pnpm e2e` passes.
-- [ ] A Text placed from Parts ▸ Graphics or Place ▸ Text (`T`) shows on the canvas, moves,
+- [x] `pnpm check` and `pnpm build` are green; `pnpm e2e` passes.
+- [x] A Text placed from Parts ▸ Graphics or Place ▸ Text (`T`) shows on the canvas, moves,
   rotates (reads upright, lines in order), copies, undoes and survives save and reload.
-- [ ] Its text is edited in Properties over several lines; size and font change the drawing and
+- [x] Its text is edited in Properties over several lines; size and font change the drawing and
   the selection box.
-- [ ] A text is never in the netlist and adds no design-check messages.
-- [ ] The 6502 ROM and RAM example shows its description and its program listing; the listing
+- [x] A text is never in the netlist and adds no design-check messages.
+- [x] The 6502 ROM and RAM example shows its description and its program listing; the listing
   matches the ROM byte for byte (scenario test); its bench still passes.
 
 ## Open questions
@@ -178,12 +178,11 @@ Checkable statements; verified one by one in the finish-branch workflow.
   `rom-listing.test.ts` keeps the listing equal to U2 (checked by mutating a byte). Found and
   fixed (own commit, e2e regression test): Escape in Properties' fields applied the typed text
   instead of reverting it — the blur after Escape committed the stale draft.
+- 2026-11-08 — verified: `pnpm check`, `pnpm build`, `pnpm e2e` (91 passed; `lcd.spec.ts`'s
+  Hello, World failed once of five under load, its known wall-time poll — passes alone); a
+  scratch e2e moved, rotated, duplicated a text and found both after a reload; the example
+  and the gallery looked at in light and dark. Finished.
 
 ## Handoff
 
-- **State:** all tasks done; verifying acceptance criteria (finish-branch).
-- **Next step:** finish-branch: merge `main`, `pnpm check`, `pnpm build`, `pnpm e2e`, the
-  user's approval to merge.
-- **Watch out:** a sans text's box is an estimate (see `SANS_WIDTHS`); texts sit under the
-  circuit for the pointer (hit last).
-- **Verify with:** `pnpm check`, `pnpm e2e tests/e2e/text.spec.ts`, open 6502 ROM and RAM.
+- **State:** merged; nothing pending. Follow-ups are Platform ideas ("Schematic graphics").
