@@ -200,13 +200,18 @@ export interface BusLive {
 
 /**
  * What the host simulates and what the canvas shows of it (R11a): the design's flat netlist
- * and the scene of the circuit open, with the way from the scene's local ids to the netlist's.
- * The top circuit open, local ids are the flat ones; another circuit open isn't simulated as
- * drawn (R11b: an instance's), so it maps nothing.
+ * and the scene of the circuit open, with the way from the scene's local ids to the netlist's
+ * in the instance open (R11b) — the top's are the flat ones, `A1`'s are `A1/…`; a circuit the
+ * design places nowhere maps nothing.
  */
 export interface SimulationModel {
   readonly netlist: Netlist;
   readonly scene: Scene;
+  /**
+   * The instance path the scene is mapped through (`''` the top; undefined: nowhere). Another
+   * instance of the same circuit is the same netlist and scene, mapped otherwise.
+   */
+  readonly path: string | undefined;
   /** The flat net id of a net of the scene (its id in the scene's compile result). */
   flatNet(net: string): string | undefined;
   /** The netlist id of a part of the scene (`U1`), if the scene is what simulates. */
@@ -218,6 +223,7 @@ export function sceneModel(scene: Scene): SimulationModel {
   return {
     netlist: scene.compiled.netlist,
     scene,
+    path: '',
     flatNet: (net) => net,
     flatPart: (id) => id,
   };
@@ -910,13 +916,16 @@ export class Simulation {
   // ── Following the document ──────────────────────────────────────────────────────────────
 
   /**
-   * The document or the circuit shown changed (`renames`: old netlist id → new). Same
-   * structure: the simulator goes on as it is. Otherwise the simulation continues in the
+   * The document, the circuit shown or its instance changed (`renames`: old netlist id → new).
+   * Same structure: the simulator goes on as it is. Otherwise the simulation continues in the
    * recompiled netlist.
    */
   sync(model: SimulationModel | Scene, renames?: ReadonlyMap<string, string>): void {
     const next = 'netlist' in model ? model : sceneModel(model);
-    if (next.netlist === this.#model.netlist && next.scene === this.#model.scene) return;
+    const last = this.#model;
+    if (next.netlist === last.netlist && next.scene === last.scene && next.path === last.path) {
+      return;
+    }
     this.#model = next;
     const netlist = next.netlist;
     const previous = this.#netlist;

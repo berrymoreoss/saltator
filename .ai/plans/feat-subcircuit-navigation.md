@@ -177,7 +177,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   the open circuit, else the first instance, else undefined); `openInstance`, `goUp`, `goTop`,
   `openCircuit` to the first instance (Q1); `Snapshot.path` in the history; tests (edits,
   undo/redo across circuits, instance renames and deletes, Set as Top).
-- [ ] 2. `editor`: the simulation model of a path (`flatNet`/`flatPart`), `Simulation.sync` by
+- [x] 2. `editor`: the simulation model of a path (`flatNet`/`flatPart`), `Simulation.sync` by
   model; live levels, lights and bus values inside an instance; tests: two instances of one
   module drawn with their own levels, carry-over while inside, lights per instance.
 - [ ] 3. `editor`: Interact and the Probe tool inside — path-prefixed references, the context

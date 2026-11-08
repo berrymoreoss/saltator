@@ -13,9 +13,8 @@ import { Level, ns, strong } from '../core';
 import { testDriver } from '../core/testing';
 import { createDefaultRegistry } from '../library';
 import { Editor, type PointerInput } from './editor';
-import { FakeClock } from './fake-clock';
 import { selectionOf } from './selection';
-import { inverterCircuit, port, registerDesign } from './test-documents';
+import { inverterCircuit, latchedRegisters, port } from './test-documents';
 
 // The editor on documents with several circuits (R11a), headless: pointer input at 16 px a cell.
 const registry = createDefaultRegistry();
@@ -193,30 +192,7 @@ describe('Editor on documents', () => {
 
 describe('Editor on documents: simulating the design', () => {
   const library = createDefaultRegistry().register(testDriver);
-  const design = () => registerDesign(library);
-
-  /** Latches 1 into A1 and 0 into A2, while running, then pauses. */
-  function latched() {
-    const clock = new FakeClock();
-    clock.cost = 0.001;
-    const editor = new Editor(library, design(), {}, { simulation: { clock } });
-    const { simulation } = editor;
-    const step = (until: number) => {
-      simulation.runTo({ kind: 'time', until, label: 'test' });
-      for (let i = 0; i < 1000 && simulation.state === 'running'; i++) clock.frame(16);
-    };
-    simulation.run();
-    simulation.pause();
-    const act = (id: string, level: Level) => simulation.action(id, strong(level));
-    act('D1', Level.L1);
-    act('D2', Level.L0);
-    act('CK', Level.L0);
-    step(ns(100));
-    act('CK', Level.L1);
-    step(ns(200));
-    const q = (path: string) => simulation.simulator!.pinLevel(path, '1Q');
-    return { editor, simulation, step, q };
-  }
+  const latched = () => latchedRegisters(library);
 
   it('simulates the instances, each with its own state', () => {
     const { q } = latched();
@@ -235,16 +211,6 @@ describe('Editor on documents: simulating the design', () => {
     // Renamed inside the module: the state follows the new path in both instances.
     editor.renamePart('U1', 'U7');
     expect([q('A1/U7'), q('A2/U7')]).toEqual([Level.L1, Level.L0]);
-  });
-
-  it('draws only the top circuit with live levels and parts', () => {
-    const { editor, simulation } = latched();
-    const view = simulation.signalView()!;
-    expect(view.part('D1')).toBeDefined();
-    editor.openCircuit('reg');
-    const inside = simulation.signalView()!;
-    expect(inside.part('U1')).toBeUndefined();
-    expect(editor.flatPart('U1')).toBeUndefined();
   });
 
   it('probes and watches signals inside instances by path', () => {

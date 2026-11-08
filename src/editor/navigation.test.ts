@@ -7,11 +7,14 @@ import {
   replaceCircuit,
   setTopCircuit,
 } from '../circuit';
+import { Level, ns, strong } from '../core';
 import { testDriver } from '../core/testing';
 import { createDefaultRegistry } from '../library';
 import { Editor, type PointerInput } from './editor';
+import { FakeClock } from './fake-clock';
 import { selectionOf } from './selection';
-import { chainDesign } from './test-documents';
+import { chainDesign, lampDesign, latchedRegisters } from './test-documents';
+import { SignalStyle } from './theme';
 
 // Going into instances (R11b), headless: pointer input at 16 px a cell.
 const library = createDefaultRegistry().register(testDriver);
@@ -120,5 +123,81 @@ describe('Editor: the instance open', () => {
     expect(where(editor)).toEqual(['inverter', 'A2/A2']);
     editor.setDocument(chainDesign(library), { open: 'inverter', path: 'A7' });
     expect(where(editor)).toEqual(['inverter', 'A1/A1']);
+  });
+});
+
+describe('Editor: live levels inside an instance', () => {
+  /** The signal style at a pin tip of a part of the open circuit. */
+  const atPin = (editor: Editor, part: string, pin: string) => {
+    const tip = editor.scene.partById.get(part)!.pins.find((p) => p.name === pin)!.at;
+    return editor.simulation.signalView()!.point(tip);
+  };
+
+  it('draws each instance with its own levels, parts and pins', () => {
+    const { editor, simulation } = latchedRegisters(library);
+    editor.openCircuit('reg');
+    expect(editor.state.get().path).toBe('A1');
+    expect(editor.flatPart('U1')).toBe('A1/U1');
+    expect(atPin(editor, 'U1', '1Q')).toBe(SignalStyle.L1);
+    expect(simulation.signalView()!.part('U1')!.level('1Q')).toBe(Level.L1);
+    expect(simulation.pinStyle(editor.flatPart('U1')!, '1Q')).toBe(SignalStyle.L1);
+    // The same scene in A2: mapped again, its own levels.
+    editor.openInstance('A2');
+    expect(atPin(editor, 'U1', '1Q')).toBe(SignalStyle.L0);
+    expect(simulation.signalView()!.part('U1')!.level('1Q')).toBe(Level.L0);
+    editor.goTop();
+    expect(simulation.signalView()!.part('D1')).toBeDefined();
+  });
+
+  it('re-maps one scene for another instance path (the host compares paths too)', () => {
+    const { editor, simulation } = latchedRegisters(library);
+    editor.openInstance('A1');
+    const { design, scene } = editor.state.get();
+    simulation.sync({
+      netlist: design.netlist,
+      scene,
+      path: 'A2',
+      flatNet: (net) => design.netOf('A2', net),
+      flatPart: (id) => `A2/${id}`,
+    });
+    expect(atPin(editor, 'U1', '1Q')).toBe(SignalStyle.L0);
+    expect(simulation.signalView()!.part('U1')!.level('1Q')).toBe(Level.L0);
+  });
+
+  it('draws nothing live in a circuit the design places nowhere', () => {
+    const { editor, simulation } = latchedRegisters(library);
+    const { document, id } = addCircuit(editor.state.get().document, 'Spare');
+    editor.editDocument('Add Circuit', document, { open: id });
+    expect(editor.flatPart('U1')).toBeUndefined();
+    expect(simulation.signalView()!.part('U1')).toBeUndefined();
+  });
+
+  it('carries the run over an edit made inside an instance, which stays open', () => {
+    const { editor, simulation } = latchedRegisters(library);
+    editor.openInstance('A2');
+    const now = simulation.simulator!.now;
+    editor.placePart('prim/not');
+    click(editor, [60, 30]);
+    expect(editor.state.get().path).toBe('A2');
+    expect(simulation.simulator!.now).toBe(now);
+    expect(atPin(editor, 'U1', '1Q')).toBe(SignalStyle.L0);
+    editor.openInstance('A1');
+    expect(atPin(editor, 'U1', '1Q')).toBe(SignalStyle.L1);
+  });
+
+  it('shows each instance’s lights', () => {
+    const clock = new FakeClock();
+    const editor = new Editor(library, lampDesign(library), {}, { simulation: { clock } });
+    const { simulation } = editor;
+    simulation.run();
+    simulation.pause();
+    simulation.action('D1', strong(Level.L1));
+    simulation.action('D2', strong(Level.L0));
+    simulation.runTo({ kind: 'time', until: ns(100), label: 'test' });
+    for (let i = 0; i < 100 && simulation.state === 'running'; i++) clock.frame(16);
+    editor.openInstance('A1');
+    expect(simulation.signalView()!.part('D1')!.light(0)).toBe(1);
+    editor.openInstance('A2');
+    expect(simulation.signalView()!.part('D1')!.light(0)).toBe(0);
   });
 });

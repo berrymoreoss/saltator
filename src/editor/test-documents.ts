@@ -12,7 +12,9 @@ import {
   type Point,
   SCHEMA_VERSION,
 } from '../circuit';
-import type { ComponentRegistry } from '../core';
+import { type ComponentRegistry, Level, ns, strong } from '../core';
+import { Editor } from './editor';
+import { FakeClock } from './fake-clock';
 
 export function port(
   id: string,
@@ -93,6 +95,58 @@ export function registerDesign(library: ComponentRegistry): CircuitDocument {
     ['CLOCK', ['CK.Y', 'A1.CP', 'A2.CP']],
   ]);
   return { schemaVersion: SCHEMA_VERSION, circuits: [top.build(), module] };
+}
+
+/**
+ * The registers of `registerDesign` in an editor, run (on a fake clock) until 1 is latched
+ * into A1 and 0 into A2, then paused. `step(until)` runs to a time; `q(path)` reads `1Q`.
+ */
+export function latchedRegisters(library: ComponentRegistry) {
+  const clock = new FakeClock();
+  clock.cost = 0.001;
+  const editor = new Editor(library, registerDesign(library), {}, { simulation: { clock } });
+  const { simulation } = editor;
+  const step = (until: number) => {
+    simulation.runTo({ kind: 'time', until, label: 'test' });
+    for (let i = 0; i < 1000 && simulation.state === 'running'; i++) clock.frame(16);
+  };
+  simulation.run();
+  simulation.pause();
+  const act = (id: string, level: Level) => simulation.action(id, strong(level));
+  act('D1', Level.L1);
+  act('D2', Level.L0);
+  act('CK', Level.L0);
+  step(ns(100));
+  act('CK', Level.L1);
+  step(ns(200));
+  const q = (path: string) => simulation.simulator!.pinLevel(path, '1Q');
+  return { editor, simulation, clock, step, q };
+}
+
+/**
+ * `lamp`: an LED D1 from port IN to a ground rail, placed twice in Main — A1 fed by driver
+ * D1, A2 by D2.
+ */
+export function lampDesign(library: ComponentRegistry): CircuitDocument {
+  const b = new CircuitBuilder(library, { id: 'lamp', name: 'Lamp' });
+  b.add('D1', 'io/led', { at: [10, 0] });
+  b.add('PWR1', 'io/gnd', { at: [20, 6] });
+  const [a, k] = [b.pin('D1.A'), b.pin('D1.K')];
+  const built = b.build();
+  const lamp: Circuit = {
+    ...built,
+    components: [...built.components, port('P1', 'IN', a[0], a[1]), label('NL1', 'GND', k)],
+  };
+  const top = new CircuitBuilder(documentRegistry(shell([lamp], []), library));
+  top.add('A1', 'sub/lamp', { at: [30, 0] });
+  top.add('A2', 'sub/lamp', { at: [30, 20] });
+  top.add('D1', 'test/driver', { at: [0, 0] });
+  top.add('D2', 'test/driver', { at: [0, 20] });
+  join(top, [
+    ['X1', ['D1.Y', 'A1.IN']],
+    ['X2', ['D2.Y', 'A2.IN']],
+  ]);
+  return { schemaVersion: SCHEMA_VERSION, circuits: [top.build(), lamp] };
 }
 
 /** `inverter`: a NOT gate U1 between ports A (in) and Y (out), joined by labels at its pins. */

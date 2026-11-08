@@ -464,22 +464,26 @@ export class Editor {
     return this.state.get().scene;
   }
 
-  /** The netlist id of a part of the open circuit, if it simulates as drawn (the top is open). */
+  /**
+   * The netlist id of a part of the open circuit in the instance open (`U1` at the top,
+   * `A1/U1` inside A1); undefined in a circuit the design places nowhere.
+   */
   flatPart(id: string): string | undefined {
     return this.#model(this.state.get()).flatPart(id);
   }
 
-  /** What the simulation host runs and shows for a state. */
+  /** What the simulation host runs and shows for a state: the open scene in its instance. */
   #model(state: EditorState): SimulationModel {
     let model = this.#models.get(state);
     if (!model) {
-      const { design, scene } = state;
-      const simulated = state.circuit.id === design.top;
+      const { design, scene, path } = state;
+      const prefix = path ? `${path}/` : '';
       model = {
         netlist: design.netlist,
         scene,
-        flatNet: simulated ? (net) => design.netOf('', net) : () => undefined,
-        flatPart: simulated ? (id) => id : () => undefined,
+        path,
+        flatNet: path === undefined ? () => undefined : (net) => design.netOf(path, net),
+        flatPart: path === undefined ? () => undefined : (id) => prefix + id,
       };
       this.#models.set(state, model);
     }
