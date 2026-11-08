@@ -11,13 +11,17 @@ import {
   type DiagnosticInput,
   Drive,
   diagnosticSeverity,
+  formatImage,
   formatTime,
+  type ImageFile,
   Level,
   type MemoryDef,
   type Netlist,
   type NetlistNet,
   type PropValue,
+  parseImage,
   parseTime,
+  readIntelHex,
   resolveProps,
   SeededRandom,
   Simulator,
@@ -30,7 +34,7 @@ import {
 import { portBits } from '../checks';
 import { compileDesign, type Design } from '../design';
 import type { CircuitDocument } from '../document';
-import { Resolver } from '../resolve';
+import { parseAddress, Resolver } from '../resolve';
 import { circuitPorts } from '../subcircuit';
 import { parseTable, type Table } from './table';
 import {
@@ -146,6 +150,8 @@ export class CircuitBench {
   #failureCount = 0;
   readonly #logs: BenchLog[] = [];
   readonly #random: SeededRandom;
+  /** The images of ROMs the bench loaded, by part. */
+  readonly #roms = new Map<string, Uint8Array>();
   #netlist: Netlist;
   #sim: Simulator | undefined;
   #step: Time = DEFAULT_STEP;
@@ -329,6 +335,33 @@ export class CircuitBench {
     return value(this.#levels(output)[0]!);
   }
 
+  /**
+   * Bytes into a memory from `address` on (a number, or hex text as the Memory tab takes it):
+   * an array of numbers or hex text (`'2A 55 FF'`). A RAM takes them at once (`poke`); a ROM's
+   * image only before the simulation starts — before anything else in the bench.
+   */
+  memory(ref: unknown, address: unknown, bytes: unknown): void {
+    const name = this.#ref(ref, 'memory');
+    const target = this.#memory(name);
+    const at = memoryAddress(address, target.memory.words, name);
+    this.#write(target, name, at, memoryData(bytes, target.memory.width, name));
+  }
+
+  /** An Intel HEX image (its text) into a memory, record by record (as `memory`). */
+  loadIntelHex(ref: unknown, text: unknown): void {
+    const name = this.#ref(ref, 'loadIntelHex');
+    if (typeof text !== 'string')
+      throw new BenchError(`loadIntelHex: the file's text, got ${show(text)}`);
+    const target = this.#memory(name);
+    let file: ImageFile;
+    try {
+      file = readIntelHex(text);
+    } catch (error) {
+      throw new BenchError(`${name}: ${(error as Error).message}`);
+    }
+    for (const chunk of file.chunks) this.#write(target, name, chunk.address, [...chunk.bytes]);
+  }
+
   /** A failure that ends the bench. */
   fail(message: unknown): never {
     this.#fail({ time: this.now, message: String(message) });
@@ -465,6 +498,57 @@ export class CircuitBench {
     } catch (error) {
       throw new BenchError(`${ref}: ${(error as Error).message}`);
     }
+  }
+
+  #memory(ref: string): { part: string; memory: MemoryDef; image?: string } {
+    const target = this.#resolver.resolve(ref);
+    if (typeof target === 'string') throw new BenchError(`${ref}: ${target}`);
+    const definition = target.kind === 'part' ? this.#registry.get(target.type) : undefined;
+    if (target.kind !== 'part' || !definition?.memory) {
+      throw new BenchError(`${ref} is not a memory`);
+    }
+    const memory = definition.memory as MemoryDef;
+    if (memory.volatile) return { part: target.part, memory };
+    const image = definition.props?.find((p) => p.type === 'image')?.key;
+    if (image === undefined) throw new BenchError(`${ref} is a ROM without an image to load`);
+    return { part: target.part, memory, image };
+  }
+
+  #write(
+    target: { part: string; memory: MemoryDef; image?: string },
+    ref: string,
+    address: number,
+    bytes: readonly number[],
+  ): void {
+    const { part, memory, image } = target;
+    if (address + bytes.length > memory.words) {
+      throw new BenchError(
+        `${ref}: ${bytes.length} bytes at ${hex(address)} reach past the last address ${hex(memory.words - 1)}`,
+      );
+    }
+    if (image === undefined) {
+      this.#act(part, { type: 'poke', address, data: [...bytes] }, ref);
+      return;
+    }
+    if (this.#sim) {
+      throw new BenchError(
+        `${ref} is a ROM: load its image before anything else in the bench (it is read at power-on)`,
+      );
+    }
+    let contents = this.#roms.get(part);
+    if (!contents) {
+      const component = this.#netlist.components.find((c) => c.id === part)!;
+      const text = component.props?.[image];
+      contents = parseImage(typeof text === 'string' ? text : '', memory.words);
+      this.#roms.set(part, contents);
+    }
+    contents.set(bytes, address);
+    this.#netlist = {
+      ...this.#netlist,
+      components: this.#netlist.components.map((c) =>
+        c.id === part ? { ...c, props: { ...c.props, [image]: formatImage(contents) } } : c,
+      ),
+    };
   }
 
   // ── Checks ─────────────────────────────────────────────────────────────────────────────
@@ -673,6 +757,48 @@ export class CircuitBench {
     return value;
   }
 }
+
+/** A memory address: a number, or hex text (`'7F0'`, `'0x7F0'`, `'$7F0'`). */
+function memoryAddress(address: unknown, words: number, ref: string): number {
+  if (typeof address === 'number' && Number.isInteger(address) && address >= 0 && address < words) {
+    return address;
+  }
+  if (typeof address === 'string') {
+    const parsed = parseAddress(address, words);
+    if (typeof parsed === 'number') return parsed;
+    throw new BenchError(`${ref}: ${parsed}`);
+  }
+  throw new BenchError(`${ref}: an address 0…${hex(words - 1)}, got ${show(address)}`);
+}
+
+/** Bytes to write: numbers (an array or a typed array) or hex text (`'2A 55 FF'`). */
+function memoryData(bytes: unknown, width: number, ref: string): number[] {
+  const values: unknown[] =
+    typeof bytes === 'string'
+      ? bytes
+          .trim()
+          .split(/[\s,]+/)
+          .filter((b) => b !== '')
+          .map((b) =>
+            /^(?:0x|\$)?[0-9a-f]{1,2}$/i.test(b)
+              ? Number.parseInt(b.replace(/^(0x|\$)/i, ''), 16)
+              : b,
+          )
+      : Array.isArray(bytes) || ArrayBuffer.isView(bytes)
+        ? [...(bytes as ArrayLike<unknown> & Iterable<unknown>)]
+        : [bytes];
+  const max = 2 ** width - 1;
+  return values.map((value) => {
+    if (typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= max) {
+      return value;
+    }
+    throw new BenchError(
+      `${ref}: bytes are numbers 0…${max} or hex text ('2A 55'), got ${show(value)}`,
+    );
+  });
+}
+
+const hex = (n: number) => `0x${n.toString(16).toUpperCase()}`;
 
 /** Whether a level turns a switch on; only 0 and 1 do anything. */
 function onOff(level: Level, ref: string): boolean {

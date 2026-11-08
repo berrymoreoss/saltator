@@ -49,6 +49,16 @@ function memory(): Circuit {
   return c.b.build();
 }
 
+/** `roms`: a PROM addressed through ports, its data out on `D[0..7]`. */
+function roms(): Circuit {
+  const c = builder('roms', 'ROMs');
+  c.add('U1', 'test/prom', 0, 0, { contents: '0000:11223344' });
+  c.port('U1.A0', 'A0', 'in');
+  c.port('U1.A1', 'A1', 'in');
+  for (let i = 0; i < 8; i++) c.label(`U1.D${i}`, `D${i}`);
+  return c.b.build();
+}
+
 /** `panel`: a switch into a flip-flop clocked by a manual clock; a button and a DIP switch. */
 function panel(): Circuit {
   const c = builder('main', 'Main');
@@ -77,7 +87,7 @@ const doc = (...circuits: Circuit[]): CircuitDocument => ({
   schemaVersion: SCHEMA_VERSION,
   circuits,
 });
-const document = doc(panel(), cell(), memory());
+const document = doc(panel(), cell(), memory(), roms());
 const bench = (circuit: string, options = {}) =>
   new CircuitBench(document, circuit, registry, options);
 const messages = (b: CircuitBench) => b.report().failures.map((f) => f.message);
@@ -167,6 +177,60 @@ describe('CircuitBench on a subcircuit', () => {
     expect(() => b.expect({ 'U1[0..2]': [1, 2] })).toThrow(
       'U1[0..2]: expected 3 values (an array), got [1,2]',
     );
+  });
+});
+
+describe('CircuitBench.memory', () => {
+  it('pokes bytes into a RAM, at any time, as numbers or hex text', () => {
+    const b = bench('memory');
+    b.memory('U1', 0, [0x2a, 0x55]);
+    b.memory('U1', '0x0E', '01 $FF');
+    b.memory('U1', 2, 0x7f);
+    b.expect({ 'U1[0..3]': [0x2a, 0x55, 0x7f, 'unknown'], 'U1[E..F]': [1, 0xff] });
+    b.row({ 'A[0..3]': 15 }, { 'D[0..7]': 0xff });
+    b.memory('U1', 'F', [0x80]); // while running: the outputs follow
+    b.wait(ns(10));
+    b.expect({ 'D[0..7]': 0x80 });
+    expect(b.report().status).toBe('pass');
+  });
+
+  it('loads an Intel HEX image', () => {
+    const b = bench('memory');
+    // Two bytes at 0x0004 and one at 0x000F (checksums computed by a script).
+    b.loadIntelHex('U1', ':020004002A557B\n:01000F00AB45\n:00000001FF\n');
+    b.expect({ 'U1[4..5]': [0x2a, 0x55], 'U1[F]': 0xab });
+    expect(b.report().status).toBe('pass');
+    expect(() => b.loadIntelHex('U1', ':0100000000FE\n')).toThrow(/^U1: .*checksum/);
+    expect(() => b.loadIntelHex('U1', 3)).toThrow("loadIntelHex: the file's text, got 3");
+  });
+
+  it('replaces a ROM’s image before power-on, that instance only', () => {
+    const b = bench('roms');
+    b.memory('U1', 1, [0xa5]);
+    b.memory('U1', 3, '5A');
+    b.row({ A0: 1, A1: 0 }, { 'D[0..7]': 0xa5, 'U1[0..3]': [0x11, 0xa5, 0x33, 0x5a] });
+    b.row({ A0: 0 }, { 'D[0..7]': 0x11 });
+    expect(b.report().status).toBe('pass');
+    expect(document.circuits[3]!.components[0]!.props).toEqual({ contents: '0000:11223344' });
+    expect(() => b.memory('U1', 0, [0])).toThrow(
+      'U1 is a ROM: load its image before anything else in the bench (it is read at power-on)',
+    );
+  });
+
+  it('refuses what isn’t a memory, addresses past it and bytes that aren’t', () => {
+    const b = bench('memory');
+    expect(() => b.memory('PA', 0, [1])).toThrow('PA: no part or net named PA');
+    expect(() => b.memory('A0', 0, [1])).toThrow('A0 is not a memory');
+    expect(() => b.memory('U1', 16, [1])).toThrow('U1: an address 0…0xF, got 16');
+    expect(() => b.memory('U1', '10', [1])).toThrow('U1: The last address is F.');
+    expect(() => b.memory('U1', 15, [1, 2])).toThrow(
+      'U1: 2 bytes at 0xF reach past the last address 0xF',
+    );
+    expect(() => b.memory('U1', 0, [256])).toThrow(
+      "U1: bytes are numbers 0…255 or hex text ('2A 55'), got 256",
+    );
+    expect(() => b.memory('U1', 0, 'zz')).toThrow('got "zz"');
+    expect(() => bench('main').memory('U1', 0, [1])).toThrow('U1 is not a memory');
   });
 });
 

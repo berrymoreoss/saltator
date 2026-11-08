@@ -11,6 +11,7 @@ import {
   Level,
   ns,
   type PinDef,
+  parseImage,
   Registry,
   strong,
 } from '../../core';
@@ -225,6 +226,39 @@ export const testRam = defineComponent<Record<string, never>, RamState>({
   },
 });
 
+/** `test/prom`: 4 bytes from its `contents` image; reads `A0`, `A1` onto `D0`–`D7` after 5 ns. */
+export const testProm = defineComponent<{ contents: string }, { bytes: Uint8Array }>({
+  type: 'test/prom',
+  name: 'PROM',
+  title: 'Test ROM with an image',
+  props: [{ key: 'contents', label: 'Contents', type: 'image', default: '', max: 4 }],
+  pins: [
+    { name: 'A0', dir: 'in' },
+    { name: 'A1', dir: 'in' },
+    ...[0, 1, 2, 3, 4, 5, 6, 7].map((i): PinDef => ({ name: `D${i}`, dir: 'out' })),
+  ],
+  memory: {
+    words: 4,
+    width: 8,
+    volatile: false,
+    addressPins: ['A0', 'A1'],
+    view: (state) => ({ data: state.bytes, unknown: new Uint8Array(4), ...createAccessStamps(4) }),
+  },
+  create: ({ contents }) => ({
+    createState: () => ({ bytes: parseImage(contents, 4) }),
+    evaluate(ctx) {
+      const a0 = ctx.read(0);
+      const a1 = ctx.read(1);
+      const known = (l: Level) => l === Level.L0 || l === Level.L1;
+      const byte = known(a0) && known(a1) ? ctx.state.bytes[a0 | (a1 << 1)]! : undefined;
+      for (let b = 0; b < 8; b++) {
+        const level = byte === undefined ? Level.X : (((byte >> b) & 1) as Level);
+        ctx.drive(2 + b, strong(level), ns(5));
+      }
+    },
+  }),
+});
+
 /** The circuit test parts with the bench's. */
 export function benchTestRegistry(): Registry {
   return new Registry([
@@ -239,5 +273,6 @@ export function benchTestRegistry(): Registry {
     testClock,
     testDff,
     testRam,
+    testProm,
   ]);
 }

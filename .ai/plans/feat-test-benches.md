@@ -270,7 +270,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   `get`, soft failures, diagnostics policy, the report.
 - [x] 5. `circuit`: `` b.table`…` `` — header, rows, `-`, `C`, interpolations, comments,
   errors with lines.
-- [ ] 6. `circuit`: memories — `b.memory`, `b.loadIntelHex`; RAM `poke`, ROM image before
+- [x] 6. `circuit`: memories — `b.memory`, `b.loadIntelHex`; RAM `poke`, ROM image before
   power-on; power-on ordering.
 - [ ] 7. `circuit`: `ScriptHost`, `loadTestScript`, `runBench` — registration, lines,
   `b.random`/`b.log`/`b.fail`, Promises refused.
