@@ -31,6 +31,7 @@ export {
   type BenchResponse,
   type BenchService,
   benchService,
+  type PlannedBench,
   type RunTarget,
 } from './bench/service';
 export { BenchError } from './bench/values';

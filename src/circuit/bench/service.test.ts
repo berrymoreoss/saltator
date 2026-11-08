@@ -73,8 +73,8 @@ describe('benchService', () => {
       kind: 'planned',
       job: 7,
       benches: [
-        { circuit: 'cell', bench: 'high' },
-        { circuit: 'cell', bench: 'wrong' },
+        { circuit: 'cell', bench: 'high', line: 1 },
+        { circuit: 'cell', bench: 'wrong', line: 2 },
       ],
     });
     expect(replies.every((r) => r.job === 7)).toBe(true);

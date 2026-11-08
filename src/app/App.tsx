@@ -16,6 +16,7 @@ import {
   exampleSession,
   IndexedDbRecentStore,
   IndexedDbSessionStore,
+  iframeSandbox,
   KEPT_SESSIONS,
   openDatabase,
   RecentFiles,
@@ -23,6 +24,7 @@ import {
   reportVia,
   sameFileHandle,
   sessionToRestore,
+  TestRunner,
   Workbench,
 } from '../ui';
 import { EXAMPLE_FILES, exampleDocument } from './example-files';
@@ -69,6 +71,14 @@ const settings = createSettingsStore();
 const ui = createUiState();
 const files = browserFileAccess();
 const images = browserImageAccess();
+// Test scripts run in a sandbox (R15b): the runner bundle, loaded the first time it's needed.
+const runnerSource = () =>
+  import('virtual:bench-runner').then(({ benchRunnerSource }) => benchRunnerSource);
+/** Lists scripts as they are typed; runs benches (two sandboxes: a run doesn't hold lists up). */
+const tests = {
+  checker: new TestRunner(iframeSandbox(runnerSource)),
+  runner: new TestRunner(iframeSandbox(runnerSource)),
+};
 const documents = new DocumentController({
   editor,
   files,
@@ -168,7 +178,9 @@ if (recent) {
 }
 
 // Dev builds expose the editor for poking at it from the console.
-if (import.meta.env.DEV) Object.assign(window, { logicEditor: editor, logicDocuments: documents });
+if (import.meta.env.DEV) {
+  Object.assign(window, { logicEditor: editor, logicDocuments: documents, logicTests: tests });
+}
 
 /** The composition root: one editor, the settings and UI stores, the workbench around them. */
 export function App() {

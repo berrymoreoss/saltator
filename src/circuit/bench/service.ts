@@ -16,6 +16,13 @@ import {
   type TestScript,
 } from './script';
 
+/** A bench a run will run: its circuit, its name, the line of its `bench(…)` call. */
+export interface PlannedBench {
+  readonly circuit: string;
+  readonly bench: string;
+  readonly line?: number;
+}
+
 /** The benches of one circuit to run: all of them, or these by name. */
 export interface RunTarget {
   readonly circuit: string;
@@ -41,7 +48,7 @@ export type BenchResponse =
   | {
       readonly kind: 'planned';
       readonly job: number;
-      readonly benches: readonly { readonly circuit: string; readonly bench: string }[];
+      readonly benches: readonly PlannedBench[];
     }
   /** The bench `index` of the plan starts now. */
   | { readonly kind: 'started'; readonly job: number; readonly index: number }
@@ -96,7 +103,7 @@ function run(
 ): void {
   // Each script loaded once to plan the run (its benches, or its error); each bench loads it
   // afresh when it runs, as `runBench` does.
-  const plan: { circuit: string; bench: string }[] = [];
+  const plan: PlannedBench[] = [];
   const errors = new Map<string, NonNullable<TestScript['error']>>();
   for (const { circuit, benches } of targets) {
     let script: TestScript;
@@ -111,7 +118,10 @@ function run(
       continue;
     }
     // Benches asked for by name run even when the script lost them: they report the error.
-    for (const bench of benches ?? script.benches.map((b) => b.name)) plan.push({ circuit, bench });
+    for (const bench of benches ?? script.benches.map((b) => b.name)) {
+      const line = script.benches.find((b) => b.name === bench)?.line;
+      plan.push({ circuit, bench, ...(line !== undefined && { line }) });
+    }
   }
   reply({ kind: 'planned', job, benches: plan });
   for (const [circuit, error] of errors) reply({ kind: 'script-error', job, circuit, error });

@@ -254,7 +254,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 3. The runner bundle: `src/app/bench-worker.ts`, the Vite plugin and `virtual:bench-runner`
   (types, dev and build, rebuilt on change), layer check aware of it; a test that the bundle
   builds and runs a bench (Node: evaluating the IIFE with a fake `self`).
-- [ ] 4. `ui`: the sandbox client (`test-runner.ts`): iframe, CSP, blob worker, port, jobs,
+- [x] 4. `ui`: the sandbox client (`test-runner.ts`): iframe, CSP, blob worker, port, jobs,
   progress, time limits, Cancel, restart, start failures; syntax-error lines. Unit-tested over
   a fake transport; the real sandbox in e2e.
 - [ ] 5. `ui`: `tests-view.ts` — results per circuit, stale tracking, badge counts, failure rows,
@@ -306,6 +306,14 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - 2026-11-08 — plan drafted; sandbox and bundling spiked in Chromium (scratchpad, not
   committed); Q1–Q4 answered as proposed.
 - 2026-11-08 — plan approved; branch started (roadmap: R15b in-progress).
+- 2026-11-08 — tasks 1–4 done. Decisions on the way: the CSP needs `'unsafe-eval'` (the blob
+  worker inherits it, and the script host is `new Function`); a syntax error's line comes from
+  a nested worker parsing the script (`ErrorEvent.lineno`; not muted in the opaque origin), as
+  V8's `new Function` gives none; two runners (a checker for lists while typing, a runner for
+  runs), each answering one request at a time; a bench over its time limit is an error and the
+  rest of the plan runs in a fresh sandbox; Cancel removes the iframe (its worker goes with
+  it). Verified in Chromium on `vite dev` (RAM by Hand passes, 110 ms; IndexedDB denied,
+  `localStorage` undefined, origin `null`); the runner is a lazy 222 KB chunk in `pnpm build`.
 
 ## Handoff
 
