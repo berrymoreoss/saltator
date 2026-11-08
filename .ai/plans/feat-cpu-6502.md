@@ -282,7 +282,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 11. Example: 6502 NOP Sled with its bench; looked at in the browser.
 - [x] 12. Example: 6502 program from ROM with its bench; looked at in the browser; an e2e check
   that it runs.
-- [ ] 13. Docs: components.md (`cpu` family, W65C02S), simulation.md (CPU inspection),
+- [x] 13. Docs: components.md (`cpu` family, W65C02S), simulation.md (CPU inspection),
   architecture.md, glossary, editor.md examples, ADR-0028, library README, lessons, the
   track file (R17a built), MOS and Parts ideas.
 
@@ -394,18 +394,18 @@ Checkable statements; verified one by one in the finish-branch workflow.
   bus on hex displays, probes), a program counting at $0010 and $0200 through a subroutine; its
   bench checks the stack and ten counts in 340 ms. `tests/e2e/cpu.spec.ts`: both examples'
   benches pass in the Tests tab; looked at in the browser.
+- 2026-11-08 — task 13: docs — components.md (`cpu` family, the W65C02S section), simulation.md
+  (`cpu-lost` an error), architecture.md, glossary (opcode fetch, PHI2, RDY, reset vector,
+  SingleStepTests), editor.md (both examples), ADR-0028 (CPU model) and its index row, library
+  README, the track file (R17a built), lessons. All 13 tasks done.
 
 ## Handoff
 
-- **State:** tasks 1–12 done: the core (all of SingleStepTests), the part `cpu/w65c02s`,
-  scenarios with ROM/RAM, the carry-over property with a CPU (which fixed a memory read-stamp
-  bug), the benchmark, the examples 6502 NOP Sled and 6502 ROM and RAM with an e2e spec.
-- **Next step:** task 13 — docs: components.md (a `cpu` section for the W65C02S: pins, timing,
-  the bus cycle, control lines, unknowns, deviations from SingleStepTests; families table),
-  simulation.md (CPU inspection — done in task 2; `cpu-lost` severity), architecture.md (CPUs no
-  longer planned), glossary (65C02 terms: PHI2, SYNC, VPB, MLB, RDY, BE, RESB…), editor.md
-  (the two examples in Examples), ADR-0028 (+ index row), `src/library/README.md` (`cpu/`), the
-  track file (R17a: what was built, links), lessons (Q8: the 574 port). Then finish-branch.
+- **State:** all 13 tasks done and committed; `pnpm check` green (3012 tests), `pnpm test:65c02`
+  green (2.54M cases), `tests/e2e/cpu.spec.ts` green. Plan status still `in-progress`.
+- **Next step:** the finish-branch workflow — merge `main` in, `pnpm check`, `pnpm build`,
+  `pnpm test:65c02`, `pnpm e2e`, walk the acceptance criteria (tick them), plan status `done`,
+  track status `done`, then merge with the user's approval.
 - **Watch out:** component state must stay plain data (snapshots freeze it: no closures,
   generators, `Map`s); `evaluate` idempotent with nothing changed (carry-over); enumerate
   nothing per unknown bit in the CPU (masks, not outcomes).

@@ -1315,6 +1315,17 @@ title and a description, in gallery order):
   counter at 2048 through a 74HC32. RESET first (the counter powers on unknown). Its waits are
   counted for 10 kHz: clocked faster, the LCD reports instructions sent while busy. Probes on
   CLK, E, RS and DB4–DB7.
+- **6502 NOP Sled** (R17a) — Ben Eater's first 6502 step: a W65C02S whose data bus reads $EA
+  (`NOP`) through pull resistors, a 10 Hz clock, RESET (a button with a pull-up), pull-ups on
+  RDY, IRQB, NMIB, BE and SOB, the address and data buses on hex displays and probed. After
+  RESET it reads the vector at $FFFC/$FFFD (VPB LOW) — $EAEA — and counts up, two cycles a NOP;
+  before RESET everything is unknown, as on the bench before the reset button.
+- **6502 ROM and RAM** (R17a) — the computer of Ben Eater's 6502 without its VIA: a W65C02S, an
+  AT28C256 at $8000–$FFFF with the program in its image, a 62256 at $0000–$3FFF, a 74HC00
+  decoding them (ROM CE̅ = NOT A15; RAM CE̅ = NAND(PHI2, NOT A15), OE̅ = A14, WE̅ = RWB), a 1 kHz
+  clock, RESET. The program counts at $0010 and stores the count at $0200 through a subroutine
+  (the stack at $01FF): the Memory tab lights the cells. An LED port waits for the VIA (R18): a
+  74HC574 strobed from PHI2 misses the CPU's 10 ns write data hold.
 - **SAP-1 Program Counter** — Ben Eater's program counter: a 74HC161 (CLR, CE, J) loading from a
   4-bit bus, a 74HC245 putting it on the bus (CO); the bus has pull-downs, a BUS bar and a
   DATA switch stand-in through another 74HC245. Unknown until CLR.
