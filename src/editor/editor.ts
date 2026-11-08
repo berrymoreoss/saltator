@@ -1542,15 +1542,27 @@ export class Editor {
   }
 
   /**
-   * Selects the wires of a net the simulator names (a diagnostic's `net`) and brings them into
-   * view; a net without wires (pin on pin) locates the part its id starts with (`U1.Y`).
+   * `locate` for a part of the design by netlist id (`U5`, `A1/U3`, a diagnostic's
+   * `component`): goes into the instance it is in first (R11b).
+   */
+  locatePart(id: string, options: { zoom?: boolean } = {}): void {
+    const { path, local } = this.#enter(id);
+    if (path !== undefined) this.locate({ component: local }, options);
+  }
+
+  /**
+   * Selects the wires of a net the simulator names (a diagnostic's `net`: `CLK`, `A1/U2.Y`) and
+   * brings them into view, in the instance its id is in (its outermost); a net without wires
+   * (pin on pin) locates the part its id starts with (`U2.Y`).
    */
   locateNet(net: string, options: { zoom?: boolean } = {}): void {
+    const { path, local } = this.#enter(net);
+    if (path === undefined) return;
     const wires = this.simulation
       .wiresOfNet(net)
       .flatMap((id) => this.scene.wireById.get(id) ?? []);
     if (wires.length === 0) {
-      const component = net.split('.')[0];
+      const component = local.split('.')[0];
       if (component) this.locate({ component }, options);
       return;
     }
@@ -1566,6 +1578,19 @@ export class Editor {
     const y = Math.min(...ys);
     const rect = { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y };
     this.#bringIntoView(rect, options.zoom === true);
+  }
+
+  /**
+   * Goes into the instance a flat id is in (`A1/U3` → A1, `U5` → the top): its path and the id
+   * inside it, or no path when the design has no such instance.
+   */
+  #enter(id: string): { readonly path: string | undefined; readonly local: string } {
+    const slash = id.lastIndexOf('/');
+    const path = slash < 0 ? '' : id.slice(0, slash);
+    const local = id.slice(slash + 1);
+    if (this.state.get().design.circuitAt(path) === undefined) return { path: undefined, local };
+    this.openInstance(path);
+    return { path, local };
   }
 
   #bringIntoView(rect: Rect, zoom: boolean): void {
@@ -1750,18 +1775,21 @@ export class Editor {
 
   #spotAt(screen: Point): ProbeSpot | string | undefined {
     const { camera } = this.view.get();
-    const { circuit, design, document } = this.state.get();
-    // Probes, watches and breakpoints are of what simulates: the top circuit as drawn.
-    if (circuit.id !== design.top) {
-      const top = document.circuits[0]!.name;
-      return `Only ${top}, the top circuit, simulates as drawn: probe there, or type a path in Waveforms (A1/U1.Y)`;
-    }
-    return probeSpotAt(
+    const { circuit, document, path } = this.state.get();
+    const spot = probeSpotAt(
       this.scene,
       this.registry,
       toWorld(camera, screen),
       HIT_TOLERANCE / camera.scale,
     );
+    if (spot === undefined || typeof spot === 'string' || path === '') return spot;
+    // Probes, watches and breakpoints are of what simulates: inside an instance, by its path,
+    // named as read there (R11b, Q4: `A1/Q0`, not the outer net's name).
+    if (path === undefined) {
+      const top = document.circuits[0]!.name;
+      return `${circuit.name} isn't placed in ${top}, so it doesn't simulate: place it to probe it.`;
+    }
+    return { ...spot, ref: `${path}/${spot.ref}` };
   }
 
   /** The Probe tool's click: adds what is under the pointer to the waveforms, or removes it. */

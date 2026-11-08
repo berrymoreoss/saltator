@@ -180,7 +180,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 2. `editor`: the simulation model of a path (`flatNet`/`flatPart`), `Simulation.sync` by
   model; live levels, lights and bus values inside an instance; tests: two instances of one
   module drawn with their own levels, carry-over while inside, lights per instance.
-- [ ] 3. `editor`: Interact and the Probe tool inside — path-prefixed references, the context
+- [x] 3. `editor`: Interact and the Probe tool inside — path-prefixed references, the context
   menu's spot; `locate`/`locateNet` by flat ids going into the instance; tests.
 - [ ] 4. `editor`: double-click goes into the instance; Go Up selects the instance one came
   from, in view; tests.

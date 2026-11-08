@@ -221,7 +221,7 @@ describe('Editor on documents: simulating the design', () => {
     expect(editor.debug.addWatch('A2/Q')).toBeUndefined();
     step(ns(300));
     expect(editor.debug.watches.get().map((w) => [w.label, w.value])).toEqual([['A2/Q', '0']]);
-    // Probing from the canvas works on the top only.
+    // The probes are the top circuit's, whichever circuit is open.
     editor.openCircuit('reg');
     expect(editor.analyzer.probes).toEqual([{ ref: 'A1/U1.1Q' }]);
   });

@@ -149,6 +149,26 @@ export function lampDesign(library: ComponentRegistry): CircuitDocument {
   return { schemaVersion: SCHEMA_VERSION, circuits: [top.build(), lamp] };
 }
 
+/** `toggle`: a switch SW1 on port Y, placed twice in Main (A1, A2; outputs on labels Q1, Q2). */
+export function toggleDesign(library: ComponentRegistry): CircuitDocument {
+  const b = new CircuitBuilder(library, { id: 'toggle', name: 'Toggle' });
+  b.add('SW1', 'io/switch', { at: [0, 0] });
+  const y = b.pin('SW1.Y');
+  const built = b.build();
+  const toggle: Circuit = {
+    ...built,
+    components: [...built.components, port('P1', 'Y', y[0], y[1], 'out')],
+  };
+  const top = new CircuitBuilder(documentRegistry(shell([toggle], []), library));
+  top.add('A1', 'sub/toggle', { at: [30, 0] });
+  top.add('A2', 'sub/toggle', { at: [30, 20] });
+  join(top, [
+    ['Q1', ['A1.Y']],
+    ['Q2', ['A2.Y']],
+  ]);
+  return { schemaVersion: SCHEMA_VERSION, circuits: [top.build(), toggle] };
+}
+
 /** `inverter`: a NOT gate U1 between ports A (in) and Y (out), joined by labels at its pins. */
 export function inverterCircuit(library: ComponentRegistry): Circuit {
   const b = new CircuitBuilder(library, { id: 'inverter', name: 'Inverter' });

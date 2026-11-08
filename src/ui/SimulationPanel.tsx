@@ -115,7 +115,7 @@ function Diagnostics({ editor }: { readonly editor: Editor }) {
     );
   }
   const locate = (d: Diagnostic, zoom: boolean) => {
-    if (d.component) editor.locate({ component: d.component }, { zoom });
+    if (d.component) editor.locatePart(d.component, { zoom });
     else if (d.net) editor.locateNet(d.net, { zoom });
   };
   return (

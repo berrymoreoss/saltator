@@ -13,7 +13,7 @@ import { createDefaultRegistry } from '../library';
 import { Editor, type PointerInput } from './editor';
 import { FakeClock } from './fake-clock';
 import { selectionOf } from './selection';
-import { chainDesign, lampDesign, latchedRegisters } from './test-documents';
+import { chainDesign, lampDesign, latchedRegisters, toggleDesign } from './test-documents';
 import { SignalStyle } from './theme';
 
 // Going into instances (R11b), headless: pointer input at 16 px a cell.
@@ -199,5 +199,99 @@ describe('Editor: live levels inside an instance', () => {
     expect(simulation.signalView()!.part('D1')!.light(0)).toBe(1);
     editor.openInstance('A2');
     expect(simulation.signalView()!.part('D1')!.light(0)).toBe(0);
+  });
+});
+
+describe('Editor: tools inside an instance', () => {
+  /** The world point halfway along a pin of a part of the open circuit. */
+  const onPin = (editor: Editor, part: string, pin: string): Point => {
+    const p = editor.scene.partById.get(part)!.pins.find((q) => q.name === pin)!;
+    return [(p.base[0] + p.at[0]) / 2, (p.base[1] + p.at[1]) / 2];
+  };
+  const center = (editor: Editor, part: string): Point => {
+    const { x, y, width, height } = editor.scene.partById.get(part)!.body;
+    return [x + width / 2, y + height / 2];
+  };
+  function running(document: CircuitDocument) {
+    const clock = new FakeClock();
+    const editor = new Editor(library, document, {}, { simulation: { clock } });
+    editor.simulation.run();
+    return { clock, editor, state: (id: string) => editor.simulation.simulator!.stateOf(id) };
+  }
+
+  it('flips the switch of the instance open, and only that one', () => {
+    const { editor, state } = running(toggleDesign(library));
+    editor.openInstance('A2');
+    expect(editor.tool.get()).toBe('interact');
+    click(editor, center(editor, 'SW1'));
+    expect([state('A1/SW1'), state('A2/SW1')]).toEqual([{ on: false }, { on: true }]);
+    editor.openInstance('A1');
+    click(editor, center(editor, 'SW1'));
+    click(editor, center(editor, 'SW1'));
+    expect([state('A1/SW1'), state('A2/SW1')]).toEqual([{ on: false }, { on: true }]);
+  });
+
+  it('probes inside an instance by its path, named as read there; a second click removes it', () => {
+    const { editor } = running(chainDesign(library));
+    editor.setTool('probe');
+    editor.openInstance('A1/A2');
+    click(editor, onPin(editor, 'U1', 'Y'));
+    expect(editor.analyzer.probes).toEqual([{ ref: 'A1/A2/U1.Y' }]);
+    click(editor, center(editor, 'P1')); // the port A: its net, by its name inside
+    expect(editor.analyzer.probes.map((p) => 'ref' in p && p.ref)).toEqual([
+      'A1/A2/U1.Y',
+      'A1/A2/A',
+    ]);
+    expect(editor.analyzer.channels.get().map((c) => c.problem)).toEqual([undefined, undefined]);
+    editor.goUp();
+    click(editor, center(editor, 'NLMID0')); // a label in Chain, inside A1
+    expect(editor.analyzer.probes.at(-1)).toEqual({ ref: 'A1/MID' });
+    editor.openInstance('A1/A2');
+    click(editor, onPin(editor, 'U1', 'Y'));
+    expect(editor.analyzer.probes.map((p) => 'ref' in p && p.ref)).toEqual(['A1/A2/A', 'A1/MID']);
+  });
+
+  it('gives the context menu’s Add to Waveforms, Break When and Watch the path', () => {
+    const { editor } = running(chainDesign(library));
+    editor.openInstance('A2/A1');
+    const [x, y] = onPin(editor, 'U1', 'Y');
+    editor.pointerDown({ at: [x * 16, y * 16], button: 2, shift: false });
+    expect(editor.contextProbe?.ref).toBe('A2/A1/U1.Y');
+  });
+
+  it('refuses to probe a circuit the design places nowhere', () => {
+    const { editor } = running(chainDesign(library));
+    const doc = editor.state.get().document;
+    const { document, id } = addCircuit(doc, 'Spare');
+    const spare = document.circuits.find((c) => c.id === id)!;
+    editor.editDocument(
+      'Add Circuit',
+      replaceCircuit(document, {
+        ...spare,
+        components: doc.circuits.find((c) => c.id === 'inverter')!.components,
+      }),
+      { open: id },
+    );
+    editor.setTool('probe');
+    click(editor, onPin(editor, 'U1', 'Y'));
+    expect(editor.analyzer.probes).toEqual([]);
+    const request = editor.requests.get();
+    expect(request?.kind === 'probed' && request.problem).toBe(
+      "Spare isn't placed in Main, so it doesn't simulate: place it to probe it.",
+    );
+  });
+
+  it('locates a part or a net of the design in the instance it is in', () => {
+    const { editor } = running(chainDesign(library));
+    editor.locatePart('A1/A2/U1');
+    expect(where(editor)).toEqual(['inverter', 'A1/A2']);
+    expect([...editor.state.get().selection.parts]).toEqual(['U1']);
+    editor.locatePart('D2');
+    expect(where(editor)).toEqual(['main', '']);
+    expect([...editor.state.get().selection.parts]).toEqual(['D2']);
+    editor.locateNet('A2/MID');
+    expect(where(editor)).toEqual(['chain', 'A2']);
+    editor.locatePart('A9/U1');
+    expect(where(editor)).toEqual(['chain', 'A2']);
   });
 });
