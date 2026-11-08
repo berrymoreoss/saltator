@@ -277,7 +277,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   group); pin tests and measured windows.
 - [x] 9. The part: timing checks (`tDSR`, `tDHR`, `tPCS`, `tPCH`, clock), `RESB` width, `RDY`
   bidirectional with `WAI`, `BE`, unknown clock edges; tests at each limit.
-- [ ] 10. Scenarios (ROM/RAM program, lost and reset), carry-over property with the CPU, rewind
+- [x] 10. Scenarios (ROM/RAM program, lost and reset), carry-over property with the CPU, rewind
   coverage, benchmark recorded.
 - [ ] 11. Example: 6502 NOP Sled with its bench; looked at in the browser.
 - [ ] 12. Example: 6502 program from ROM with its bench; looked at in the browser; an e2e check
@@ -369,14 +369,25 @@ Checkable statements; verified one by one in the finish-branch workflow.
   registered part. Lessons: read BE only when it changes (init read it floating); the bench's
   RDY released without a pull-up loses the CPU — a real trap, now a test. Mutation-checked: 11
   mutants, 10 killed, 1 equivalent (`tAH − tDHR` is 0 in the 5 V column).
+- 2026-11-08 — task 10: `tests/scenarios/computer-6502.ts` (W65C02S + AT28C256 + 62256 + 74HC00,
+  Ben Eater's decoding) and `cpu-6502.test.ts`: a hand-assembled program (stack, JSR, loop) ends
+  with the expected RAM and registers at 1 and 4 MHz with no diagnostic; a jump into
+  uninitialized RAM loses the CPU (`cpu-lost`), a reset brings it back. The carry-over property
+  with a running CPU (two resets, random instants and instants on edges and wake-ups) found a
+  **bug in the memories' read path**: a recompile's re-drive stamped a read (`readAt`); fixed in
+  `memory.ts` (stamp only at data-valid or when an input changed), pinned by instants in the
+  start-up code (the loop re-reads its cells and hides it). Benchmark (`pnpm bench
+  tests/bench/cpu.bench.ts`, M3 Pro): **≈ 43 events per cycle, 8.0M events/s — 18 % of real
+  time at 1 MHz** (the BE6502 will run about 5× slower than the real board).
 
 ## Handoff
 
-- **State:** tasks 1–9 done: `CpuDef`, the opcode table, the core (all of SingleStepTests), the
-  part `cpu/w65c02s` with its timing and control lines, registered and tested on a bench.
-- **Next step:** task 10 — `tests/scenarios/cpu-6502.test.ts` (W65C02S + AT28C256 + 62256 +
-  74HC00 running a hand-assembled program; lost on uninitialized RAM; carry-over property with
-  the CPU) and `tests/bench/cpu.bench.ts`.
+- **State:** tasks 1–10 done: the core (all of SingleStepTests), the part `cpu/w65c02s`,
+  scenarios with ROM/RAM, the carry-over property with a CPU (which fixed a memory read-stamp
+  bug), the benchmark.
+- **Next step:** task 11 — the 6502 NOP Sled example (a throwaway generator in
+  `tests/scenarios/`, `CircuitBuilder`, net labels at the pins; its test bench; look at it in the
+  browser), then task 12 (program from ROM with a 74HC574 LED port), task 13 (docs).
 - **Watch out:** component state must stay plain data (snapshots freeze it: no closures,
   generators, `Map`s); `evaluate` idempotent with nothing changed (carry-over); enumerate
   nothing per unknown bit in the CPU (masks, not outcomes).
