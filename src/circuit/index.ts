@@ -74,6 +74,7 @@ export {
   renameInProbes,
   renameReference,
   sameCircuit,
+  sameDocument,
   sameProbes,
   translateCircuit,
   updateComponent,

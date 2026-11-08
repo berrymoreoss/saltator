@@ -12,6 +12,7 @@ import {
 } from '../core';
 import {
   type Circuit,
+  type CircuitDocument,
   type ComponentInstance,
   type GroupProbe,
   ID_PATTERN,
@@ -160,6 +161,15 @@ export function updateComponent(circuit: Circuit, id: string, patch: ComponentPa
   const components = [...circuit.components];
   components[index] = updated;
   return { ...circuit, components };
+}
+
+/** Whether two documents hold the same circuits in the same order (`sameCircuit` each). */
+export function sameDocument(a: CircuitDocument, b: CircuitDocument): boolean {
+  if (a === b) return true;
+  return (
+    a.circuits.length === b.circuits.length &&
+    a.circuits.every((circuit, i) => sameCircuit(circuit, b.circuits[i]!))
+  );
 }
 
 /** True if two circuits hold the same parts, wires and probes in the same order (by value). */

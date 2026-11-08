@@ -276,7 +276,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
   `memories()` with paths; `netReference`; `renameReference` for instance and inner renames.
 - [x] 6. `circuit`: document edit operations — add, rename, duplicate, delete (with instances),
   set top; part renames rewriting references across circuits; copy/paste carrying circuits.
-- [ ] 7. `editor`: the editor on documents — `document`, `design`, open circuit, `edit` /
+- [x] 7. `editor`: the editor on documents — `document`, `design`, open circuit, `edit` /
   `editDocument`, `setDocument`, document-wide history, a camera per circuit.
 - [ ] 8. `editor`: simulation host, timeline, analyzer, debugger, memory inspector on the
   design; renames expanded by path; live drawing only for the top; tests of editing a
@@ -350,20 +350,25 @@ Checkable statements; verified one by one in the finish-branch workflow.
   key that collides with a path gets `#2`. Bench: 16 × 50-part cells, two levels: compile and
   flatten 0.65 ms, flatten with circuits cached 0.49 ms (M3 Pro). Mutation-checked the checks and
   the flattening (three survivors became tests).
+- 2026-11-08 — tasks 5–7: resolver paths, document operations, the editor on documents
+  (`EditorState.document`/`design`, `edit`/`editDocument`, `setDocument`, `openCircuit`, a camera
+  per circuit, document-wide history with flat renames). The simulation host takes a
+  `SimulationModel` (design netlist + open scene + local→flat maps); `SignalMap.nets` is keyed by
+  flat ids. Clipboard text is a document: the fragment, then the circuits it needs.
 
 ## Handoff
 
-- **State:** tasks 1–4 done and committed (schema v4, `net/port`, `DocumentRegistry` +
-  subcircuit symbol, `compileDesign` in `src/circuit/design.ts`). The editor still edits and
-  simulates one circuit with the library registry: nothing in the app places instances yet.
-- **Next step:** task 5 — `Resolver` over a `Design` (instance paths). Today `Resolver` takes a
-  `CompileResult` (`src/circuit/resolve.ts`); users: memory inspector, analyzer, debugger,
-  probe-target (all via `scene.compiled`). Plan: accept a `Design` (or keep a `CompileResult`
-  constructor for a flat circuit), resolve `A1/U3`, `A1/U3.Q0`, `A1/CLK`, `A1/D[0..7]`,
-  `A1/U5[1F]`; net names may contain `/` (`R/W`): walk designator segments while they are
-  instances, the rest is a reference inside.
-- **Watch out:** the simulation host's `signalMap` finds sim nets through simulated pins only
-  (a top net between two instances has none) — task 8 must map by flat net id via the design.
-  Visual check script: scratchpad `look.mjs` (Vite on port 5207, sets `logicEditor.registry`
-  to a `documentRegistry`).
-- **Verify with:** `pnpm check`; `pnpm bench tests/bench/circuit.bench.ts` for the design bench.
+- **State:** tasks 1–6 done (all pure layers): schema v4, `net/port`, `DocumentRegistry` +
+  subcircuit drawer, `compileDesign` (`src/circuit/design.ts`), `Resolver` over a `Design`
+  (instance paths), document operations (`src/circuit/document-edit.ts`). The editor still edits
+  and simulates one circuit with the library registry: nothing in the app places instances yet.
+- **Next step:** task 7 — the editor on documents: `EditorState` gains `document` and `design`;
+  `circuit`/`scene` stay the open circuit's (scene built with `design.registry` and the open
+  circuit's cached compile); `edit()` replaces the open circuit in the document;
+  `editDocument()`; one history of documents; `setDocument()`; a camera per circuit. Then task 8
+  moves the simulation host, analyzer, debugger, memory inspector to `design` (they use
+  `scene.compiled` today: grep `scene.compiled` and `new Resolver(`).
+- **Watch out:** `signalMap` in `simulation.ts` finds sim nets through simulated pins only; map by
+  flat net id via the design instead. Visual check script: scratchpad `look.mjs` (Vite on 5207).
+  Test-label pattern now allows `/`.
+- **Verify with:** `pnpm check`; `pnpm bench tests/bench/circuit.bench.ts`.

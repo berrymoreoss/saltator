@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { type Circuit, emptyCircuit } from '../circuit';
+import { type CircuitDocument, emptyDocument } from '../circuit';
 import {
   composeRenames,
   EMPTY_HISTORY,
@@ -12,11 +12,11 @@ import {
 } from './history';
 import { EMPTY_SELECTION, selectionOf } from './selection';
 
-const circuits: Circuit[] = Array.from({ length: 6 }, (_, i) => emptyCircuit('main', `C${i}`));
+const circuits: CircuitDocument[] = Array.from({ length: 6 }, (_, i) => emptyDocument(`C${i}`));
 const step = (from: number, to: number, label = 'Edit', coalesce?: string): HistoryEntry => ({
   label,
-  before: { circuit: circuits[from]!, selection: EMPTY_SELECTION },
-  after: { circuit: circuits[to]!, selection: selectionOf([`U${to}`]) },
+  before: { document: circuits[from]!, open: 'main', selection: EMPTY_SELECTION },
+  after: { document: circuits[to]!, open: 'main', selection: selectionOf([`U${to}`]) },
   ...(coalesce !== undefined && { coalesce }),
 });
 
@@ -26,11 +26,11 @@ describe('history', () => {
     expect(h.past.map((e) => e.label)).toEqual(['Place', 'Move']);
     const undone = undoEntry(h)!;
     expect(undone.entry.label).toBe('Move');
-    expect(undone.entry.before.circuit).toBe(circuits[1]);
+    expect(undone.entry.before.document).toBe(circuits[1]);
     h = undone.history;
     expect(h.future.map((e) => e.label)).toEqual(['Move']);
     const redone = redoEntry(h)!;
-    expect(redone.entry.after.circuit).toBe(circuits[2]);
+    expect(redone.entry.after.document).toBe(circuits[2]);
     expect(redone.history.past.map((e) => e.label)).toEqual(['Place', 'Move']);
     expect(redone.history.future).toEqual([]);
   });
@@ -51,8 +51,8 @@ describe('history', () => {
     h = pushEntry(h, step(1, 2, 'Nudge', 'nudge U1'));
     h = pushEntry(h, step(2, 3, 'Nudge', 'nudge U1'));
     expect(h.past).toHaveLength(1);
-    expect(h.past[0]!.before.circuit).toBe(circuits[0]);
-    expect(h.past[0]!.after.circuit).toBe(circuits[3]);
+    expect(h.past[0]!.before.document).toBe(circuits[0]);
+    expect(h.past[0]!.after.document).toBe(circuits[3]);
     // A different key, or a key after a seal, starts a new step.
     expect(pushEntry(h, step(3, 4, 'Nudge', 'nudge U2')).past).toHaveLength(2);
     expect(pushEntry(sealHistory(h), step(3, 4, 'Nudge', 'nudge U1')).past).toHaveLength(2);

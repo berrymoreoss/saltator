@@ -5,14 +5,28 @@
  * state through the stores. The DOM layer only converts events into `PointerInput`s, so the
  * gestures run (and are tested) without a browser. Spec: docs/editor.md.
  */
-import type { Circuit, ComponentInstance, Point, Rect, Rotation } from '../circuit';
+import type {
+  Circuit,
+  CircuitDocument,
+  ComponentInstance,
+  Design,
+  DocumentRegistry,
+  Point,
+  Rect,
+  Rotation,
+} from '../circuit';
 import {
   addComponents,
   addWires,
+  CompileCache,
   type ComponentPatch,
+  circuitsContaining,
+  compileDesign,
   copyFragment,
   designatorError,
   emptyCircuit,
+  fragmentDocument,
+  importCircuits,
   inverseTransformPoint,
   nextDesignator,
   normalizeWires,
@@ -20,8 +34,12 @@ import {
   pasteFragment,
   prefixOfType,
   removeItems,
-  renameComponent,
+  renamePartInDocument,
+  replaceCircuit,
+  SCHEMA_VERSION,
   sameCircuit,
+  sameDocument,
+  subcircuitOf,
   transformPoint,
   transformRect,
   updateComponent,
@@ -77,7 +95,12 @@ import {
   toggleHit,
   unionSelection,
 } from './selection';
-import { BROWSER_CLOCK, Simulation, type SimulationOptions } from './simulation';
+import {
+  BROWSER_CLOCK,
+  Simulation,
+  type SimulationModel,
+  type SimulationOptions,
+} from './simulation';
 import { Store } from './store';
 import { type GateStyle, INTERACTIONS, type Poke } from './symbols';
 import { type CanvasTheme, DARK_CANVAS } from './theme';
@@ -143,14 +166,20 @@ export const DEFAULT_SETTINGS: EditorSettings = {
   wheel: 'pan',
 };
 
-/** Document-level state: changes when the circuit or the selection changes. */
+/** Document-level state: changes when the document, the circuit open or the selection changes. */
 export interface EditorState {
+  /** The whole document: every circuit, the first the top (R11a). */
+  readonly document: CircuitDocument;
+  /** The circuit open on the canvas, the one edits go to. */
   readonly circuit: Circuit;
+  /** The open circuit's scene. */
   readonly scene: Scene;
+  /** The top circuit flattened: what simulates, what the tools resolve against. */
+  readonly design: Design;
   readonly selection: Selection;
   /**
-   * Parts renamed by the change that produced this state, old designator → new (an edit, its
-   * undo or redo), so a simulator host can carry their state over (R05, ADR-0006).
+   * Parts of the design renamed by the change that produced this state, old netlist id → new
+   * (an edit, its undo or redo), so a simulator host can carry their state over (R05).
    */
   readonly renames?: ReadonlyMap<string, string>;
 }
@@ -161,9 +190,16 @@ export interface EditOptions {
   readonly selection?: Selection;
   /** Consecutive edits with the same key are one undo step (arrow-key nudges). */
   readonly coalesce?: string;
+  /** Parts of the open circuit renamed by the edit, old designator → new. */
   readonly renames?: ReadonlyMap<string, string>;
   /** Zoom to fit the new circuit (opening an example). */
   readonly fit?: boolean;
+}
+
+/** How `Editor.editDocument` records an edit of the document. */
+export interface DocumentEditOptions extends EditOptions {
+  /** The circuit open after the edit (default: the one open, else the top). */
+  readonly open?: string;
 }
 
 /** How an `Editor` is wired up beyond its document and view settings. */
@@ -260,6 +296,8 @@ interface WireDraft {
 /** Pasted or duplicated items following the pointer until a click drops them. */
 interface Floating {
   readonly fragment: Circuit;
+  /** The document a drop goes into: the editor's, with the circuits a paste brought along. */
+  readonly document: CircuitDocument;
   /** Grid point of the fragment that sits under the pointer. */
   readonly anchor: Point;
   readonly label: string;
@@ -274,6 +312,8 @@ type RequestInput =
 interface Preview {
   readonly circuit: Circuit;
   readonly ghost: Selection;
+  /** The parts it is drawn with, when they are not the document's (a paste's circuits). */
+  readonly registry?: DocumentRegistry;
 }
 
 function isTyping(target: EventTarget | null): boolean {
@@ -286,7 +326,8 @@ const cell = (p: Point): Point => [Math.round(p[0]), Math.round(p[1])];
 const rot = (r: number): Rotation => (((r % 360) + 360) % 360) as Rotation;
 
 export class Editor {
-  readonly registry: ComponentRegistry;
+  /** The library's parts; `registry` adds the document's circuits (R11a). */
+  readonly library: ComponentRegistry;
   readonly state: Store<EditorState>;
   readonly view: Store<ViewState>;
   readonly tool = new Store<Tool>('select');
@@ -305,6 +346,12 @@ export class Editor {
   readonly debug: Debugger;
   #settings: EditorSettings;
   readonly #layouts = new LayoutCache();
+  /** Each circuit compiled once per change of it, and the document registry (R11a). */
+  readonly #cache = new CompileCache();
+  /** The camera each circuit was left with, by circuit id. */
+  readonly #cameras = new Map<string, Camera>();
+  /** The simulation model of each state, so the host sees one object per state. */
+  readonly #models = new WeakMap<EditorState, SimulationModel>();
   #hover: Hit | undefined;
   /** The Probe tool's spot under the pointer. */
   #probeHover: ProbeSpot | undefined;
@@ -332,20 +379,22 @@ export class Editor {
   #fitPending = true;
 
   constructor(
-    registry: ComponentRegistry,
-    circuit: Circuit = emptyCircuit(),
+    library: ComponentRegistry,
+    content: Circuit | CircuitDocument = emptyCircuit(),
     settings: Partial<EditorSettings> = {},
     options: EditorOptions = {},
   ) {
-    this.registry = registry;
+    this.library = library;
     this.#settings = { ...DEFAULT_SETTINGS, ...settings };
-    const scene = buildScene(circuit, registry, { layouts: this.#layouts });
-    this.state = new Store<EditorState>({ circuit, scene, selection: EMPTY_SELECTION });
-    this.simulation = new Simulation(registry, scene, options.simulation);
+    const document = documentOf(content);
+    this.state = new Store<EditorState>(
+      this.#stateOf(document, document.circuits[0]!.id, EMPTY_SELECTION),
+    );
+    this.simulation = new Simulation(library, this.#model(this.state.get()), options.simulation);
     this.memory = new MemoryInspector(this, options.simulation?.clock ?? BROWSER_CLOCK);
     this.state.subscribe(() => {
-      const { scene, renames } = this.state.get();
-      this.simulation.sync(scene, renames);
+      const state = this.state.get();
+      this.simulation.sync(this.#model(state), state.renames);
     });
     // After the host's own subscription: the analyzer follows the simulator the host keeps.
     this.analyzer = new Analyzer(this);
@@ -372,8 +421,58 @@ export class Editor {
     return this.#settings;
   }
 
+  /** The parts the document can use: the library's and its circuits' (`sub/<id>`). */
+  get registry(): DocumentRegistry {
+    return this.state.get().design.registry;
+  }
+
   get scene(): Scene {
     return this.state.get().scene;
+  }
+
+  /** The netlist id of a part of the open circuit, if it simulates as drawn (the top is open). */
+  flatPart(id: string): string | undefined {
+    return this.#model(this.state.get()).flatPart(id);
+  }
+
+  /** What the simulation host runs and shows for a state. */
+  #model(state: EditorState): SimulationModel {
+    let model = this.#models.get(state);
+    if (!model) {
+      const { design, scene } = state;
+      const simulated = state.circuit.id === design.top;
+      model = {
+        netlist: design.netlist,
+        scene,
+        flatNet: simulated ? (net) => design.netOf('', net) : () => undefined,
+        flatPart: simulated ? (id) => id : () => undefined,
+      };
+      this.#models.set(state, model);
+    }
+    return model;
+  }
+
+  /** A state for a document with circuit `open` on the canvas (the top if it has no such circuit). */
+  #stateOf(
+    document: CircuitDocument,
+    open: string,
+    selection: Selection,
+    renames?: ReadonlyMap<string, string>,
+  ): EditorState {
+    const design = compileDesign(document, this.library, { cache: this.#cache });
+    const circuit = document.circuits.find((c) => c.id === open) ?? document.circuits[0]!;
+    const scene = buildScene(circuit, design.registry, {
+      compiled: design.circuits.get(circuit.id)!,
+      layouts: this.#layouts,
+    });
+    return {
+      document,
+      circuit,
+      scene,
+      design,
+      selection: pruneSelection(selection, scene),
+      ...(renames && renames.size > 0 && { renames }),
+    };
   }
 
   /** The circuit as drawn right now: a gesture's preview, or the document. */
@@ -382,15 +481,34 @@ export class Editor {
   }
 
   /**
-   * Loads a circuit: replaces the document and forgets the undo history; the selection keeps the
-   * items that still exist. Edits go through `edit` instead. `fit` zooms to fit once the canvas
-   * has a size; `camera` restores a view instead (and cancels a pending fit).
+   * Loads a circuit as a document of its own (tests, examples): see `setDocument`.
    */
   setCircuit(circuit: Circuit, options: { fit?: boolean; camera?: Camera } = {}): void {
+    this.setDocument(documentOf(circuit), options);
+  }
+
+  /**
+   * Loads a document: replaces it and forgets the undo history, opens circuit `open` (default:
+   * the top); the selection keeps the items that still exist. Edits go through `edit` instead.
+   * `fit` zooms to fit once the canvas has a size; `camera` restores a view instead (and cancels
+   * a pending fit).
+   */
+  setDocument(
+    document: CircuitDocument,
+    options: { open?: string; fit?: boolean; camera?: Camera } = {},
+  ): void {
     this.cancel();
     this.analyzer.clear();
     this.debug.load(EMPTY_DEBUG_SETUP);
-    this.#show(circuit, this.state.get().selection, undefined, options.fit && !options.camera);
+    this.#cameras.clear();
+    const open = options.open ?? document.circuits[0]!.id;
+    this.#show(
+      document,
+      open,
+      this.state.get().selection,
+      undefined,
+      options.fit && !options.camera,
+    );
     this.history.set(EMPTY_HISTORY);
     if (options.camera) {
       this.#fitPending = false;
@@ -399,29 +517,107 @@ export class Editor {
   }
 
   /**
-   * Commits one user action as one undo step: normalizes the wires (if they changed) and records
-   * the circuit and selection before and after. Returns false (and records nothing) when the
-   * circuit didn't change.
+   * Opens another circuit of the document on the canvas — not an edit. The camera the circuit
+   * was left with comes back; one never shown is zoomed to fit.
+   */
+  openCircuit(id: string): void {
+    const state = this.state.get();
+    if (id === state.circuit.id || !state.document.circuits.some((c) => c.id === id)) return;
+    this.cancel();
+    this.#show(state.document, id, EMPTY_SELECTION, undefined);
+  }
+
+  /** The camera of each circuit but the open one, as it was left (sessions keep them). */
+  get cameras(): ReadonlyMap<string, Camera> {
+    return this.#cameras;
+  }
+
+  /**
+   * Commits one user action on the open circuit as one undo step: normalizes the wires (if they
+   * changed) and records the document, the circuit open and the selection before and after.
+   * Returns false (and records nothing) when the circuit didn't change.
    */
   edit(label: string, circuit: Circuit, options: EditOptions = {}): boolean {
     const before = this.state.get();
-    const next = circuit.wires === before.circuit.wires ? circuit : normalizeWires(circuit);
+    const own = circuit.id === before.circuit.id ? circuit : { ...circuit, id: before.circuit.id };
+    const next = own.wires === before.circuit.wires ? own : normalizeWires(own);
     if (sameCircuit(next, before.circuit)) {
       if (options.selection) this.setSelection(options.selection);
       return false;
     }
-    this.#show(next, options.selection ?? before.selection, options.renames, options.fit);
+    return this.#commit(label, replaceCircuit(before.document, next), before.circuit.id, options);
+  }
+
+  /**
+   * Commits a change of the document as one undo step: circuits added, renamed, removed or
+   * reordered, an edit in a circuit not open, a paste that brings circuits along. The open
+   * circuit's wires are normalized if they changed. Returns false when nothing changed.
+   */
+  editDocument(
+    label: string,
+    document: CircuitDocument,
+    options: DocumentEditOptions = {},
+  ): boolean {
+    const before = this.state.get();
+    const open = options.open ?? before.circuit.id;
+    let next = document;
+    const circuit = next.circuits.find((c) => c.id === open);
+    const old = before.document.circuits.find((c) => c.id === open);
+    if (circuit && old && circuit.wires !== old.wires) {
+      next = replaceCircuit(next, normalizeWires(circuit));
+    }
+    if (sameDocument(next, before.document) && open === before.circuit.id) {
+      if (options.selection) this.setSelection(options.selection);
+      return false;
+    }
+    return this.#commit(label, next, open, options);
+  }
+
+  #commit(label: string, document: CircuitDocument, open: string, options: EditOptions): boolean {
+    const before = this.state.get();
+    const renames =
+      options.renames && this.#flatRenames(before.design, before.circuit.id, options.renames);
+    this.#show(document, open, options.selection ?? before.selection, renames, options.fit);
     const after = this.state.get();
     this.history.update((history) =>
       pushEntry(history, {
         label,
-        before: { circuit: before.circuit, selection: before.selection },
-        after: { circuit: after.circuit, selection: after.selection },
+        before: { document: before.document, open: before.circuit.id, selection: before.selection },
+        after: { document: after.document, open: after.circuit.id, selection: after.selection },
         ...(options.coalesce !== undefined && { coalesce: options.coalesce }),
-        ...(options.renames && { renames: options.renames }),
+        ...(renames && renames.size > 0 && { renames }),
       }),
     );
     return true;
+  }
+
+  /**
+   * Renames of parts of circuit `circuit` as renames of the design's parts: in every instance
+   * of it (and at the top when it is the top), each part and, for an instance renamed, every part
+   * inside it (`A1` → `A3`: `A1/U1` → `A3/U1`).
+   */
+  #flatRenames(
+    design: Design,
+    circuit: string,
+    renames: ReadonlyMap<string, string>,
+  ): ReadonlyMap<string, string> {
+    const scopes = [
+      ...(circuit === design.top ? [''] : []),
+      ...design.instances.filter((i) => i.circuit === circuit).map((i) => `${i.path}/`),
+    ];
+    const flat = new Map<string, string>();
+    for (const { id } of design.netlist.components) {
+      for (const scope of scopes) {
+        if (!id.startsWith(scope)) continue;
+        const rest = id.slice(scope.length);
+        for (const [from, to] of renames) {
+          if (rest === from) flat.set(id, scope + to);
+          else if (rest.startsWith(`${from}/`))
+            flat.set(id, `${scope}${to}${rest.slice(from.length)}`);
+        }
+      }
+    }
+    return flat;
   }
 
   /** Label of the action Undo would revert (`Move`), if any. */
@@ -437,8 +633,8 @@ export class Editor {
     if (this.#cancelGesture()) return;
     const step = undoEntry(this.history.get());
     if (!step) return;
-    const { circuit, selection } = step.entry.before;
-    this.#show(circuit, selection, invertRenames(step.entry.renames));
+    const { document, open, selection } = step.entry.before;
+    this.#show(document, open, selection, invertRenames(step.entry.renames));
     this.history.set(step.history);
   }
 
@@ -446,8 +642,8 @@ export class Editor {
     if (this.#cancelGesture()) return;
     const step = redoEntry(this.history.get());
     if (!step) return;
-    const { circuit, selection } = step.entry.after;
-    this.#show(circuit, selection, step.entry.renames);
+    const { document, open, selection } = step.entry.after;
+    this.#show(document, open, selection, step.entry.renames);
     this.history.set(step.history);
   }
 
@@ -457,18 +653,27 @@ export class Editor {
   }
 
   #show(
-    circuit: Circuit,
+    document: CircuitDocument,
+    open: string,
     selection: Selection,
     renames: ReadonlyMap<string, string> | undefined,
     fit = false,
   ): void {
-    const scene = buildScene(circuit, this.registry, { layouts: this.#layouts });
-    this.state.set({
-      circuit,
-      scene,
-      selection: pruneSelection(selection, scene),
-      ...(renames && renames.size > 0 && { renames }),
-    });
+    const previous = this.state.get().circuit.id;
+    const state = this.#stateOf(document, open, selection, renames);
+    // Another circuit on the canvas (opened, or an undo there): each keeps its own camera.
+    const switched = state.circuit.id !== previous;
+    if (switched) this.#cameras.set(previous, this.view.get().camera);
+    this.state.set(state);
+    if (switched) {
+      const camera = this.#cameras.get(state.circuit.id);
+      if (camera) {
+        this.#fitPending = false;
+        this.setCamera(camera);
+      } else {
+        fit = true;
+      }
+    }
     this.#hover = undefined;
     if (fit) {
       this.#fitPending = true;
@@ -574,7 +779,8 @@ export class Editor {
     const gesture = this.#gesture;
     if (gesture?.kind !== 'hold') return;
     this.#gesture = undefined;
-    this.simulation.action(gesture.component, gesture.release);
+    const flat = this.flatPart(gesture.component);
+    if (flat !== undefined) this.simulation.action(flat, gesture.release);
   }
 
   /** What pressing a part at a world point does in the Interact tool, if anything. */
@@ -592,7 +798,8 @@ export class Editor {
     const hit = this.#hitAt(at);
     if (hit?.kind === 'part' && !probing) {
       const poke = this.#pokeAt(hit.id, this.#world(at));
-      if (poke && this.simulation.action(hit.id, poke.press)) {
+      const flat = this.flatPart(hit.id);
+      if (poke && flat !== undefined && this.simulation.action(flat, poke.press)) {
         if (poke.release !== undefined) {
           this.#gesture = { kind: 'hold', component: hit.id, release: poke.release };
         }
@@ -691,11 +898,12 @@ export class Editor {
 
   /** Renames a part; returns why not (invalid or taken designator) instead of renaming. */
   renamePart(from: string, to: string): string | undefined {
-    const { circuit } = this.state.get();
+    const { circuit, document } = this.state.get();
     const error = designatorError(circuit, from, to);
     if (error) return error;
     if (from === to) return undefined;
-    this.edit(`Rename ${from}`, renameComponent(circuit, from, to), {
+    // Probe references to it are rewritten in every circuit, through every instance path.
+    this.editDocument(`Rename ${from}`, renamePartInDocument(document, circuit.id, from, to), {
       selection: selectionOf([to]),
       renames: new Map([[from, to]]),
     });
@@ -771,11 +979,14 @@ export class Editor {
 
   // ── Clipboard ───────────────────────────────────────────────────────────────────────────
 
-  /** The selection as clipboard text, or undefined if nothing is selected. */
+  /**
+   * The selection as clipboard text, or undefined if nothing is selected. Instances bring the
+   * circuits they place along, so they paste into another document.
+   */
   copySelection(): string | undefined {
-    const { circuit, selection } = this.state.get();
+    const { circuit, document, selection } = this.state.get();
     if (selectionSize(selection) === 0) return undefined;
-    return fragmentText(copyFragment(circuit, selection));
+    return fragmentText(fragmentDocument(document, copyFragment(circuit, selection)));
   }
 
   /** Copies, then deletes the selection. */
@@ -787,11 +998,19 @@ export class Editor {
     return text;
   }
 
-  /** Starts a floating paste of clipboard text; false if the text holds no parts or wires. */
+  /**
+   * Starts a floating paste of clipboard text; false if the text holds no parts or wires. The
+   * circuits it carries come into the document with the drop (reused when the same, renamed when
+   * an id holds another); an instance of a circuit that would contain the open one is refused.
+   */
   pasteText(text: string): boolean {
-    const fragment = parseFragment(text);
-    if (!fragment) return false;
-    this.#startFloating(fragment, 'Paste');
+    const clipboard = parseFragment(text);
+    if (!clipboard) return false;
+    const { document, circuit } = this.state.get();
+    const { document: next, fragment } = importCircuits(document, clipboard);
+    const outer = circuitsContaining(next, circuit.id);
+    if (fragment.components.some((c) => outer.has(subcircuitOf(c.type) ?? ''))) return false;
+    this.#startFloating(fragment, 'Paste', next);
     return true;
   }
 
@@ -802,24 +1021,36 @@ export class Editor {
     this.#startFloating(copyFragment(circuit, selection), 'Duplicate');
   }
 
-  #startFloating(fragment: Circuit, label: string): void {
+  #startFloating(
+    fragment: Circuit,
+    label: string,
+    document: CircuitDocument = this.state.get().document,
+  ): void {
     this.#cancelGesture();
     const tool = this.tool.get();
     if (typeof tool === 'object' || tool === 'wire' || tool === 'bus') this.setTool('select');
-    const scene = buildScene(fragment, this.registry, { layouts: this.#layouts });
+    const scene = buildScene(fragment, this.#registryOf(document), { layouts: this.#layouts });
     const bounds = selectionBounds(scene, selectAll(scene));
     const anchor: Point = bounds
       ? [Math.round(bounds.x + bounds.width / 2), Math.round(bounds.y + bounds.height / 2)]
       : [0, 0];
-    this.#floating = { fragment, anchor, label };
+    this.#floating = { fragment, document, anchor, label };
     this.#setMode('floating');
     this.#updatePreview();
     this.#updateCursor();
   }
 
+  /** The parts of a document: the editor's registry, or one for a paste's document. */
+  #registryOf(document: CircuitDocument): DocumentRegistry {
+    return document === this.state.get().document
+      ? this.registry
+      : this.#cache.registry(document, this.library);
+  }
+
   #transformFloating(t: ItemTransform): void {
     const floating = this.#floating!;
-    const scene = buildScene(floating.fragment, this.registry, { layouts: this.#layouts });
+    const registry = this.#registryOf(floating.document);
+    const scene = buildScene(floating.fragment, registry, { layouts: this.#layouts });
     const fragment = transformItems(scene, selectAll(scene), t);
     this.#floating = { ...floating, fragment };
     this.#updatePreview();
@@ -831,18 +1062,16 @@ export class Editor {
     return cursor ?? cell(toWorld(camera, [viewport.width / 2, viewport.height / 2]));
   }
 
-  #floatingResult(): { circuit: Circuit; ghost: Selection } | undefined {
+  #floatingResult():
+    | { circuit: Circuit; ghost: Selection; registry: DocumentRegistry }
+    | undefined {
     const floating = this.#floating;
     if (!floating) return undefined;
     const at = this.#pointerCell();
     const offset: Point = [at[0] - floating.anchor[0], at[1] - floating.anchor[1]];
-    const pasted = pasteFragment(
-      this.state.get().circuit,
-      floating.fragment,
-      offset,
-      this.registry,
-    );
-    return { circuit: pasted.circuit, ghost: selectionOf(pasted.parts, pasted.wires) };
+    const registry = this.#registryOf(floating.document);
+    const pasted = pasteFragment(this.state.get().circuit, floating.fragment, offset, registry);
+    return { circuit: pasted.circuit, ghost: selectionOf(pasted.parts, pasted.wires), registry };
   }
 
   #dropFloating(): void {
@@ -850,7 +1079,15 @@ export class Editor {
     const result = this.#floatingResult();
     this.#floating = undefined;
     this.#setMode('idle');
-    if (floating && result) this.edit(floating.label, result.circuit, { selection: result.ghost });
+    if (floating && result) {
+      if (floating.document === this.state.get().document) {
+        this.edit(floating.label, result.circuit, { selection: result.ghost });
+      } else {
+        this.editDocument(floating.label, replaceCircuit(floating.document, result.circuit), {
+          selection: result.ghost,
+        });
+      }
+    }
     this.#updatePreview();
     this.#updateCursor();
   }
@@ -889,7 +1126,16 @@ export class Editor {
     };
   }
 
+  /** Whether `type` may be placed in the open circuit: not a circuit that contains it. */
+  #placeable(type: string): boolean {
+    const id = subcircuitOf(type);
+    if (id === undefined) return true;
+    const { document, circuit } = this.state.get();
+    return !circuitsContaining(document, circuit.id).has(id);
+  }
+
   #placeAt(type: string, at: Point, orientation = this.#place): void {
+    if (!this.#placeable(type)) return;
     const part = this.#newPart(type, at, orientation);
     if (!part) return;
     const name = this.registry.get(type)?.name ?? type;
@@ -1054,7 +1300,7 @@ export class Editor {
     const tool = this.tool.get();
     const type = this.#dragType ?? (typeof tool === 'object' ? tool.type : undefined);
     const cursor = this.view.get().cursor;
-    if (type && cursor && !this.#gesture) {
+    if (type && cursor && !this.#gesture && this.#placeable(type)) {
       const orientation = this.#dragType ? { rotation: 0 as const, flip: false } : this.#place;
       const part = this.#newPart(type, cursor, orientation);
       if (part) return { circuit: addComponents(circuit, [part]), ghost: selectionOf([part.id]) };
@@ -1300,7 +1546,7 @@ export class Editor {
     const preview = this.#preview;
     let scene = this.scene;
     if (preview) {
-      this.#previewScene ??= buildScene(preview.circuit, this.registry, {
+      this.#previewScene ??= buildScene(preview.circuit, preview.registry ?? this.registry, {
         layouts: this.#layouts,
       });
       scene = this.#previewScene;
@@ -1721,4 +1967,9 @@ export class Editor {
     }
     canvas.style.cursor = cursor;
   }
+}
+
+/** A circuit as a document of its own; a document as it is. */
+function documentOf(content: Circuit | CircuitDocument): CircuitDocument {
+  return 'circuits' in content ? content : { schemaVersion: SCHEMA_VERSION, circuits: [content] };
 }
