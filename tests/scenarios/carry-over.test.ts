@@ -18,7 +18,8 @@ import {
   type Time,
   us,
 } from '../../src/core';
-import { hd44780Controller } from '../../src/library';
+import { hd44780Controller, w65c02s } from '../../src/library';
+import { COUNT_TO_FIVE, computer } from './computer-6502';
 import { rng, scenarioRegistry } from './support';
 
 const registry = scenarioRegistry();
@@ -470,6 +471,36 @@ describe('recompiling LCD modules mid-run', () => {
     expect(changes).toBeGreaterThan(5000);
     expect(written).toBeGreaterThan(20);
     expect(rejected).toBeGreaterThan(0);
+  });
+});
+
+describe('recompiling a running CPU', () => {
+  it('is invisible in a W65C02S computer at random instants, resets included (seeded)', () => {
+    const netlist = computer({ rom: COUNT_TO_FIVE });
+    const end = us(260); // the program runs again after the second reset and ends with A = 5
+    // RESB released off the clock's edges, pressed again mid-program, released again.
+    const pokes: Poke[] = [
+      { time: 0, component: 'R', action: Drive.STRONG_0 },
+      { time: us(5) + ns(310), component: 'R', action: Drive.STRONG_1 },
+      { time: us(60) + ns(310), component: 'R', action: Drive.STRONG_0 },
+      { time: us(64) + ns(310), component: 'R', action: Drive.STRONG_1 },
+    ];
+    const random = rng(6502);
+    // Random instants, and instants on the clock's edges and the CPU's wake-ups.
+    const at = [
+      ...Array.from({ length: 12 }, () => Math.floor(random() * end)),
+      us(30),
+      us(30) + ns(10),
+      us(30) + ns(30),
+      us(30) + ns(500),
+      us(30) + ns(525),
+      // Late in the cycles of the start-up code after the second reset, read once, its ROM data
+      // long valid: a recompile must not stamp those bytes read again.
+      ...Array.from({ length: 10 }, (_, i) => us(70 + i) + ns(300)),
+    ];
+    const { sim } = expectInvisible(netlist, end, pokes, at);
+    const view = w65c02s.cpu!.view(sim.stateOf('U1'));
+    expect([view.mode, view.values[0]]).toEqual(['running', 5]);
   });
 });
 

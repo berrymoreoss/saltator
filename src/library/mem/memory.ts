@@ -192,7 +192,11 @@ export class ReadPath {
       times[T_WE]! + timing.access,
     );
     if (valid <= now) {
-      this.driveData(ctx);
+      // A re-drive with nothing changed (a recompile's forced evaluation) reads nothing new.
+      const { ce, oe, we } = this.#pins;
+      const changed =
+        addressChanged || ctx.changed(ce) || ctx.changed(oe) || (this.#writable && ctx.changed(we));
+      this.driveData(ctx, changed);
       return;
     }
     // The window: released until the outputs turn on, the old data for the hold time after an
@@ -218,10 +222,11 @@ export class ReadPath {
   }
 
   /**
-   * Drives the cell the address selects, stamping it read; unknown bits merge every cell they
-   * could select (and stamp none: no one cell was read).
+   * Drives the cell the address selects, stamping it read (unless `stamp` is false: the same
+   * data driven again); unknown bits merge every cell they could select (and stamp none: no one
+   * cell was read).
    */
-  driveData(ctx: EvalContext<MemoryState>): void {
+  driveData(ctx: EvalContext<MemoryState>, stamp = true): void {
     const { data: cells, unknown } = ctx.state;
     const { address, data } = this.#pins;
     let known = 0;
@@ -251,7 +256,7 @@ export class ReadPath {
         zeros &= ~value & ~x;
         subset = (subset - unknownBits) & unknownBits;
       } while (subset !== 0);
-      if (count === 0) ctx.state.readAt[known] = ctx.now;
+      if (count === 0 && stamp) ctx.state.readAt[known] = ctx.now;
     }
     for (let i = 0; i < data.length; i++) {
       const bit = 1 << i;
