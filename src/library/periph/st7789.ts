@@ -153,8 +153,7 @@ function timingOf(): TimingDef {
       'SWRESET, SLPIN, SLPOUT to command': WAIT_COMMAND,
       'SLPOUT to SLPIN': WAIT_SLEEP,
     },
-    conditions:
-      'VDDI = 1.65–3.3 V, VDD = 2.4–3.3 V (a 3.3 V part: its inputs are not 5 V tolerant)',
+    conditions: 'VDDI 1.65–3.3 V, VDD 2.4–3.3 V; 3.3 V logic, not 5 V tolerant',
     source:
       'Sitronix ST7789V data sheet V1.3 (2014/03): Table 6 (4-line serial write), Table 9 and its notes (reset), the SWRESET, SLPIN and SLPOUT restrictions',
   };
@@ -414,10 +413,11 @@ export const st7789 = defineComponent<St7789Props, St7789State>({
         if (dc.hold(ctx, times, st.pending === 1)) st.pendingDc = -1;
         const lateSelect = csSetup.setup(ctx, times, rose) !== 0;
         csHold.hold(ctx, times, st.edgeTaken === 1);
-        const badClock =
-          sclHigh.check(ctx, times, listening) ||
-          sclLow.check(ctx, times, listening) ||
-          sclCycle.check(ctx, times, listening);
+        // Every check runs (an `||` would hide the next one's report at the same edge).
+        const shortHigh = sclHigh.check(ctx, times, listening);
+        const shortLow = sclLow.check(ctx, times, listening);
+        const shortCycle = sclCycle.check(ctx, times, listening);
+        const badClock = shortHigh || shortLow || shortCycle;
         const shortDeselect = csHigh.check(ctx, times, !st.resetting);
 
         const csUnknown = st.cs !== Level.L0 && st.cs !== Level.L1;

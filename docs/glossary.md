@@ -119,6 +119,10 @@ randomly and may oscillate; the simulator treats it as `X` and reports it.
 **Floating paste** — pasted or duplicated parts and wires that follow the pointer as ghosts
 (translucent previews) until a click drops them.
 
+**Frame memory (GRAM)** — the pixel memory inside a TFT controller (the ST7789V's 240 × 320 × 18
+bits): commands set a window and the pixels written fill it; the panel shows its rows through the
+display modes. Its contents are random at power-on and survive resets.
+
 **Gate style** — how logic gates are drawn: ANSI/IEEE 91 distinctive shapes (the D-shaped AND,
 the curved OR) or IEC 60617 rectangles with a qualifying symbol (`&`, `≥1`, `=1`). A view setting
 in the editor; the pins are the same either way.
@@ -152,6 +156,10 @@ not.
 
 **Level** — the resolved value of a net as seen by readers: `0`, `1`, `X` (unknown) or `Z`
 (high impedance / floating).
+
+**MADCTL** — the ST7789's Memory Data Access Control register: MY, MX and MV mirror and exchange how
+written pixels land in the frame memory (the panel's orientation), RGB swaps red and blue on the way
+to the panel.
 
 **Memory inspector** — the Memory tab: a hex view of a memory part's cells, live while
 simulating, with the cells just read (green) and written (orange) lit and the address on the
@@ -364,11 +372,19 @@ several outputs to share a bus.
 **VCD (Value Change Dump)** — the text format of IEEE 1364 for signal changes over time, read by
 GTKWave, Surfer, PulseView and HDL tools; the Waveforms tab exports one (R13).
 
+**Veil** — how the simulator draws a TFT pixel whose look is uncertain (a command sent within a wait
+the data sheet asks for, a lost interface): the likely color under a diagonal hatch of the `X`
+color, until a command sent in time makes it known again.
+
 **Watch** — a value the Debug tab shows at every stop — a signal, a bus, a group of single
 signals or memory cells (`U5[1F]`) — marked when it changed since the last stop (R14).
 
 **Waveform / timing diagram** — signals drawn against time, one row each, as the Waveforms tab
 and data sheets' timing figures show them; cursors (`A`, `B`) measure the time between edges.
+
+**Window (CASET/RASET)** — the columns and rows of a TFT controller's frame memory the next pixels
+go to: written left to right, then top to bottom, wrapping back to the start; columns past the
+memory are counted but ignored.
 
 **Workbench** — the application window: menu bar, toolbar, docked panels (Parts, Properties,
 Messages), canvas and status bar.

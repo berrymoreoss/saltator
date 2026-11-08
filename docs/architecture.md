@@ -133,7 +133,9 @@ last read and written, which the Memory tab lights up (R12b,
 [ADR-0018](adr/0018-memory-inspector.md)). The first peripheral, the HD44780 character LCD,
 models its controller at instruction level with a pure state machine beside the bus code, works
 out uncertain transfers by running every outcome and merging them, and gives the editor a pure
-frame of its glass to draw ([ADR-0022](adr/0022-character-lcd.md)). The first CPU, the
+frame of its glass to draw ([ADR-0022](adr/0022-character-lcd.md)); the ST7789 TFT (LIB-2)
+keeps its frame memory as the only picture, which the editor draws as an image, and shows an
+uncertain effect as its likely outcome under a veil ([ADR-0031](adr/0031-tft-modules.md)). The first CPU, the
 W65C02S (R17a), is a pure cycle-level core — its bus cycles checked against SingleStepTests —
 behind a part that puts each cycle on the pins with the data sheet's timing; unknown bits flow
 through its registers, and a CPU whose next step depends on them is lost until reset

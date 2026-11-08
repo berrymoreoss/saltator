@@ -353,7 +353,7 @@ The alternatives considered:
 - [x] 9. The TFT Color Bars example (Q3): design the streamer (record it in Design), a
   generator for the circuit and both ROM images (every net checked), a gallery entry, a
   scenario test (the frame equals the expected bars; no diagnostics) and a browser test.
-- [ ] 10. Docs: components.md (the ST7789 section), editor.md (`tft`, `image`), glossary
+- [x] 10. Docs: components.md (the ST7789 section), editor.md (`tft`, `image`), glossary
   (frame memory, MADCTL, window), ADR-0031, the roadmap section, READMEs, lessons.
 
 ## Acceptance criteria
@@ -525,13 +525,19 @@ displaymodule.com (cdn.shopify.com/s/files/1/0264/7629/files/DM-TFT114-397_Datas
   RESET: CS was `X` from the counters not yet reset, and the module counted that as lost. Now
   a CS or SCL never yet known is no activity (the project's rule for unknown controls, as for
   E and WE̅).
+- 2026-11-09: task 10. Docs: components.md (the ST7789 section), editor.md (`tft`, images,
+  `PartLive.epoch`, the example), glossary (frame memory, MADCTL, veil, window), ADR-0031,
+  architecture.md, the library and editor READMEs, the LIB-2 section, lessons. While writing
+  lessons I found a known pitfall in my code (lessons, R17a): the SCL checks were joined with
+  `||`, which hid a cycle violation behind a pulse-width one at the same edge. Fixed, with a
+  test of both at once. Full `pnpm e2e`: 92 passed. The Part tab was checked in the browser.
 
 ## Handoff
 
-- **State:** tasks 1–9 done (the part, the drawer, scenarios, bench, the example with tests); `periph/st7789` (pins, `panel`, symbol, serial framing, command
+- **State:** all tasks done (1–10); acceptance criteria to verify, then ready for finish-branch; `periph/st7789` (pins, `panel`, symbol, serial framing, command
   table, registers, resets) and a basic `tft` drawer (board, dark or lit glass, pin names).
-- **Next step:** task 10, the docs (components.md, editor.md, glossary, ADR-0031, roadmap
-  section, READMEs, lessons). Then the definition of done: `pnpm build`, full `pnpm e2e`.
+- **Next step:** finish-branch after the user's go-ahead (merge `main` in, verify, close the
+  plan, LIB-2 → done, merge with `--no-ff`).
 - **Watch out:** the data sheets mark themselves "Sitronix Confidential". Cite them, never copy
   them into the repo. ST7789V is a 3.3 V part.
 - **Verify with:** `pnpm check`.

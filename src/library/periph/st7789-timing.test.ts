@@ -89,6 +89,14 @@ describe('ST7789 serial timing (Table 6)', () => {
     expect(run(ns(14), ns(52))[0]).toBe('pulse-width-violation SCL');
     expect(run(ns(33), ns(33))).toEqual([]);
     expect(run(ns(32), ns(33))[0]).toBe('cycle-violation SCL');
+    // A HIGH phase too short in a cycle too short: both reported, at the same edges.
+    expect(run(ns(50), ns(14)).sort()).toEqual(
+      [
+        'cycle-violation SCL',
+        'pulse-width-violation SCL',
+        `${St7789Diagnostic.UNCERTAIN} SCL`,
+      ].sort(),
+    );
   });
 
   it('tCSS 15 ns before the first edge, tCSH 15 ns after the last, tCHW 40 ns HIGH', () => {

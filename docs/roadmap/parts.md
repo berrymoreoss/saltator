@@ -132,14 +132,21 @@ symbols right. Examples: LCD by Hand, LCD Hello, World (74HC4040, AT28C16, 74HC5
 ## LIB-2 · TFT LCD (ST7789) — `feat/lcd-st7789`
 
 Promoted from an idea at the author's request (2026-11-08). `periph/st7789`: a color TFT module
-with the Sitronix ST7789V controller on its 4-line SPI — the 240 × 320, 240 × 240 and 135 × 240
-IPS breakouts — one part for every panel, the panel's window in the frame memory as data. The
-controller at command level: CS framing, D/CX on the 8th bit, the 240 × 320 × 18-bit frame
-memory (unknown at power-on) written through the CASET/RASET window in the MADCTL direction,
-12/16/18-bit color, inversion, sleep, display on/off, idle, partial and scrolling; the SPI write
-timing as timing checks, the reset pulse and the waits after reset, `SWRESET` and `SLPOUT` as
-errors with the command's effect uncertain. Drawn as the module with its glass (a new `image` primitive for
-the schematic), the backlight on BLK. Plan: `.ai/plans/feat-lcd-st7789.md`.
+with the Sitronix ST7789V controller on its 4-line SPI — the 8-pin breakout header (LCDWiki
+MSP2008/MSP1141, DM-TFT114-397), one prop `panel` (240 × 320, 240 × 240, 135 × 240) whose window
+in the frame memory is data, checked against the vendor offsets in four orientations each. The
+controller at command level: every command with its table's parameter count, §8.12's counters
+and MADCTL mapping, 12/16/18-bit color with RAMCTRL's EPF, the display modes applied when the
+frame is computed (sleep, display, inversion — the normally black IPS panels need `INVON` —
+idle, partial, scrolling, RGB swap), the frame memory unknown at power-on; reads and unknown
+commands are warnings. Table 6 as timing checks, the reset pulse with spike rejection, the waits
+after reset, `SWRESET`, `SLPOUT` and `SLPIN` as `wait-violation` with the command's effect
+uncertain — drawn as its likely outcome under a veil, since vendor code that skips them works
+(Q5). Drawn as the module with its glass, through a new `SymbolGraphics.image` and a cached
+frame (`PartLive.epoch` counts rewinds). Example: TFT Color Bars (SMPTE bars from two EEPROMs,
+74HC4040 counters, a 74HC165). Spec: [components.md](../components.md#st7789),
+[editor.md](../editor.md#symbol-drawing). Decision: [ADR-0031](../adr/0031-tft-modules.md).
+Plan: `.ai/plans/feat-lcd-st7789.md`.
 
 ## Ideas
 

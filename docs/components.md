@@ -1017,7 +1017,8 @@ time at 1 MHz (M3 Pro). Examples: 6502 NOP Sled, 6502 ROM and RAM.
 
 ## Peripherals (`periph/*`)
 
-Parts with a controller inside, in `src/library/periph`. The VIA and the ACIA follow in R18.
+Parts with a controller inside, in `src/library/periph`: the HD44780 character LCD and the
+ST7789 TFT. The VIA and the ACIA follow in R18.
 
 ### HD44780
 
@@ -1132,3 +1133,109 @@ Scenarios: a 74HC574 on the bus (a late latch, a read fighting it, 4-bit with DB
 data pin on E's own net (holds `X`, no ring), the carry-over property over random LCD networks,
 both examples headless (`lcd-examples.test.ts`, the program in `lcd-program.ts`), and in the
 browser (`tests/e2e/lcd.spec.ts`).
+
+### ST7789
+
+`periph/st7789` (LIB-2): a color TFT module with the Sitronix ST7789V controller on its 4-line
+serial interface, one part for every panel, drawn as the module
+([ADR-0031](adr/0031-tft-modules.md)). Data sheets: Sitronix ST7789V V1.3 (2014/03: Table 6,
+Table 9, §8.4, §8.8, §8.12, §8.14, §9.1–9.2), the ST7789VW V1.0 for comparison (the same
+commands plus BCh, BDh); the LCDWiki modules MSP2008 (2.0"), MSP1308 (1.3", 7 pins) and
+MSP1141 (1.14"), with their panel specs (QDTFT2009, TFT1301, TFT1141), schematics and vendor
+programs; DisplayModule DM-TFT114-397.
+
+**Pins**: the 8-pin breakout header, along the bottom of the symbol at offsets 1–8 whatever the
+panel. The ST7789V is a 3.3 V part and its inputs are not 5 V tolerant; the simulator has no
+voltages, so only the Part tab says so.
+
+| No. | Pin      | Dir       | What                                                                    |
+| --- | -------- | --------- | ----------------------------------------------------------------------- |
+| 1–2 | GND, VCC | power     | not simulated                                                           |
+| 3   | SCL      | in        | serial clock: SDA is sampled on its rising edge while CS is LOW         |
+| 4   | SDA      | in        | serial data, MSB first (reads are not simulated: SDA is input only)     |
+| 5   | RES      | in        | RESX: a LOW pulse of 10 µs resets; under 5 µs is rejected as a spike    |
+| 6   | DC       | in        | D/CX, sampled on the 8th rising edge: 0 command, 1 parameter or data    |
+| 7   | CS       | in        | CSX: LOW enables the interface, HIGH restarts the byte (7-pin: tie LOW) |
+| 8   | BLK      | in, sense | backlight: lit while HIGH or open (the board's 10 kΩ pull-up), dark LOW |
+
+**Props**: `panel` — `240x320` (default, 2.0"), `240x240` (1.3", 1.54"), `135x240` (1.14"). Each
+panel is its glass and window in the 240 × 320 frame memory (`st7789-panels.ts`): 0–239 ×
+0–319, 0–239 × 0–239 and 52–186 × 40–279; the vendor programs' offsets for four orientations
+each are the tests. All three are normally black IPS: the glass shows the memory's colors
+inverted unless `INVON` was sent (every vendor initialization sends it).
+
+**Controller** (`st7789-controller.ts`, pure):
+
+- Every command of §9.1–9.2 with the parameter count its table shows; the ones with no visible
+  effect (porch, gate, power, VCOM, gamma, CABC, NVM) are accepted and their parameters
+  counted. A code the data sheet lacks is a warning (`unknown-command`; the MSP1141 program
+  sends `D6h`) and is ignored with its data; a read (`04h`, `09h`, `0Ah`–`0Fh`, `2Eh`, `3Eh`,
+  `45h`, `52h`…, `DAh`–`DCh`) is a warning (`read-not-simulated`), its bytes ignored until the
+  next command; data no command takes is a warning (`stray-data`).
+- Parameters are stored as they arrive (§8.5: the sent ones stand when a command is cut short).
+- Memory writes (`RAMWR` from the window's start, `WRMEMC` where it stopped) follow §8.12's
+  counter table: the column runs XS..XE, then the row; past YE back to YS; a window starting
+  past its end wraps after every pixel (`bad-window`, a warning). Logical (column, row) →
+  memory: MV exchanges them (the column counter runs down the rows), then MX mirrors the
+  memory's columns and MY its rows whatever MV is (the reading that matches all eight vendor
+  offsets). Pixels past the memory are ignored but counted ("out of range… ignored").
+- COLMOD `x3` 12-bit (3 bytes, 2 pixels; each 4-bit channel's two MSBs repeat into the low
+  bits — the data sheet draws a look-up table but never gives it), `x5` 16-bit (R0 and B0 from
+  RAMCTRL's EPF: 00 → 0, 01 → 1, 10 → each channel's MSB, 11 (default) → G0), `x6` 18-bit and
+  `x7` (16M truncated: the top 6 bits of 3 bytes); any other format makes the window's pixels
+  unknown (`bad-format`).
+- H/W reset and power-on: sleep in, display off, normal mode, inversion and idle off, COLMOD
+  06h, MADCTL 00h, window 0–239 × 0–319, scroll 0/320/0 from 0, RAMCTRL 00h/F0h. `SWRESET`
+  keeps COLMOD and MADCTL ("No change") and its window ends follow MV. The memory is "set
+  randomly" at power-on (unknown) and "not cleared" by either reset.
+
+**Timing** (`st7789.ts`) — Table 6 (write) as timing checks, Table 9, and the commands' waits;
+every violation is an error:
+
+| Requirement                           | Check                                                                                                                                                       | On violation                          |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| `tSDS`, `tSDH` ≥ 10 ns                | SDA around SCL rising                                                                                                                                       | the bit unknown                       |
+| `tDCS`, `tDCH` ≥ 10 ns                | D/CX around the 8th rising edge only                                                                                                                        | the byte command or data: lost        |
+| `tSHW`, `tSLW` ≥ 15 ns, `tSCYCW` ≥ 66 | SCL HIGH, LOW, rise to rise                                                                                                                                 | the bit phase lost                    |
+| `tCSS` ≥ 15 ns, `tCHW` ≥ 40 ns        | CS falling to SCL, CS HIGH                                                                                                                                  | the bit phase lost                    |
+| `tCSH` ≥ 15 ns                        | the last SCL rise to CS rising                                                                                                                              | reported; the byte stands             |
+| `tRW` ≥ 10 µs                         | RESX LOW                                                                                                                                                    | 5–9 µs: a reset may or may not happen |
+| waits (`wait-violation`)              | a command within 5 ms of RESX↑, `SWRESET`, `SLPOUT`, `SLPIN`; `SLPOUT` within 120 ms of RESX↑ (or of `SWRESET` in sleep); `SLPIN` within 120 ms of `SLPOUT` | the command's effect uncertain        |
+
+A byte completes 10 ns after its 8th edge, so hold violations reach it. Power-on counts as a
+reset released at time 0. `SLPOUT` and `SLPIN` start their waits only when they change the mode
+("no effect when already…"). The waits: the data sheet says "it will be necessary to wait" but
+not what happens otherwise, and vendor code that skips the `SLPOUT` waits works on the bench —
+so a command sent too early runs uncertainly rather than being lost (LIB-2 Q5).
+
+**Unknowns — the veil**: a command whose effect is uncertain sets what it sets, as the outcome
+shown, and marks it unknown where the outcomes differ (`Controller.unknown`); pixels it writes
+are `PIXEL_UNCERTAIN`; the glass shows them under a hatch of the `X` color, and a later command
+sent in time makes them known again. `X` (noise) is kept for data never known: the power-on
+memory and pixels written with unknown bits. A command byte with up to 3 unknown bits whose
+values are all commands without parameters runs each uncertainly; anything less placeable — an
+unknown D/CX, an SCL edge while CS is unknown, a CS glitch in the middle of a byte, a clock
+check failing, RESX unknown — leaves the interface lost: every register unknown, the memory
+veiled, data ignored until the next command (D/CX = 0 marks every command; a lost bit phase
+recovers at CS↑ or a reset). A CS or SCL never known yet (the logic driving it not reset after
+power-on) is no activity, and a CS glitch between bytes (an EEPROM's output window at a byte
+boundary) is harmless.
+
+**Glass** (`st7789-frame.ts`): `st7789Frame(controller, panel)` gives the glass's pixels as
+`0xRRGGBB` plus `FRAME_UNKNOWN` / `FRAME_UNCERTAIN`: the blank page (black) asleep or with the
+display off; the panel's window of the memory through vertical scrolling (always applied: the
+defaults map every line to its row; TFA + VSA + BFA ≠ 320 or a start in a fixed area is
+uncertain; ML exchanges the fixed areas); partial mode blanks the lines outside PTLAR (a start
+past the end wraps); idle keeps each channel's top bit; MADCTL's RGB bit swaps red and blue at
+display time; the panel's inversion. The drawer turns it into an image (`tft`,
+[editor.md](editor.md#symbol-drawing)).
+
+**Tests** (`src/library/periph/st7789*.test.ts`): pins and symbol; the command table's counts;
+framing, recovery (§8.5 Figures 20–21), defaults; every memory-write rule, the eight MADCTL
+orientations of Figure 33, the vendor offsets landing on each panel's glass, every color format
+and EPF; the frame's modes, scroll, partial, panels; each Table 6 requirement and the reset
+pulse just inside and outside; every wait; the MSP2008 vendor initialization under the veil;
+unknown SDA, D/CX, SCL, CS and RES. Scenarios: the TFT Color Bars program through the
+controller (`tft.test.ts`, `tft-program.ts`), the example headless (`tft-examples.test.ts`),
+the carry-over property over random TFT networks, an SPI bus benchmark, and the browser
+(`tests/e2e/tft.spec.ts`).
