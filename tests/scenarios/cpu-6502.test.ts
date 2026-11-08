@@ -55,6 +55,18 @@ describe('a W65C02S computer (ROM, RAM, 74HC00 decoding)', () => {
     expect(kinds(sim)).toEqual([]);
   });
 
+  it('pulls RDY LOW in WAI against its pull-up, without contention (§3.10)', () => {
+    const rom: Program = [
+      [0x8000, [0xcb]], // WAI
+      [0xfffc, [0x00, 0x80]],
+    ];
+    const sim = start(new Simulator(computer({ rom }), scenarioRegistry()));
+    sim.runUntil(us(30));
+    expect(cpu(sim).mode).toBe('waiting');
+    expect(sim.level('RDY')).toBe(0);
+    expect(kinds(sim)).toEqual([]);
+  });
+
   it('is lost when it jumps into uninitialized RAM; a reset brings it back', () => {
     const rom: Program = [
       [0x8000, [0x4c, 0x00, 0x03]], // JMP $0300
