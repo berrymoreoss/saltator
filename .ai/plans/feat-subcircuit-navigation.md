@@ -200,19 +200,25 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 
 Checkable statements; verified one by one in the finish-branch workflow.
 
-- [ ] `pnpm check`, `pnpm build` and `pnpm e2e` are green.
-- [ ] Running the Two-Digit Counter, going into each digit shows that digit's levels (the two
-  differ while counting), live, in the browser and in a unit test.
-- [ ] A button or switch pressed inside an instance acts on that instance only (unit test with
-  two instances of one module; looked at in the browser).
-- [ ] The Probe tool inside an instance adds `A1/…` references that record; a second click
-  removes them; Break When … Rises and Watch inside work the same way.
-- [ ] In and out by double-click, the context menu, the Circuit menu, the shortcuts and the
-  breadcrumbs; Go Up selects the instance one came from.
-- [ ] The path survives edits inside the instance while running (carry-over) and undo/redo; an
-  edit undone comes back in the instance it was made in.
-- [ ] A Simulation tab diagnostic of a part inside an instance locates it inside that instance.
-- [ ] Reloading the page restores the same instance.
+- [x] `pnpm check`, `pnpm build` and `pnpm e2e` are green (2478 tests, 78 e2e; the build's
+  large-chunk warning is old).
+- [x] Running the Two-Digit Counter, going into each digit shows that digit's levels (the two
+  differ while counting), live: `tests/e2e/subcircuit-navigation.spec.ts` (the same bus line
+  reads 0 in the tens, 3 in the ones), `navigation.test.ts`, and looked at in the browser
+  (light and dark; inside A1/A1 and A2/A1 counting apart).
+- [x] A button or switch pressed inside an instance acts on that instance only (unit test with
+  two instances of `toggle`; looked at in the browser: SW1 flipped inside A2 lights Q2, not Q1).
+- [x] The Probe tool inside an instance adds `A1/…` references that record (the e2e test's row
+  `A1/A1/U1.Q0`); a second click removes them; the context menu's spot (Break When … Rises,
+  Watch) carries the same path (unit tests).
+- [x] In and out by double-click, the context menu, the Circuit menu, the shortcuts and the
+  breadcrumbs; Go Up (and a crumb) selects the instance one came from (unit and e2e tests; the
+  Circuit menu looked at).
+- [x] The path survives edits inside the instance while running (carry-over) and undo/redo; an
+  edit undone comes back in the instance it was made in (unit tests).
+- [x] A Simulation tab diagnostic of a part inside an instance locates it inside that instance
+  (`locatePart`/`locateNet` unit tests; the panel calls them — no example raises one to click).
+- [x] Reloading the page restores the same instance (e2e test).
 
 ## Open questions
 
@@ -232,11 +238,21 @@ Checkable statements; verified one by one in the finish-branch workflow.
 ## Progress log
 
 - 2026-11-08 — plan drafted; Q1–Q4 answered (all as proposed); approved, branch started.
+- 2026-11-08 — tasks 1–8 done: `EditorState.path` (kept, or the longest end of a broken path,
+  or the first instance), the simulation model of a path, Interact/Probe/locating inside,
+  double-click and `goInto`/`goUp`/`goUpTo`/`goTop`, the breadcrumb bar (floating, so the canvas
+  keeps its size — the e2e helpers map from the canvas box once) and the Go commands, autosave
+  of the path, the e2e test, docs and ADR-0024. Deviation: the bar floats over the canvas's
+  corner instead of a strip above it. Found on the way: Step Clock after an action while paused
+  stopped before the same edge (R14a; fixed with a regression test, `#beforeEdge`); a
+  `Simulation.sync` path guard no editor test reached (a host test now). Every acceptance
+  criterion verified.
 
 ## Handoff
 
-- **State:** plan approved, branch started; no code yet.
-- **Next step:** task 1 (`EditorState.path`).
-- **Watch out:** `Simulation.sync` returns early when netlist and scene are the same objects —
-  switching between instances of one circuit changes neither.
+- **State:** all tasks done, every acceptance criterion verified; not merged.
+- **Next step:** the finish-branch workflow (plan and roadmap to `done`, R15 `next`, merge with
+  the user's approval).
+- **Watch out:** the Step Clock fix (`Simulation.#beforeEdge`) touches R14a's stepping; the
+  rewind property tests pass.
 - **Verify with:** `pnpm check`; `pnpm e2e`.
