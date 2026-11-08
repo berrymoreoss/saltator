@@ -5,7 +5,7 @@
 import type { GateStyle, WheelMode } from '../editor';
 
 export type ThemeSetting = 'system' | 'dark' | 'light';
-export type PanelId = 'parts' | 'properties' | 'bottom';
+export type PanelId = 'circuits' | 'parts' | 'properties' | 'bottom';
 /** Tabs of the bottom dock: design checks, what happened while simulating, the part, memories. */
 export type BottomTab = 'messages' | 'simulation' | 'part' | 'memory' | 'waves' | 'debug';
 const BOTTOM_TABS: readonly BottomTab[] = [
@@ -19,7 +19,7 @@ const BOTTOM_TABS: readonly BottomTab[] = [
 
 export interface PanelSettings {
   readonly visible: boolean;
-  /** Width (side docks) or height (bottom dock) in px. */
+  /** Width (side docks), or height (the bottom dock, the Circuits list above Parts) in px. */
   readonly size: number;
 }
 
@@ -36,6 +36,7 @@ export interface Settings {
 
 /** Size limits of the docks, in px. */
 export const PANEL_LIMITS: Readonly<Record<PanelId, { min: number; max: number }>> = {
+  circuits: { min: 60, max: 480 },
   parts: { min: 160, max: 480 },
   properties: { min: 200, max: 520 },
   bottom: { min: 80, max: 480 },
@@ -47,6 +48,7 @@ export const DEFAULT_SETTINGS: Settings = {
   showGrid: true,
   wheel: 'pan',
   panels: {
+    circuits: { visible: true, size: 120 },
     parts: { visible: true, size: 232 },
     properties: { visible: true, size: 264 },
     bottom: { visible: true, size: 148 },
@@ -86,6 +88,7 @@ export function parseSettings(value: unknown): Settings {
     showGrid: typeof raw.showGrid === 'boolean' ? raw.showGrid : DEFAULT_SETTINGS.showGrid,
     wheel: oneOf(raw.wheel, ['pan', 'zoom'], DEFAULT_SETTINGS.wheel),
     panels: {
+      circuits: panel(panels.circuits, 'circuits'),
       parts: panel(panels.parts, 'parts'),
       properties: panel(panels.properties, 'properties'),
       bottom: panel(panels.bottom, 'bottom'),

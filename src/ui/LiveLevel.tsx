@@ -29,8 +29,12 @@ export function LiveLevel({
 }) {
   useStore(editor.simulation.ticks);
   const simulation = editor.simulation;
+  // A part of the open circuit by its netlist id: none when the circuit doesn't simulate as drawn.
+  const part = pin && editor.flatPart(pin[0]);
   const style = pin
-    ? simulation.pinStyle(pin[0], pin[1])
+    ? part === undefined
+      ? undefined
+      : simulation.pinStyle(part, pin[1])
     : wire !== undefined
       ? simulation.wireStyle(wire)
       : undefined;

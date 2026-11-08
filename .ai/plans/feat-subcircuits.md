@@ -281,7 +281,7 @@ Small, ordered, each committable on its own with its tests (`pnpm check` green).
 - [x] 8. `editor`: simulation host, timeline, analyzer, debugger, memory inspector on the
   design; renames expanded by path; live drawing only for the top; tests of editing a
   definition while running (carry-over keeps the other instances' state).
-- [ ] 9. `ui`: Circuits list and Circuit menu, Subcircuits in Parts, Open Subcircuit
+- [x] 9. `ui`: Circuits list and Circuit menu, Subcircuits in Parts, Open Subcircuit
   (double-click, context menu), Properties of an instance and of the circuit, Messages per
   circuit, New Document; status bar note.
 - [x] 10. `ui`: document session, autosave and Open Recent over every circuit; the gallery's
@@ -358,19 +358,16 @@ Checkable statements; verified one by one in the finish-branch workflow.
 
 ## Handoff
 
-- **State:** tasks 1–8 done: all pure layers, the editor on documents (`EditorState.document`,
-  `design`; `edit`/`editDocument`/`setDocument`/`openCircuit`; `partAt`/`setPartPropAt`), the
-  simulation host on a `SimulationModel`, analyzer/debugger/memory inspector on the design. Tests:
-  `src/editor/documents.test.ts`. The UI still opens/saves only the first circuit
-  (`document-session.ts`, `document-controller.ts`, `autosave.ts`, `App.tsx` use
-  `circuits[0]`/`state.circuit`) and has no Circuits list.
-- **Next step:** task 10 first (session over the whole document: `setDocument` on open, save
-  `state.document`, unsaved = `sameDocument`, autosave the document + open circuit + cameras),
-  then task 9 (Circuits list in the left dock, Subcircuits group in Parts filtered by
-  `circuitsContaining`, Open Subcircuit on double-click/context menu, Properties of an instance
-  and of the circuit, Messages from `design.issues` with their circuit, New Document).
-- **Watch out:** `Editor.registry` is now a getter (the document registry); `Editor.library` is
-  the library. `SignalMap.nets` is keyed by flat ids. Visual check script: scratchpad
-  `look.mjs` (Vite on 5207; uses `logicEditor.registry =` which no longer works — use
-  `logicEditor.setDocument(doc)` instead).
-- **Verify with:** `pnpm check`; `pnpm bench tests/bench/circuit.bench.ts`.
+- **State:** tasks 1–8 and 10 done. The app opens/saves/autosaves whole documents; the editor
+  holds the document (`openCircuit`, `editDocument`, `partAt`, `setPartPropAt`); tools run on the
+  flattened design. No UI yet to add circuits, list them or open subcircuits.
+- **Next step:** task 9 (UI): CIRCUITS section above PARTS in `Workbench.tsx`'s left dock (own
+  splitter; settings like the docks), Circuit menu (Add Circuit…, Rename…, Duplicate, Delete,
+  Set as Top Circuit, Open Subcircuit) in `workbench-commands.ts`; Subcircuits group first in
+  Parts (`parts-filter.ts` family `sub`, filtered by `circuitsContaining`); double-click on an
+  instance opens its circuit (`Editor.doubleClick`); Properties of an instance and of the open
+  circuit; Messages from `design.issues` (circuit-tagged; a click opens the circuit); File ▸ New
+  Circuit → New Document; status bar note when another circuit than the top is open.
+- **Watch out:** `Editor.registry` is a getter (document registry), `Editor.library` the library.
+  Visual check: scratchpad `look.mjs` must use `logicEditor.setDocument(doc)`.
+- **Verify with:** `pnpm check`; `pnpm e2e` after the UI (task 11).

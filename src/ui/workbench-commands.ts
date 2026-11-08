@@ -46,6 +46,15 @@ import {
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
+import {
+  addCircuit,
+  type CircuitDocument,
+  circuitUses,
+  duplicateCircuit,
+  removeCircuit,
+  setTopCircuit,
+  subcircuitOf,
+} from '../circuit';
 import { formatTime, isBusName } from '../core';
 import { ALL_SPEEDS, type Editor, type Store } from '../editor';
 import type { ClipboardBridge } from './clipboard';
@@ -68,6 +77,7 @@ export interface WorkbenchContext {
 }
 
 const PANEL_LABELS: Readonly<Record<PanelId, string>> = {
+  circuits: 'Circuits',
   parts: 'Parts',
   properties: 'Properties',
   bottom: 'Messages and Simulation',
@@ -110,6 +120,19 @@ export function createCommands({
     const spot = editor.contextProbe;
     return spot && !isBusName(spot.ref) ? spot.ref : undefined;
   };
+  /** The circuit the instance selected alone on the canvas places, if one is. */
+  const selectedInstance = () => {
+    const { selection, circuit } = editor.state.get();
+    if (selection.parts.size !== 1) return undefined;
+    const [id] = selection.parts;
+    const part = circuit.components.find((c) => c.id === id);
+    return part && subcircuitOf(part.type);
+  };
+  /** Shows the open circuit's name in Properties, ready to type. */
+  const focusCircuitName = () => {
+    setPanel('properties', true);
+    ui.update((s) => ({ ...s, propertiesRequest: s.propertiesRequest + 1 }));
+  };
   /** The memory part selected alone on the canvas, if any. */
   const selectedMemory = () => {
     const { selection, circuit } = editor.state.get();
@@ -125,10 +148,89 @@ export function createCommands({
     // Save Page and Open File must not show up, even while typing in a field.
     {
       id: 'file.new',
-      label: 'New Circuit',
+      label: 'New Document',
       icon: FilePlus,
       shortcuts: ['Mod+Alt+N'],
       run: () => void documents.newDocument(),
+    },
+    // Circuits of the document (R11a): they act on the circuit open.
+    {
+      id: 'circuit.add',
+      label: 'Add Circuit',
+      icon: FilePlus,
+      run: () => {
+        const { document } = editor.state.get();
+        const { document: next, id } = addCircuit(document, freeCircuitName(document));
+        editor.editDocument('Add Circuit', next, { open: id });
+        focusCircuitName();
+      },
+    },
+    {
+      id: 'circuit.rename',
+      label: 'Rename Circuit…',
+      run: () => {
+        editor.clearSelection();
+        focusCircuitName();
+      },
+    },
+    {
+      id: 'circuit.duplicate',
+      label: 'Duplicate Circuit',
+      run: () => {
+        const { document, circuit } = editor.state.get();
+        const { document: next, id } = duplicateCircuit(document, circuit.id);
+        editor.editDocument(`Duplicate ${circuit.name}`, next, { open: id });
+      },
+    },
+    {
+      id: 'circuit.delete',
+      label: 'Delete Circuit',
+      menuLabel: () => {
+        const { document, circuit } = editor.state.get();
+        const count = circuitUses(document, circuit.id).reduce(
+          (n, u) => n + u.components.length,
+          0,
+        );
+        return count === 0
+          ? 'Delete Circuit'
+          : `Delete Circuit and ${count} Instance${count === 1 ? '' : 's'}`;
+      },
+      enabled: () => editor.state.get().document.circuits.length > 1,
+      run: () => {
+        const { document, circuit } = editor.state.get();
+        const next = removeCircuit(document, circuit.id);
+        editor.editDocument(`Delete ${circuit.name}`, next, { open: next.circuits[0]!.id });
+      },
+    },
+    {
+      id: 'circuit.setTop',
+      label: 'Set as Top Circuit',
+      enabled: () => {
+        const { circuit, design } = editor.state.get();
+        return circuit.id !== design.top;
+      },
+      run: () => {
+        const { document, circuit } = editor.state.get();
+        editor.editDocument(`Set ${circuit.name} as Top`, setTopCircuit(document, circuit.id));
+      },
+    },
+    {
+      id: 'circuit.openSubcircuit',
+      label: 'Open Subcircuit',
+      enabled: () => selectedInstance() !== undefined,
+      run: () => {
+        const inner = selectedInstance();
+        if (inner !== undefined) editor.openCircuit(inner);
+      },
+    },
+    {
+      id: 'circuit.openTop',
+      label: 'Open Top Circuit',
+      enabled: () => {
+        const { circuit, design } = editor.state.get();
+        return circuit.id !== design.top;
+      },
+      run: () => editor.openCircuit(editor.state.get().design.top),
     },
     {
       id: 'file.gallery',
@@ -830,6 +932,20 @@ export function workbenchMenus(examples: readonly Example[], recentCount?: numbe
     },
     { label: 'Place', items: PLACE_MENU },
     {
+      label: 'Circuit',
+      items: [
+        'circuit.add',
+        'circuit.rename',
+        'circuit.duplicate',
+        'circuit.delete',
+        SEPARATOR,
+        'circuit.setTop',
+        SEPARATOR,
+        'circuit.openSubcircuit',
+        'circuit.openTop',
+      ],
+    },
+    {
       label: 'View',
       items: [
         'view.zoomIn',
@@ -851,7 +967,12 @@ export function workbenchMenus(examples: readonly Example[], recentCount?: numbe
         SEPARATOR,
         {
           label: 'Panels',
-          items: ['view.panel.parts', 'view.panel.properties', 'view.panel.bottom'],
+          items: [
+            'view.panel.circuits',
+            'view.panel.parts',
+            'view.panel.properties',
+            'view.panel.bottom',
+          ],
         },
       ],
     },
@@ -937,6 +1058,7 @@ export const ITEM_CONTEXT_MENU: readonly MenuEntry[] = [
   'edit.flipV',
   SEPARATOR,
   'edit.properties',
+  'circuit.openSubcircuit',
   'edit.partInfo',
   'edit.inspectMemory',
   'waves.toggleProbe',
@@ -970,4 +1092,22 @@ export const TOOLBAR: readonly (readonly string[])[] = [
   ],
   ['view.zoomIn', 'view.zoomOut', 'view.zoomFit'],
   ['view.grid', 'view.gates.toggle'],
+];
+
+/** `Circuit 2`, `Circuit 3`, …: the first name no circuit of the document has. */
+export function freeCircuitName(document: CircuitDocument): string {
+  const names = new Set(document.circuits.map((c) => c.name));
+  for (let n = document.circuits.length + 1; ; n++) {
+    const name = `Circuit ${n}`;
+    if (!names.has(name)) return name;
+  }
+}
+
+/** The CIRCUITS list's context menu: the Circuit commands, on the circuit it opened. */
+export const CIRCUIT_CONTEXT_MENU: readonly MenuEntry[] = [
+  'circuit.rename',
+  'circuit.duplicate',
+  'circuit.delete',
+  SEPARATOR,
+  'circuit.setTop',
 ];

@@ -30,22 +30,34 @@ A desktop CAD-style window (`Workbench`), dense like KiCad or Altium: 12 px UI t
 └──────────────────────────────────────────────────────────────────┘
 ```
 
-- **Docks** are fixed regions around the canvas: Parts (left), Properties (right) and a tabbed
-  bottom dock (Messages). Splitters resize them within limits; each can be hidden from its title
-  bar or View ▸ Panels. Sizes and visibility are settings (below).
-- **Parts**: families as collapsible groups (74HC Logic, Timers, Primitives, Input / Output,
-  Nets, and Developer Fixtures in dev builds); a search box (`/` or `Mod+F`) matching every word against name, title,
+- **Docks** are fixed regions around the canvas: Circuits above Parts (left), Properties
+  (right) and a tabbed bottom dock (Messages). Splitters resize them within limits; each can be
+  hidden from its title bar or View ▸ Panels. Sizes and visibility are settings (below).
+- **Circuits** (R11a, `CircuitsPanel.tsx`): the document's circuits in order — the top circuit
+  first, starred (it simulates), the open one highlighted, each with the number of its instances
+  placed (`2×`); a click opens one (`Editor.openCircuit`: not an edit; each circuit keeps its
+  camera), a right click opens it and shows Rename…, Duplicate, Delete, Set as Top Circuit;
+  **+ Add Circuit** adds `Circuit N` and opens it with its name ready in Properties. The
+  **Circuit** menu has the same commands on the open circuit — Add Circuit, Rename Circuit…,
+  Duplicate Circuit, Delete Circuit (named "and N Instances" when it has some: they go with it,
+  one undo step), Set as Top Circuit — and Open Subcircuit (the selected instance's circuit,
+  also in the canvas context menu) and Open Top Circuit.
+- **Parts**: families as collapsible groups (Subcircuits — the document's circuits, except the
+  open one and those containing it, which would place a circuit inside itself — 74HC Logic,
+  Timers, Primitives, Input / Output, Nets, and Developer Fixtures in dev builds); a search box (`/` or `Mod+F`) matching every word against name, title,
   type and keywords; the selected part's preview — its symbol drawn by the canvas drawers — with
   title, pins and datasheet link. Clicking a part arms the place tool with it (the row is marked);
   dragging it onto the canvas places one ([Placing parts](#placing-parts)).
 - **Properties**: one part — designator, label, position, rotation, flip and every prop, all
-  editable ([Properties](#properties)), plus type, datasheet and pins with their nets; one wire —
-  endpoints, length, net and the pins on it; several items — counts by part name; nothing — the
-  circuit's name and counts.
-- **Bottom dock tabs** (the active one is a setting): **Messages** — the compile result's design
-  issues, errors first, with code, message and location (`U1.A`, `wire w3`); click selects the
-  item and brings it into view, double-click zooms to it; the tab and the status bar show the
-  counts. **Simulation** — what happened while running ([Simulation](#simulation)). **Part** —
+  editable ([Properties](#properties)), plus type, datasheet and pins with their nets (an
+  instance: its ports, and Open <circuit>); one wire — endpoints, length, net and the pins on it;
+  several items — counts by part name; nothing — the open circuit: its name (editable: Rename),
+  id, role (the top circuit, or a subcircuit), where it is placed, its ports, and counts.
+- **Bottom dock tabs** (the active one is a setting): **Messages** — the design issues of every
+  circuit of the document (`Design.issues`), errors first, with code, message and location
+  (`U1.A`, `wire w3`; `Decade Counter: U1.A` when there are several circuits); click opens the
+  circuit, selects the item and brings it into view, double-click zooms to it; the tab and the
+  status bar show the counts. **Simulation** — what happened while running ([Simulation](#simulation)). **Part** —
   the pins and function table of the last part picked ([Part info](#part-info)). **Memory** —
   the cells of a memory part, live while simulating ([Memory inspector](#memory-inspector)).
   **Waveforms** — the probed signals over simulated time ([Waveforms](#waveforms)). **Debug**
@@ -53,7 +65,8 @@ A desktop CAD-style window (`Workbench`), dense like KiCad or Altium: 12 px UI t
   run statistics.
 - **Status bar**: grid position under the pointer, zoom, a one-line selection summary, the
   simulation (state, simulated time, the speed reached when lagging, runtime problems; click opens
-  the Simulation tab), a hint for the current tool and gesture (`statusHint`), part/wire counts,
+  the Simulation tab; while a circuit other than the top is open, "Main simulates; this circuit is
+  drawn without levels"), a hint for the current tool and gesture (`statusHint`), part/wire counts,
   redraw time (dev builds), error/warning counts (click opens Messages).
 - **Context menu** (right click on the canvas): over a part or wire (selected first) — Cut, Copy,
   Paste, Duplicate, Delete, Rotate, Rotate Counter-clockwise, Flip Horizontal, Flip Vertical,
@@ -127,7 +140,7 @@ the shortcuts dialog all read the same `CommandRegistry`, which rejects duplicat
 | Keyboard Shortcuts  | `?`, `Mod+/`               | Swap wire bend (drawing)   | `Tab`                     |
 | Interact tool       | `I`                        | Run / Pause                | `F5`                      |
 | Step                | `F10`                      | Stop                       | `Shift+F5`                |
-| Reset               | `Mod+Shift+F5`             | New Circuit                | `Mod+Alt+N`               |
+| Reset               | `Mod+Shift+F5`             | New Document               | `Mod+Alt+N`               |
 | Open…               | `Mod+O`                    | Save (As…)                 | `Mod+S` (`Mod+Shift+S`)   |
 | Net Label           | `L`                        | Probe tool                 | `P`                       |
 | Step Clock          | `F8`                       | Run For                    | `Shift+F8`                |
@@ -315,6 +328,10 @@ another tool is chosen or Escape. The editor's `mode` store says what is going o
   follows the drag), in the default orientation, and leaves the current tool alone.
 - A placed part gets its designator from its definition's prefix — the lowest free number
   (`U1`, `U2`, `SW1`, … filling gaps) — and **every resolved prop** written into the document.
+- **Subcircuit instances** (R11a) are placed the same way from the Parts panel's Subcircuits
+  group (`A1`, `A2`); the editor refuses a circuit that contains the open one (from the panel, a
+  paste or a script). A **double-click** on an instance opens its circuit (R11b: while
+  simulating, the instance itself).
 - **Place menu** (the menu bar's Place, and right click on empty canvas ▸ Place): Power (VCC),
   Ground (GND), Pull-up, Pull-down, Wire (`W`), Bus (`B`), Net Label (`L`), Bus Entry (`Z`,
   KiCad's key), Find Part…. A part item arms the place
@@ -999,7 +1016,7 @@ ways (`fileNameOf` replaces characters no file system accepts; `nameOfFile` stri
 `Store<DocumentSession>`; it asks and reports through callbacks (the workbench shows dialogs),
 one file operation at a time:
 
-- **New Circuit** (`Mod+Alt+N`), **Open…** (`Mod+O`), **Open Recent**, an **example** and a
+- **New Document** (`Mod+Alt+N`), **Open…** (`Mod+O`), **Open Recent**, an **example** and a
   `.logic.json` **dropped** anywhere on the window replace the document: with unsaved changes
   they first ask **"Save changes to “name”?"** — Save (the default button; a cancelled Save
   cancels the action), Don't Save, Cancel (also Escape). Then `setCircuit` (history cleared,

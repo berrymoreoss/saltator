@@ -51,7 +51,7 @@ test.describe('with the File System Access API', () => {
     expect(await pickerCount(page)).toBe(1);
     expect(firstX(await readFile(page, 'hello.logic.json'))).toBe(2);
 
-    await menu(page, 'File', 'New Circuit');
+    await menu(page, 'File', 'New Document');
     await expect(page).toHaveTitle('Untitled — Logic');
     await expect(counts(page)).toHaveText('0 parts · 0 wires');
 
@@ -68,7 +68,7 @@ test.describe('with the File System Access API', () => {
     await openApp(page);
     await edit(page);
 
-    await menu(page, 'File', 'New Circuit');
+    await menu(page, 'File', 'New Document');
     await expect(unsavedDialog(page)).toContainText('Save changes to “Hello, LED”');
     await unsavedDialog(page).getByRole('button', { name: 'Cancel' }).click();
     await expect(unsavedDialog(page)).toBeHidden();
@@ -83,7 +83,7 @@ test.describe('with the File System Access API', () => {
 
     // Save (the default button) saves first, then the new circuit opens.
     await pick(page, 'save', 'kept.logic.json');
-    await menu(page, 'File', 'New Circuit');
+    await menu(page, 'File', 'New Document');
     await expect(
       unsavedDialog(page).getByRole('button', { name: 'Save', exact: true }),
     ).toBeFocused();
@@ -95,7 +95,7 @@ test.describe('with the File System Access API', () => {
     await menu(page, 'File', 'Examples');
     await page.getByRole('menuitem', { name: 'Hello, LED' }).click();
     await edit(page);
-    await menu(page, 'File', 'New Circuit');
+    await menu(page, 'File', 'New Document');
     await unsavedDialog(page).getByRole('button', { name: 'Don’t Save' }).click();
     await expect(page).toHaveTitle('Untitled — Logic');
   });
@@ -154,7 +154,7 @@ test.describe('with the File System Access API', () => {
     await expect(items).toHaveText([/second\.logic\.json/, /first\.logic\.json/, /Clear Recent/]);
     await page.keyboard.press('Escape');
 
-    await menu(page, 'File', 'New Circuit');
+    await menu(page, 'File', 'New Document');
     await page.reload();
     await expect(page).toHaveTitle('Untitled — Logic');
     await page.getByRole('menuitem', { name: 'File', exact: true }).click();
@@ -195,7 +195,7 @@ test.describe('without the File System Access API (Firefox, Safari)', () => {
     const path = test.info().outputPath('mine.logic.json');
     await file.saveAs(path);
 
-    await menu(page, 'File', 'New Circuit');
+    await menu(page, 'File', 'New Document');
     await expect(page).toHaveTitle('Untitled — Logic');
 
     const chooser = page.waitForEvent('filechooser');

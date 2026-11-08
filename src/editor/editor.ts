@@ -1908,15 +1908,26 @@ export class Editor {
     this.#updateCursor(input.at);
   }
 
-  /** Double-click: finishes a wire (Wire tool) or asks the UI to edit the part's properties. */
+  /**
+   * Double-click: finishes a wire (Wire tool), opens the circuit of a subcircuit instance (R11a),
+   * or asks the UI to edit the part's properties.
+   */
   doubleClick(input: PointerInput): void {
     if (input.button !== 0) return;
     if (this.#wire) {
       this.#finishWire();
       return;
     }
-    if (this.tool.get() !== 'select') return;
+    const tool = this.tool.get();
+    if (tool !== 'select' && tool !== 'interact') return;
     const hit = this.#hitAt(input.at);
+    const type = hit?.kind === 'part' ? this.scene.partById.get(hit.id)?.instance.type : undefined;
+    const inner = type === undefined ? undefined : subcircuitOf(type);
+    if (inner !== undefined) {
+      this.openCircuit(inner);
+      return;
+    }
+    if (tool !== 'select') return;
     if (hit?.kind === 'part') {
       this.setSelection(selectHit(hit));
       this.#request({ kind: 'edit-properties' });

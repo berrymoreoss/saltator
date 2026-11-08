@@ -83,13 +83,15 @@ export function statusHint(
 }
 
 export function StatusBar({ editor, onShowMessages, onShowSimulation }: StatusBarProps) {
-  const { scene, selection } = useStore(editor.state);
+  const { scene, selection, design, document } = useStore(editor.state);
   const view = useStore(editor.view);
   const tool = useStore(editor.tool);
   const mode = useStore(editor.mode);
   const simulating = useStore(editor.simulation.status).state !== 'stopped';
-  const errors = scene.issues.filter((i) => i.severity === 'error').length;
-  const warnings = scene.issues.length - errors;
+  // Every circuit's design checks (R11a), not only the open one's.
+  const errors = design.issues.filter((i) => i.severity === 'error').length;
+  const warnings = design.issues.length - errors;
+  const elsewhere = scene.circuit.id !== design.top;
   return (
     <footer className="statusbar" data-testid="statusbar">
       <span className="status-cell mono" title="Cursor position (grid cells)" data-testid="cursor">
@@ -102,6 +104,11 @@ export function StatusBar({ editor, onShowMessages, onShowSimulation }: StatusBa
         {selectionSummary(selection, scene)}
       </span>
       <SimulationStatus simulation={editor.simulation} onClick={onShowSimulation} />
+      {simulating && elsewhere && (
+        <span className="status-cell" data-testid="not-simulated">
+          {document.circuits[0]!.name} simulates; this circuit is drawn without levels
+        </span>
+      )}
       <span className="status-cell status-hint" data-testid="status-hint">
         {statusHint(tool, mode, editor.registry, simulating)}
       </span>
