@@ -1,9 +1,9 @@
-# 0030. HDL modules: Yosys synthesizes, an interpreter of its netlist runs them as parts
+# 0030. HDL modules: Yosys synthesizes outside the app, an interpreter runs its netlist as parts
 
 - **Status:** proposed
 - **Date:** 2026-11-08
-- **Roadmap item:** HDL-1 (feat/hdl-modules); proposed in docs/programmable-logic-track, accepted
-  in HDL-1 after its benchmark
+- **Roadmap item:** HDL-1 (feat/hdl-modules); proposed in docs/programmable-logic-track, amended
+  when HDL-1 started (Yosys outside the app), accepted in HDL-1 after its benchmark
 
 ## Context
 
@@ -20,17 +20,21 @@ carry-over across recompiles, diagnostics, test benches, determinism, and the pu
 
 ## Decision
 
-- **Yosys is the front end.** Yosys (ISC license), packaged for WebAssembly by YoWASP, compiles
-  Verilog outside the pure layers: in scripts for the library's modules, in a Web Worker in the
-  app for the modules of a document (HDL-1). Only synthesizable Verilog is accepted — what Yosys
-  synthesizes, which is what the user's FPGA or CPLD flow will get. Passes: `read_verilog
-  -specify`, `hierarchy -top`, `proc`, `flatten`, `opt -keepdc` (don't-care bits are not
-  optimized away, so `X` behaves as written), memories kept as memory cells; output: Yosys's
-  JSON netlist.
-- **The IR is plain data.** A pure converter in `src/library/hdl/` turns Yosys's JSON into the
-  IR: ports, signals with widths, word-level cells (logic, arithmetic, comparisons, multiplexers,
-  shifts, flip-flops, latches, memories), 4-state constants, specify paths and timing checks. It
-  is JSON-serializable, so it can be stored, shared and loaded without running anything.
+- **Yosys is the front end, and it runs outside the app.** Yosys (ISC license) compiles
+  Verilog on the user's computer, as their FPGA or CPLD flow does anyway, with a command the app
+  shows: `read_verilog` (`-specify` from HDL-2), `hierarchy -auto-top`, `proc`, `flatten`,
+  `opt -keepdc` (don't-care bits are not optimized away, so `X` behaves as written), `check`,
+  `write_json`; memories stay memory cells. The user pastes the JSON netlist into a module of
+  the document or imports it from a file. The repo's scripts run the system `yosys` for the
+  converter's fixtures, the examples and the library's modules; `pnpm check` never does. Only
+  synthesizable Verilog runs — what Yosys synthesizes, which is what the device will get.
+- **The IR is plain data, and it is what the document keeps.** A pure converter in
+  `src/library/hdl/` turns Yosys's JSON into the IR: ports, named signals, word-level cells
+  (logic, arithmetic, comparisons, multiplexers, shifts, flip-flops, latches, memories), 4-state
+  constants, specify paths and timing checks, each cell with its source location for messages.
+  It is JSON-serializable: a module of a document is its IR (not its `.v`, which stays with the
+  user), so a document opens, simulates and runs its benches without Yosys. Its types live in
+  `core`, which both `circuit` (storing it) and `library` (making and running it) may import.
 - **One interpreter runs every module.** A generic `Behavior` in `src/library/hdl/`: state in
   typed arrays (a value and an unknown bit plane per signal), so snapshots and carry-over work as
   for any part; combinational cells evaluated in topological order at zero delay within one
@@ -38,12 +42,14 @@ carry-over across recompiles, diagnostics, test benches, determinism, and the pu
   edge from `X`/`Z` making the stored bits `X`; outputs driven through the kernel (inertial, like
   every part) with the delays of the module's `specify` paths, or with one delay set on the part
   where the module has none (a document's module, until HDL-2); `specify` timing checks run by
-  `TimingChecks`.
+  `TimingChecks`. A part whose definition changed (a module compiled again) starts from power-on
+  when the running simulation carries over, as one whose props changed.
 - **A module is a black box with pin to pin timing**, as data sheets describe chips: delays in
   the code (`#5`) are not simulated, as synthesis ignores them. A library part is a module plus
-  its data sheet metadata (pinout, pin descriptions, function table); a document's module is
-  placed like a subcircuit; a programmable device (HDL-5) holds a module and times its pins by
-  the device's data sheet instead.
+  its data sheet metadata (pinout, pin descriptions, function table); a document's module is a
+  circuit of the document whose content is the IR, placed like a subcircuit, its vector ports bus
+  pins; a programmable device (HDL-5) holds a module and times its pins by the device's data
+  sheet instead.
 
 ## Consequences
 
@@ -52,8 +58,13 @@ carry-over across recompiles, diagnostics, test benches, determinism, and the pu
   74HC00's tests.
 - What is simulated is what Yosys synthesizes — the front end of the open-source FPGA flows
   (iCE40, ECP5) — not a separate reading of the language.
-- Yosys in WebAssembly is large: the app loads it lazily in a worker, only for documents with
-  modules; library modules are compiled ahead of time, so running them never needs Yosys.
+- The app ships no compiler: nothing large is downloaded, but the user needs Yosys installed
+  and one more step after editing (run the command, paste or import, Compile). Errors in the
+  Verilog are Yosys's, in the user's terminal and editor; the app reports what it can't run, at
+  the source location the JSON gives.
+- A JSON made with other passes (not flattened, `proc` not run, a gate-level `synth`) is refused
+  with the command to use; the user's Yosys version is kept with the IR and an older one than the
+  tested one gives a warning, as Yosys's cell library changes over time.
 - Speed: the interpreter evaluates a module's cells on every input change. Fine for chips;
   for a soft core of thousands of cells it is measured in HDL-1 and HDL-7, and HDL-10 makes it
   fast (the IR compiled to JavaScript or WebAssembly).
@@ -61,12 +72,17 @@ carry-over across recompiles, diagnostics, test benches, determinism, and the pu
   relies on Verilog's optimistic `X` (an `always @(posedge clk)` firing on `X → 1`).
 - Testbench Verilog (`initial` stimulus, `$display`, delays) is not supported: test benches are
   the simulator's own ([ADR-0025](0025-test-benches.md)).
-- The converter depends on Yosys's JSON format and cell library: the Yosys version is pinned
-  and the converter tested on fixtures. VHDL is not covered (GHDL is written in Ada and hard to
-  run in a browser).
+- The converter depends on Yosys's JSON format and cell library: it is tested on fixtures made
+  by the system Yosys and committed. VHDL could come the same way (GHDL's Yosys plugin writes
+  the same JSON) but is not planned.
 
 ## Alternatives considered
 
+- **Yosys in the app**, packaged for WebAssembly by YoWASP and run in a Web Worker, the `.v` kept
+  in the document and edited in the app with errors at their lines — the first plan of HDL-1.
+  Rejected when HDL-1 started: a 69 MB WebAssembly module (≈ 16 MB to download) and a compile
+  service for what the user's own Yosys does natively, and the user's FPGA flow needs that Yosys
+  anyway. Kept as a track idea for users without Yosys; the IR doesn't care who made it.
 - **Icarus Verilog's `vvp` in WebAssembly, co-simulated with the kernel** — two schedulers that
   both own time (`vvp` would need patching to run up to a time and return), a `vvp` instance per
   chip instance with megabytes of memory each, snapshots as copies of that memory instead of a
@@ -78,7 +94,7 @@ carry-over across recompiles, diagnostics, test benches, determinism, and the pu
   ([ADR-0026](0026-test-bench-sandbox.md)); one data path for both is simpler and safe to share.
 - **Our own Verilog front end** — small and fully ours, but elaborating Verilog (parameters,
   `generate`, functions, `always` semantics) is a compiler project, and its semantics would drift
-  from the synthesis tools'. Kept as the fallback if Yosys proves too heavy in the browser.
+  from the synthesis tools'.
 - **The synthesized gate netlist as `prim/*` parts in the kernel** — no new runtime, but
   thousands of components and events per clock, glitches inside a chip that the black-box data
   sheet model doesn't have, and delays per internal gate that nobody specifies.

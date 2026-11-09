@@ -204,7 +204,7 @@ this same pipeline.
 
 ## Tasks
 
-- [ ] 1. Roadmap and ADR: HDL-1's section (Yosys outside the app, the JSON imported and
+- [x] 1. Roadmap and ADR: HDL-1's section (Yosys outside the app, the JSON imported and
   compiled to IR), HDL-3 re-scoped (what remains without an in-app Yosys: state carried
   over a recompile), ideas ("Yosys in the browser", gate-level netlists); ADR-0030 amended
   (still proposed until task 13). `pnpm check`; commit.

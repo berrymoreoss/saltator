@@ -8,10 +8,11 @@ circuit as a part, tests it, and takes the same source to the FPGA or CPLD they 
 From there the same pipeline grows until it runs anything synthesizable: controllers on a bus,
 memory, video and sound controllers, soft cores up to a PicoRV32 at a usable speed, library parts
 written in Verilog with their data sheet timing, and the programmable devices themselves (GAL,
-CPLD, FPGA) as parts. One pipeline throughout ([ADR-0030](../adr/0030-hdl-modules.md)): Yosys
-synthesizes the source, its netlist becomes an IR (plain data), and one interpreter in the
-library runs it as an ordinary part, with pin delays, snapshots and test benches like every
-other part.
+CPLD, FPGA) as parts. One pipeline throughout ([ADR-0030](../adr/0030-hdl-modules.md)): Yosys,
+run on the user's computer, synthesizes the source; its JSON netlist, brought into the app,
+becomes an IR (plain data) kept in the document, and one interpreter in the library runs it as an
+ordinary part, with pin delays, snapshots and test benches like every other part. The app never
+runs Yosys.
 
 **Not here:** hand-written parts ([Parts](parts.md)); whether the 6502's peripherals (R18,
 [MOS 6502](mos6502.md)) are written in Verilog, decided when R18 starts; general tools the
@@ -25,7 +26,7 @@ sound controllers drive (a VGA monitor — the "Video output" track idea; the bu
 | HDL-1  | `feat/hdl-modules`    | Verilog modules in the document | —     | in-progress |
 | HDL-8  | `feat/hdl-bus`        | Modules on a bus                | —     | planned     |
 | HDL-9  | `feat/hdl-semantics`  | All of synthesizable Verilog    | —     | planned     |
-| HDL-3  | `feat/hdl-projects`   | Verilog projects                | —     | planned     |
+| HDL-3  | `feat/hdl-recompile`  | Recompiling a running module    | —     | planned     |
 | HDL-4  | `feat/hdl-inspection` | Inside a module                 | —     | planned     |
 | HDL-6  | `feat/hdl-memories`   | Memories in modules             | —     | planned     |
 | HDL-7  | `example/picorv32`    | PicoRV32 soft core              | —     | planned     |
@@ -36,32 +37,36 @@ sound controllers drive (a VGA monitor — the "Video output" track idea; the bu
 ## HDL-1 · Verilog modules in the document — `feat/hdl-modules`
 
 _Re-scoped on 2026-11-09 ([plan](../../.ai/plans/docs-hdl-roadmap.md)): the user's own module
-comes first, so this item took the editor and the module as a part from HDL-3, and gave the
-library parts, the 74HC00 proof and `specify` timing to HDL-2._
+comes first, so this item took the module as a part from HDL-3, and gave the library parts, the
+74HC00 proof and `specify` timing to HDL-2. Re-scoped again when it started
+([plan](../../.ai/plans/feat-hdl-modules.md), Q5): Yosys stays out of the app — no 69 MB
+WebAssembly download, no editor of Verilog in the app; the user synthesizes on their own
+computer, as their FPGA flow does anyway._
 
 The smallest pipeline of [ADR-0030](../adr/0030-hdl-modules.md) that lets the user write a
-decoder and run it. Yosys (packaged for WebAssembly by YoWASP) in a Web Worker, loaded only when
-a document has a module, synthesizes it (`read_verilog`, `hierarchy -top`, `proc`, `flatten`,
-`opt -keepdc`) to its JSON netlist; a pure converter in `src/library/hdl/` turns that into the
-IR — ports, signals, word-level cells, 4-state constants; a generic behavior interprets it:
-combinational cells in topological order at zero delay inside one `evaluate`, flip-flops and
-latches on the kernel's strict edges (an edge from `X`/`Z` makes the stored bits `X`), values as
-value/unknown bit planes in typed arrays.
+decoder and run it. The `.v` file stays on the user's computer; they run Yosys with the command
+the app shows (`read_verilog`, `hierarchy -auto-top`, `proc`, `flatten`, `opt -keepdc`, `check`,
+`write_json`) and paste its JSON netlist into the module's editor or import it from a file;
+**Compile** turns it into the IR — ports, named signals, word-level cells, 4-state constants,
+each cell with its source location — and keeps it in the document, so a document opens,
+simulates and runs its benches (`pnpm test:circuits` too) without Yosys. A generic behavior in
+`src/library/hdl/` interprets the IR: combinational cells in topological order at zero delay
+inside one `evaluate`, flip-flops and latches on the kernel's strict edges (an uncertain edge
+makes `X` the bits a load would change), values as value/unknown bit planes in typed arrays.
 
 The cells a decoder, a counter or a state machine needs: bitwise and reduction logic,
 comparisons, `$mux`/`$pmux`, `+`/`−`, shifts, flip-flops with and without enable and
-(a)synchronous reset, latches. Anything else — memories, combinational loops, cells HDL-9 adds —
-is refused with an error at its source line.
+(a)synchronous reset, latches; unsigned, up to 32 bits. Anything else — memories, combinational
+loops, cells HDL-9 adds, a JSON not made by the command — is refused with the reason at its
+source location (`decoder.v:12`); an inferred latch is a warning.
 
-The module's ports become the pins of a generated symbol, placed like a subcircuit (how a
-vector port meets a bus — a bus pin as on subcircuits or a pin per bit — is decided in its plan);
-its outputs are driven with one delay, a property of the part, as there is no `specify` timing
-yet. The source lives in the document as test bench scripts do
-([ADR-0025](../adr/0025-test-benches.md)), edited in CodeMirror with Verilog highlighting, with
-Yosys's errors and warnings (an inferred latch among them) at their lines; editing it recompiles
-and restarts the simulation; it downloads as a `.v` file for the FPGA's tools. Whether the
-compiled IR is kept in the document (so a document opens, and `pnpm test:circuits` runs it,
-without Yosys) is decided in its plan.
+A module is a circuit of the document written in Verilog: in the Circuits list, opened as the
+module's view (the JSON editor, Compile, its ports, cells and messages, the command) in place of
+the canvas, with test benches of its own, placed like a subcircuit (`A1`). Its ports become the
+pins of the instance's symbol, a vector port one bus pin (`addr[15..0]`) joined bit by bit as a
+subcircuit's bus port; its outputs are driven with one delay, a property of the instance
+(15 ns, an ATF22V10C-15's tPD), as there is no `specify` timing yet. A Compile while running
+restarts the module's instances and the rest of the circuit runs on.
 
 Proof: an example — the address decoder of a 6502 system's memory map in Verilog with its test
 bench, passing in the app and headless; a counter and a state machine; a benchmark of the
@@ -71,8 +76,8 @@ interpreter as the baseline for HDL-10. ADR-0030 is accepted here.
 
 Modules that share a bus with other parts: tri-state outputs (`assign d = oe ? q : 8'bz`) become
 drivers that release their pins (`Z`), `inout` ports `bidir` pins the module reads back, an input
-at `Z` reads as `X`. Yosys keeps the `z` through optimization as `$tribuf` cells (`tribuf`);
-tri-states inside a module become logic (`tribuf -logic`). Taking and releasing the bus use the
+at `Z` reads as `X`. The command gains `tribuf`, which keeps the `z` through optimization as
+`$tribuf` cells; tri-states inside a module become logic (`tribuf -logic`). Taking and releasing the bus use the
 module's delay until HDL-2 brings per-path timing. Proof: an I/O port on a data bus, written and
 read through it by a test bench; two drivers at once reported as `contention`.
 
@@ -90,18 +95,19 @@ flip-flops), `X` without one. Proof: differential tests — random expressions a
 run by the interpreter and by Yosys's own `sim`/`eval` on the same netlist, compared where no `X`
 is involved; a UART transmitter and receiver as an example.
 
-## HDL-3 · Verilog projects — `feat/hdl-projects`
+## HDL-3 · Recompiling a running module — `feat/hdl-recompile`
 
-_Re-scoped on 2026-11-09 ([plan](../../.ai/plans/docs-hdl-roadmap.md)): its first part — a
-module's source in the document, the editor, the module as a part — went to HDL-1; this item is
-the rest, what real projects need._
+_Re-scoped on 2026-11-09 ([plan](../../.ai/plans/docs-hdl-roadmap.md)): its first part went to
+HDL-1. Re-scoped again with HDL-1's start ([plan](../../.ai/plans/feat-hdl-modules.md), Q5):
+with Yosys on the user's computer, several files, `` `include `` and `` `define ``, the top
+module and SystemVerilog (`read_verilog -sv`) are the user's command line, not the app's; a
+project's files never enter the document; parameters per instance would need Yosys in the app
+(an idea now). What is left is this item._
 
-Designs as they come from elsewhere: a module's sources as several files, `` `include `` and
-`` `define ``, the top module chosen; parameters set per placed instance (`#(.WIDTH(8))` as a part
-property, each parameter set synthesized once); the SystemVerilog Yosys reads
-(`read_verilog -sv`: `logic`, `always_ff`, `always_comb`); editing a source carries the running
-simulation over (state matched by signal name); a project downloads as its files. Example: an
-open-source design opened as is.
+A Compile while the simulation runs carries the module's state over instead of restarting it:
+flip-flops and latches matched by their signal names (`state`, `count`), kept where the name and
+width stay, power-on `X` where they are new; the rest of the circuit runs on as before. Iterating
+on a state machine then doesn't lose where it was.
 
 ## HDL-4 · Inside a module — `feat/hdl-inspection`
 
@@ -146,7 +152,8 @@ and the 74HC00 proof from HDL-1._
 Chips of the library written in Verilog with their data sheet timing, so controllers (a VIA, an
 ACIA, a video or sound chip) can be modules instead of TypeScript. A library part is a module
 plus its data sheet metadata (pinout, pin descriptions, function table), compiled ahead of time
-— at build time or committed as IR, decided in its plan — so running it never needs Yosys. Its
+by the repo's scripts with the system Yosys and committed as IR, so running it never needs
+Yosys. Its
 timing comes from the module's `specify` block (`read_verilog -specify`): simple paths
 (`(A => Y) = (tPLH, tPHL)`), edge-sensitive paths (`(posedge CP => (Q +: D)) = …`), conditional
 paths (`if (…)`), transitions to and from `Z` (`tPZH`, `tPHZ`, …), `min:typ:max` triples as the
@@ -192,4 +199,12 @@ Not scheduled yet; promoting one gives it the next free id and a row in the tabl
   Verilog testbench for Icarus or Verilator, and compare the outputs (where the source doesn't
   rely on `X`).
 - SystemVerilog beyond the subset Yosys reads (yosys-slang).
+- Yosys in the browser: YoWASP's Yosys (≈ 16 MB gzip, a 69 MB WebAssembly module) in a worker,
+  loaded only on demand, for those without Yosys on their computer — the `.v` in the document,
+  edited in the app with Yosys's errors at their lines. Left out of HDL-1 on 2026-11-09 (its
+  plan, Q5); the IR doesn't care who made it.
+- Gate-level netlists: the cells `synth` and `techmap` leave (`$_AND_`, `$_MUX_`, `$_DFF_P_`, …),
+  so the JSON of a full synthesis runs too.
+- Parameters per instance: a module compiled for several parameter sets (`chparam` in the
+  user's command), one IR per set, chosen by an instance property.
 - VHDL through GHDL — written in Ada, hard to run in a browser; only if needed.
