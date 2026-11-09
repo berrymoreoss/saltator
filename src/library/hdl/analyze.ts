@@ -52,6 +52,16 @@ export function analyzeHdlModule(module: HdlModule): HdlAnalysis {
   const warning = (message: string, src?: string) =>
     warnings.push({ severity: 'warning', message, ...(src ? { src } : {}) });
 
+  // Tri-states are in the IR (HDL-8) before the interpreter runs them.
+  for (const port of module.ports) {
+    if (port.dir === 'inout' || port.bits.includes('z'))
+      error(`port ${port.name}: tri-state and inout ports don't run yet (HDL-8)`, port.src);
+  }
+  for (const cell of module.cells) {
+    if (cell.type === '$tribuf')
+      error("tri-state buffers don't run yet (HDL-8)", cell.src || undefined);
+  }
+
   // Who drives each bit: an input (INPUT), a cell (its index), or nothing (−2).
   const driver = new Int32Array(module.bitCount).fill(-2);
   for (const port of module.ports) {

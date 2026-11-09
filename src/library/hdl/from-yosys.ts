@@ -14,6 +14,7 @@ import {
   type HdlMessage,
   type HdlModule,
   type HdlPort,
+  type HdlPortBit,
   type HdlSignal,
   hdlModuleProblems,
   hdlPortProblem,
@@ -84,7 +85,7 @@ function initOf(net: YosysNet | undefined, width: number): HdlBit[] | undefined 
 /** The module with its bits numbered again without gaps (bits that became `x` leave some). */
 function compact(module: HdlModule): HdlModule {
   const index = new Map<number, number>();
-  const map = (bits: readonly HdlBit[]): HdlBit[] =>
+  const map = <B extends HdlPortBit>(bits: readonly B[]): (B | number)[] =>
     bits.map((b) => {
       if (typeof b !== 'number') return b;
       let i = index.get(b);
@@ -338,7 +339,7 @@ export function fromYosys(json: unknown): YosysConversion {
     for (const b of cell.ports[HDL_CELLS[cell.type].output]!) driven.add(b as number);
   }
   const floating = new Set<number>();
-  const settle = (bits: readonly HdlBit[]): HdlBit[] =>
+  const settle = <B extends HdlPortBit>(bits: readonly B[]): (B | 'x')[] =>
     bits.map((b) => {
       if (typeof b !== 'number' || driven.has(b)) return b;
       floating.add(b);

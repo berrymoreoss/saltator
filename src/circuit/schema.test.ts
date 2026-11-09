@@ -111,7 +111,7 @@ describe('loadDocument', () => {
       schemaVersion: SCHEMA_VERSION,
       circuits: [{ ...v1.circuits[0], probes: [], testScript: [] }],
     });
-    expect(SCHEMA_VERSION).toBe(6);
+    expect(SCHEMA_VERSION).toBe(7);
   });
 
   it('opens a schema v2 document (before probes) with none', () => {
@@ -408,7 +408,7 @@ describe('loadDocument: Verilog modules (v6)', () => {
   it('reports an IR that is not one, with its path', () => {
     const module = { ...testModule, cells: [{ ...testModule.cells[0], type: '$mul' }] };
     expect(problemsOf(v6({ id: 'gate', name: 'Gate', verilog: { module } }))).toEqual([
-      'circuits[1].verilog.module.cells[0].type: not a cell HDL-1 runs: "$mul"',
+      'circuits[1].verilog.module.cells[0].type: not a cell modules run: "$mul"',
     ]);
     expect(problemsOf(v6({ id: 'gate', name: 'Gate', verilog: { modul: 1 } }))).toEqual([
       'circuits[1].verilog: unknown field "modul"',
@@ -427,7 +427,26 @@ describe('loadDocument: Verilog modules (v6)', () => {
 
   it('opens a v5 document unchanged', () => {
     const loaded = loadDocument({ ...doc({}), schemaVersion: 5 });
-    expect(loaded.schemaVersion).toBe(6);
+    expect(loaded.schemaVersion).toBe(SCHEMA_VERSION);
     expect(loaded.circuits[0]?.verilog).toBeUndefined();
+  });
+
+  it('opens a v6 module unchanged as v7, which may hold tri-states (HDL-8)', () => {
+    const loaded = loadDocument(v6({ id: 'gate', name: 'Gate', verilog: { module: testModule } }));
+    expect(loaded.schemaVersion).toBe(7);
+    expect(loaded.circuits[1]?.verilog?.module).toEqual(testModule);
+    const tri = {
+      ...testModule,
+      ports: [...testModule.ports, { name: 'io', dir: 'inout', lsb: 0, bits: ['z'] }],
+      cells: [
+        ...testModule.cells,
+        { type: '$tribuf', src: '', ports: { A: ['0'], EN: ['1'], Y: [0] }, params: {} },
+      ],
+    };
+    const doc7 = {
+      ...v6({ id: 'gate', name: 'Gate', verilog: { module: tri } }),
+      schemaVersion: 7,
+    };
+    expect(problemsOf(doc7)).toEqual([]);
   });
 });

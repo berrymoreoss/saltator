@@ -61,11 +61,12 @@ describe('hdlPortProblem', () => {
 });
 
 describe('HDL_CELLS', () => {
-  it('lists the cells HDL-1 runs and nothing else', () => {
+  it('lists the cells modules run and nothing else', () => {
     expect(isHdlCellType('$adffe')).toBe(true);
+    expect(isHdlCellType('$tribuf')).toBe(true);
     expect(isHdlCellType('$mul')).toBe(false);
     expect(isHdlCellType('toString')).toBe(false);
-    expect(Object.keys(HDL_CELLS)).toHaveLength(40);
+    expect(Object.keys(HDL_CELLS)).toHaveLength(41);
   });
 });
 
@@ -107,7 +108,7 @@ describe('hdlModuleProblems', () => {
     ]);
   });
 
-  it("reports cells HDL-1 doesn't run and cells of the wrong shape", () => {
+  it("reports cells modules don't run and cells of the wrong shape", () => {
     const cells = [
       { type: '$mul', src: '', ports: {}, params: {} },
       { type: '$and', src: '', ports: { A: [1], B: [2, 1], Y: ['0'], Z: [] }, params: {} },
@@ -132,7 +133,7 @@ describe('hdlModuleProblems', () => {
       },
     ];
     expect(hdlModuleProblems({ ...sample, cells }, 'm')).toEqual([
-      'm.cells[0].type: not a cell HDL-1 runs: "$mul"',
+      'm.cells[0].type: not a cell modules run: "$mul"',
       'm.cells[1].ports.Z: not a port of it',
       'm.cells[1].ports.Y: expected signal bits, got "0"',
       'm.cells[2].ports.S: expected one bit',
@@ -150,6 +151,47 @@ describe('hdlModuleProblems', () => {
     expect(hdlModuleProblems({ ...sample, ports, cells }, 'm')).toEqual([
       'm.ports[3].init: expected as many bits as its bits',
       'm.cells[0].params.ARST_VALUE: expected 2 bits, as Q',
+    ]);
+  });
+
+  it('takes inout ports, z in output and inout bits, and tri-state buffers (HDL-8)', () => {
+    const tri: HdlModule = {
+      ...sample,
+      ports: [
+        { name: 'oe', dir: 'in', lsb: 0, bits: [0] },
+        { name: 'a', dir: 'in', lsb: 0, bits: [1, 2] },
+        { name: 'd', dir: 'inout', lsb: 0, bits: [3, 'z'] },
+        { name: 'y', dir: 'out', lsb: 0, bits: [4, 'z'] },
+      ],
+      cells: [
+        { type: '$tribuf', src: 't.v:3.1-3.9', ports: { A: [1], EN: [0], Y: [3] }, params: {} },
+        { type: '$tribuf', src: '', ports: { A: ['0'], EN: ['1'], Y: [4] }, params: {} },
+      ],
+    };
+    expect(hdlModuleProblems(tri)).toEqual([]);
+    expect(hdlModuleProblems(JSON.parse(JSON.stringify(tri)))).toEqual([]);
+  });
+
+  it('keeps z out of inputs, signals and cells, and checks a tri-state buffer', () => {
+    const ports = [
+      { name: 'a', dir: 'in', lsb: 0, bits: ['z'] },
+      { name: 'b', dir: 'inout', lsb: 0, bits: ['q'] },
+      { name: 'c', dir: 'both', lsb: 0, bits: [1] },
+    ];
+    const signals = [{ name: 'w', lsb: 0, bits: ['z'] }];
+    const cells = [
+      { type: '$and', src: '', ports: { A: ['z'], B: [2], Y: [3] }, params: {} },
+      { type: '$tribuf', src: '', ports: { A: [1, 2], EN: [0, 1], Y: [4] }, params: {} },
+      { type: '$tribuf', src: '', ports: { A: [1, 2], EN: [0], Y: [4] }, params: {} },
+    ];
+    expect(hdlModuleProblems({ ...sample, ports, signals, cells }, 'm')).toEqual([
+      'm.ports[0].bits: expected signal bits, got "z"',
+      'm.ports[1].bits: expected signal bits or "0", "1", "x", "z", got "q"',
+      'm.ports[2].dir: expected "in", "out" or "inout"',
+      'm.signals[0].bits: expected signal bits or "0", "1", "x", got "z"',
+      'm.cells[0].ports.A: expected signal bits or "0", "1", "x", got "z"',
+      'm.cells[1].ports.EN: expected one bit',
+      'm.cells[2].ports.A: expected 1 bits, as Y',
     ]);
   });
 });

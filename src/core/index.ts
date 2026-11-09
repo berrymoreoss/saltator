@@ -67,6 +67,7 @@ export {
   type HdlModule,
   type HdlPartResult,
   type HdlPort,
+  type HdlPortBit,
   type HdlSignal,
   hdlDelayProp,
   hdlModuleProblems,

@@ -20,6 +20,9 @@ interface Line {
 
 const ICONS = { error: CircleAlert, warning: TriangleAlert, ok: CircleCheck } as const;
 
+/** How a port's direction reads in the ports table. */
+const PORT_DIRECTION = { in: 'input', out: 'output', inout: 'inout' } as const;
+
 /**
  * A Verilog module's view (HDL-1), shown in place of the canvas while the module is open: the
  * Yosys command to make its JSON, an editor to paste the JSON into or import its file, Compile
@@ -169,9 +172,7 @@ export function ModuleView({
                   {summary.ports.map((port) => (
                     <tr key={port.name}>
                       <td className="module-cell mono">{port.name}</td>
-                      <td className="module-cell muted">
-                        {port.dir === 'in' ? 'input' : 'output'}
-                      </td>
+                      <td className="module-cell muted">{PORT_DIRECTION[port.dir]}</td>
                     </tr>
                   ))}
                 </tbody>

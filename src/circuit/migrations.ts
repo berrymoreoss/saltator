@@ -25,6 +25,8 @@ export const MIGRATIONS: Migrations = {
   4: (doc) => doc,
   // v6 added Verilog modules (`"verilog"` on a circuit, HDL-1); v5 documents have none.
   5: (doc) => doc,
+  // v7 let modules hold tri-states (`inout` ports, `z` port bits, `$tribuf`, HDL-8); v6 ones have none.
+  6: (doc) => doc,
 };
 
 function slugCircuitIds(doc: RawDocument): RawDocument {

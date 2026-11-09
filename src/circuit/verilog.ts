@@ -27,7 +27,7 @@ export function modulePorts(circuit: Circuit): CircuitPort[] {
   return module.ports.map((port, i) => ({
     component: MODULE_PART,
     name: hdlPortName(port),
-    direction: port.dir,
+    direction: port.dir === 'inout' ? 'bidir' : port.dir,
     side: port.dir === 'in' ? 'left' : 'right',
     bus: port.bits.length > 1,
     at: [0, i],
@@ -73,7 +73,7 @@ export function compileModule(circuit: Circuit, part: HdlPartResult | undefined)
       const placed: PlacedPin = {
         component: MODULE_PART,
         pin,
-        dir: port.dir,
+        dir: port.dir === 'inout' ? 'bidir' : port.dir,
         weak: false,
         sense: false,
         at: [0, 0],

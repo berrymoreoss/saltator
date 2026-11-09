@@ -186,12 +186,12 @@ static `undriven-input` warning).
 
 ## Tasks
 
-- [ ] 1. Command (`tribuf -logic`); fixtures for the tri-state shapes (tri-state output, I/O
+- [x] 1. Command (`tribuf -logic`); fixtures for the tri-state shapes (tri-state output, I/O
   port, two drivers merged, internal bus, a 74HC574 in Verilog, `always @*` with `z`, open
   drain, constant `z`, inout only read, inout of plain logic, a clock from an inout, two inouts
   joined, `z` without `tribuf`); every fixture and example regenerated (HDL-1's unchanged
   otherwise — checked).
-- [ ] 2. IR in core: `inout`, `'z'`, `$tribuf`; shape check and its tests; schema v7 with a
+- [x] 2. IR in core: `inout`, `'z'`, `$tribuf`; shape check and its tests; schema v7 with a
   no-op migration, round trip.
 - [ ] 3. Converter and analysis: accept and refuse as above (messages at source lines); drivers
   with pins read back; fan-in cones of the consumers (if Q1 as proposed).

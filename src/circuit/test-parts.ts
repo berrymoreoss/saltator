@@ -327,7 +327,9 @@ export function testRegistry(): Registry {
  */
 export function testHdlPart(type: string, name: string, module: HdlModule): HdlPartResult {
   const pins: PinDef[] = module.ports.flatMap((port) =>
-    hdlPortPins(port).map((pin): PinDef => ({ name: pin, dir: port.dir })),
+    hdlPortPins(port).map(
+      (pin): PinDef => ({ name: pin, dir: port.dir === 'inout' ? 'bidir' : port.dir }),
+    ),
   );
   const at = (pin: string) => pins.findIndex((p) => p.name === pin);
   const definition = defineComponent<{ delay: number }, undefined>({

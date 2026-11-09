@@ -68,12 +68,12 @@ interface Program {
 /** The pins of a module: each port's bits in declaration order, least significant first. */
 export function hdlPins(module: HdlModule): PinDef[] {
   return module.ports.flatMap((port) => {
-    const word = port.dir === 'in' ? 'input' : 'output';
+    const word = { in: 'input', out: 'output', inout: 'inout' }[port.dir];
     const bus = hdlPortName(port);
     return hdlPortPins(port).map(
       (name, i): PinDef => ({
         name,
-        dir: port.dir,
+        dir: port.dir === 'inout' ? 'bidir' : port.dir,
         description:
           port.bits.length === 1 ? `${word} ${bus}` : `${word} ${bus}, bit ${port.lsb + i}`,
       }),
@@ -95,7 +95,8 @@ function compile(
   let pin = 0;
   for (const port of module.ports) {
     for (const bit of port.bits) {
-      const index = planeIndex(bit, bitCount);
+      // A released bit (`z`) reads unknown; tri-state pins don't run yet (the analysis refuses).
+      const index = planeIndex(bit === 'z' ? 'x' : bit, bitCount);
       if (port.dir === 'in') {
         inputPins.push(pin);
         inputBits.push(index);

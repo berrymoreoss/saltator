@@ -12,7 +12,7 @@ export interface ModuleSummary {
   readonly creator: string;
   readonly ports: readonly {
     readonly name: string;
-    readonly dir: 'in' | 'out';
+    readonly dir: 'in' | 'out' | 'inout';
     readonly width: number;
   }[];
   /** Cells by type, the most frequent first (then by type). */
