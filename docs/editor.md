@@ -1511,4 +1511,4 @@ edit, and save over the file.
   after a reload. The File System Access pickers are stubbed with handles from
   the origin private file system (`tests/e2e/file-system.ts`); specs load the app with
   `openApp`, which waits for the start-up restore. Not part of `pnpm check` (it needs a
-  browser); CI runs it after the build.
+  browser); the CI workflow runs it after the build.

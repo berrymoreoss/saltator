@@ -99,6 +99,8 @@ Each `src/*` folder has a README with its rules.
 - Plan file: branch name with `/` replaced by `-` → `.ai/plans/feat-engine-core.md`.
 - Commits: [Conventional Commits](https://www.conventionalcommits.org/) — `feat(core): add event
   queue`, `test(library): …`, `docs(plan): …`. Small, focused, each one green.
+- CI (`.github/workflows/ci.yml`) runs only on demand (`gh workflow run CI`); the local
+  `pnpm check`, `pnpm build` and `pnpm e2e` are the gate.
 - Merging to `main`: only with the user's approval, merge commit (`--no-ff` / `gh pr merge
   --merge`). See [.ai/workflows/finish-branch.md](.ai/workflows/finish-branch.md).
 

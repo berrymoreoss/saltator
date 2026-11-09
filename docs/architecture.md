@@ -325,7 +325,7 @@ runs, R12a); they load and save as `.bin` and Intel HEX in the Memory tab (R12b,
   it as the top — through its ports or switches, in fixed steps, checks soft, simulation errors
   failing — on a pure runner in `circuit`; the script's text becomes code only in a script host
   (a `node:vm` context in Node, the app's sandbox in the browser). Every example bench runs in
-  `pnpm check`, and `pnpm test:circuits` runs any document's in CI
+  `pnpm check`, and `pnpm test:circuits` runs any document's headless (also in CI)
   ([circuit.md](circuit.md#test-benches), [ADR-0025](adr/0025-test-benches.md)); the Tests tab
   runs them in the app (R15b, `tests.spec.ts`).
 - **Editor/UI**: unit tests for pure logic (camera, scene, hit-testing, selection, shortcuts,
