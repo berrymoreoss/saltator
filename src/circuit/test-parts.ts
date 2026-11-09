@@ -6,6 +6,7 @@ import {
   and,
   createAccessStamps,
   defineComponent,
+  type HdlModule,
   Level,
   ns,
   type PinDef,
@@ -312,3 +313,33 @@ export function testRegistry(): Registry {
     testPort,
   ]);
 }
+
+/**
+ * A small compiled Verilog module (HDL-1) for circuit tests: `y = a & b`, `q <= y` on `clk`,
+ * a 2-bit bus `d[1:0]` passed to `e[1:0]`. Inputs clk, a, b, d[1:0]; outputs y, q, e[1:0].
+ */
+export const testModule: HdlModule = {
+  format: 1,
+  top: 'gate',
+  creator: 'Yosys 0.70',
+  bitCount: 7,
+  ports: [
+    { name: 'clk', dir: 'in', lsb: 0, bits: [0] },
+    { name: 'a', dir: 'in', lsb: 0, bits: [1] },
+    { name: 'b', dir: 'in', lsb: 0, bits: [2] },
+    { name: 'd', dir: 'in', lsb: 0, bits: [3, 4], src: 'gate.v:2.15-2.16' },
+    { name: 'y', dir: 'out', lsb: 0, bits: [5] },
+    { name: 'q', dir: 'out', lsb: 0, bits: [6] },
+    { name: 'e', dir: 'out', lsb: 0, bits: [3, 4] },
+  ],
+  signals: [],
+  cells: [
+    { type: '$and', src: 'gate.v:4.10-4.15', ports: { A: [1], B: [2], Y: [5] }, params: {} },
+    {
+      type: '$dff',
+      src: 'gate.v:5.3-5.30',
+      ports: { CLK: [0], D: [5], Q: [6] },
+      params: { CLK_POLARITY: 1 },
+    },
+  ],
+};

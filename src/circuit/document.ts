@@ -3,16 +3,16 @@
  * Documents are immutable values; `loadDocument` builds them from JSON and fills defaults, so in
  * memory every optional field except a component's `label` and a wire's `bus` is present.
  */
-import type { PropValue } from '../core';
+import type { HdlModule, PropValue } from '../core';
 import type { Point, Rotation } from './geometry';
 
 /**
  * Version written into every saved document. Bump it together with a migration.
  * v2 (R10b): bus lines (`Wire.bus`). v3 (R13): probes (`Circuit.probes`). v4 (R11a): several
  * circuits with subcircuit instances; circuit ids are slugs (`CIRCUIT_ID`). v5 (R15a): test
- * scripts (`Circuit.testScript`).
+ * scripts (`Circuit.testScript`). v6 (HDL-1): circuits written in Verilog (`Circuit.verilog`).
  */
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 /**
  * Ids of components (their designators: `U1`, `SW1`) and wires: a letter or `_`, then
@@ -50,7 +50,20 @@ export interface Circuit {
    * string per line (no line breaks inside); empty when it has none. Never compiled.
    */
   readonly testScript: readonly string[];
+  /**
+   * Present for a circuit written in Verilog (HDL-1): its content is a compiled module instead of
+   * parts and wires (it has none). Absent for a drawn circuit.
+   */
+  readonly verilog?: VerilogModule;
 }
+
+/** A Verilog module of the document: the IR Compile made of Yosys's JSON, none before that. */
+export interface VerilogModule {
+  readonly module?: HdlModule;
+}
+
+/** Whether a circuit is written in Verilog. */
+export const isVerilogCircuit = (circuit: Circuit): boolean => circuit.verilog !== undefined;
 
 /** How a probe's value is written: buses and groups default to `hex`, 1-bit signals to levels. */
 export type ProbeRadix = 'hex' | 'dec' | 'bin' | 'ascii';
@@ -117,6 +130,11 @@ export function emptyDocument(name = 'Main'): CircuitDocument {
 
 export function emptyCircuit(id = 'main', name = 'Main'): Circuit {
   return { id, name, components: [], wires: [], probes: [], testScript: [] };
+}
+
+/** A Verilog module not compiled yet. */
+export function emptyVerilogCircuit(id: string, name: string): Circuit {
+  return { ...emptyCircuit(id, name), verilog: {} };
 }
 
 /** A test script's text as `Circuit.testScript` keeps it: its lines; none for an empty text. */

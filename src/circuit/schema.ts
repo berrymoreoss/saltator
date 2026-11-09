@@ -3,7 +3,7 @@
  * reports every problem with its JSON path. Part types and props are not checked here (a file
  * must open even if a part is missing); the compiler reports them. Spec: docs/circuit.md.
  */
-import type { PropValue } from '../core';
+import { type HdlModule, hdlModuleProblems, type PropValue } from '../core';
 import {
   CIRCUIT_ID,
   type Circuit,
@@ -147,7 +147,8 @@ const bool: Parser<boolean> = {
 };
 
 const ROOT_KEYS = ['schemaVersion', 'circuits'];
-const CIRCUIT_KEYS = ['id', 'name', 'components', 'wires', 'probes', 'testScript'];
+const CIRCUIT_KEYS = ['id', 'name', 'components', 'wires', 'probes', 'testScript', 'verilog'];
+const VERILOG_KEYS = ['module'];
 const SIGNAL_PROBE_KEYS = ['ref', 'name', 'radix'];
 const GROUP_PROBE_KEYS = ['name', 'members', 'radix'];
 const COMPONENT_KEYS = ['id', 'type', 'label', 'x', 'y', 'rotation', 'flip', 'props'];
@@ -172,8 +173,17 @@ class Checker {
     this.unknownKeys(value, path, CIRCUIT_KEYS);
     const ownId = this.field(value, 'id', path, circuitId);
     const name = this.field(value, 'name', path, text);
-    const rawComponents = this.array(value, 'components', path) ?? [];
-    const rawWires = this.array(value, 'wires', path) ?? [];
+    const verilog = value.verilog === undefined ? null : this.verilog(value, path);
+    // A Verilog module has no parts or wires: the keys may be left out, and must be empty.
+    const drawn = (key: 'components' | 'wires') => {
+      if (verilog === null) return this.array(value, key, path) ?? [];
+      if (value[key] === undefined) return [];
+      const items = this.array(value, key, path) ?? [];
+      if (items.length > 0) this.fail(join(path, key), 'a Verilog module has no parts or wires');
+      return [];
+    };
+    const rawComponents = drawn('components');
+    const rawWires = drawn('wires');
     const components = rawComponents.map((c, i) =>
       this.component(c, join(join(path, 'components'), i)),
     );
@@ -192,6 +202,7 @@ class Checker {
     if (components.some((c) => !c) || wires.some((w) => !w) || probes.some((p) => !p)) {
       return undefined;
     }
+    if (verilog === undefined) return undefined;
     return {
       id: ownId,
       name,
@@ -199,7 +210,23 @@ class Checker {
       wires: wires as Wire[],
       probes: probes as Probe[],
       testScript,
+      ...(verilog !== null && { verilog }),
     };
+  }
+
+  /** A Verilog module: `{}` before it is compiled, `{ module }` after (the IR, checked whole). */
+  private verilog(value: Obj, path: string): { module?: HdlModule } | undefined {
+    const at = join(path, 'verilog');
+    const raw = value.verilog;
+    if (!this.isObject(raw, at)) return undefined;
+    this.unknownKeys(raw, at, VERILOG_KEYS);
+    if (raw.module === undefined) return {};
+    const problems = hdlModuleProblems(raw.module, join(at, 'module'));
+    if (problems.length > 0) {
+      this.problems.push(...problems);
+      return undefined;
+    }
+    return { module: raw.module as HdlModule };
   }
 
   /** A test script's lines: strings without line breaks; missing is none. */

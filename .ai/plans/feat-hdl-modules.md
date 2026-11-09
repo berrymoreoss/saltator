@@ -164,9 +164,11 @@ this same pipeline.
 
 ### Modules in the document (Q1–Q4, Q6)
 
-- A module is **a circuit written in Verilog** (Q1): `Circuit.module = HdlModule` (the IR), with
-  no components or wires (a load error otherwise); `probes` and `testScript` as any circuit. A
-  new module has no IR yet (`module` absent → `hdl-not-compiled`, a warning: nothing to place).
+- A module is **a circuit written in Verilog** (Q1): `Circuit.verilog = { module?: HdlModule }`
+  — the object marks it (`{}` before the first Compile: `hdl-not-compiled`, a warning, nothing
+  to place), `module` is the IR; no components or wires (left out of the file; a load error if
+  any); `probes` and `testScript` as any circuit. An object rather than a bare `module`, so later
+  items can add to it (HDL-5's pin assignment).
   The `.v` source is not kept (Q6). Schema v6; the migration changes nothing. It is in the
   Circuits list (with a Verilog mark), placed as `sub/<id>` with designator `A`, opened in its
   instances, deleted, duplicated and renamed like a drawn circuit.
@@ -240,8 +242,8 @@ this same pipeline.
   determinism tests.
 - [x] 6. Core: carry-over by definition identity (+ regression test); `ComponentRegistry.hdlPart`
   hook implemented by the library registry.
-- [ ] 7. Document schema v6: `Circuit.module` (the IR), migration, validation, serialization
-  (a line per cell), round trip.
+- [x] 7. Document schema v6: `Circuit.verilog` (`{ module? }`), migration, validation,
+  serialization (a line per port, signal and cell), round trip; examples re-saved as v6.
 - [ ] 8. Circuit layer: modules in `DocumentRegistry` (ports, bus pins, symbol), `compileCircuit`
   of a module, flattening, issues (`hdl-not-compiled`, `hdl-warning`), benches with a
   module as the top, resolver references; a scenario test of the decoder in a circuit.
