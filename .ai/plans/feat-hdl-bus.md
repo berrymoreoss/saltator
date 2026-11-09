@@ -199,7 +199,7 @@ static `undriven-input` warning).
   (once until the net changes, snapshots and replicas).
 - [x] 5. Interpreter: pin directions, `$tribuf` steps and drives, inout read-back, floating rule;
   tests per shape through the core bench, snapshot/restore, determinism, carry-over property.
-- [ ] 6. Circuit layer: inout ports as `bidir` (bus) pins, inner pins' directions, flattening,
+- [x] 6. Circuit layer: inout ports as `bidir` (bus) pins, inner pins' directions, flattening,
   benches; `tests/scenarios/verilog-bus.test.ts` (bench writes and reads, contention, a 74HC244).
 - [ ] 7. UI: the module view lists inout ports and shows the new command; looked at in the
   browser.
@@ -219,7 +219,8 @@ static `undriven-input` warning).
 - [ ] An I/O port module on a data bus is written and read through it by a test bench, headless
   (scenario test) and in the app (e2e), no Yosys involved.
 - [ ] Two drivers on one bus (two modules, or a module and a bench or a 74HC244) give the
-  kernel's `contention`; two tri-state modules on one bus are no `shorted-outputs`.
+  kernel's `contention`; a design with tri-state modules on one bus compiles without errors
+  (`shorted-outputs` never looks into instances — found in task 6, R11a's, not this branch's).
 - [ ] A floating bus the module doesn't use reports nothing; one it latches or drives out is a
   `floating-input` (per Q1).
 - [ ] JSONs with two inouts joined and with `z` made without `tribuf` are refused with the reason
@@ -239,6 +240,14 @@ static `undriven-input` warning).
 - 2026-11-10 — plan drafted; Yosys 0.70's handling of tri-states tried on 14 small sources.
 - 2026-11-10 — Q1 as proposed (left to the agent), Q2 no example; the user approved the plan;
   started.
+- 2026-11-10 — tasks 1–6: the command with `tribuf -logic` (HDL-1's fixtures and examples come
+  out the same); IR `inout`/`z`/`$tribuf`, schema v7 (examples re-saved); converter and
+  analysis (pins read back, joined inouts refused, cones); `ctx.level`/`reportFloating`; the
+  interpreter (tests mutation-checked: 11 mutations, all caught); `hdlPinDirs` in core for the
+  circuit layer; `tests/scenarios/verilog-bus.test.ts`. Found: a bus turned round at once
+  floats for the module's delay (and an output passing it on reports it); a 74HC244 enabling
+  as a module releases fights it for a few ns; `shorted-outputs` never looks into instances
+  (subcircuits or modules) — R11a's, left as is.
 
 ## Handoff
 
