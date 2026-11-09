@@ -476,3 +476,23 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
 - 2026-11-09 (LIB-2) — A new part's unknown controls must follow the project's rule (they count
   only once they were known). A TFT treating a never-known CS as "lost" showed red noise before
   RESET in its example; only looking at the example in the browser found it.
+- 2026-11-09 (HDL-1) — Yosys's `proc` turns a `case` with constant outputs into a ROM
+  (`proc_rom`): an address decoder written as a table came out as `$memrd_v2` + `$meminit`, a
+  memory. The command uses `proc -norom` until modules hold memories (HDL-6); the converter
+  recognizes such a ROM and asks for the command.
+- 2026-11-09 (HDL-1) — The simulation host built its simulators with the plain library: enough
+  while subcircuits never reach the kernel, not for parts a document makes (a Verilog module's).
+  And `sameNetlistStructure` can't see a part whose definition changed under the same type, so a
+  recompiled module kept running its old behavior. The host now takes the design's registry and
+  compares definitions; the kernel carries state only for the same definition object.
+- 2026-11-09 (HDL-1) — `App.tsx` rebuilds its registry from `createDefaultRegistry().list()` to
+  add dev parts, which drops what a registry carries besides definitions (the `hdlPart` hook):
+  every module was an `hdl-error` in the app while all unit tests passed. Only looking at the
+  app found it. Pass a registry's options along when re-wrapping it.
+- 2026-11-09 (HDL-1) — Generated example layouts: "everything that touches connects", so label
+  stubs drawn side by side merged nets (VIA_CS with ROM_CS; Q0–Q3 under a display whose pins are
+  on its bottom edge). The examples' "compiles without design issues" test caught it, a
+  screenshot showed where. Without the Chrome extension, a Playwright script in the scratchpad
+  against the dev server takes the screenshots.
+- 2026-11-09 (HDL-1) — `pnpm check` run while `pnpm e2e` runs timed out in `rewind.test.ts`
+  (5 s a test under load); alone it passes. Run them one after the other.

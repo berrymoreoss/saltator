@@ -1,6 +1,6 @@
 # 0030. HDL modules: Yosys synthesizes outside the app, an interpreter runs its netlist as parts
 
-- **Status:** proposed
+- **Status:** accepted (2026-11-09, HDL-1)
 - **Date:** 2026-11-08
 - **Roadmap item:** HDL-1 (feat/hdl-modules); proposed in docs/programmable-logic-track, amended
   when HDL-1 started (Yosys outside the app), accepted in HDL-1 after its benchmark
@@ -51,6 +51,14 @@ carry-over across recompiles, diagnostics, test benches, determinism, and the pu
   pins; a programmable device (HDL-5) holds a module and times its pins by the device's data
   sheet instead.
 
+- **A document's module is a circuit written in Verilog** (HDL-1): `Circuit.verilog` holds its
+  IR, its instances are `sub/<id>` like a subcircuit's (vectors as bus pins), and compiled on its
+  own it is one part, `U1` of type `hdl/<circuit id>`, which the document registry gets from
+  the library's registry (`ComponentRegistry.hdlPart`, the circuit layer importing only `core`).
+  The simulation host simulates with the design's registry, and the kernel's carry-over keeps a
+  part's state only for the same definition object — so a module compiled again restarts from
+  power-on while the rest of the circuit runs on.
+
 ## Consequences
 
 - A part made from Verilog is an ordinary part: waveforms, debugger, rewind, test benches and
@@ -67,7 +75,9 @@ carry-over across recompiles, diagnostics, test benches, determinism, and the pu
   tested one gives a warning, as Yosys's cell library changes over time.
 - Speed: the interpreter evaluates a module's cells on every input change. Fine for chips;
   for a soft core of thousands of cells it is measured in HDL-1 and HDL-7, and HDL-10 makes it
-  fast (the IR compiled to JavaScript or WebAssembly).
+  fast (the IR compiled to JavaScript or WebAssembly). HDL-1's baseline (Apple M3 Pro): about
+  10 M combinational cells a second — a 1 000-cell module clocks at ≈ 6 kHz per second of wall
+  time, enough for decoders, counters and state machines.
 - `X` is pessimistic by design, so results can differ from a Verilog simulator where the source
   relies on Verilog's optimistic `X` (an `always @(posedge clk)` firing on `X → 1`).
 - Testbench Verilog (`initial` stimulus, `$display`, delays) is not supported: test benches are

@@ -6,7 +6,7 @@
  * edge, then all of them at once). `X` is pessimistic where it must be and no more: bitwise
  * cells per bit, comparisons by the ranges unknown bits allow, arithmetic unknown from the
  * lowest unknown bit up, multiplexers merging the inputs a select could pick.
- * Spec: docs/components.md#verilog-modules.
+ * Spec: docs/components.md#verilog-modules-hdl.
  */
 import { HDL_CELLS, type HdlBit, type HdlCell, type HdlCellSpec } from '../../core';
 

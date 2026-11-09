@@ -15,7 +15,9 @@ as `U5`, `U5.A0`, `CLK`, `D[0..7]` to the compiled parts and nets; the memories,
 probe shows and how to probe an unnamed net, R13; memory cells `U5[1F]` and
 `renameReference`, R14),
 `builder.ts` (code-first documents), `subcircuit.ts` (the document registry: a generated
-`sub/<id>` definition per circuit, pins from its ports, R11a), `design.ts` (`compileDesign`:
+`sub/<id>` definition per circuit, pins from its ports, R11a; a Verilog module's part from the
+library's `hdlPart`, HDL-1), `verilog.ts` (Verilog modules: their ports, compiled to one part
+`U1`, their issues, HDL-1), `design.ts` (`compileDesign`:
 the top circuit flattened with instance paths), `document-edit.ts` (circuits added, renamed,
 removed, set as top; renames across circuits; clipboard documents). Net labels are parts like any other (`schematicOnly`, a pin with a `net` name): the
 compiler joins pins by name and leaves those parts out of the netlist. Bus lines (`Wire.bus`)

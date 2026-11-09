@@ -38,7 +38,9 @@ A desktop CAD-style window (`Workbench`), dense like KiCad or Altium: 12 px UI t
   placed (`2×`); a click opens one (`Editor.openCircuit`: not an edit; each circuit keeps its
   camera) in its first instance (R11b, below), a right click opens it and shows Rename…,
   Duplicate, Delete, Set as Top Circuit;
-  **+ Add Circuit** adds `Circuit N` and opens it with its name ready in Properties. The
+  **+ Add Circuit** adds `Circuit N` and opens it with its name ready in Properties; **+ Verilog
+  Module** (Circuit ▸ Add Verilog Module) adds `Module N`, a circuit written in Verilog, and opens
+  its view ([Verilog modules](#verilog-modules)); a Verilog module has a code mark in the list. The
   **Circuit** menu has the same commands on the open circuit — Add Circuit, Rename Circuit…,
   Duplicate Circuit, Delete Circuit (named "and N Instances" when it has some: they go with it,
   one undo step), Set as Top Circuit — and **Go Into A1** (`Mod+↓`: the selected instance; also
@@ -1055,6 +1057,44 @@ simulator kept across a same-structure edit may call its nets otherwise). On a r
 recorder seeks, its triggers resync, its hits are counted to the rewound instant, activity
 counting and the "last run" counters restart; on a divergence its recorder cuts (R14b).
 
+## Verilog modules
+
+HDL-1 ([ADR-0030](adr/0030-hdl-modules.md), [circuit.md](circuit.md#verilog-modules)): a
+circuit written in Verilog has nothing to draw. While one is open, its **view** covers the
+canvas (`ModuleView.tsx`, pure pieces in `module-view.ts`), below the breadcrumbs:
+
+```text
+ Module 2  Verilog module
+ 1. Make its JSON netlist with Yosys on your computer:
+ [ yosys -q -p 'read_verilog decoder.v; hierarchy -auto-top; proc -norom; …' ]  [Copy]
+ 2. Paste the JSON below or import its file, then Compile.
+ [Import JSON…] [▶ Compile]                          │ Module decoder
+ ┌─────────────────────────────────────────────┐     │ Yosys 0.70+post (…)
+ │ { "creator": "Yosys 0.70+post …",           │     │ Ports   addr[15:12] input …
+ │   "modules": { "decoder": { … } } }         │     │ Cells (6)   $not 3, $eq 1, …
+ └─────────────────────────────────────────────┘     │ Placed  1× in Main
+ ✓ Compiled decoder: 6 cells
+```
+
+- **The command** to make the JSON, its files named after the compiled module (else after the
+  circuit), with a Copy button.
+- **The JSON editor**: a plain text area — Yosys's output is pasted, not written — or a file read
+  into it by **Import JSON…**. Its text is the session's (`ModuleDrafts`: kept per module while
+  switching circuits, forgotten when another document is shown), never the document's.
+- **Compile** converts it (`fromYosys`) and, when nothing is an error, writes the IR into the
+  document (`Editor.setModule`): one undo step, the same IR again no edit. Its messages — the
+  converter's errors and warnings with their source locations, or "Compiled decoder: 6 cells" —
+  are listed under the editor; before a Compile in this session, the module's issues are.
+- **The summary**: the module's top name and Yosys version, its ports, its cells by type, where
+  it is placed.
+- Properties of the open circuit says **Role: Verilog module**; its instances (Parts ▸
+  Subcircuits) have the module's pins and the `delay` property. The editor refuses parts or
+  wires in a Verilog module (a paste while one is open).
+- **Running**: the simulation host simulates with the design's registry (it has the modules'
+  parts) and rebuilds — with carry-over — when a part's definition changes, not only the
+  netlist's structure: a Compile while running restarts the module's instances from power-on
+  and the rest of the circuit runs on ([simulation.md](simulation.md#editing-while-running-carry-over)).
+
 ## Tests
 
 R15b ([ADR-0026](adr/0026-test-bench-sandbox.md)): a circuit's test benches
@@ -1384,6 +1424,17 @@ title and a description, in gallery order):
   `a`–`g`), placed twice in Main with a 10 Hz clock, RESET (a button with a pull-up) and two
   common-cathode displays; the ones digit's CARRY enables the tens. Probes reach into the
   instances (`A1/A1/Q[0..3]` as ONES, decimal). Unknown until RESET.
+- **Verilog Address Decoder** (HDL-1) — a 6502 memory map written in Verilog
+  (`examples/verilog/address_decoder.v`): RAM `$0000–$3FFF` while PHI2 is HIGH, VIA
+  `$6000–$7FFF`, ROM `$8000–$FFFF`, active-LOW selects. Switches A15–A12 and PHI2 reach the
+  module's bus port `addr[15..12]` by a bus label; an LED from VCC into each select lights while
+  its chip is selected. Benches on the module (every region at its edges, its 15 ns delay) and
+  on the board.
+- **Verilog Counter and Traffic Light** (HDL-1) — two Verilog modules on a 4 Hz clock: a decade
+  counter (`q[3..0]` onto a hex display by labels) whose carry steps a traffic light state
+  machine (red, green, yellow LEDs); RST resets both, EN enables the count. RST starts on: turn it
+  off to count. Benches on each module and on the board. Both Verilog examples are generated by
+  `pnpm hdl:examples` from their sources with the system Yosys.
 
 Two examples stay built in code (`src/app/examples.ts`): **Symbol Gallery** (every registered
 part with prop variants and placements, the 74HC chips, the NE555 in each mode and a 74HC245 in

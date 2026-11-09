@@ -2,7 +2,7 @@
  * What the interpreter needs to know about a module before it runs it (HDL-1): the order of its
  * combinational cells, its flip-flops, and what it can't run — a bit driven twice, a clock or an
  * asynchronous reset made inside the module, a combinational loop — or runs differently from a
- * Verilog simulator (an inferred latch, an `init` value). Spec: docs/components.md#verilog-modules.
+ * Verilog simulator (an inferred latch, an `init` value). Spec: docs/components.md#verilog-modules-hdl.
  */
 import {
   HDL_CELLS,

@@ -343,11 +343,16 @@ The new simulator starts at the old one's `now`, keeps its statistics and contin
 `DiagnosticLog`. Components are matched by id; `renames` (old id → new, from the editor) maps
 parts that were renamed:
 
-| Component in the new netlist     | Starts with                                                                                            |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| same id, type and resolved props | its state object, output drives, pending output changes (same times, same order) and timers; no `init` |
-| same id and type, other props    | power-on state and `init`, but its outputs drive what they drove before (no `X` glitch)                |
-| anything else                    | power-on                                                                                               |
+| Component in the new netlist                 | Starts with                                                                                            |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| same id, type, definition and resolved props | its state object, output drives, pending output changes (same times, same order) and timers; no `init` |
+| same id and type, other props or definition  | power-on state and `init`, but its outputs drive what they drove before (no `X` glitch)                |
+| anything else                                | power-on                                                                                               |
+
+The definition is compared as an object: a part's definition is the same as long as its
+registry serves the same one — always for the library's parts; a Verilog module compiled again
+(HDL-1) is a new definition under the same type, whose state has another shape, so its
+instances start from power-on while the rest of the circuit runs on.
 
 Then, as at power-on, every component with `evaluate` is evaluated once at that time, so parts
 react to changed connections. For an unchanged netlist this schedules nothing — `evaluate` with
@@ -358,10 +363,10 @@ A latch built from gates keeps its value, a clock its phase, a renamed switch it
 have no identity across compiles: their levels follow from the carried drives. State objects are
 moved, not copied: the old simulator must not run afterwards.
 
-An edit that doesn't change the structure (moving parts with their wires) needs no new
-simulator at all: `sameNetlistStructure(a, b)` is true when both netlists have the same
-components in the same order (id, type, props) and the same pins connected together, whatever
-the net ids.
+An edit that doesn't change the structure (moving parts with their wires) nor any part's
+definition needs no new simulator at all (the editor's host checks both, HDL-1):
+`sameNetlistStructure(a, b)` is true when both netlists have the same components in the same
+order (id, type, props) and the same pins connected together, whatever the net ids.
 
 ## Snapshots
 

@@ -2,6 +2,9 @@ import { expect, type Locator, type Page, test } from '@playwright/test';
 import addressDecoder from '../../examples/verilog-address-decoder.logic.json' with {
   type: 'json',
 };
+import counterTrafficLight from '../../examples/verilog-counter-traffic-light.logic.json' with {
+  type: 'json',
+};
 import { YOSYS_FIXTURES } from '../../src/library/hdl/fixtures';
 import {
   clickAt,
@@ -93,11 +96,42 @@ test('Verilog Address Decoder: the switches select a chip, and its benches pass'
   await expect(level(page, 'K')).toHaveText('0');
   await clickAt(page, at.center('SW1'));
   await expect(level(page, 'K')).toHaveText('1');
+
+  // Compiled again while running (another decoder with the same ports, and a page output): the
+  // run goes on, the module restarts, and the LED follows the switch through the new IR.
+  await circuits(page)
+    .getByRole('button', { name: /Address Decoder/ })
+    .click();
+  await compile(page, YOSYS_FIXTURES.decoder!);
+  await expect(messages(page)).toContainText('Compiled decoder: 6 cells');
+  await circuits(page).getByRole('button', { name: /Main/ }).click();
+  await expect(page.getByTestId('sim-status')).toHaveText(/Running · /);
+  await clickAt(page, at.center('D3'));
+  await expect(level(page, 'K')).toHaveText('1');
+  await clickAt(page, at.center('SW1'));
+  await expect(level(page, 'K')).toHaveText('0');
   await page.keyboard.press('Shift+F5');
+  await menu(page, 'Edit', /^Undo/);
 
   // The module's own benches and the board's, in the Tests tab's sandbox.
   await page.getByRole('tab', { name: /^Tests/ }).click();
   await menu(page, 'Test', 'Run All Tests');
   await expect(page.getByRole('tab', { name: /^Tests/ })).toContainText('✓ 4', { timeout: 20_000 });
+  expect(errors).toEqual([]);
+});
+
+test("Verilog Counter and Traffic Light: its modules' benches and the board's pass", async ({
+  page,
+}) => {
+  const errors = watchErrors(page);
+  await openExample(
+    page,
+    'verilog-counter-traffic-light',
+    'Verilog Counter and Traffic Light',
+    counterTrafficLight,
+  );
+  await page.getByRole('tab', { name: /^Tests/ }).click();
+  await menu(page, 'Test', 'Run All Tests');
+  await expect(page.getByRole('tab', { name: /^Tests/ })).toContainText('✓ 6', { timeout: 30_000 });
   expect(errors).toEqual([]);
 });

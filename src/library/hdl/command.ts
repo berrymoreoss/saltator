@@ -1,7 +1,7 @@
 /**
  * The Yosys command a module's JSON netlist is made with (HDL-1, ADR-0030): the user runs it on
  * their own computer, the repo's scripts run it with the system `yosys`. The converter accepts
- * what it produces. Spec: docs/components.md#verilog-modules.
+ * what it produces. Spec: docs/components.md#verilog-modules-hdl.
  */
 
 /**

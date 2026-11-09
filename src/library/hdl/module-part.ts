@@ -5,7 +5,7 @@
  * asynchronous resets apply, the combinational cells and latches run once each in topological
  * order (no events inside a module), and every output is driven with the delay (inertial, so an
  * unchanged output costs nothing). State is two byte planes over the bits — plain data, so
- * snapshots, rewind and replicas work as for any part. Spec: docs/components.md#verilog-modules.
+ * snapshots, rewind and replicas work as for any part. Spec: docs/components.md#verilog-modules-hdl.
  */
 import {
   type Behavior,

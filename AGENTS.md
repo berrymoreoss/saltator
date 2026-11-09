@@ -40,6 +40,8 @@ pnpm coverage         # tests with coverage (v8)
 pnpm test:circuits    # the documents' test benches, headless (default: examples/*.logic.json)
 pnpm e2e              # browser tests (Playwright, Chromium; not part of check)
 pnpm bench            # benchmarks (tests/bench), on native imports for realistic numbers
+pnpm hdl:fixtures     # Verilog fixtures for the converter's tests (needs yosys on PATH; not in check)
+pnpm hdl:examples     # the Verilog examples from examples/verilog/*.v (needs yosys on PATH)
 pnpm lint:fix         # format + autofix with Biome
 pnpm build            # typecheck + production build
 ```

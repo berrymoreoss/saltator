@@ -2,7 +2,7 @@
  * Yosys's JSON netlist → the IR of a module (HDL-1, ADR-0030). Accepts what the command
  * (`yosysScript`) makes; refuses, with the reason and the source location, what the interpreter
  * can't run yet and what another command made (a hierarchy not flattened, a ROM `proc` made of a
- * `case`, a gate-level netlist). Spec: docs/components.md#verilog-modules.
+ * `case`, a gate-level netlist). Spec: docs/components.md#verilog-modules-hdl.
  */
 import {
   HDL_CELLS,

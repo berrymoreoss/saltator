@@ -150,6 +150,11 @@ it. Assemblers and EEPROM programmers read and write it, as the Memory tab does.
 **Inertial delay** — a delay model in which input pulses shorter than the element's delay do not
 reach the output.
 
+**IR (of a Verilog module)** — what the app keeps of a Verilog module: Yosys's JSON netlist
+turned into plain data — ports, cells (`$and`, `$add`, `$adffe`, …) with their bits and source
+locations — that the interpreter runs as a part (HDL-1, `HdlModule`). Made by Compile, saved in
+the document; the `.v` source isn't.
+
 **Junction** — a point where three or more wires/pins meet and connect, drawn with a dot. A wire
 end landing on the middle of another wire (T-junction) connects; two wires that merely cross do
 not.
@@ -310,6 +315,11 @@ timing checks use the minimum and report a `setup-violation` / `hold-violation`.
 **Pulse width (tW)** — the shortest HIGH or LOW phase a clock (or a set/reset pulse) may have;
 together the two phases bound the clock frequency (`fmax`).
 
+**Synthesis** — turning HDL source into a netlist of cells (gates, adders, flip-flops) that a
+chip can be made of. Yosys synthesizes the user's Verilog on their computer; the app simulates
+the result, so what runs is what the FPGA or CPLD will get, not a separate reading of the
+language.
+
 **Timing check** — a part checking the circuit against its data sheet's timing requirements
 (set-up, hold, pulse width, recovery) while simulating; a violation is an error in the
 Simulation tab and makes the affected bits unknown.
@@ -376,6 +386,11 @@ GTKWave, Surfer, PulseView and HDL tools; the Waveforms tab exports one (R13).
 the data sheet asks for, a lost interface): the likely color under a diagonal hatch of the `X`
 color, until a command sent in time makes it known again.
 
+**Verilog module** — logic written instead of wired: in the app, a circuit of the document
+written in Verilog, whose content is its compiled IR; placed like a subcircuit (`A1`, its
+vectors as bus pins), its outputs driven after one `delay` (HDL-1). See
+[components.md](components.md#verilog-modules-hdl).
+
 **Watch** — a value the Debug tab shows at every stop — a signal, a bus, a group of single
 signals or memory cells (`U5[1F]`) — marked when it changed since the last stop (R14).
 
@@ -397,3 +412,7 @@ Eater as his 8-bit computer series.
 
 **BE6502** — Ben Eater's 6502 breadboard computer (65C02, 28C256 EEPROM, 62256 SRAM, 65C22 VIA,
 HD44780 LCD).
+
+**Yosys** — the open-source synthesis suite (ISC license) at the front of the open FPGA flows
+(iCE40, ECP5). The user runs it with the command the module's view shows; its JSON netlist is
+what Compile reads.

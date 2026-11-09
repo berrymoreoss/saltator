@@ -3,7 +3,7 @@
  * JSON netlist, what a document keeps as a module, and what the library's interpreter runs.
  * Plain JSON-serializable data. Here: its types, the cells HDL-1 runs, the pins a port gives and
  * the shape check documents are loaded with; the semantic checks (one driver per bit, no
- * combinational loop, clocks from inputs) are the interpreter's. Spec: docs/components.md#verilog-modules.
+ * combinational loop, clocks from inputs) are the interpreter's. Spec: docs/components.md#verilog-modules-hdl.
  */
 import type { AnyComponentDefinition, PropDef } from './component';
 import { BUS_NAME } from './net-names';

@@ -228,11 +228,11 @@ this same pipeline.
 
 ### Baseline (task 12, `pnpm bench tests/bench/hdl.bench.ts`, Apple M3 Pro)
 
-| Module                                         | Per iteration            | Rate                               |
-| ---------------------------------------------- | ------------------------ | ---------------------------------- |
-| address decoder (6 cells): an address change   | 1 evaluation             | 1.74 M evaluations/s, 10.5 M cells/s |
-| decade counter (5 cells): one clock cycle      | 2 evaluations            | 2.54 M evaluations/s, 10.2 M cells/s |
-| synthetic, 768 + 256 flip-flop cells: a cycle  | 2 evaluations            | 12.2 k evaluations/s, 9.4 M cells/s  |
+| Module                                        | Per iteration | Rate                                 |
+| --------------------------------------------- | ------------- | ------------------------------------ |
+| address decoder (6 cells): an address change  | 1 evaluation  | 1.74 M evaluations/s, 10.5 M cells/s |
+| decade counter (5 cells): one clock cycle     | 2 evaluations | 2.54 M evaluations/s, 10.2 M cells/s |
+| synthetic, 768 + 256 flip-flop cells: a cycle | 2 evaluations | 12.2 k evaluations/s, 9.4 M cells/s  |
 
 About 10 M combinational cells a second, every cell on every evaluation: a 1 000-cell module
 clocks at ≈ 6 kHz of simulated clock per second of wall time; PicoRV32's few thousand cells
@@ -286,10 +286,11 @@ would run at 1–2 kHz — the number HDL-7 measures and HDL-10 improves on.
   on the modules and the boards passing in the app and headless; `tests/e2e/hdl.spec.ts`.
 - [x] 12. Benchmark `tests/bench/hdl.bench.ts`; the baseline recorded here (and in the docs,
   task 13).
-- [ ] 13. Docs: circuit.md (modules, schema v6, issues), components.md (`hdl/*` parts, the
-  interpreter's rules, the command), simulation.md (carry-over by definition), editor.md
-  (the module view), architecture.md, glossary; ADR-0030 accepted; lessons; the track's
-  HDL-1 section.
+- [x] 13. Docs: components.md (`hdl/*`, the command, the IR, the converter, the interpreter's
+  rules, speed), circuit.md (Verilog modules, schema v6, `hdl-*` issues), simulation.md
+  (carry-over by definition), editor.md (the module view, the examples), architecture.md,
+  glossary, layer READMEs, AGENTS.md commands; ADR-0030 accepted and amended; lessons; the
+  track's HDL-1 section as built.
 
 ## Acceptance criteria
 
