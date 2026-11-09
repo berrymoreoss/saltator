@@ -5,7 +5,7 @@
  * the shape check documents are loaded with; the semantic checks (one driver per bit, no
  * combinational loop, clocks from inputs) are the interpreter's. Spec: docs/components.md#verilog-modules-hdl.
  */
-import type { AnyComponentDefinition, PropDef } from './component';
+import type { AnyComponentDefinition, PinDir, PropDef } from './component';
 import { BUS_NAME } from './net-names';
 import { ns } from './time';
 
@@ -247,6 +247,35 @@ export function hdlPortPins(port: Pick<HdlPort, 'name' | 'lsb' | 'bits'>): strin
   return width === 1
     ? [port.name]
     : Array.from({ length: width }, (_, i) => `${port.name}${port.lsb + i}`);
+}
+
+/**
+ * The direction of each of a module's pins, in pin order (each port's bits, least significant
+ * first): an input's `in`, an inout's `bidir`, an output's `tristate` where a `$tribuf` drives
+ * the bit or it is `z` (never driven), else `out` (HDL-8).
+ */
+export function hdlPinDirs(module: Pick<HdlModule, 'ports' | 'cells'>): PinDir[] {
+  // A buffer driving an inout's bit drives the inout's pin; an output reading that bit back
+  // drives what the pin reads, push-pull.
+  const inout = new Set<number>();
+  for (const port of module.ports) {
+    if (port.dir !== 'inout') continue;
+    for (const bit of port.bits) if (typeof bit === 'number') inout.add(bit);
+  }
+  const buffered = new Set<number>();
+  for (const cell of module.cells) {
+    if (cell.type !== '$tribuf') continue;
+    for (const bit of cell.ports.Y ?? []) {
+      if (typeof bit === 'number' && !inout.has(bit)) buffered.add(bit);
+    }
+  }
+  return module.ports.flatMap((port) =>
+    port.bits.map((bit): PinDir => {
+      if (port.dir === 'in') return 'in';
+      if (port.dir === 'inout') return 'bidir';
+      return bit === 'z' || (typeof bit === 'number' && buffered.has(bit)) ? 'tristate' : 'out';
+    }),
+  );
 }
 
 /** A port name the app's pins can take: a plain Verilog identifier without `$`, ≤ 32 characters. */

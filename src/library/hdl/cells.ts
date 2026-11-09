@@ -30,7 +30,8 @@ export function newPlanes(bitCount: number): { val: Uint8Array; unk: Uint8Array 
   return { val, unk };
 }
 
-const tri = (val: Uint8Array, unk: Uint8Array, b: number) => (unk[b] ? TX : val[b]!);
+/** A bit of the planes as one value: 0, 1, or `X`. */
+export const tri = (val: Uint8Array, unk: Uint8Array, b: number) => (unk[b] ? TX : val[b]!);
 
 function put(val: Uint8Array, unk: Uint8Array, b: number, t: number): void {
   unk[b] = t === TX ? 1 : 0;
@@ -333,6 +334,14 @@ export function compileStep(cell: HdlCell, bitCount: number): CellStep {
           const t = pick(e, tri(val, unk, d[i]!), tri(val, unk, y[i]!));
           put(val, unk, y[i]!, r === 0 ? t : pick(r, tri(val, unk, value[i]!), t));
         }
+      };
+    }
+    case '$tribuf': {
+      // Inside the module a released net reads X; the pin it drives is the part's business.
+      const en = indices(cell, 'EN', bitCount)[0]!;
+      return (val, unk) => {
+        const e = tri(val, unk, en);
+        for (let i = 0; i < width; i++) put(val, unk, y[i]!, e === 1 ? tri(val, unk, a[i]!) : TX);
       };
     }
     default:

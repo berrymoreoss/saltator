@@ -3,6 +3,7 @@ import {
   HDL_CELLS,
   type HdlModule,
   hdlModuleProblems,
+  hdlPinDirs,
   hdlPortName,
   hdlPortPins,
   hdlPortProblem,
@@ -44,6 +45,33 @@ describe('hdlPortName and hdlPortPins', () => {
     const port = { name: 'addr', lsb: 12, bits: [0, 1, 2, 3] };
     expect(hdlPortName(port)).toBe('addr[15..12]');
     expect(hdlPortPins(port)).toEqual(['addr12', 'addr13', 'addr14', 'addr15']);
+  });
+});
+
+describe('hdlPinDirs', () => {
+  it('makes buffered and never-driven output bits tristate, inouts bidir', () => {
+    const module = {
+      ports: [
+        { name: 'oe', dir: 'in', lsb: 0, bits: [0] },
+        { name: 'y', dir: 'out', lsb: 0, bits: [1, 2, 'z', '0'] },
+        { name: 'd', dir: 'inout', lsb: 0, bits: [3] },
+        // r reads d back: what the pin reads, push-pull.
+        { name: 'r', dir: 'out', lsb: 0, bits: [3] },
+      ],
+      cells: [
+        { type: '$tribuf', src: '', ports: { A: [0], EN: [0], Y: [1] }, params: {} },
+        { type: '$tribuf', src: '', ports: { A: [0], EN: [0], Y: [3] }, params: {} },
+      ],
+    } as const satisfies Pick<HdlModule, 'ports' | 'cells'>;
+    expect(hdlPinDirs(module)).toEqual([
+      'in',
+      'tristate',
+      'out',
+      'tristate',
+      'out',
+      'bidir',
+      'out',
+    ]);
   });
 });
 

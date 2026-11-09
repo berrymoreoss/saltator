@@ -21,7 +21,7 @@ function moduleOf(name: string): HdlModule {
 }
 
 function part(name: string): AnyComponentDefinition {
-  const { definition } = hdlPart(`hdl/${name}`, name, moduleOf(name));
+  const { definition } = hdlPart(`hdl/${name.replaceAll('_', '-')}`, name, moduleOf(name));
   if (!definition) throw new Error(`${name}: no definition`);
   return definition;
 }
@@ -409,5 +409,282 @@ describe('clock edges', () => {
     tick(bench);
     bench.expect({ q1: 0, q2: 1 });
     expect(bench.get('q2')).toBe(Level.L1);
+  });
+});
+
+describe('tri-states and inout ports (HDL-8)', () => {
+  /** Kinds and pins of the diagnostics so far: `floating-input d3`. */
+  const reported = (bench: Bench) => bench.diagnostics.map((d) => `${d.kind} ${d.pin}`);
+
+  it('gives tri-state outputs tristate pins and inouts bidir pins', () => {
+    const dirs = (name: string) => pinsOf(part(name), {}).map((p) => `${p.name}:${p.dir}`);
+    expect(dirs('tristate').slice(5)).toEqual([
+      'y0:tristate',
+      'y1:tristate',
+      'y2:tristate',
+      'y3:tristate',
+      't0:out',
+      't1:out',
+      't2:out',
+      't3:out',
+    ]);
+    expect(dirs('inout').slice(5)).toEqual([
+      'd0:bidir',
+      'd1:bidir',
+      'd2:bidir',
+      'd3:bidir',
+      'r0:out',
+      'r1:out',
+      'r2:out',
+      'r3:out',
+    ]);
+    expect(dirs('open_drain')).toEqual(['irq:in', 'irq_n:tristate', 'nc:tristate']);
+    expect(pinsOf(part('inout'), {})[5]?.description).toBe('inout d[3..0], bit 0');
+  });
+
+  it('releases a tri-state output while disabled, drives it while enabled, X while unknown', () => {
+    const bench = new Bench(part('tristate'));
+    bench.set({ oe: 0, ...word('a', 0, 4, 0b1010) });
+    bench.run(us(1));
+    // Released, it reads X inside the module: t = ~y.
+    expect(read(bench, 'y', 0, 4)).toBe('ZZZZ');
+    expect(read(bench, 't', 0, 4)).toBe('XXXX');
+    expect(bench.measure({ oe: 1 }, 'y1')).toBe(ns(15));
+    bench.settle();
+    expect(read(bench, 'y', 0, 4)).toBe('1010');
+    expect(read(bench, 't', 0, 4)).toBe('0101');
+    expect(bench.measure({ oe: 0 }, 'y1')).toBe(ns(15));
+    bench.set({ oe: 'X' });
+    bench.run(us(1));
+    expect(read(bench, 'y', 0, 4)).toBe('XXXX');
+    bench.expectNoDiagnostics();
+  });
+
+  it('reads an inout back from its pins, whoever drives them', () => {
+    const bench = new Bench(part('inout'));
+    bench.set({ oe: 0, ...word('q', 0, 4, 0b1001), ...word('d', 0, 4, 0b0110) });
+    bench.run(us(1));
+    expect(read(bench, 'r', 0, 4)).toBe('0110');
+    bench.expectNoDiagnostics();
+    // Handed over at once, the bus floats for the module's delay, and r passes that on.
+    bench.set({ d0: 'Z', d1: 'Z', d2: 'Z', d3: 'Z', oe: 1 });
+    bench.run(ns(10));
+    expect(read(bench, 'd', 0, 4)).toBe('ZZZZ');
+    bench.run(us(1));
+    expect(read(bench, 'd', 0, 4)).toBe('1001');
+    expect(read(bench, 'r', 0, 4)).toBe('1001');
+    expect(bench.diagnostics.map((d) => `${d.kind} ${d.pin}`)).toEqual(
+      ['d0', 'd1', 'd2', 'd3'].map((d) => `floating-input ${d}`),
+    );
+  });
+
+  it('fights another driver of its inout: contention, and it reads X back', () => {
+    const bench = new Bench(part('inout'));
+    bench.set({ oe: 1, ...word('q', 0, 4, 0b1001), ...word('d', 0, 4, 0b1001) });
+    bench.run(us(1));
+    expect(reported(bench)).toEqual([]);
+    bench.set(word('d', 0, 4, 0b0011));
+    bench.run(us(1));
+    expect(read(bench, 'd', 0, 4)).toBe('X0X1');
+    expect(read(bench, 'r', 0, 4)).toBe('X0X1');
+    expect(bench.diagnostics.map((d) => [d.kind, d.net])).toEqual([
+      ['contention', 'd1'],
+      ['contention', 'd3'],
+    ]);
+  });
+
+  it('is written and read through its data bus (an I/O port)', () => {
+    const bench = new Bench(part('io_port'));
+    const bus = (value: number | 'Z'): BenchValues =>
+      value === 'Z'
+        ? Object.fromEntries(Array.from({ length: 8 }, (_, i) => [`d${i}`, 'Z' as const]))
+        : word('d', 0, 8, value);
+    bench.set({ strobe: 0, cs_n: 1, rw: 1, ...word('pins', 0, 8, 0x3c), ...bus('Z') });
+    bench.run(us(1));
+    // A write: the data on the bus while the strobe is HIGH, loaded when it falls.
+    bench.set({ cs_n: 0, rw: 0, ...bus(0xa5) });
+    bench.run(us(1));
+    bench.set({ strobe: 1 });
+    bench.run(us(1));
+    bench.set({ strobe: 0 });
+    bench.run(us(1));
+    expect(read(bench, 'q', 0, 8)).toBe('10100101');
+    // A read: the bus released, the port drives its pins onto it while the strobe is HIGH.
+    bench.set({ rw: 1, ...bus('Z') });
+    bench.run(us(1));
+    expect(read(bench, 'd', 0, 8)).toBe('ZZZZZZZZ');
+    bench.set({ strobe: 1 });
+    bench.run(us(1));
+    expect(read(bench, 'd', 0, 8)).toBe('00111100');
+    expect(bench.measure({ strobe: 0 }, 'd2')).toBe(ns(15));
+    expect(read(bench, 'd', 0, 8)).toBe('ZZZZZZZZ');
+    expect(read(bench, 'q', 0, 8)).toBe('10100101');
+    bench.expectNoDiagnostics();
+  });
+
+  it('drives an open drain low or releases it; never drives a z output', () => {
+    const bench = new Bench(part('open_drain'));
+    bench.set({ irq: 1 });
+    bench.run(us(1));
+    bench.expect({ irq_n: 0, nc: 'Z' });
+    bench.set({ irq: 0 });
+    bench.run(us(1));
+    bench.expect({ irq_n: 'Z', nc: 'Z' });
+  });
+
+  it('runs a 74HC574 written in Verilog: a register behind 3-state outputs', () => {
+    const bench = new Bench(part('tri_register'));
+    bench.set({ cp: 0, oe_n: 1, ...word('d', 0, 4, 0b0110) });
+    tick(bench, 'cp');
+    expect(read(bench, 'q', 0, 4)).toBe('ZZZZ');
+    bench.set({ oe_n: 0 });
+    bench.run(us(1));
+    expect(read(bench, 'q', 0, 4)).toBe('0110');
+    expect(read(bench, 'p', 0, 4)).toBe('0110');
+  });
+
+  it('merges two drivers of one inout: both enabled drive X', () => {
+    const bench = new Bench(part('tri_merged'));
+    bench.set({ oe1: 0, oe2: 0, ...word('a', 0, 4, 0b0011), ...word('b', 0, 4, 0b0101) });
+    bench.run(us(1));
+    expect(read(bench, 'y', 0, 4)).toBe('ZZZZ');
+    bench.set({ oe1: 1 });
+    bench.run(us(1));
+    expect(read(bench, 'y', 0, 4)).toBe('0011');
+    expect(read(bench, 'r', 0, 4)).toBe('0011');
+    bench.set({ oe2: 1 });
+    bench.run(us(1));
+    expect(read(bench, 'y', 0, 4)).toBe('XXXX');
+  });
+
+  it('runs tri-states inside the module as logic', () => {
+    const bench = new Bench(part('tri_internal'));
+    bench.set({ s: 1, ...word('a', 0, 4, 0b0011), ...word('b', 0, 4, 0b1100) });
+    bench.run(us(1));
+    expect(read(bench, 'n', 0, 4)).toBe('1100');
+    expect(read(bench, 'y', 0, 4)).toBe('0110');
+    bench.set({ s: 0 });
+    bench.run(us(1));
+    expect(read(bench, 'n', 0, 4)).toBe('0011');
+    expect(read(bench, 'y', 0, 4)).toBe('1001');
+  });
+
+  it('drives what logic gives an inout, reads one only read, and clocks from one', () => {
+    const bench = new Bench(part('inout_shapes'));
+    bench.set({ ...word('a', 0, 2, 0b01), ...word('r', 0, 2, 0b10), c: 0, z: 'Z' });
+    bench.run(us(1));
+    expect(read(bench, 'w', 0, 2)).toBe('01');
+    expect(read(bench, 'rr', 0, 2)).toBe('10');
+    bench.expect({ z: 'Z', zr: 0 });
+    tick(bench, 'c');
+    bench.expect({ q: 1 });
+  });
+
+  describe('floating pins: reported where their X is used', () => {
+    it('an idle bus reports nothing, a write that samples it does', () => {
+      const bench = new Bench(part('io_port'));
+      bench.set({ strobe: 0, cs_n: 1, rw: 0, ...word('pins', 0, 8, 0) });
+      bench.run(us(1));
+      for (const cs_n of [0, 1, 0] as const) {
+        bench.set({ cs_n });
+        bench.run(us(1));
+      }
+      bench.set({ strobe: 1 });
+      bench.run(us(1));
+      expect(reported(bench)).toEqual([]);
+      bench.set({ strobe: 0 });
+      bench.run(us(1));
+      expect(read(bench, 'q', 0, 8)).toBe('XXXXXXXX');
+      expect(reported(bench)).toEqual(Array.from({ length: 8 }, (_, i) => `floating-input d${i}`));
+    });
+
+    it('an input is reported when an output it reaches comes out X, not before', () => {
+      const bench = new Bench(part('decoder'));
+      // A15 = 1: the RAM is deselected whatever PHI2 is, so a floating PHI2 isn't used.
+      bench.set({ ...word('addr', 12, 4, 0b1000), phi2: 'Z' });
+      bench.run(us(1));
+      bench.expect({ ram_cs_n: 1 });
+      expect(reported(bench)).toEqual([]);
+      bench.set({ addr15: 0 });
+      bench.run(us(1));
+      bench.expect({ ram_cs_n: 'X' });
+      expect(reported(bench)).toEqual(['floating-input phi2']);
+    });
+
+    it('an enable and an asynchronous reset are used whatever they reach', () => {
+      const register = new Bench(part('tri_register'));
+      register.set({ cp: 0, oe_n: 'Z', ...word('d', 0, 4, 0) });
+      register.run(us(1));
+      expect(read(register, 'q', 0, 4)).toBe('XXXX');
+      expect(reported(register)).toEqual(['floating-input oe_n']);
+      const counter = new Bench(part('counter'));
+      counter.set({ clk: 0, rst: 'Z', en: 0 });
+      counter.run(us(1));
+      expect(reported(counter)).toEqual(['floating-input rst']);
+    });
+
+    it('a latch storing it while open, though nothing shows it yet', () => {
+      // q3 = en ? d : q3; y = q3 & sel.
+      const module: HdlModule = {
+        format: 1,
+        top: 'held',
+        creator: '',
+        bitCount: 5,
+        ports: [
+          { name: 'en', dir: 'in', lsb: 0, bits: [0] },
+          { name: 'd', dir: 'in', lsb: 0, bits: [1] },
+          { name: 'sel', dir: 'in', lsb: 0, bits: [2] },
+          { name: 'y', dir: 'out', lsb: 0, bits: [4] },
+        ],
+        signals: [],
+        cells: [
+          {
+            type: '$dlatch',
+            src: '',
+            ports: { EN: [0], D: [1], Q: [3] },
+            params: { EN_POLARITY: 1 },
+          },
+          { type: '$and', src: '', ports: { A: [3], B: [2], Y: [4] }, params: {} },
+        ],
+      };
+      const bench = new Bench(hdlPart('hdl/held', 'held', module).definition!);
+      bench.set({ en: 0, d: 'Z', sel: 0 });
+      bench.run(us(1));
+      expect(reported(bench)).toEqual([]);
+      bench.set({ en: 1 });
+      bench.run(us(1));
+      bench.expect({ y: 0 });
+      expect(reported(bench)).toEqual(['floating-input d']);
+    });
+
+    it('not past a flip-flop: a register still X from power-on names no pin', () => {
+      const bench = new Bench(part('tri_register'));
+      // q is the register, X until a clock; the floating data reaches it only at an edge.
+      bench.set({ cp: 0, oe_n: 0, d0: 'Z', d1: 'Z', d2: 'Z', d3: 'Z' });
+      bench.run(us(1));
+      expect(read(bench, 'q', 0, 4)).toBe('XXXX');
+      expect(reported(bench)).toEqual([]);
+      tick(bench, 'cp');
+      expect(reported(bench)).toEqual(['d0', 'd1', 'd2', 'd3'].map((d) => `floating-input ${d}`));
+    });
+  });
+
+  it('runs on to the same values after a snapshot is restored', () => {
+    const bench = new Bench(part('io_port'));
+    bench.set({ strobe: 0, cs_n: 0, rw: 1, ...word('pins', 0, 8, 0x5a) });
+    bench.run(us(1));
+    const snapshot = bench.sim.snapshot();
+    const run = () => {
+      bench.set({ strobe: 1 });
+      bench.run(us(1));
+      const driven = read(bench, 'd', 0, 8);
+      bench.set({ strobe: 0 });
+      bench.run(us(1));
+      return [driven, read(bench, 'd', 0, 8), bench.sim.now];
+    };
+    const first = run();
+    bench.sim.restore(snapshot);
+    expect(run()).toEqual(first);
+    expect(first.slice(0, 2)).toEqual(['01011010', 'ZZZZZZZZ']);
   });
 });

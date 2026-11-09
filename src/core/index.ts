@@ -72,6 +72,7 @@ export {
   hdlDelayProp,
   hdlModuleProblems,
   hdlPartType,
+  hdlPinDirs,
   hdlPortName,
   hdlPortPins,
   hdlPortProblem,
