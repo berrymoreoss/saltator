@@ -18,7 +18,7 @@ import { createDefaultRegistry } from '../../src/library';
 
 const registry = createDefaultRegistry();
 // The test's own listing of the folder (tests are typed without Node APIs).
-const FILES = import.meta.glob<string>('../../examples/*.logic.json', {
+const FILES = import.meta.glob<string>('../../examples/*.saltator.json', {
   query: '?raw',
   import: 'default',
   eager: true,
@@ -26,13 +26,13 @@ const FILES = import.meta.glob<string>('../../examples/*.logic.json', {
 
 describe('example files', () => {
   it('every file in examples/ is listed, and every listed example has a file', () => {
-    const ids = Object.keys(FILES).map((path) => path.replace(/^.*\/(.*)\.logic\.json$/, '$1'));
+    const ids = Object.keys(FILES).map((path) => path.replace(/^.*\/(.*)\.saltator\.json$/, '$1'));
     expect(ids.sort()).toEqual(EXAMPLE_FILES.map((e) => e.id).sort());
   });
 
   it('the app bundles each file as it is on disk', () => {
     for (const { id } of EXAMPLE_FILES) {
-      expect(exampleText(id)).toBe(FILES[`../../examples/${id}.logic.json`]);
+      expect(exampleText(id)).toBe(FILES[`../../examples/${id}.saltator.json`]);
     }
   });
 

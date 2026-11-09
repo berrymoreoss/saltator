@@ -1,8 +1,8 @@
 import { expect, type Locator, type Page, test } from '@playwright/test';
-import addressDecoder from '../../examples/verilog-address-decoder.logic.json' with {
+import addressDecoder from '../../examples/verilog-address-decoder.saltator.json' with {
   type: 'json',
 };
-import counterTrafficLight from '../../examples/verilog-counter-traffic-light.logic.json' with {
+import counterTrafficLight from '../../examples/verilog-counter-traffic-light.saltator.json' with {
   type: 'json',
 };
 import { YOSYS_FIXTURES } from '../../src/library/hdl/fixtures';

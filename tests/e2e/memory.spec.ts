@@ -1,6 +1,6 @@
 import { expect, type Page, test } from '@playwright/test';
-import eeprom7Segment from '../../examples/eeprom-7-segment.logic.json' with { type: 'json' };
-import ramByHand from '../../examples/ram-by-hand.logic.json' with { type: 'json' };
+import eeprom7Segment from '../../examples/eeprom-7-segment.saltator.json' with { type: 'json' };
+import ramByHand from '../../examples/ram-by-hand.saltator.json' with { type: 'json' };
 import { pick, stubFileSystemAccess, writeFile } from './file-system';
 import {
   clickAt,

@@ -7,7 +7,7 @@
 import { type CircuitDocument, parseDocument } from '../circuit';
 
 export interface ExampleFile {
-  /** The file name without `.logic.json`; also the `?example=` id. */
+  /** The file name without `.saltator.json`; also the `?example=` id. */
   readonly id: string;
   readonly title: string;
   readonly description: string;
@@ -141,7 +141,7 @@ export const EXAMPLE_FILES: readonly ExampleFile[] = [
 ];
 
 // Not a JSON import: the text is kept as saved and parsed (migrated, validated) like any file.
-const TEXTS = import.meta.glob<string>('../../examples/*.logic.json', {
+const TEXTS = import.meta.glob<string>('../../examples/*.saltator.json', {
   query: '?raw',
   import: 'default',
   eager: true,
@@ -149,8 +149,8 @@ const TEXTS = import.meta.glob<string>('../../examples/*.logic.json', {
 
 /** An example file's text, exactly as saved. */
 export function exampleText(id: string): string {
-  const text = TEXTS[`../../examples/${id}.logic.json`];
-  if (text === undefined) throw new Error(`no example file "${id}.logic.json"`);
+  const text = TEXTS[`../../examples/${id}.saltator.json`];
+  if (text === undefined) throw new Error(`no example file "${id}.saltator.json"`);
   return text;
 }
 

@@ -303,7 +303,7 @@ flowchart LR
 
 ## Persistence
 
-Documents are `.logic.json` files written by `serializeDocument` (R07,
+Documents are `.saltator.json` files written by `serializeDocument` (R07,
 [ADR-0012](adr/0012-files-and-sessions.md)): opened and saved through the File System Access API
 in Chromium (Save writes back through the file's handle) and a file input / download elsewhere,
 behind one `FileAccess` interface (`src/ui/files.ts`). A `DocumentController` keeps the document

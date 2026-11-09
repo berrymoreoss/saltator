@@ -7,7 +7,7 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "includes": ["**", "!**/*.logic.json"]
+    "includes": ["**", "!**/*.saltator.json"]
   },
   "formatter": {
     "enabled": true,

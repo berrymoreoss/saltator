@@ -1,6 +1,6 @@
 import { expect, type Page, test } from '@playwright/test';
-import lcdByHand from '../../examples/lcd-by-hand.logic.json' with { type: 'json' };
-import lcdHelloWorld from '../../examples/lcd-hello-world.logic.json' with { type: 'json' };
+import lcdByHand from '../../examples/lcd-by-hand.saltator.json' with { type: 'json' };
+import lcdHelloWorld from '../../examples/lcd-hello-world.saltator.json' with { type: 'json' };
 import type { Point } from '../../src/circuit';
 import { canvas, clickAt, openExample, properties, summary, watchErrors } from './support';
 

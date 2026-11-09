@@ -1,5 +1,5 @@
 import { expect, type Page, test } from '@playwright/test';
-import twoDigitCounter from '../../examples/two-digit-counter.logic.json' with { type: 'json' };
+import twoDigitCounter from '../../examples/two-digit-counter.saltator.json' with { type: 'json' };
 import { fitted, openExample, properties, summary, watchErrors } from './support';
 
 // R11b in the browser: going into the Two-Digit Counter's instances while it runs — each digit

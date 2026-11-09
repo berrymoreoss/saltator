@@ -1,5 +1,5 @@
 import { expect, type Page, test } from '@playwright/test';
-import dataBus from '../../examples/data-bus.logic.json' with { type: 'json' };
+import dataBus from '../../examples/data-bus.saltator.json' with { type: 'json' };
 import { loadDocument, type Point } from '../../src/circuit';
 import { buildScene, fitRect } from '../../src/editor';
 import { createDefaultRegistry } from '../../src/library';

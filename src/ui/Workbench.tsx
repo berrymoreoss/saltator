@@ -221,7 +221,7 @@ export function Workbench({
     // biome-ignore lint/a11y/noStaticElementInteractions: a file drop target; File ▸ Open is the keyboard way
     <div
       className="workbench"
-      // A .logic.json file dropped anywhere opens (after "Save changes?").
+      // A .saltator.json file dropped anywhere opens (after "Save changes?").
       onDragOver={(e) => {
         if (!e.dataTransfer.types.includes('Files')) return;
         e.preventDefault();

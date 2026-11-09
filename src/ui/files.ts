@@ -1,5 +1,5 @@
 /**
- * Reading and writing `.logic.json` files. Two implementations behind one interface:
+ * Reading and writing `.saltator.json` files. Two implementations behind one interface:
  * - **native** — the File System Access API (Chromium): pickers, and Save writes back through
  *   the file's handle;
  * - **fallback** (Firefox, Safari) — a file input to open, a download to save (no handles, so

@@ -1,5 +1,5 @@
 /**
- * The learning examples (`examples/*.logic.json`, R07) do what their gallery card says: each one
+ * The learning examples (`examples/*.saltator.json`, R07) do what their gallery card says: each one
  * compiled from its file and run.
  */
 import { describe, expect, it } from 'vitest';

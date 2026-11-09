@@ -1,5 +1,5 @@
 import { expect, type Page, test } from '@playwright/test';
-import ramByHand from '../../examples/ram-by-hand.logic.json' with { type: 'json' };
+import ramByHand from '../../examples/ram-by-hand.saltator.json' with { type: 'json' };
 import { pick, stubFileSystemAccess, writeFile } from './file-system';
 import { canvas, menu, openExample, watchErrors } from './support';
 

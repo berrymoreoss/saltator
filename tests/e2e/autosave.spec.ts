@@ -35,10 +35,10 @@ test('a reload brings back the unsaved circuit, its name and the view', async ({
   await expect(page.getByTestId('zoom')).toHaveText(zoom!);
   // The history starts empty; the switch moved one cell is there.
   await expect(page.getByRole('button', { name: /^Undo/ })).toBeDisabled();
-  await pick(page, 'save', 'restored.logic.json');
+  await pick(page, 'save', 'restored.saltator.json');
   await page.keyboard.press('ControlOrMeta+S');
   await expect(page).toHaveTitle('restored — Logic');
-  expect(firstX(await readFile(page, 'restored.logic.json'))).toBe(1);
+  expect(firstX(await readFile(page, 'restored.saltator.json'))).toBe(1);
   expect(errors).toEqual([]);
 });
 
@@ -46,7 +46,7 @@ test('a saved file stays the document’s file across a reload: Save needs no pi
   page,
 }) => {
   await openApp(page);
-  await pick(page, 'save', 'hello.logic.json');
+  await pick(page, 'save', 'hello.saltator.json');
   await page.keyboard.press('ControlOrMeta+S');
   await expect(page).toHaveTitle('hello — Logic');
   await expect.poll(() => storedSessions(page)).toEqual([{ name: 'hello', unsaved: false }]);
@@ -58,7 +58,7 @@ test('a saved file stays the document’s file across a reload: Save needs no pi
   await page.keyboard.press('ControlOrMeta+S');
   await expect(page).toHaveTitle('hello — Logic');
   expect(await pickerCount(page)).toBe(0);
-  expect(firstX(await readFile(page, 'hello.logic.json'))).toBe(1);
+  expect(firstX(await readFile(page, 'hello.saltator.json'))).toBe(1);
 });
 
 test('a new tab starts from the latest session; each tab then keeps its own', async ({
@@ -106,8 +106,8 @@ test('a reload right after an edit keeps it (written synchronously on unload)', 
   await edit(page);
   await page.reload();
   await expect(page).toHaveTitle('• Hello, LED — Logic');
-  await pick(page, 'save', 'quick.logic.json');
+  await pick(page, 'save', 'quick.saltator.json');
   await page.keyboard.press('ControlOrMeta+S');
   await expect(page).toHaveTitle('quick — Logic');
-  expect(firstX(await readFile(page, 'quick.logic.json'))).toBe(1);
+  expect(firstX(await readFile(page, 'quick.saltator.json'))).toBe(1);
 });

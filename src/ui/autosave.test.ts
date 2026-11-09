@@ -136,7 +136,7 @@ function setup(id = 'tab-1') {
 describe('Autosave', () => {
   it('writes within half a second of a change; later changes in that time ride along', async () => {
     const { documents, timers, puts, autosave, moveU1 } = setup();
-    documents.show(openedSession('adder', nandDocument(), { name: 'adder.logic.json' }));
+    documents.show(openedSession('adder', nandDocument(), { name: 'adder.saltator.json' }));
     autosave.start({ stored: true });
     moveU1(1);
     timers.advance(300);
@@ -150,7 +150,7 @@ describe('Autosave', () => {
       id: 'tab-1',
       name: 'adder',
       unsaved: true,
-      file: { name: 'adder.logic.json' },
+      file: { name: 'adder.saltator.json' },
       updated: 1_000_500,
     });
     expect(parseDocument(puts[0]!.text).circuits[0]!.components[0]!.x).toBe(2);
@@ -158,7 +158,7 @@ describe('Autosave', () => {
 
   it('on unload, writes synchronously to localStorage; the next start moves it into the store', async () => {
     const { documents, store, puts, autosave, moveU1 } = setup();
-    documents.show(openedSession('adder', nandDocument(), { name: 'adder.logic.json' }));
+    documents.show(openedSession('adder', nandDocument(), { name: 'adder.saltator.json' }));
     autosave.start({ stored: true });
     await autosaved(autosave, moveU1, store); // x = 3 in the store
     const local = new ListStorage();
@@ -167,7 +167,7 @@ describe('Autosave', () => {
     const key = 'logic.unload.tab-1';
     expect(JSON.parse(local.getItem(key)!)).toMatchObject({
       name: 'adder',
-      fileName: 'adder.logic.json',
+      fileName: 'adder.saltator.json',
     });
     expect(JSON.parse(local.getItem(key)!).file).toBeUndefined();
     autosave.flushOnUnload(local); // nothing new
@@ -175,7 +175,7 @@ describe('Autosave', () => {
 
     // Say the IndexedDB write didn't make it (the store still has x = 3): the newer local copy
     // wins, keeping the stored handle.
-    const handle = { name: 'adder.logic.json' };
+    const handle = { name: 'adder.saltator.json' };
     await store.put({ ...puts[0]!, file: handle, updated: 1 });
     await recoverUnloadWrites(store, local);
     const recovered = await store.get('tab-1');
@@ -371,9 +371,9 @@ describe('restoring a session', () => {
 
   it('comes back with its name, file, view and unsaved state', () => {
     const clean = restoreSession(
-      stored({ file: { name: 'adder.logic.json' }, camera: { x: 1, y: 2, scale: 8 } }),
+      stored({ file: { name: 'adder.saltator.json' }, camera: { x: 1, y: 2, scale: 8 } }),
     )!;
-    expect(clean.session).toMatchObject({ name: 'adder', file: { name: 'adder.logic.json' } });
+    expect(clean.session).toMatchObject({ name: 'adder', file: { name: 'adder.saltator.json' } });
     expect(clean.session.saved).toBe(clean.document);
     expect(clean.document.circuits[0]!.components[0]!.x).toBe(4);
     expect(clean.camera).toEqual({ x: 1, y: 2, scale: 8 });

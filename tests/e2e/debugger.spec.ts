@@ -1,6 +1,8 @@
 import { expect, type Page, test } from '@playwright/test';
-import ramByHand from '../../examples/ram-by-hand.logic.json' with { type: 'json' };
-import programCounter from '../../examples/sap-1-program-counter.logic.json' with { type: 'json' };
+import ramByHand from '../../examples/ram-by-hand.saltator.json' with { type: 'json' };
+import programCounter from '../../examples/sap-1-program-counter.saltator.json' with {
+  type: 'json',
+};
 import { clickAt, openApp, openExample, watchErrors } from './support';
 
 // R14 in the browser: Step Clock on Ben Eater's program counter (a manual clock: one pulse a

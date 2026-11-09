@@ -97,13 +97,13 @@ describe('DocumentController', () => {
     const { editor, files, documents, asked, circuit } = setup(['discard']);
     editor.edit('Place', nandDocument(4).circuits[0]!);
     expect(documents.unsaved).toBe(true);
-    files.disk.set('adder.logic.json', serializeDocument(nandDocument(7)));
-    files.opens.push('adder.logic.json');
+    files.disk.set('adder.saltator.json', serializeDocument(nandDocument(7)));
+    files.opens.push('adder.saltator.json');
     expect(await documents.open()).toBe(true);
     expect(asked).toEqual(['Untitled']); // answered "Don't Save"
     expect(documents.session.get()).toMatchObject({
       name: 'adder',
-      file: { name: 'adder.logic.json' },
+      file: { name: 'adder.saltator.json' },
     });
     expect(circuit().components[0]!.x).toBe(7);
     expect(editor.undoLabel).toBeUndefined();
@@ -120,8 +120,8 @@ describe('DocumentController', () => {
         { ...nandDocument(2).circuits[0]!, id: 'sub', name: 'Sub' },
       ],
     };
-    files.disk.set('cpu.logic.json', serializeDocument(two));
-    files.opens.push('cpu.logic.json');
+    files.disk.set('cpu.saltator.json', serializeDocument(two));
+    files.opens.push('cpu.saltator.json');
     expect(await documents.open()).toBe(true);
     expect(editor.state.get().document.circuits.map((c) => c.id)).toEqual(['main', 'sub']);
     expect(editor.state.get().circuit.id).toBe('main');
@@ -131,7 +131,7 @@ describe('DocumentController', () => {
     editor.edit('Move', { ...sub, components: sub.components.map((c) => ({ ...c, x: 9 })) });
     expect(documents.unsaved).toBe(true);
     expect(await documents.save()).toBe(true);
-    const saved = parseDocument(files.disk.get('cpu.logic.json')!);
+    const saved = parseDocument(files.disk.get('cpu.saltator.json')!);
     expect(saved.circuits.map((c) => c.id)).toEqual(['main', 'sub']);
     expect(saved.circuits[1]!.components[0]!.x).toBe(9);
     expect(documents.unsaved).toBe(false);
@@ -139,7 +139,7 @@ describe('DocumentController', () => {
 
   it('asks before replacing unsaved changes: Cancel keeps them, Save saves first', async () => {
     const cancel = setup(['cancel']);
-    cancel.documents.show(openedSession('a', nandDocument(), { name: 'a.logic.json' }));
+    cancel.documents.show(openedSession('a', nandDocument(), { name: 'a.saltator.json' }));
     cancel.moveU1(3);
     expect(await cancel.documents.newDocument()).toBe(false);
     expect(cancel.asked).toEqual(['a']);
@@ -147,12 +147,12 @@ describe('DocumentController', () => {
     expect(cancel.editor.undoLabel).toBe('Move');
 
     const save = setup(['save']);
-    save.documents.show(openedSession('a', nandDocument(), { name: 'a.logic.json' }));
+    save.documents.show(openedSession('a', nandDocument(), { name: 'a.saltator.json' }));
     save.moveU1(3);
     expect(await save.documents.newDocument()).toBe(true);
-    expect(parseDocument(save.files.disk.get('a.logic.json')!).circuits[0]!.components[0]!.x).toBe(
-      3,
-    );
+    expect(
+      parseDocument(save.files.disk.get('a.saltator.json')!).circuits[0]!.components[0]!.x,
+    ).toBe(3);
     expect(save.circuit().components).toEqual([]);
   });
 
@@ -161,7 +161,7 @@ describe('DocumentController', () => {
     editor.edit('Place', nandDocument(2).circuits[0]!);
     files.saves.push(undefined);
     expect(await documents.newDocument()).toBe(false);
-    expect(files.suggested).toEqual(['Untitled.logic.json']);
+    expect(files.suggested).toEqual(['Untitled.saltator.json']);
     expect(circuit().components).toHaveLength(1);
   });
 
@@ -179,15 +179,15 @@ describe('DocumentController', () => {
       'discard',
     ]);
     editor.edit('Place', nandDocument(2).circuits[0]!);
-    files.disk.set('broken.logic.json', '{"schemaVersion": 1, "circuits": []}');
-    files.disk.set('future.logic.json', '{"schemaVersion": 99, "circuits": []}');
-    files.disk.set('text.logic.json', 'hello');
+    files.disk.set('broken.saltator.json', '{"schemaVersion": 1, "circuits": []}');
+    files.disk.set('future.saltator.json', '{"schemaVersion": 99, "circuits": []}');
+    files.disk.set('text.saltator.json', 'hello');
     for (const name of ['broken', 'future', 'text']) {
-      files.opens.push(`${name}.logic.json`);
+      files.opens.push(`${name}.saltator.json`);
       expect(await documents.open()).toBe(false);
     }
     expect(problems.map((p) => p.title)).toEqual(Array(3).fill('Cannot open file'));
-    expect(problems[0]!.message).toContain('broken.logic.json');
+    expect(problems[0]!.message).toContain('broken.saltator.json');
     expect(problems[0]!.details).toEqual([expect.stringContaining('circuits')]);
     expect(problems[1]!.details).toEqual([expect.stringContaining('newer version')]);
     expect(problems[2]!.details).toEqual([expect.stringContaining('not valid JSON')]);
@@ -198,12 +198,12 @@ describe('DocumentController', () => {
   it('Save writes to the file; Save As asks for a name; the session follows', async () => {
     const { documents, files, editor, moveU1 } = setup();
     editor.edit('Place', nandDocument(1).circuits[0]!);
-    files.saves.push('nand.logic.json');
+    files.saves.push('nand.saltator.json');
     expect(await documents.save()).toBe(true); // untitled: Save As
-    expect(files.suggested).toEqual(['Untitled.logic.json']);
+    expect(files.suggested).toEqual(['Untitled.saltator.json']);
     expect(documents.session.get()).toMatchObject({
       name: 'nand',
-      file: { name: 'nand.logic.json' },
+      file: { name: 'nand.saltator.json' },
     });
     expect(documents.unsaved).toBe(false);
 
@@ -211,7 +211,9 @@ describe('DocumentController', () => {
     expect(documents.unsaved).toBe(true);
     expect(await documents.save()).toBe(true); // to the same file, no picker
     expect(files.suggested).toHaveLength(1);
-    expect(parseDocument(files.disk.get('nand.logic.json')!).circuits[0]!.components[0]!.x).toBe(5);
+    expect(parseDocument(files.disk.get('nand.saltator.json')!).circuits[0]!.components[0]!.x).toBe(
+      5,
+    );
     expect(documents.unsaved).toBe(false);
 
     // Undo back past the save: unsaved again; redo: clean.
@@ -220,20 +222,20 @@ describe('DocumentController', () => {
     editor.redo();
     expect(documents.unsaved).toBe(false);
 
-    files.saves.push('copy.logic.json');
+    files.saves.push('copy.saltator.json');
     expect(await documents.saveAs()).toBe(true);
-    expect(files.suggested.at(-1)).toBe('nand.logic.json');
+    expect(files.suggested.at(-1)).toBe('nand.saltator.json');
     expect(documents.session.get().name).toBe('copy');
   });
 
   it('Save falls back to Save As when write permission is refused', async () => {
     const { documents, files, moveU1 } = setup();
-    documents.show(openedSession('a', nandDocument(), { name: 'a.logic.json' }));
-    files.readOnly.add('a.logic.json');
+    documents.show(openedSession('a', nandDocument(), { name: 'a.saltator.json' }));
+    files.readOnly.add('a.saltator.json');
     moveU1(2);
-    files.saves.push('b.logic.json');
+    files.saves.push('b.saltator.json');
     expect(await documents.save()).toBe(true);
-    expect(files.disk.has('a.logic.json')).toBe(false);
+    expect(files.disk.has('a.saltator.json')).toBe(false);
     expect(documents.session.get().name).toBe('b');
   });
 
@@ -241,17 +243,17 @@ describe('DocumentController', () => {
     const { documents, files, editor } = setup();
     files.kind = 'fallback';
     editor.edit('Place', nandDocument(1).circuits[0]!);
-    files.saves.push('nand.logic.json', 'nand.logic.json');
+    files.saves.push('nand.saltator.json', 'nand.saltator.json');
     expect(await documents.save()).toBe(true);
     expect(documents.session.get().file).toBeUndefined();
     expect(documents.unsaved).toBe(false);
     expect(await documents.save()).toBe(true);
-    expect(files.suggested).toEqual(['Untitled.logic.json', 'nand.logic.json']);
+    expect(files.suggested).toEqual(['Untitled.saltator.json', 'nand.saltator.json']);
   });
 
   it('a failing write is reported, and the document stays unsaved', async () => {
     const { documents, files, problems, moveU1 } = setup();
-    documents.show(openedSession('a', nandDocument(), { name: 'a.logic.json' }));
+    documents.show(openedSession('a', nandDocument(), { name: 'a.saltator.json' }));
     files.write = async () => Promise.reject(new Error('disk full'));
     moveU1(2);
     expect(await documents.save()).toBe(false);
@@ -267,11 +269,11 @@ describe('DocumentController', () => {
     expect(documents.unsaved).toBe(false);
     expect(circuit().components[0]!.x).toBe(9);
 
-    files.disk.set('dropped.logic.json', serializeDocument(nandDocument(4)));
+    files.disk.set('dropped.saltator.json', serializeDocument(nandDocument(4)));
     expect(
       await documents.openFile({
-        name: 'dropped.logic.json',
-        text: files.disk.get('dropped.logic.json')!,
+        name: 'dropped.saltator.json',
+        text: files.disk.get('dropped.saltator.json')!,
       }),
     ).toBe(true);
     expect(documents.session.get().name).toBe('dropped');
@@ -281,7 +283,7 @@ describe('DocumentController', () => {
   it('one file operation at a time', async () => {
     const { documents, files, editor } = setup();
     editor.edit('Place', nandDocument(1).circuits[0]!);
-    files.saves.push('a.logic.json');
+    files.saves.push('a.saltator.json');
     const first = documents.save();
     expect(await documents.save()).toBe(false);
     expect(await first).toBe(true);

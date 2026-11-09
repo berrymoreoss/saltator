@@ -37,7 +37,7 @@ pnpm check            # typecheck + lint + layer and roadmap checks + tests — 
 pnpm roadmap          # where every roadmap track stands: heads, branches, milestones
 pnpm test             # tests once; pnpm test:watch for watch mode; pnpm test <path> for a subset
 pnpm coverage         # tests with coverage (v8)
-pnpm test:circuits    # the documents' test benches, headless (default: examples/*.logic.json)
+pnpm test:circuits    # the documents' test benches, headless (default: examples/*.saltator.json)
 pnpm e2e              # browser tests (Playwright, Chromium; not part of check)
 pnpm bench            # benchmarks (tests/bench), on native imports for realistic numbers
 pnpm hdl:fixtures     # Verilog fixtures for the converter's tests (needs yosys on PATH; not in check)
@@ -55,7 +55,7 @@ AGENTS.md, CLAUDE.md      agent instructions (CLAUDE.md imports this file)
 .ai/                      process memory: workflows, per-branch plans, lessons
 docs/                     vision, roadmap, architecture, simulation & component specs, ADRs
 docs/roadmap/             one file per roadmap track (index: docs/roadmap.md)
-examples/                 example circuits (.logic.json), opened from File ▸ Examples
+examples/                 example circuits (.saltator.json), opened from File ▸ Examples
 src/core/                 simulation kernel (pure)
 src/library/              part definitions + registry (pure)
 src/circuit/              circuit document, schema, netlist compiler (pure)

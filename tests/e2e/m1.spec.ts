@@ -85,10 +85,10 @@ test('M1: build switch → 74HC00 → LED and clock → LED, run, save, reload, 
 
   await runAndCheck(page, grid);
 
-  await pick(page, 'save', 'm1.logic.json');
+  await pick(page, 'save', 'm1.saltator.json');
   await page.keyboard.press('ControlOrMeta+S');
   await expect(page).toHaveTitle('m1 — Logic');
-  expect(await readFile(page, 'm1.logic.json')).toContain('"74xx/74hc00"');
+  expect(await readFile(page, 'm1.saltator.json')).toContain('"74xx/74hc00"');
 
   // The reload restores the session (same view: the grid mapping still holds).
   await page.reload();
@@ -99,7 +99,7 @@ test('M1: build switch → 74HC00 → LED and clock → LED, run, save, reload, 
   // And the file itself opens and runs.
   await menu(page, 'File', 'New Document');
   await expect(page).toHaveTitle('Untitled — Logic');
-  await pick(page, 'open', 'm1.logic.json');
+  await pick(page, 'open', 'm1.saltator.json');
   await page.keyboard.press('ControlOrMeta+O');
   await expect(page).toHaveTitle('m1 — Logic');
   await expect(page.getByTestId('counts')).toHaveText(drawn);

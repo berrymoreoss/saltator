@@ -11,7 +11,7 @@ export interface FileRef {
 }
 
 export interface DocumentSession {
-  /** Shown in the title; the file name without `.logic.json`, or `Untitled`. */
+  /** Shown in the title; the file name without `.saltator.json`, or `Untitled`. */
   readonly name: string;
   /** The document as opened or last saved; the editor edits every circuit of it (R11a). */
   readonly document: CircuitDocument;
@@ -22,7 +22,7 @@ export interface DocumentSession {
 }
 
 export const UNTITLED = 'Untitled';
-export const FILE_EXTENSION = '.logic.json';
+export const FILE_EXTENSION = '.saltator.json';
 
 /** A new, empty document: nothing to lose yet. */
 export function newSession(): DocumentSession {
@@ -75,13 +75,13 @@ export function documentText(document: CircuitDocument): string {
 // biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are the point
 const INVALID_FILE_CHARS = /[\\/:*?"<>|\u0000-\u001f\u007f]/g;
 
-/** `Hello, LED` → `Hello, LED.logic.json`; characters no file system accepts become `-`. */
+/** `Hello, LED` → `Hello, LED.saltator.json`; characters no file system accepts become `-`. */
 export function fileNameOf(name: string): string {
   const safe = name.replace(INVALID_FILE_CHARS, '-').trim();
   return `${safe === '' ? UNTITLED : safe}${FILE_EXTENSION}`;
 }
 
-/** `adder.logic.json` → `adder` (also `adder.json`); a name given by the user stays as it is. */
+/** `adder.saltator.json` → `adder` (also `adder.json`); a name given by the user stays as it is. */
 export function nameOfFile(fileName: string): string {
   const lower = fileName.toLowerCase();
   const base = lower.endsWith(FILE_EXTENSION)

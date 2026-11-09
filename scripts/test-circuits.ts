@@ -1,6 +1,6 @@
 /**
  * `pnpm test:circuits [--timeout=ms] [files…]` (R15a): runs every test bench of every circuit
- * of each document (default: `examples/*.logic.json`) in the Node script host and prints one
+ * of each document (default: `examples/*.saltator.json`) in the Node script host and prints one
  * line per bench, every failure and error, the logs, and a summary. Exit code 0 when every
  * bench passed, 1 when one failed or erred (or a script didn't load), 2 when a file didn't load
  * or the arguments are wrong. Run by Node with `scripts/resolve-hooks.ts` (it imports `src/`).
@@ -119,7 +119,7 @@ export function argumentsOf(args: readonly string[]): { files: string[]; timeout
   if (files.length === 0) {
     files.push(
       ...readdirSync('examples')
-        .filter((name) => name.endsWith('.logic.json'))
+        .filter((name) => name.endsWith('.saltator.json'))
         .sort()
         .map((name) => join('examples', name)),
     );
