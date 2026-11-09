@@ -780,6 +780,27 @@ describe('carry-over into a recompiled netlist', () => {
     expect(seen).toEqual([`${ns(6)} J.Y=0`]);
   });
 
+  it('powers on a part whose definition changed under the same type and props', () => {
+    // A Verilog module compiled again: the same type, another definition with its own state.
+    const first = sim((b) => b.add('R', 'test/recorder'));
+    first.runUntil(ns(5));
+    const remade = { ...recorder } as typeof recorder;
+    const other = new Registry([source, inverter, remade, edges, clock, lamp, bad]);
+    const second = new Simulator(new NetlistBuilder().add('R', 'test/recorder').build(), other, {
+      carry: first.carryOver(),
+    });
+    second.runUntil(ns(6));
+    expect((second.stateOf('R') as Log).log).toEqual([
+      `${ns(5)} R init Z=Z Z=Z`,
+      `${ns(5)} R eval Z=Z Z=Z`,
+    ]);
+    // With the same definition, the state is kept.
+    const third = new Simulator(new NetlistBuilder().add('R', 'test/recorder').build(), other, {
+      carry: second.carryOver(),
+    });
+    expect((third.stateOf('R') as Log).log[0]).toBe(`${ns(5)} R init Z=Z Z=Z`);
+  });
+
   it('powers on a part whose type changed under the same id', () => {
     const first = sim((b) => b.add('P', 'test/clock'));
     first.runUntil(ns(15));

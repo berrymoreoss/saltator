@@ -53,6 +53,30 @@ export {
   validateFunctionTable,
 } from './function-table';
 export {
+  HDL_CELLS,
+  HDL_DEFAULT_DELAY,
+  HDL_FAMILY,
+  HDL_FORMAT,
+  HDL_WORD,
+  type HdlBit,
+  type HdlCell,
+  type HdlCellKind,
+  type HdlCellSpec,
+  type HdlCellType,
+  type HdlMessage,
+  type HdlModule,
+  type HdlPartResult,
+  type HdlPort,
+  type HdlSignal,
+  hdlDelayProp,
+  hdlModuleProblems,
+  hdlPartType,
+  hdlPortName,
+  hdlPortPins,
+  hdlPortProblem,
+  isHdlCellType,
+} from './hdl-module';
+export {
   applyImageWrites,
   detectImageFormat,
   formatAddress,
@@ -134,7 +158,7 @@ export {
 } from './netlist';
 export { hashString, SeededRandom } from './random';
 export { NO_DATA, Recorder, type RecorderOptions } from './recorder';
-export { type ComponentRegistry, familyOf, Registry } from './registry';
+export { type ComponentRegistry, familyOf, Registry, type RegistryOptions } from './registry';
 export {
   type CarriedComponent,
   type CarriedEvent,

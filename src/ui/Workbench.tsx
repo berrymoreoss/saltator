@@ -17,6 +17,8 @@ import { MemoryImageActions } from './ImageDialogs';
 import { MemoryPanel } from './MemoryPanel';
 import { MenuBar } from './MenuBar';
 import { MessagesBadges, MessagesPanel } from './MessagesPanel';
+import { ModuleView } from './ModuleView';
+import { ModuleDrafts } from './module-view';
 import { Panel, Splitter } from './Panel';
 import { PartInfoPanel } from './PartInfoPanel';
 import { PartsPanel } from './PartsPanel';
@@ -94,6 +96,9 @@ export function Workbench({
   const uiState = useStore(ui);
 
   const clipboard = useMemo(() => new ClipboardBridge(editor), [editor]);
+  // The JSON in each Verilog module's editor (HDL-1): the session's, forgotten with its document.
+  const drafts = useMemo(() => new ModuleDrafts(), []);
+  useEffect(() => documents.shown.subscribe(() => drafts.clear()), [documents, drafts]);
   const commands = useMemo(
     () =>
       new CommandRegistry(
@@ -310,7 +315,7 @@ export function Workbench({
             />
           </>
         )}
-        <CanvasHost editor={editor} commands={commands} />
+        <CanvasHost editor={editor} commands={commands} drafts={drafts} />
         {properties.visible && (
           <>
             <Splitter
@@ -541,11 +546,17 @@ export function Workbench({
 function CanvasHost({
   editor,
   commands,
+  drafts,
 }: {
   readonly editor: Editor;
   readonly commands: CommandRegistry;
+  readonly drafts: ModuleDrafts;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
+  // A Verilog module (HDL-1) has nothing to draw: its view covers the canvas while it is open.
+  const verilog = useStoreValue(editor.state, (state) =>
+    state.circuit.verilog ? state.circuit.id : undefined,
+  );
   useEffect(() => editor.mount(canvas.current!), [editor]);
   const dragged = (e: React.DragEvent) =>
     e.dataTransfer.types.includes(PART_DRAG_TYPE) ? editor.draggedPart : undefined;
@@ -575,6 +586,7 @@ function CanvasHost({
       }}
     >
       <canvas ref={canvas} tabIndex={0} aria-label="Schematic" data-testid="schematic" />
+      {verilog !== undefined && <ModuleView key={verilog} editor={editor} drafts={drafts} />}
       <Breadcrumbs editor={editor} commands={commands} mac={MAC} />
     </div>
   );

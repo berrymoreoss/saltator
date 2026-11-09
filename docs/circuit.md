@@ -12,7 +12,7 @@ produce new values.
 
 ```ts
 interface CircuitDocument {
-  schemaVersion: 5;
+  schemaVersion: 6;
   circuits: Circuit[]; // at least one; the first is the top circuit (R11a)
 }
 
@@ -23,6 +23,7 @@ interface Circuit {
   wires: Wire[];
   probes: Probe[]; // the Waveforms tab's signals, in its order (R13); left out of files when empty
   testScript: string[]; // the circuit's test script, one line each (R15a); left out when empty
+  verilog?: { module?: HdlModule }; // a circuit written in Verilog (HDL-1), below
 }
 
 type Probe =
@@ -105,10 +106,16 @@ interface Wire {
   the first a meaning (subcircuits) and made circuit ids slugs: its migration turns other ids
   into slugs (only `main` was ever written). The bump makes an older app refuse a document whose
   subcircuits it would ignore. v5 (R15a) added test scripts (`"testScript"` on a circuit, its
-  lines; a line break inside one is a load error); its migration changes nothing.
+  lines; a line break inside one is a load error); its migration changes nothing. v6 (HDL-1)
+  added Verilog modules (`"verilog"` on a circuit, [below](#verilog-modules)): its IR is checked
+  whole with `hdlModuleProblems` (problems with their path,
+  `circuits[1].verilog.module.cells[3].type: …`), and a module with parts or wires is a load
+  error; its migration changes nothing.
 - `serializeDocument(doc)` writes stable JSON: fixed key order, defaults omitted, one line per
   component, per wire, per probe and per line of the test script (no `probes` or `testScript`
-  key without any), so a saved file diffs well in git. Round trip is lossless:
+  key without any) — a Verilog module instead of its (empty) `components` and `wires` its
+  `verilog`: `{}`, or its IR with one line per port, signal and cell — so a saved file diffs
+  well in git. Round trip is lossless:
   `parseDocument(serializeDocument(doc))` equals `doc`.
 
 ```text
@@ -320,6 +327,36 @@ design.issues; // every circuit's issues with their `circuit`, and the hierarchy
   (`pnpm bench`): 16 instances of a 50-part cell in two levels compile and flatten in ≈ 0.65 ms,
   ≈ 0.5 ms with the circuits cached.
 
+## Verilog modules
+
+HDL-1 (`src/circuit/verilog.ts`, [ADR-0030](adr/0030-hdl-modules.md)): a **circuit written in
+Verilog** has `verilog` instead of parts and wires — `{}` until its first Compile, then
+`{ module }`, the IR the library's converter made of Yosys's JSON netlist
+([components.md](components.md#verilog-modules-hdl)). The `.v` source is not in the document.
+Everything else is a circuit's: it is in the Circuits list, has an id, a name, probes and its
+own test script, and is placed as `sub/<id>` (designator `A`), opened in its instances, renamed,
+duplicated and deleted like a drawn one.
+
+- **Ports** (`modulePorts`, what `circuitPorts` gives for it): the module's, in declaration
+  order, inputs left and outputs right; a vector is a bus port (`addr[15..12]`, the Verilog
+  indices) joined to the outer bus member by member, as a drawn circuit's bus port. The
+  instance's definition is the same box as a subcircuit's (title "Verilog module: …") with the
+  module part's one property, `delay` (15 ns).
+- **The part**: the document registry asks the library's registry (`ComponentRegistry.hdlPart`)
+  for the part the module runs as — type `hdl/<id>` — once per IR object and name, so edits
+  elsewhere keep the same definition and a running simulator keeps its state; it serves that
+  type to the kernel (`DocumentRegistry.get('hdl/<id>')`, `modulePart(id)` with the messages).
+- **Compiled on its own** (`compileModule`): one part, `U1` (the chip on the module's board), and
+  a net per port bit named after its pin (`addr12`, `rom_cs_n`). So flattening needs nothing
+  new but one thing: the instance's props (its `delay`) go to the part inside, `A1/U1`; and a
+  bench with the module as the top drives its port nets as any circuit's.
+- **Issues** of the module's circuit: `hdl-not-compiled` (a warning: no IR yet, nothing to
+  place), and the part's messages — `hdl-error` (the IR can't run: the part is left out) and
+  `hdl-warning` (an inferred latch, an `init` value) — with the source location in front of the
+  message and in `src`.
+- `CompileCache` compiles a module again when its part changes; `sameCircuit` compares IRs by
+  value, so compiling the same JSON again is no edit.
+
 ## Compiler
 
 ```ts
@@ -367,7 +404,7 @@ interface CompileResult {
 ## Design checks
 
 `DesignIssue = { severity: 'error' | 'warning', code, message, component?, pin?, wire?, net?,
-at? }` — enough to locate the issue on the canvas.
+at?, src? }` — enough to locate the issue on the canvas (`src`: in a Verilog module's source).
 
 | Code                   | Severity | When                                                                                                                                                                                                        |
 | ---------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -382,6 +419,9 @@ at? }` — enough to locate the issue on the canvas.
 | `duplicate-port`       | error    | a port giving a name another port of the circuit gives already: two ports `CLK`, or `D3` beside the bus port `D[0..7]` (R11a)                                                                               |
 | `recursive-subcircuit` | error    | an instance whose circuit would contain itself, directly or through others; it is left empty ([Flattening](#flattening))                                                                                    |
 | `bus-port-width`       | warning  | a bus port on a bus of another width, or on an unnamed bus; the bits that exist connect ([Flattening](#flattening))                                                                                         |
+| `hdl-not-compiled`     | warning  | a Verilog module without its IR yet ([Verilog modules](#verilog-modules))                                                                                                                                   |
+| `hdl-error`            | error    | a Verilog module's IR the interpreter can't run (a loop, a clock made inside it, …); the module's part is left out                                                                                          |
+| `hdl-warning`          | warning  | what a Verilog module runs differently from a Verilog simulator: an inferred latch, an `init` value not simulated yet                                                                                       |
 
 An `out` pin with a pull resistor (`weak` pin) or with tri-state outputs is legal; conflicts
 between drivers that can actually disagree at run time are the kernel's `contention` diagnostic.

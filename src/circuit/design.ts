@@ -8,9 +8,11 @@ import {
   type AnyComponentDefinition,
   busMembers,
   type ComponentRegistry,
+  hdlPartType,
   type Netlist,
   type NetlistComponent,
   type NetlistPin,
+  type PropValue,
   pinsOf,
   resolveProps,
 } from '../core';
@@ -104,7 +106,10 @@ export class CompileCache {
       return cached.result;
     }
     const result = compileCircuit(circuit, registry);
-    const uses = new Map(circuit.components.map((c) => [c.type, registry.get(c.type)] as const));
+    const types = circuit.verilog
+      ? [hdlPartType(circuit.id)]
+      : circuit.components.map((c) => c.type);
+    const uses = new Map(types.map((type) => [type, registry.get(type)] as const));
     this.#results.set(circuit, { result, uses });
     return result;
   }
@@ -143,7 +148,8 @@ export function compileDesign(
   const circuitAt = new Map<string, string>([['', top]]);
   const widthIssues = new Map<string, CircuitIssue>();
 
-  const expand = (circuitId: string, path: string) => {
+  /** `props`: a Verilog module instance's (its delay), handed to the part inside. */
+  const expand = (circuitId: string, path: string, props?: Readonly<Record<string, PropValue>>) => {
     const compiled = circuits.get(circuitId)!;
     const prefix = path === '' ? '' : `${path}/`;
     for (const net of compiled.nets) {
@@ -151,7 +157,11 @@ export function compileDesign(
       for (const name of net.names) if (globals.has(name)) nets.union(node, nets.node('', name));
     }
     for (const component of compiled.netlist.components) {
-      components.push({ ...component, id: prefix + component.id });
+      components.push({
+        ...component,
+        id: prefix + component.id,
+        ...(props && Object.keys(props).length > 0 && { props }),
+      });
     }
     for (const net of compiled.nets) {
       const node = nets.node(path, net.id);
@@ -171,7 +181,7 @@ export function compileDesign(
       instances.push({ path: childPath, designator: instance.id, parent: path, circuit: inner });
       circuitAt.set(childPath, inner);
       connectPorts(compiled, circuits.get(inner)!, instance.id, path, childPath, circuitId);
-      expand(inner, childPath);
+      expand(inner, childPath, byId.get(inner)!.verilog ? instance.props : undefined);
     }
   };
 

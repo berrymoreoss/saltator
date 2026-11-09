@@ -91,11 +91,23 @@
   font-variant-numeric: tabular-nums;
 }
 
+.circuits-actions {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 12px;
+  margin: 2px 8px 6px;
+}
+
+.circuit-verilog {
+  flex: none;
+  color: var(--fg-subtle);
+}
+
 .circuits-add {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  margin: 2px 8px 6px;
+  margin: 0;
   padding: 0;
   border: 0;
   background: none;
@@ -1641,4 +1653,161 @@ kbd {
 .tab-badge.ok {
   background: color-mix(in srgb, var(--ok) 20%, transparent);
   color: var(--ok);
+}
+
+/* A Verilog module's view (HDL-1): in place of the canvas, below the breadcrumbs. */
+.module-view {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 44px 16px 12px;
+  overflow: auto;
+  background: var(--panel-bg);
+  color: var(--fg);
+}
+
+.module-title {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.module-title .muted,
+.module-view .muted {
+  color: var(--fg-muted);
+  font-weight: normal;
+}
+
+.module-step {
+  margin: 4px 0;
+  color: var(--fg-muted);
+}
+
+.module-command {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.module-command code {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--input-bg);
+  font-family: var(--font-mono);
+  font-size: var(--text-small);
+  white-space: pre;
+}
+
+.module-body {
+  flex: 1;
+  min-height: 240px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 240px;
+  gap: 12px;
+}
+
+.module-source {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+}
+
+.module-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.module-json {
+  flex: 1;
+  min-height: 120px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--input-bg);
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: var(--text-small);
+  resize: none;
+}
+
+.module-json:focus {
+  outline: 1px solid var(--focus);
+  outline-offset: -1px;
+}
+
+.module-messages {
+  max-height: 30%;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.module-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 2px 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-small);
+}
+
+.module-message svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+.module-message.error {
+  color: var(--error);
+}
+
+.module-message.warning {
+  color: var(--warning);
+}
+
+.module-message.ok {
+  color: var(--ok);
+}
+
+.module-summary {
+  min-height: 0;
+  overflow: auto;
+  padding-left: 12px;
+  border-left: 1px solid var(--border);
+}
+
+.module-summary h3 {
+  margin: 8px 0 2px;
+  font-size: var(--text-ui);
+  font-weight: 600;
+}
+
+.module-summary h3:first-child {
+  margin-top: 0;
+}
+
+.module-summary p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.module-table {
+  border-collapse: collapse;
+}
+
+.module-table .module-cell {
+  padding: 1px 12px 1px 0;
+}
+
+.module-summary .mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-small);
 }

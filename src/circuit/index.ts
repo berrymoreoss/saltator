@@ -62,15 +62,18 @@ export {
   circuitIdFor,
   emptyCircuit,
   emptyDocument,
+  emptyVerilogCircuit,
   type GroupProbe,
   ID_PATTERN,
   isGroupProbe,
+  isVerilogCircuit,
   PROBE_RADIXES,
   type Probe,
   type ProbeRadix,
   SCHEMA_VERSION,
   type SignalProbe,
   scriptLines,
+  type VerilogModule,
   type Wire,
 } from './document';
 export {
@@ -172,3 +175,4 @@ export {
   subcircuitRoom,
   subcircuitType,
 } from './subcircuit';
+export { compileModule, MODULE_PART, moduleIssue, modulePorts } from './verilog';

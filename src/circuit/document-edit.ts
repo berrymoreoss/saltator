@@ -10,6 +10,7 @@ import {
   type ComponentInstance,
   circuitIdFor,
   emptyCircuit,
+  emptyVerilogCircuit,
   isGroupProbe,
 } from './document';
 import { renameComponent, renameReference, sameCircuit } from './edit';
@@ -32,19 +33,21 @@ function circuitOf(document: CircuitDocument, id: string): Circuit {
   return circuit;
 }
 
-/** Adds an empty circuit called `name` after the others, with an id made from the name. */
+/**
+ * Adds an empty circuit called `name` after the others, with an id made from the name; with
+ * `verilog`, a Verilog module not compiled yet (HDL-1).
+ */
 export function addCircuit(
   document: CircuitDocument,
   name: string,
+  options: { readonly verilog?: boolean } = {},
 ): { readonly document: CircuitDocument; readonly id: string } {
   const id = circuitIdFor(
     name,
     document.circuits.map((c) => c.id),
   );
-  return {
-    document: { ...document, circuits: [...document.circuits, emptyCircuit(id, name)] },
-    id,
-  };
+  const circuit = options.verilog ? emptyVerilogCircuit(id, name) : emptyCircuit(id, name);
+  return { document: { ...document, circuits: [...document.circuits, circuit] }, id };
 }
 
 /**

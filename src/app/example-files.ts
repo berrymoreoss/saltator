@@ -126,6 +126,18 @@ export const EXAMPLE_FILES: readonly ExampleFile[] = [
     description:
       'Subcircuits: a 74HC163 Decade Counter inside a Counter Digit with its 74HC4511, placed twice and cascaded to count 00–99 at 10 Hz. RESET first.',
   },
+  {
+    id: 'verilog-address-decoder',
+    title: 'Verilog Address Decoder',
+    description:
+      'A 6502 memory map written in Verilog instead of wired: A15–A12 and PHI2 switches select RAM, VIA or ROM; its benches test every region.',
+  },
+  {
+    id: 'verilog-counter-traffic-light',
+    title: 'Verilog Counter and Traffic Light',
+    description:
+      'Two Verilog modules on a 4 Hz clock: a decade counter on a hex display, its carry stepping a traffic light state machine. RST off to start.',
+  },
 ];
 
 // Not a JSON import: the text is kept as saved and parsed (migrated, validated) like any file.

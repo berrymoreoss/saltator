@@ -1,7 +1,7 @@
 import { type Circuit, type CircuitDocument, SCHEMA_VERSION } from '../circuit';
 import { Registry } from '../core';
 import { DEV_PARTS, Editor } from '../editor';
-import { createDefaultRegistry } from '../library';
+import { createDefaultRegistry, hdlPart } from '../library';
 import {
   Autosave,
   askUnsavedVia,
@@ -32,11 +32,11 @@ import { EXAMPLE_FILES, exampleDocument } from './example-files';
 import { nandGrid, symbolGallery } from './examples';
 
 // The renderer fixtures (a clock pin and a 28-pin DIP no shipped part has yet, the generic box)
-// exist in dev builds only.
-const registry = new Registry([
-  ...createDefaultRegistry().list(),
-  ...(import.meta.env.DEV ? DEV_PARTS : []),
-]);
+// exist in dev builds only. Verilog modules' parts come from the library too (HDL-1).
+const registry = new Registry(
+  [...createDefaultRegistry().list(), ...(import.meta.env.DEV ? DEV_PARTS : [])],
+  { hdlPart },
+);
 
 const generated = (circuit: () => Circuit) => (): CircuitDocument => ({
   schemaVersion: SCHEMA_VERSION,

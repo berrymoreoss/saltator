@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { emptyDocument, SCHEMA_VERSION } from './document';
 import { DocumentError, loadDocument, parseDocument } from './schema';
+import { testModule } from './test-parts';
 
 /** Problems reported for a document, or [] if it loads. */
 function problemsOf(value: unknown, options?: Parameters<typeof loadDocument>[1]): string[] {
@@ -110,7 +111,7 @@ describe('loadDocument', () => {
       schemaVersion: SCHEMA_VERSION,
       circuits: [{ ...v1.circuits[0], probes: [], testScript: [] }],
     });
-    expect(SCHEMA_VERSION).toBe(5);
+    expect(SCHEMA_VERSION).toBe(6);
   });
 
   it('opens a schema v2 document (before probes) with none', () => {
@@ -374,5 +375,59 @@ describe('parseDocument', () => {
     expect(() => parseDocument('{ "schemaVersion": 1, "circuits": [], "x": 0 }')).toThrow(
       'invalid circuit document:\n  document: unknown field "x"\n  circuits: expected at least one circuit',
     );
+  });
+});
+
+describe('loadDocument: Verilog modules (v6)', () => {
+  const v6 = (circuit: Record<string, unknown>) => ({
+    schemaVersion: 6,
+    circuits: [{ id: 'main', name: 'Main', components: [], wires: [] }, circuit],
+  });
+
+  it('loads a module not compiled yet, and one with its IR, without parts or wires', () => {
+    const loaded = loadDocument(
+      v6({ id: 'gate', name: 'Gate', verilog: { module: testModule }, testScript: ['// t'] }),
+    );
+    expect(loaded.circuits[1]).toEqual({
+      id: 'gate',
+      name: 'Gate',
+      components: [],
+      wires: [],
+      probes: [],
+      testScript: ['// t'],
+      verilog: { module: testModule },
+    });
+    expect(
+      loadDocument(v6({ id: 'gate', name: 'Gate', verilog: {} })).circuits[1]?.verilog,
+    ).toEqual({});
+    expect(loadDocument(v6({ id: 'gate', name: 'Gate', verilog: {} })).circuits[0]?.verilog).toBe(
+      undefined,
+    );
+  });
+
+  it('reports an IR that is not one, with its path', () => {
+    const module = { ...testModule, cells: [{ ...testModule.cells[0], type: '$mul' }] };
+    expect(problemsOf(v6({ id: 'gate', name: 'Gate', verilog: { module } }))).toEqual([
+      'circuits[1].verilog.module.cells[0].type: not a cell HDL-1 runs: "$mul"',
+    ]);
+    expect(problemsOf(v6({ id: 'gate', name: 'Gate', verilog: { modul: 1 } }))).toEqual([
+      'circuits[1].verilog: unknown field "modul"',
+    ]);
+    expect(problemsOf(v6({ id: 'gate', name: 'Gate', verilog: 1 }))).toEqual([
+      'circuits[1].verilog: expected an object, got 1',
+    ]);
+  });
+
+  it('refuses parts or wires in a module', () => {
+    const component = { id: 'U1', type: 'prim/nand', x: 0, y: 0 };
+    expect(
+      problemsOf(v6({ id: 'gate', name: 'Gate', verilog: {}, components: [component] })),
+    ).toEqual(['circuits[1].components: a Verilog module has no parts or wires']);
+  });
+
+  it('opens a v5 document unchanged', () => {
+    const loaded = loadDocument({ ...doc({}), schemaVersion: 5 });
+    expect(loaded.schemaVersion).toBe(6);
+    expect(loaded.circuits[0]?.verilog).toBeUndefined();
   });
 });

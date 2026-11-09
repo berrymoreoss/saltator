@@ -15,7 +15,8 @@ How parts are described in `src/library`. Rationale for modeling chips as packag
 > `bus` pin field; R12a the `mem` family, `image` props, `memory` definitions and timing as a
 > function of props (speed grades); the LCD branch (off the roadmap) the `periph` family with
 > the HD44780 character LCD, cycle-time checks and `animation`; R17a the `cpu` family with the
-> W65C02S and `cpu` definitions.
+> W65C02S and `cpu` definitions; HDL-1 the `hdl` family: a document's Verilog modules, made from
+> their IR by the library's interpreter ([below](#verilog-modules-hdl)).
 
 ## Families and type ids
 
@@ -23,18 +24,19 @@ A part is identified by a stable **type id** `family/part` (lowercase letters, d
 stored in saved documents. Never rename a type id; add a migration if you must. The family is
 the part before the slash (`familyOf(type)`).
 
-| Family   | Examples                                                           | Notes                                                                                                  |
-| -------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
-| `prim`   | `prim/nand`, `prim/tristate-buffer`, `prim/pull`                   | Abstract building blocks (Logisim-style), configurable inputs and delay. For prototyping and learning. |
-| `io`     | `io/switch`, `io/button`, `io/led`, `io/clock`, `io/seven-segment` | Interaction and indication: rails, switches, LEDs, displays, clock, probe ([below](#io-parts-io)).     |
-| `net`    | `net/label`, `net/bus-entry`, `net/port`                           | Schematic-only connections: net and bus labels, bus entries, ports ([below](#net-labels-net)).         |
-| `74xx`   | `74xx/74hc00`, `74xx/74hc245`, `74xx/74hc574`                      | Real logic chips ([below](#74xx-chips-74xx)). Behavior shared per function; timing per logic family.   |
-| `timer`  | `timer/ne555`                                                      | Analog timers, behavioral: the RC network as props ([below](#timers-timer)).                           |
-| `mem`    | `mem/at28c16`, `mem/6116`                                          | EEPROMs (read as ROMs) and SRAMs ([below](#memories-mem)); shown in the Memory tab (R12b).             |
-| `cpu`    | `cpu/w65c02s`                                                      | Processors, pin-level and cycle-accurate ([below](#cpus-cpu)). Later: Z80, AVR, PIC.                   |
-| `periph` | `periph/hd44780`, `periph/w65c22`                                  | Peripherals: the HD44780 character LCD ([below](#peripherals-periph)); the VIA, ACIA _(planned, R18)_. |
-| `draw`   | `draw/text`                                                        | Graphics: drawn only, no pins, never simulated ([below](#graphics-draw)).                              |
-| `test`   | `test/driver`                                                      | Test-only parts from `src/core/testing`; not in the default registry.                                  |
+| Family   | Examples                                                           | Notes                                                                                                     |
+| -------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| `prim`   | `prim/nand`, `prim/tristate-buffer`, `prim/pull`                   | Abstract building blocks (Logisim-style), configurable inputs and delay. For prototyping and learning.    |
+| `io`     | `io/switch`, `io/button`, `io/led`, `io/clock`, `io/seven-segment` | Interaction and indication: rails, switches, LEDs, displays, clock, probe ([below](#io-parts-io)).        |
+| `net`    | `net/label`, `net/bus-entry`, `net/port`                           | Schematic-only connections: net and bus labels, bus entries, ports ([below](#net-labels-net)).            |
+| `74xx`   | `74xx/74hc00`, `74xx/74hc245`, `74xx/74hc574`                      | Real logic chips ([below](#74xx-chips-74xx)). Behavior shared per function; timing per logic family.      |
+| `timer`  | `timer/ne555`                                                      | Analog timers, behavioral: the RC network as props ([below](#timers-timer)).                              |
+| `mem`    | `mem/at28c16`, `mem/6116`                                          | EEPROMs (read as ROMs) and SRAMs ([below](#memories-mem)); shown in the Memory tab (R12b).                |
+| `cpu`    | `cpu/w65c02s`                                                      | Processors, pin-level and cycle-accurate ([below](#cpus-cpu)). Later: Z80, AVR, PIC.                      |
+| `periph` | `periph/hd44780`, `periph/w65c22`                                  | Peripherals: the HD44780 character LCD ([below](#peripherals-periph)); the VIA, ACIA _(planned, R18)_.    |
+| `draw`   | `draw/text`                                                        | Graphics: drawn only, no pins, never simulated ([below](#graphics-draw)).                                 |
+| `hdl`    | `hdl/address-decoder`                                              | A document's Verilog module, run by the interpreter; never placed itself ([below](#verilog-modules-hdl)). |
+| `test`   | `test/driver`                                                      | Test-only parts from `src/core/testing`; not in the default registry.                                     |
 
 ## Definition shape
 
@@ -1239,3 +1241,91 @@ unknown SDA, D/CX, SCL, CS and RES. Scenarios: the TFT Color Bars program throug
 controller (`tft.test.ts`, `tft-program.ts`), the example headless (`tft-examples.test.ts`),
 the carry-over property over random TFT networks, an SPI bus benchmark, and the browser
 (`tests/e2e/tft.spec.ts`).
+
+## Verilog modules (`hdl/*`)
+
+HDL-1 ([ADR-0030](adr/0030-hdl-modules.md)): logic written in Verilog runs as a part. The user
+synthesizes their `.v` with Yosys on their own computer, the app takes Yosys's JSON netlist
+and keeps its IR in the document as a circuit written in Verilog
+([circuit.md](circuit.md#verilog-modules)); the library's interpreter runs that IR. The app
+never runs Yosys. Code: `src/core/hdl-module.ts` (the IR), `src/library/hdl/` (the command, the
+converter, the analysis, the interpreter).
+
+**The command** (`yosysScript`, `yosysCommand` in `src/library/hdl/command.ts`):
+
+```sh
+yosys -q -p 'read_verilog decoder.v; hierarchy -auto-top; proc -norom; flatten; opt -keepdc; check; write_json decoder.json'
+```
+
+`hierarchy -auto-top` marks the top module, `proc -norom` turns processes into cells but keeps a
+`case` as logic (plain `proc` makes a decoder's table a ROM, a memory the interpreter can't hold
+before HDL-6), `flatten` inlines the hierarchy, `opt -keepdc` optimizes without dropping
+don't-care bits (so `X` behaves as written). Several files, `` `include ``, SystemVerilog
+(`read_verilog -sv`) are the user's command line.
+
+**The IR** (`HdlModule`, format 1): the top's name, Yosys's `creator`, `bitCount` signal bits
+numbered from 0, the ports in declaration order (`name`, `dir`, `lsb` — the Verilog index of
+bit 0 —, `bits` least significant first, `init`, `src`), named signals (for HDL-4) and the cells:
+each its Yosys type, its first source location (`decoder.v:12.3-12.20`), its ports' bits (a
+signal bit or the constants `'0'`, `'1'`, `'x'`) and parameters (polarities 0/1, reset values as
+bits). `hdlModuleProblems` checks the shape (documents are loaded with it); widths come from the
+connections.
+
+**The cells** of HDL-1 (`HDL_CELLS`): `$not` `$pos` `$neg`, the reductions (`$reduce_and`,
+`_or`, `_xor`, `_xnor`, `_bool`), `$logic_not` `$logic_and` `$logic_or`, `$and` `$or` `$xor`
+`$xnor`, `$add` `$sub`, the comparisons (`$eq` `$ne` `$lt` `$le` `$gt` `$ge`), the shifts
+(`$shl` `$shr` `$sshl` `$sshr`, `$shift` and `$shiftx` — `v[i]`, `v[i +: 2]` — whose amount may
+be signed), `$mux` `$pmux`, the flip-flops `$dff` `$dffe` `$adff` `$adffe` `$sdff` `$sdffe`
+`$sdffce` and the latches `$dlatch` `$adlatch`. Unsigned operands; arithmetic, comparisons and
+shifts up to 32 bits (bitwise cells, multiplexers, flip-flops and ports have no limit).
+
+**The converter** (`fromYosys`) refuses, with the reason and the source location: memories
+(`$mem*`; a ROM `proc` made of a `case` asks for the command), tri-states (`z`, `$tribuf`) and
+`inout` ports (HDL-8), signed operands and other cells (HDL-9), word operands over 32 bits, a
+module that places others (not flattened), gate-level cells (`$_AND_`, … from `synth`), an
+ascending vector port (`[0:3]`: its value would read reversed against the app's buses: declare
+it `[3:0]`), port names that aren't plain identifiers (no `$`, ≤ 32 characters, indices 0–99).
+It drops `$scopeinfo` silently and `$print` (`$display`) and assertions with a warning; bits
+nothing drives become `x` with a warning. The **analysis** (`analyzeHdlModule`) refuses a bit
+driven twice, a flip-flop clocked or asynchronously reset from inside the module (HDL-9) and a
+combinational loop (HDL-9), warns about inferred latches and `init` values (not simulated yet:
+the flip-flop starts unknown), and orders the combinational cells.
+
+**The part** (`hdlPart(type, name, module)`, the `hdlPart` hook of the library's registry):
+type `hdl/<circuit id>`, a pin per port bit (`addr12`…`addr15` for `addr[15:12]`, a one-bit
+port by its name) in declaration order, one property `delay` (`hdlDelayProp`, default 15 ns, an
+ATF22V10C-15's tPD) for every output. No definition while the module has errors.
+
+**The interpreter** (`module-part.ts`, cells compiled once per definition in `cells.ts`):
+state is two byte planes over the bits — value and unknown — plus the flip-flops' next states,
+plain data for snapshots, rewind and replicas. Each `evaluate`:
+
+1. Flip-flops whose clock had an edge (`clockEdge`, strict: `0 → 1` for a rising edge) compute
+   their next state **from the planes as they were before this delta** — D, EN, SRST — then all
+   load at once, so a shift chain shifts by one. An uncertain edge (`0 → X`, `X → 1`, `Z`) makes
+   `X` only the bits a load would change, as the library's chips do (`0 → X → 1` is two such
+   edges). A data input changing in the same delta as the clock is sampled before the change —
+   a race on real hardware too, which timing checks (HDL-2) will report.
+2. The input pins are read into the planes (`Z` reads `X`).
+3. Asynchronous resets apply while active; an unknown one merges the reset value in.
+4. The combinational cells and the latches (`Q = EN ? D : Q`, merged while EN is unknown) run
+   once each in topological order — no events inside a module, zero delay.
+5. Every output bit is driven with `delay` (inertial: an unchanged output costs nothing).
+
+`X` is pessimistic only where it must be: bitwise cells per bit (`0 & X = 0`, `1 | X = 1`),
+reductions and logic operators known when the known bits decide, comparisons sure when every
+value the unknown bits allow agrees (`0X0X < 0110`), arithmetic unknown from the lowest unknown
+bit up, a shift by an unknown amount all `X`, `$mux` with an unknown select the bits both inputs
+agree on, `$pmux` likewise between "no case" and the one case that could be selected (`X` when
+two could). A constant `x` in a comparison makes it unknown, as Verilog's `==` does.
+
+**Speed** (`tests/bench/hdl.bench.ts`, Apple M3 Pro): about 10 M combinational cells a second —
+every cell on every evaluation; a 1 000-cell module clocks at ≈ 6 kHz per second of wall time.
+HDL-10 makes it fast.
+
+**Tests**: the converter on fixtures Yosys made of `src/library/hdl/fixtures/*.v` (`pnpm
+hdl:fixtures`, the system `yosys`; `pnpm check` never runs Yosys), every cell against
+JavaScript on seeded values and with `X`, the decoder's function table and delay, the counter,
+the traffic light, every flip-flop flavour, latches, a shift chain, snapshots
+(`src/library/hdl/*.test.ts`); across the layers `tests/scenarios/verilog-modules.test.ts`, the
+examples' benches, the rewind property, and the browser (`tests/e2e/hdl.spec.ts`).

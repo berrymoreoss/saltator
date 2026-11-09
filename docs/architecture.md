@@ -71,8 +71,9 @@ flowchart LR
 2. The **compiler** (`circuit`) flattens it into a **netlist**: component instances
    `(id, type, props)` plus nets (sets of `(componentId, pinName)`) — the top circuit with its
    subcircuit instances expanded by path (`A1/U3`, R11a).
-3. The **simulator** (`core`) instantiates behaviors from the **registry** (`library`) and runs
-   the netlist.
+3. The **simulator** (`core`) instantiates behaviors from the **registry** and runs the
+   netlist: the design's registry — the library's parts and the parts the document's Verilog
+   modules run as (HDL-1).
 4. The **editor** reads net levels every frame to color wires and draw indicators. UI panels
    subscribe to change streams (memory accesses, diagnostics); the waveform analyzer records
    the probed nets through a core `Recorder` on the kernel's change listener (R13); the
@@ -139,7 +140,10 @@ uncertain effect as its likely outcome under a veil ([ADR-0031](adr/0031-tft-mod
 W65C02S (R17a), is a pure cycle-level core — its bus cycles checked against SingleStepTests —
 behind a part that puts each cycle on the pins with the data sheet's timing; unknown bits flow
 through its registers, and a CPU whose next step depends on them is lost until reset
-([ADR-0028](adr/0028-cpu-model.md)).
+([ADR-0028](adr/0028-cpu-model.md)). Verilog modules (HDL-1) are parts made at run time: one
+interpreter in `src/library/hdl/` runs any module's IR — 4-state bit planes, combinational cells
+in topological order inside one `evaluate`, flip-flops on strict edges, one output delay
+([components.md](components.md#verilog-modules-hdl), [ADR-0030](adr/0030-hdl-modules.md)).
 
 ## Circuit model
 
@@ -174,6 +178,12 @@ Implemented in R02. Full spec: [circuit.md](circuit.md). Rationale:
 - **Graphics** (PLT-1) are schematic-only parts without pins (`draw/text`): drawn, edited and
   saved like any part, never compiled; a text's box is estimated from its lines in the pure
   layers ([ADR-0029](adr/0029-schematic-graphics.md)).
+- **Verilog modules** (HDL-1): a circuit written in Verilog keeps the IR Compile made of Yosys's
+  JSON netlist (`Circuit.verilog`, schema v6) instead of parts and wires; placed like a
+  subcircuit (vectors as bus pins), compiled on its own to one part `U1` of type
+  `hdl/<circuit id>` with a net per port bit, which the document registry gets from the
+  library's `hdlPart` ([circuit.md](circuit.md#verilog-modules),
+  [ADR-0030](adr/0030-hdl-modules.md)). The app never runs Yosys.
 - **Buses** (R10b) are groups of nets named by their members (`D[0..7]` → `D0`…`D7`), as in
   KiCad: bus lines and bus pins (bus labels, bus entries' bus ends) are a second connectivity
   layer that never touches wires; bus entries join their bit's net by name, so the netlist and

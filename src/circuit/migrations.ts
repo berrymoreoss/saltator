@@ -23,6 +23,8 @@ export const MIGRATIONS: Migrations = {
   3: slugCircuitIds,
   // v5 added test scripts (`"testScript"` on a circuit, R15a); v4 documents have none.
   4: (doc) => doc,
+  // v6 added Verilog modules (`"verilog"` on a circuit, HDL-1); v5 documents have none.
+  5: (doc) => doc,
 };
 
 function slugCircuitIds(doc: RawDocument): RawDocument {

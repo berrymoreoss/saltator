@@ -1,8 +1,10 @@
 /**
  * Writing documents as JSON: fixed key order, defaults omitted, one line per component, per
- * wire, per probe and per line of the test script, so a saved file diffs well in git (one edit =
- * one changed line). A circuit without probes or a test script leaves the key out.
+ * wire, per probe and per line of the test script — and for a Verilog module per port, signal
+ * and cell — so a saved file diffs well in git (one edit = one changed line). A circuit without
+ * probes or a test script leaves the key out; a Verilog module leaves out its parts and wires.
  */
+import type { HdlModule } from '../core';
 import {
   type CircuitDocument,
   type ComponentInstance,
@@ -17,8 +19,12 @@ export function serializeDocument(document: CircuitDocument): string {
     const fields = [
       `"id": ${JSON.stringify(circuit.id)}`,
       `"name": ${JSON.stringify(circuit.name)}`,
-      `"components": ${list(circuit.components.map(componentJson), '      ')}`,
-      `"wires": ${list(circuit.wires.map(wireJson), '      ')}`,
+      ...(circuit.verilog
+        ? [`"verilog": ${verilogJson(circuit.verilog.module)}`]
+        : [
+            `"components": ${list(circuit.components.map(componentJson), '      ')}`,
+            `"wires": ${list(circuit.wires.map(wireJson), '      ')}`,
+          ]),
       ...(circuit.probes.length > 0
         ? [`"probes": ${list(circuit.probes.map(probeJson), '      ')}`]
         : []),
@@ -34,6 +40,28 @@ export function serializeDocument(document: CircuitDocument): string {
     `  "circuits": [\n${circuits.join(',\n')}\n  ]`,
     '}',
     '',
+  ].join('\n');
+}
+
+/** A Verilog module: `{}`, or its IR with a line per port, signal and cell. */
+function verilogJson(module: HdlModule | undefined): string {
+  if (!module) return '{}';
+  const indent = '          ';
+  const fields = [
+    `"format": ${module.format}`,
+    `"top": ${JSON.stringify(module.top)}`,
+    `"creator": ${JSON.stringify(module.creator)}`,
+    `"bitCount": ${module.bitCount}`,
+    `"ports": ${list(module.ports, indent)}`,
+    `"signals": ${list(module.signals, indent)}`,
+    `"cells": ${list(module.cells, indent)}`,
+  ];
+  return [
+    '{',
+    '        "module": {',
+    fields.map((f) => `${indent}${f}`).join(',\n'),
+    '        }',
+    '      }',
   ].join('\n');
 }
 

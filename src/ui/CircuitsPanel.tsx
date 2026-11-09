@@ -1,4 +1,4 @@
-import { Plus, Star } from 'lucide-react';
+import { FileCode, Plus, Star } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Point } from '../circuit';
 import type { Editor } from '../editor';
@@ -8,9 +8,9 @@ import { MenuList } from './MenuBar';
 import { CIRCUIT_CONTEXT_MENU } from './workbench-commands';
 
 /**
- * The document's circuits (R11a): the top marked with a star, the open one highlighted, each with
- * how many instances of it are placed. A click opens one; a right click opens it and shows the
- * Circuit commands; + adds a circuit.
+ * The document's circuits (R11a): the top marked with a star, Verilog modules (HDL-1) with a code
+ * mark, the open one highlighted, each with how many instances of it are placed. A click opens
+ * one; a right click opens it and shows the Circuit commands; + adds a circuit or a module.
  */
 export function CircuitsPanel({
   editor,
@@ -53,6 +53,9 @@ export function CircuitsPanel({
                 {i === 0 && <Star size={11} aria-label="top circuit" />}
               </span>
               <span className="circuit-name">{c.name}</span>
+              {c.verilog && (
+                <FileCode size={11} className="circuit-verilog" aria-label="Verilog module" />
+              )}
               {(counts.get(c.id) ?? 0) > 0 && (
                 <span className="circuit-count muted" title="Instances placed">
                   {counts.get(c.id)}×
@@ -62,14 +65,25 @@ export function CircuitsPanel({
           </li>
         ))}
       </ul>
-      <button
-        type="button"
-        className="circuits-add"
-        onClick={() => commands.get('circuit.add').run()}
-        data-testid="add-circuit"
-      >
-        <Plus size={12} /> Add Circuit
-      </button>
+      <div className="circuits-actions">
+        <button
+          type="button"
+          className="circuits-add"
+          onClick={() => commands.get('circuit.add').run()}
+          data-testid="add-circuit"
+        >
+          <Plus size={12} /> Add Circuit
+        </button>
+        <button
+          type="button"
+          className="circuits-add"
+          title="Add Verilog Module: a circuit written in Verilog, compiled from Yosys's JSON"
+          onClick={() => commands.get('circuit.addVerilog').run()}
+          data-testid="add-verilog-module"
+        >
+          <Plus size={12} /> Verilog Module
+        </button>
+      </div>
       {menu && (
         <CircuitMenu at={menu} commands={commands} mac={mac} onClose={() => setMenu(undefined)} />
       )}
