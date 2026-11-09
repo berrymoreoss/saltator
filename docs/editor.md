@@ -1059,7 +1059,8 @@ counting and the "last run" counters restart; on a divergence its recorder cuts 
 
 ## Verilog modules
 
-HDL-1 ([ADR-0030](adr/0030-hdl-modules.md), [circuit.md](circuit.md#verilog-modules)): a
+HDL-1 ([ADR-0030](adr/0030-hdl-modules.md), [circuit.md](circuit.md#verilog-modules); tri-states
+and `inout` ports HDL-8): a
 circuit written in Verilog has nothing to draw. While one is open, its **view** covers the
 canvas (`ModuleView.tsx`, pure pieces in `module-view.ts`), below the breadcrumbs:
 
@@ -1085,8 +1086,8 @@ canvas (`ModuleView.tsx`, pure pieces in `module-view.ts`), below the breadcrumb
   document (`Editor.setModule`): one undo step, the same IR again no edit. Its messages — the
   converter's errors and warnings with their source locations, or "Compiled decoder: 6 cells" —
   are listed under the editor; before a Compile in this session, the module's issues are.
-- **The summary**: the module's top name and Yosys version, its ports, its cells by type, where
-  it is placed.
+- **The summary**: the module's top name and Yosys version, its ports (`input`, `output`,
+  `inout`), its cells by type, where it is placed.
 - Properties of the open circuit says **Role: Verilog module**; its instances (Parts ▸
   Subcircuits) have the module's pins and the `delay` property. The editor refuses parts or
   wires in a Verilog module (a paste while one is open).

@@ -388,7 +388,8 @@ color, until a command sent in time makes it known again.
 
 **Verilog module** — logic written instead of wired: in the app, a circuit of the document
 written in Verilog, whose content is its compiled IR; placed like a subcircuit (`A1`, its
-vectors as bus pins), its outputs driven after one `delay` (HDL-1). See
+vectors as bus pins), its outputs driven after one `delay` (HDL-1) — tri-state outputs and
+`inout` ports on a bus too (HDL-8). See
 [components.md](components.md#verilog-modules-hdl).
 
 **Watch** — a value the Debug tab shows at every stop — a signal, a bus, a group of single

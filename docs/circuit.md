@@ -340,7 +340,7 @@ own test script, and is placed as `sub/<id>` (designator `A`), opened in its ins
 duplicated and deleted like a drawn one.
 
 - **Ports** (`modulePorts`, what `circuitPorts` gives for it): the module's, in declaration
-  order, inputs left and outputs right; a vector is a bus port (`addr[15..12]`, the Verilog
+  order, inputs left, outputs and inouts (HDL-8: `bidir` ports) right; a vector is a bus port (`addr[15..12]`, the Verilog
   indices) joined to the outer bus member by member, as a drawn circuit's bus port. The
   instance's definition is the same box as a subcircuit's (title "Verilog module: …") with the
   module part's one property, `delay` (15 ns).
@@ -349,9 +349,13 @@ duplicated and deleted like a drawn one.
   elsewhere keep the same definition and a running simulator keeps its state; it serves that
   type to the kernel (`DocumentRegistry.get('hdl/<id>')`, `modulePart(id)` with the messages).
 - **Compiled on its own** (`compileModule`): one part, `U1` (the chip on the module's board), and
-  a net per port bit named after its pin (`addr12`, `rom_cs_n`). So flattening needs nothing
+  a net per port bit named after its pin (`addr12`, `rom_cs_n`), the part's pins `in`, `out`,
+  `tristate` or `bidir` as the library's (`hdlPinDirs`). So flattening needs nothing
   new but one thing: the instance's props (its `delay`) go to the part inside, `A1/U1`; and a
-  bench with the module as the top drives its port nets as any circuit's.
+  bench with the module as the top drives its port nets as any circuit's — an inout port too,
+  released with `'Z'` (`b.set({ 'd[7..0]': 'Z' })`) so the module can drive it. Modules on one
+  bus are checked at run time (`contention`): `shorted-outputs` looks at a circuit's own parts,
+  not into instances.
 - **Issues** of the module's circuit: `hdl-not-compiled` (a warning: no IR yet, nothing to
   place), and the part's messages — `hdl-error` (the IR can't run: the part is left out) and
   `hdl-warning` (an inferred latch, an `init` value) — with the source location in front of the

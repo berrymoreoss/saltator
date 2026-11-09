@@ -207,25 +207,31 @@ static `undriven-input` warning).
   Tests tab.
 - [x] 9. Benchmark: `pnpm bench tests/bench/hdl.bench.ts` — HDL-1's numbers hold (no floating
   pin, no extra work); a bus case added.
-- [ ] 10. Docs: components.md (command, IR, cells, pins, the floating rule), circuit.md (schema
+- [x] 10. Docs: components.md (command, IR, cells, pins, the floating rule), circuit.md (schema
   v7, inout ports), editor.md (command), simulation.md (`level`, `reportFloating`),
   ADR-0030 amended, glossary if needed, the track's HDL-8 section as built, lessons.
 
 ## Acceptance criteria
 
-- [ ] `pnpm check` and `pnpm build` are green; `pnpm e2e` passes `hdl.spec.ts`.
-- [ ] A module with `assign d = oe ? q : 8'bz` releases its pins (`Z`) while `oe` is 0, drives
-  `q` after `delay` when it becomes 1, drives `X` while `oe` is unknown.
-- [ ] An I/O port module on a data bus is written and read through it by a test bench, headless
-  (scenario test) and in the app (e2e), no Yosys involved.
-- [ ] Two drivers on one bus (two modules, or a module and a bench or a 74HC244) give the
+- [x] `pnpm check` and `pnpm build` are green; `pnpm e2e` passes `hdl.spec.ts` — check 3333
+  tests, build green, e2e 96 passed (2026-11-10).
+- [x] A module with `assign d = oe ? q : 8'bz` releases its pins (`Z`) while `oe` is 0, drives
+  `q` after `delay` when it becomes 1, drives `X` while `oe` is unknown — `module-part.test.ts`
+  (15 ns measured both ways).
+- [x] An I/O port module on a data bus is written and read through it by a test bench, headless
+  (scenario test) and in the app (e2e), no Yosys involved — `verilog-bus.test.ts`,
+  `hdl.spec.ts`.
+- [x] Two drivers on one bus (two modules, or a module and a bench or a 74HC244) give the
   kernel's `contention`; a design with tri-state modules on one bus compiles without errors
-  (`shorted-outputs` never looks into instances — found in task 6, R11a's, not this branch's).
-- [ ] A floating bus the module doesn't use reports nothing; one it latches or drives out is a
-  `floating-input` (per Q1).
-- [ ] JSONs with two inouts joined and with `z` made without `tribuf` are refused with the reason
-  and the source location (or the command).
-- [ ] HDL-1's examples, benches and benchmark are unchanged (within noise).
+  (`shorted-outputs` never looks into instances — found in task 6, R11a's, not this branch's) —
+  `verilog-bus.test.ts` (a bench, two modules, a 74HC244), `module-part.test.ts`.
+- [x] A floating bus the module doesn't use reports nothing; one it latches or drives out is a
+  `floating-input` (per Q1) — `module-part.test.ts` (idle bus, a write, an output, an enable, a
+  reset, a latch, not past a flip-flop), mutation-checked.
+- [x] JSONs with two inouts joined and with `z` made without `tribuf` are refused with the reason
+  and the source location (or the command) — `from-yosys.test.ts` on Yosys's own output.
+- [x] HDL-1's examples, benches and benchmark are unchanged (within noise) — the examples came
+  out the same with the new command, `pnpm test:circuits` 21 of 21, the benchmark in task 9.
 
 ## Open questions
 
@@ -256,11 +262,21 @@ static `undriven-input` warning).
   2.53–2.59 M vs 2.54–2.55 M, synthetic 12.8–13.0 k vs 12.2–15.0 k — within noise. New case,
   the I/O port written and read through its bus (the bus floating for the module's delay at
   each turn): ≈ 0.96 M evaluations/s, 6 a cycle.
+- 2026-11-10 — task 10: components.md, circuit.md, editor.md, simulation.md, glossary, READMEs,
+  ADR-0030 amended (the command, a module on a bus, the floating rule), the track's HDL-8
+  section as built, lessons. Acceptance verified: check 3333 tests, build, e2e 96 passed,
+  `pnpm test:circuits` 21 of 21.
 
 ## Handoff
 
-- **State:** plan approved (Q1 as proposed, Q2 no example), branch started; no code yet.
-- **Next step:** task 1 (the command with `tribuf -logic`, tri-state fixtures).
+- **State:** all tasks done and acceptance verified (check, build, e2e 96, `test:circuits`);
+  the branch is ready for the finish-branch workflow (close the plan and the track item, then
+  merge with the user's approval; no remote: `git merge --no-ff`).
+- **Next step:** `/finish-branch` — plan `done`, HDL-8 `done`, the track's next item (HDL-9)
+  `next`.
+- **Follow-ups:** `shorted-outputs` never looks into subcircuit or module instances (R11a's
+  design; a candidate for the Platform track if wanted).
 - **Watch out:** `tribuf -logic` implies `-merge`; reading an inout assigned `z` reads a constant
   in Yosys's netlist, not the pin.
-- **Verify with:** `pnpm check`; `pnpm hdl:fixtures` / `pnpm hdl:examples` need `yosys`.
+- **Verify with:** `pnpm check`; `pnpm e2e tests/e2e/hdl.spec.ts`; `pnpm bench
+  tests/bench/hdl.bench.ts`; `pnpm hdl:fixtures` / `pnpm hdl:examples` need `yosys`.

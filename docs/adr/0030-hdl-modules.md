@@ -3,7 +3,8 @@
 - **Status:** accepted (2026-11-09, HDL-1)
 - **Date:** 2026-11-08
 - **Roadmap item:** HDL-1 (feat/hdl-modules); proposed in docs/programmable-logic-track, amended
-  when HDL-1 started (Yosys outside the app), accepted in HDL-1 after its benchmark
+  when HDL-1 started (Yosys outside the app), accepted in HDL-1 after its benchmark; amended in
+  HDL-8 (feat/hdl-bus: tri-states, `inout` ports, floating pins)
 
 ## Context
 
@@ -23,8 +24,9 @@ carry-over across recompiles, diagnostics, test benches, determinism, and the pu
 - **Yosys is the front end, and it runs outside the app.** Yosys (ISC license) compiles
   Verilog on the user's computer, as their FPGA or CPLD flow does anyway, with a command the app
   shows: `read_verilog` (`-specify` from HDL-2), `hierarchy -auto-top`, `proc`, `flatten`,
-  `opt -keepdc` (don't-care bits are not optimized away, so `X` behaves as written), `check`,
-  `write_json`; memories stay memory cells. The user pastes the JSON netlist into a module of
+  `tribuf -logic` (HDL-8: tri-states become `$tribuf` cells, one per net), `opt -keepdc`
+  (don't-care bits are not optimized away, so `X` behaves as written), `check`, `write_json`;
+  memories stay memory cells. The user pastes the JSON netlist into a module of
   the document or imports it from a file. The repo's scripts run the system `yosys` for the
   converter's fixtures, the examples and the library's modules; `pnpm check` never does. Only
   synthesizable Verilog runs — what Yosys synthesizes, which is what the device will get.
@@ -58,6 +60,16 @@ carry-over across recompiles, diagnostics, test benches, determinism, and the pu
   The simulation host simulates with the design's registry, and the kernel's carry-over keeps a
   part's state only for the same definition object — so a module compiled again restarts from
   power-on while the rest of the circuit runs on.
+
+- **A module on a bus** (HDL-8): an output a `$tribuf` drives is a `tristate` pin, an `inout`
+  a `bidir` pin that the module reads back from the net (inside the module a released net reads
+  `X`); taking and releasing the bus use the module's delay until HDL-2. A module reads its pins
+  without reporting a floating one (`EvalContext.level`) and reports it (`reportFloating`) only
+  where its `X` is used — an output driven `X`, a flip-flop loading `X`, an open latch, an
+  asynchronous reset — by the cells' combinational cones: the library's rule ("read only where
+  it matters") without hand-written reads. Rejected: reporting every read (a data bus floats
+  between bus cycles in every 6502 system: noise on correct designs), and never reporting an
+  inout (a register latching a floating bus would pass silently).
 
 ## Consequences
 
