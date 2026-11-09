@@ -7,6 +7,9 @@ import {
   createAccessStamps,
   defineComponent,
   type HdlModule,
+  type HdlPartResult,
+  hdlDelayProp,
+  hdlPortPins,
   Level,
   ns,
   type PinDef,
@@ -297,21 +300,53 @@ export const testRom = defineComponent<Record<string, never>, undefined>({
 });
 
 export function testRegistry(): Registry {
-  return new Registry([
-    testAnd,
-    testHigh,
-    testPull,
-    testBus,
-    testDip,
-    testTie,
-    testLamp,
-    testLabel,
-    testBusLabel,
-    testBusEntry,
-    testHi,
-    testRom,
-    testPort,
-  ]);
+  return new Registry(
+    [
+      testAnd,
+      testHigh,
+      testPull,
+      testBus,
+      testDip,
+      testTie,
+      testLamp,
+      testLabel,
+      testBusLabel,
+      testBusEntry,
+      testHi,
+      testRom,
+      testPort,
+    ],
+    { hdlPart: testHdlPart },
+  );
+}
+
+/**
+ * The library's `hdlPart` for circuit tests, which can't import the library: a part with a pin
+ * per port bit and the delay prop, computing `y = a & b` and `e = d` of `testModule` (other
+ * outputs stay unknown) — enough to see a module's part wired into a design.
+ */
+export function testHdlPart(type: string, name: string, module: HdlModule): HdlPartResult {
+  const pins: PinDef[] = module.ports.flatMap((port) =>
+    hdlPortPins(port).map((pin): PinDef => ({ name: pin, dir: port.dir })),
+  );
+  const at = (pin: string) => pins.findIndex((p) => p.name === pin);
+  const definition = defineComponent<{ delay: number }, undefined>({
+    type,
+    name,
+    title: `Test module ${module.top}`,
+    pins,
+    props: [hdlDelayProp],
+    create: ({ delay }) => ({
+      evaluate: (ctx) => {
+        if (at('y') >= 0)
+          ctx.drive(at('y'), strong(and(ctx.read(at('a')), ctx.read(at('b')))), delay);
+        for (const bit of ['0', '1']) {
+          if (at(`e${bit}`) >= 0) ctx.drive(at(`e${bit}`), strong(ctx.read(at(`d${bit}`))), delay);
+        }
+      },
+    }),
+  });
+  return { definition, messages: [] };
 }
 
 /**

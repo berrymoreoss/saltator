@@ -54,6 +54,8 @@ export {
 } from './function-table';
 export {
   HDL_CELLS,
+  HDL_DEFAULT_DELAY,
+  HDL_FAMILY,
   HDL_FORMAT,
   HDL_WORD,
   type HdlBit,
@@ -66,7 +68,9 @@ export {
   type HdlPartResult,
   type HdlPort,
   type HdlSignal,
+  hdlDelayProp,
   hdlModuleProblems,
+  hdlPartType,
   hdlPortName,
   hdlPortPins,
   hdlPortProblem,

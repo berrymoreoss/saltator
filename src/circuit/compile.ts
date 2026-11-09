@@ -5,6 +5,8 @@
 import {
   busMembers,
   type ComponentRegistry,
+  type HdlPartResult,
+  hdlPartType,
   isDriverPin,
   type Netlist,
   type NetlistComponent,
@@ -33,6 +35,7 @@ import type { Circuit, CircuitDocument, Wire } from './document';
 import { type Point, pointKey } from './geometry';
 import { type PartLayout, partLayout, placementOf, placePins } from './layout';
 import { DocumentRegistry, subcircuitOf } from './subcircuit';
+import { compileModule } from './verilog';
 
 export interface CompileResult {
   /** Ready for `new Simulator(netlist, registry)`. Components with errors are left out. */
@@ -70,6 +73,7 @@ export interface CompileResult {
  * library bugs (an inconsistent package definition).
  */
 export function compileCircuit(circuit: Circuit, registry: ComponentRegistry): CompileResult {
+  if (circuit.verilog) return compileModule(circuit, modulePart(circuit, registry));
   const issues: DesignIssue[] = [];
   const components: NetlistComponent[] = [];
   const pins: PlacedPin[] = [];
@@ -255,6 +259,26 @@ export function compileDocument(
 }
 
 const pinId = (pin: PlacedPin) => `${pin.component}.${pin.pin}`;
+
+/**
+ * The part a module's circuit runs as: the document registry's (made once per IR), else made
+ * by the registry's `hdlPart`; an error when it can make none.
+ */
+function modulePart(circuit: Circuit, registry: ComponentRegistry): HdlPartResult | undefined {
+  const module = circuit.verilog?.module;
+  if (!module) return undefined;
+  if (registry instanceof DocumentRegistry && registry.document.circuits.includes(circuit)) {
+    return registry.modulePart(circuit.id);
+  }
+  const make = registry.hdlPart;
+  return make
+    ? make(hdlPartType(circuit.id), circuit.name, module)
+    : {
+        messages: [
+          { severity: 'error', message: 'Verilog modules need a parts library that runs them' },
+        ],
+      };
+}
 
 function connectPins(pins: readonly PlacedPin[], wires: readonly Wire[]): Connectivity {
   return connect(

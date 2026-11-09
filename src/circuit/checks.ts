@@ -19,7 +19,10 @@ export type DesignIssueCode =
   | 'bus-entry-member'
   | 'duplicate-port'
   | 'recursive-subcircuit'
-  | 'bus-port-width';
+  | 'bus-port-width'
+  | 'hdl-not-compiled'
+  | 'hdl-error'
+  | 'hdl-warning';
 
 export interface DesignIssue {
   readonly severity: 'error' | 'warning';
@@ -30,6 +33,8 @@ export interface DesignIssue {
   readonly wire?: string;
   readonly net?: string;
   readonly at?: Point;
+  /** Where in a Verilog module's source (HDL-1): `decoder.v:12.3-12.20`. */
+  readonly src?: string;
 }
 
 /** A pin of a compiled component, placed on the grid. */

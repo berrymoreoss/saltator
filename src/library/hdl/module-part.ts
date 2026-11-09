@@ -13,13 +13,12 @@ import {
   type EvalContext,
   type HdlModule,
   type HdlPartResult,
+  hdlDelayProp,
   hdlModuleProblems,
   hdlPortName,
   hdlPortPins,
   Level,
-  ns,
   type PinDef,
-  type PropDef,
   strong,
   toInput,
 } from '../../core';
@@ -36,20 +35,6 @@ import {
   nextState,
   planeIndex,
 } from './cells';
-
-/** The family of the parts modules run as: `hdl/<circuit id>` (reserved, like `sub`). */
-export const HDL_FAMILY = 'hdl';
-
-/** The output delay of a module without timing: an ATF22V10C-15's tPD (the plan's Q4). */
-export const HDL_DEFAULT_DELAY = ns(15);
-
-export const hdlDelayProp: PropDef = {
-  key: 'delay',
-  label: 'Delay',
-  type: 'time',
-  default: HDL_DEFAULT_DELAY,
-  min: 0,
-};
 
 type HdlProps = { delay: number };
 

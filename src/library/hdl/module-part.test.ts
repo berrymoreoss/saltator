@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   type AnyComponentDefinition,
+  HDL_DEFAULT_DELAY,
   type HdlModule,
   Level,
   levelChar,
@@ -11,7 +12,7 @@ import {
 import { Bench, type BenchValues } from '../../core/testing';
 import { YOSYS_FIXTURES } from './fixtures';
 import { fromYosys } from './from-yosys';
-import { HDL_DEFAULT_DELAY, hdlPart } from './module-part';
+import { hdlPart } from './module-part';
 
 function moduleOf(name: string): HdlModule {
   const { module, messages } = fromYosys(YOSYS_FIXTURES[name]);

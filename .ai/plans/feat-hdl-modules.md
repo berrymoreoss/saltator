@@ -176,10 +176,17 @@ this same pipeline.
   outputs right, in declaration order; a vector port is a **bus pin** (`addr[15..0]`, Q2)
   joined to the outer bus member by member exactly as a subcircuit's bus port; the same box
   symbol as subcircuits.
-- **Compiled on its own** (`compileCircuit` of a module): one simulated part — id `M`, type
-  `hdl/<circuit id>`, the instance's `delay` — and a net per port bit named after it (`addr0`,
-  `cs_rom_n`). Flattening then needs nothing new: the part becomes `A1/M`, its port nets join
-  the outer nets, benches with the module as the top drive its port nets.
+- **Compiled on its own** (`compileCircuit` of a module, `src/circuit/verilog.ts`): one
+  simulated part — id `U1` (the chip on the module's board), type `hdl/<circuit id>` — and a net
+  per port bit named after its pin (`addr12`, `cs_rom_n`). Flattening then needs one thing more:
+  the instance's props (its `delay`) go to the part inside; the part becomes `A1/U1`, its port
+  nets join the outer nets and buses member by member, benches with the module as the top drive
+  its port nets. `HDL_FAMILY`, `hdlPartType`, `HDL_DEFAULT_DELAY` and `hdlDelayProp` are core's
+  (the instance needs the prop even when the module has no part).
+- `DocumentRegistry` asks the library's `hdlPart` once per IR object and name (so unrelated
+  edits keep the part's definition and the simulator its state) and serves `hdl/<id>` to the
+  kernel; `CompileCache` recompiles a module when its part changes. Issues carry the source
+  location (`DesignIssue.src`) and have it in front of the message.
 - **Compile** is an ordinary edit (`Editor.setModule`): one undo step that replaces the IR; a
   JSON that doesn't convert changes nothing and shows its messages. Warnings of the IR in the
   document (latch, `init`, old Yosys) are design issues of the module's circuit (`hdl-warning`,
@@ -244,7 +251,7 @@ this same pipeline.
   hook implemented by the library registry.
 - [x] 7. Document schema v6: `Circuit.verilog` (`{ module? }`), migration, validation,
   serialization (a line per port, signal and cell), round trip; examples re-saved as v6.
-- [ ] 8. Circuit layer: modules in `DocumentRegistry` (ports, bus pins, symbol), `compileCircuit`
+- [x] 8. Circuit layer: modules in `DocumentRegistry` (ports, bus pins, symbol), `compileCircuit`
   of a module, flattening, issues (`hdl-not-compiled`, `hdl-warning`), benches with a
   module as the top, resolver references; a scenario test of the decoder in a circuit.
 - [ ] 9. Editor: `setModule` (one undo step), Add Verilog Module, carry-over on Compile while

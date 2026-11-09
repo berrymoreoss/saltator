@@ -10,6 +10,11 @@ import {
   COMBINING_OVERLINE,
   type ComponentRegistry,
   defineComponent,
+  HDL_FAMILY,
+  type HdlModule,
+  type HdlPartResult,
+  hdlDelayProp,
+  hdlPartType,
   isBusName,
   netNameRuns,
   type PinDef,
@@ -25,6 +30,7 @@ import { portBits } from './checks';
 import type { Circuit, CircuitDocument } from './document';
 import type { Point } from './geometry';
 import { partLayout, placementOf, placePins } from './layout';
+import { modulePorts } from './verilog';
 
 /** The family of instance types: `sub/<circuit id>`. No library part may use it. */
 export const SUBCIRCUIT_FAMILY = 'sub';
@@ -65,6 +71,7 @@ export interface CircuitPort {
  * the compiler reports those (`duplicate-port`, `invalid-props`).
  */
 export function circuitPorts(circuit: Circuit, registry: ComponentRegistry): CircuitPort[] {
+  if (circuit.verilog) return modulePorts(circuit);
   const ports: CircuitPort[] = [];
   const given = new Set<string>();
   for (const instance of circuit.components) {
@@ -148,7 +155,8 @@ function pinLabel(name: string): string | undefined {
  * The generated definition of circuit `circuit` with ports `ports` (in pin order): type
  * `sub/<id>`, its name, prefix `A`, a pin per port and a box symbol (`kind: 'subcircuit'`) with
  * the circuit's name at the top and each pin on its side in order. It has no behavior: creating
- * one is a bug (instances are flattened).
+ * one is a bug (instances are flattened). A Verilog module's has the module part's `delay`
+ * (HDL-1), which flattening hands to the part inside.
  */
 export function subcircuitDefinition(
   circuit: Circuit,
@@ -206,12 +214,14 @@ export function subcircuitDefinition(
   ]
     .filter(Boolean)
     .join(' ');
+  const what = circuit.verilog ? 'Verilog module' : 'Subcircuit';
   return defineComponent<Record<string, never>, undefined>({
     type: subcircuitType(circuit.id),
     name: circuit.name,
-    title: summary === '' ? 'Subcircuit without ports' : `Subcircuit: ${summary}`,
-    keywords: ['subcircuit', 'module', circuit.id],
+    title: summary === '' ? `${what} without ports` : `${what}: ${summary}`,
+    keywords: ['subcircuit', 'module', circuit.id, ...(circuit.verilog ? ['verilog'] : [])],
     designatorPrefix: SUBCIRCUIT_PREFIX,
+    ...(circuit.verilog && { props: [hdlDelayProp] }),
     pins,
     symbol: { kind: 'subcircuit', width, height, pins: symbolPins },
     create: () => {
@@ -220,9 +230,13 @@ export function subcircuitDefinition(
   });
 }
 
-/** What a generated definition depends on: the circuit's name and its ports in order. */
+/** What a generated definition depends on: the circuit's name, kind and its ports in order. */
 function signatureOf(circuit: Circuit, ports: readonly CircuitPort[]): string {
-  return JSON.stringify([circuit.name, ports.map((p) => [p.name, p.direction, p.side])]);
+  return JSON.stringify([
+    circuit.name,
+    circuit.verilog !== undefined,
+    ports.map((p) => [p.name, p.direction, p.side]),
+  ]);
 }
 
 interface Generated {
@@ -230,6 +244,8 @@ interface Generated {
   readonly ports: readonly CircuitPort[];
   readonly signature: string;
   readonly definition: AnyComponentDefinition;
+  /** A Verilog module's part (HDL-1), made once per IR and name. */
+  readonly part?: HdlPartResult;
 }
 
 /**
@@ -240,11 +256,13 @@ interface Generated {
 export class DocumentRegistry implements ComponentRegistry {
   readonly library: ComponentRegistry;
   readonly document: CircuitDocument;
+  readonly hdlPart?: ComponentRegistry['hdlPart'];
   readonly #generated = new Map<string, Generated>();
 
   constructor(document: CircuitDocument, library: ComponentRegistry, previous?: DocumentRegistry) {
     this.library = library instanceof DocumentRegistry ? library.library : library;
     this.document = document;
+    if (this.library.hdlPart) this.hdlPart = this.library.hdlPart;
     for (const circuit of document.circuits) {
       const old =
         previous?.library === this.library ? previous.#generated.get(circuit.id) : undefined;
@@ -256,13 +274,46 @@ export class DocumentRegistry implements ComponentRegistry {
       const signature = signatureOf(circuit, ports);
       const definition =
         old?.signature === signature ? old.definition : subcircuitDefinition(circuit, ports);
-      this.#generated.set(circuit.id, { circuit, ports, signature, definition });
+      const part = this.#partOf(circuit, old);
+      this.#generated.set(circuit.id, {
+        circuit,
+        ports,
+        signature,
+        definition,
+        ...(part && { part }),
+      });
     }
   }
 
+  /** A module's part: the previous one while the IR and the name are the same objects. */
+  #partOf(circuit: Circuit, old: Generated | undefined): HdlPartResult | undefined {
+    const module: HdlModule | undefined = circuit.verilog?.module;
+    if (!module) return undefined;
+    if (old?.part && old.circuit.verilog?.module === module && old.circuit.name === circuit.name) {
+      return old.part;
+    }
+    const make = this.library.hdlPart;
+    if (!make) {
+      return {
+        messages: [
+          { severity: 'error', message: 'Verilog modules need a parts library that runs them' },
+        ],
+      };
+    }
+    return make(hdlPartType(circuit.id), circuit.name, module);
+  }
+
   get(type: string): AnyComponentDefinition | undefined {
+    if (type.startsWith(`${HDL_FAMILY}/`)) {
+      return this.#generated.get(type.slice(HDL_FAMILY.length + 1))?.part?.definition;
+    }
     const id = subcircuitOf(type);
     return id === undefined ? this.library.get(type) : this.#generated.get(id)?.definition;
+  }
+
+  /** The part a Verilog module of the document runs as, and its messages (HDL-1). */
+  modulePart(circuitId: string): HdlPartResult | undefined {
+    return this.#generated.get(circuitId)?.part;
   }
 
   has(type: string): boolean {

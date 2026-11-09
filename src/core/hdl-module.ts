@@ -5,11 +5,32 @@
  * the shape check documents are loaded with; the semantic checks (one driver per bit, no
  * combinational loop, clocks from inputs) are the interpreter's. Spec: docs/components.md#verilog-modules.
  */
-import type { AnyComponentDefinition } from './component';
+import type { AnyComponentDefinition, PropDef } from './component';
 import { BUS_NAME } from './net-names';
+import { ns } from './time';
 
 /** The IR's format; a change gets a document migration. */
 export const HDL_FORMAT = 1;
+
+/** The family of the parts modules run as: `hdl/<circuit id>` (reserved, like `sub`). */
+export const HDL_FAMILY = 'hdl';
+
+/** The part type a document's module runs as. */
+export function hdlPartType(circuitId: string): string {
+  return `${HDL_FAMILY}/${circuitId}`;
+}
+
+/** The output delay of a module without timing: an ATF22V10C-15's tPD (HDL-1's Q4). */
+export const HDL_DEFAULT_DELAY = ns(15);
+
+/** A module part's one property, also its instances': the delay of every output. */
+export const hdlDelayProp: PropDef = {
+  key: 'delay',
+  label: 'Delay',
+  type: 'time',
+  default: HDL_DEFAULT_DELAY,
+  min: 0,
+};
 
 /**
  * One bit of a connection: a signal bit (an index below `bitCount`) or a constant. Yosys's
