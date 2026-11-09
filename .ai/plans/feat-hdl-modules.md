@@ -144,12 +144,16 @@ this same pipeline.
   order. Props: `delay` (Q4: default 15 ns, an ATF22V10C-15's tPD). `create` → a behavior whose
   state is two `Uint8Array` planes (value, unknown) over the IR's bits plus the flip-flops'
   previous clock levels — plain data, so snapshots, replicas and rewind work unchanged.
-- `evaluate`: read the input pins into the planes; flip-flops and latches first (strict edges:
-  `rose`/`fell` on the clock; an uncertain edge makes `X` only the bits a load would change;
-  asynchronous resets level-sensitive, an unknown reset merges both outcomes — the library's
-  rule); then the combinational cells once each in topological order (zero delay, no events
-  inside a module); then drive every output bit with `delay` (the kernel's inertial drives make
-  unchanged outputs free).
+- `evaluate` (`module-part.ts`, cells compiled once per module in `cells.ts`): first the
+  flip-flops whose clock had an edge (`clockEdge` of the 74xx helpers: strict edges, an uncertain
+  one makes `X` only the bits a load would change — and `0 → X → 1` is two uncertain edges, as
+  for the library's chips) compute their next states **from the planes as they were before this
+  delta**, then all load at once (a shift chain shifts by one); then the input pins are read
+  into the planes; asynchronous resets apply (level-sensitive, an unknown one merges); the
+  combinational cells and latches (as combinational cells: `Q = EN ? D : Q`) run once each in
+  topological order; every output bit is driven with `delay`. A data input changing in the
+  same delta as the clock edge is therefore sampled before the change — a race on real
+  hardware anyway, which HDL-2's timing checks will report.
 - `X` semantics: bitwise cells per bit (`0 & X = 0`, `1 | X = 1`); reductions, comparisons and
   logic operators known when the known bits decide; arithmetic `X` from the lowest unknown bit
   up; a `$mux` with an unknown select gives the bits where both inputs agree, else `X`;
@@ -229,9 +233,9 @@ this same pipeline.
 - [x] 3. IR types and validation in core (`hdl-module.ts`); converter
   `src/library/hdl/from-yosys.ts`: ports and bit naming, refusals and warnings at their
   source locations, the "not made by the command" checks.
-- [ ] 4. Interpreter, combinational: cell evaluators with `X` rules, topological order, the part
+- [x] 4. Interpreter, combinational: cell evaluators with `X` rules, topological order, the part
   definition (pins per bit, `delay`); tests per cell and a decoder function table.
-- [ ] 5. Interpreter, sequential: flip-flops and latches on strict edges, asynchronous and
+- [x] 5. Interpreter, sequential: flip-flops and latches on strict edges, asynchronous and
   synchronous resets, enables, uncertain edges; counter and FSM tests; snapshot/restore and
   determinism tests.
 - [ ] 6. Core: carry-over by definition identity (+ regression test); `ComponentRegistry.hdlPart`
@@ -300,6 +304,10 @@ this same pipeline.
   IR in core, converter and analysis in the library. Found: plain `proc` makes a ROM of a
   decoder's `case` (the command uses `proc -norom`); `v[i +: 2]` gives a `$shiftx` with a signed
   amount (accepted); `init` sits on output ports too.
+- 2026-11-09 — tasks 4–5: the interpreter (cells compiled to steps over byte planes, flip-flops
+  in two phases); tests per cell against JavaScript (seeded) and per module through the core
+  bench (decoder table and delay, counter, traffic light, every flip-flop flavour, latches,
+  wires, shifts, a shift chain, snapshot/restore).
 
 ## Handoff
 
