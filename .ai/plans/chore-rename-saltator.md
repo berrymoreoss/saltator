@@ -4,7 +4,7 @@
 | ---------- | --------------------------------------------------------- |
 | Branch     | `chore/rename-saltator`                                   |
 | Roadmap    | — (publication under the `berrymoreoss` org, not a track) |
-| Status     | in-progress                                               |
+| Status     | done                                                      |
 | Depends on | —                                                         |
 | Created    | 2026-11-10                                                |
 
@@ -131,15 +131,14 @@ spend the Actions quota for nothing.
   Saltator. Left for finish-branch: push the branch and open the PR, then `gh run list` shows no
   run (the last criterion).
 
+- 2026-11-10 — finish: `main` hadn't moved; `pnpm check` (3334) and `pnpm build` green again;
+  lessons: a rename sweep misses the escaped and case-varied spellings; zsh doesn't split unquoted
+  variables. The CI criterion is checked on the pushed branch and PR before the merge.
+
 ## Handoff
 
-- **State:** all tasks done and verified locally; one acceptance criterion left (no CI run on push
-  and PR), checked during finish-branch.
-- **Next step:** `/finish-branch`: push, PR, `gh run list`, merge after approval. After the merge
-  the user may rename the local folder `logic/` → `saltator/` (move Claude Code's memory folder
-  along) and should save open documents to files before opening the new build (old browser data
-  stays behind).
-- **Watch out:** `docs/publication.md` is untracked on purpose (in `.git/info/exclude`): never
-  `git add` it. `src/library/hdl/fixtures.ts` holds huge one-line JSON: exclude it from greps.
-  zsh doesn't split unquoted variables: pass file lists through `xargs`.
-- **Verify with:** `pnpm check`, `pnpm test:circuits`, `pnpm e2e`.
+- **State:** done; merged after the user's approval (the CI criterion ticked on the PR).
+- **Next step:** nothing pending here. Publication goes on in the untracked `docs/publication.md`
+  (stage 3: Pages, README screenshot and demo link, visibility). After the merge the user may
+  rename the local folder `logic/` → `saltator/` (move Claude Code's memory folder along) and
+  should save open documents to files before opening the new build.
