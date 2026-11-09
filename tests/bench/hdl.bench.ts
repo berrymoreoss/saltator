@@ -1,11 +1,12 @@
 /**
- * The Verilog interpreter's speed (HDL-1): the baseline HDL-7 (PicoRV32) measures against and
- * HDL-10 (fast evaluation) is held to. Printed as module evaluations/s and cells/s — every
+ * The Verilog interpreter's speed (HDL-1; a bus, HDL-8): the baseline HDL-7 (PicoRV32) measures
+ * against and HDL-10 (fast evaluation) is held to. Printed as module evaluations/s and cells/s — every
  * evaluation runs every combinational cell once (no events inside a module). `pnpm bench` runs
  * this on native `import`. Results are recorded in the plan of the branch that changed them.
  */
 import { describe, type TestContext, test } from 'vitest';
 import {
+  Drive,
   type HdlBit,
   type HdlCell,
   type HdlModule,
@@ -19,7 +20,7 @@ import { testDriver } from '../../src/core/testing';
 import { fromYosys, hdlPart } from '../../src/library';
 import { YOSYS_FIXTURES } from '../../src/library/hdl/fixtures';
 
-/** A module's part on a bench: a driver on every input, a net on every output. */
+/** A module's part on a bench: a driver on every input and inout, a net on every output. */
 function simulate(module: HdlModule): Simulator {
   const { definition } = hdlPart('hdl/bench', 'Bench', module);
   if (!definition) throw new Error('the module has errors');
@@ -28,7 +29,7 @@ function simulate(module: HdlModule): Simulator {
     const pins =
       port.bits.length === 1 ? [port.name] : port.bits.map((_, i) => `${port.name}${port.lsb + i}`);
     for (const pin of pins) {
-      if (port.dir === 'in') b.add(`D_${pin}`, testDriver.type).net(pin, `M.${pin}`, `D_${pin}.Y`);
+      if (port.dir !== 'out') b.add(`D_${pin}`, testDriver.type).net(pin, `M.${pin}`, `D_${pin}.Y`);
       else b.net(pin, `M.${pin}`);
     }
   }
@@ -147,5 +148,34 @@ describe('Verilog modules', () => {
     };
     cycle();
     await measure(bench, 'synthetic 1 024 cells', sim, combinational(module), cycle);
+  });
+
+  test('I/O port (7 cells) on its data bus: a write and a read', async ({ bench }) => {
+    const module = convert('io_port');
+    const sim = simulate(module);
+    for (let i = 0; i < 8; i++) sim.action(`D_pins${i}`, strong(i % 2 ? 1 : 0));
+    sim.action('D_cs_n', strong(0));
+    sim.action('D_strobe', strong(0));
+    sim.settle();
+    let value = 0;
+    const cycle = () => {
+      // A write: the bench drives the bus, the strobe loads it.
+      value = (value + 1) & 255;
+      for (let i = 0; i < 8; i++) sim.action(`D_d${i}`, strong((value >> i) & 1 ? 1 : 0));
+      sim.action('D_rw', strong(0));
+      sim.action('D_strobe', strong(1));
+      sim.settle();
+      sim.action('D_strobe', strong(0));
+      sim.settle();
+      // A read: the bench lets go (the bus floats for the module's delay), the port drives it.
+      for (let i = 0; i < 8; i++) sim.action(`D_d${i}`, Drive.Z);
+      sim.action('D_rw', strong(1));
+      sim.action('D_strobe', strong(1));
+      sim.settle();
+      sim.action('D_strobe', strong(0));
+      sim.settle();
+    };
+    cycle();
+    await measure(bench, 'I/O port', sim, combinational(module), cycle);
   });
 });

@@ -205,7 +205,7 @@ static `undriven-input` warning).
   browser.
 - [x] 8. e2e (`hdl.spec.ts`): the I/O port fixture compiled, placed, its bench passing in the
   Tests tab.
-- [ ] 9. Benchmark: `pnpm bench tests/bench/hdl.bench.ts` — HDL-1's numbers hold (no floating
+- [x] 9. Benchmark: `pnpm bench tests/bench/hdl.bench.ts` — HDL-1's numbers hold (no floating
   pin, no extra work); a bus case added.
 - [ ] 10. Docs: components.md (command, IR, cells, pins, the floating rule), circuit.md (schema
   v7, inout ports), editor.md (command), simulation.md (`level`, `reportFloating`),
@@ -251,6 +251,11 @@ static `undriven-input` warning).
 - 2026-11-10 — tasks 7–8: the module view lists inout ports (task 2), the command shows
   `tribuf -logic`; looked at in the browser (Playwright screenshots: the module view, an
   instance with `d[7..0]` a bidirectional bus pin on the right); `hdl.spec.ts` 4 passed.
+- 2026-11-10 — task 9: `pnpm bench tests/bench/hdl.bench.ts`, `main` (a worktree) against the
+  branch, twice each, same machine: decoder 1.83–1.86 M vs 1.87–1.90 M evaluations/s, counter
+  2.53–2.59 M vs 2.54–2.55 M, synthetic 12.8–13.0 k vs 12.2–15.0 k — within noise. New case,
+  the I/O port written and read through its bus (the bus floating for the module's delay at
+  each turn): ≈ 0.96 M evaluations/s, 6 a cycle.
 
 ## Handoff
 
