@@ -195,7 +195,7 @@ static `undriven-input` warning).
   no-op migration, round trip.
 - [x] 3. Converter and analysis: accept and refuse as above (messages at source lines); drivers
   with pins read back; fan-in cones of the consumers (if Q1 as proposed).
-- [ ] 4. Core (if Q1 as proposed): `EvalContext.level`, `EvalContext.reportFloating`; kernel tests
+- [x] 4. Core (if Q1 as proposed): `EvalContext.level`, `EvalContext.reportFloating`; kernel tests
   (once until the net changes, snapshots and replicas).
 - [ ] 5. Interpreter: pin directions, `$tribuf` steps and drives, inout read-back, floating rule;
   tests per shape through the core bench, snapshot/restore, determinism, carry-over property.

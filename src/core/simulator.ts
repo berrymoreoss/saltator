@@ -1014,6 +1014,21 @@ export class Simulator {
     return level as Level;
   }
 
+  /** @internal The pin's level, a `Z` not reported (`EvalContext.level`). */
+  peekPin(c: number, pin: PinRef): Level {
+    const net = this.pinNets[this.flat(c, pin)]!;
+    return net < 0 ? Level.Z : (this.levels[net]! as Level);
+  }
+
+  /** @internal A floating value used (`EvalContext.reportFloating`), whatever the net is now. */
+  floatingPin(c: number, pin: PinRef): void {
+    const flat = this.flat(c, pin);
+    const net = this.pinNets[flat]!;
+    if (net < 0 || this.pinReads[flat] !== 1 || this.floatingReported[net] !== 0) return;
+    this.floatingReported[net] = 1;
+    this.reportFloating(c, pin, net);
+  }
+
   /** @internal */
   pinChanged(c: number, pin: PinRef, delta: number): boolean {
     const net = this.pinNets[this.flat(c, pin)]!;
@@ -1140,6 +1155,14 @@ class Context implements EvalContext<unknown> {
 
   read(pin: PinRef): Level {
     return this.sim.readPin(this.c, pin);
+  }
+
+  level(pin: PinRef): Level {
+    return this.sim.peekPin(this.c, pin);
+  }
+
+  reportFloating(pin: PinRef): void {
+    this.sim.floatingPin(this.c, pin);
   }
 
   prev(pin: PinRef): Level {

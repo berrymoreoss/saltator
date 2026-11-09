@@ -165,6 +165,8 @@ interface EvalContext<State> {
   readonly state: State; // per-instance mutable state
   readonly id: string; // instance id, for messages
   read(pin: PinRef): Level; // current resolved level of the pin's net
+  level(pin: PinRef): Level; // the same, a Z not reported (see below)
+  reportFloating(pin: PinRef): void; // a floating value read with level() was used
   prev(pin: PinRef): Level; // level before the change in the triggering delta (= read if unchanged)
   changed(pin: PinRef): boolean; // did this pin's net change in the triggering delta?
   rose(pin: PinRef): boolean; // changed from exactly 0 to exactly 1
@@ -183,6 +185,11 @@ interface EvalContext<State> {
   undefined clock never hides.
 - `rose`/`fell` read the pin's current level like `read` does (a floating net is recorded as a
   `floating-input`); `changed` and `prev` don't. Code that only observes a pin uses those.
+- `level` reads like `read` without reporting a `Z`, for a part that knows only afterwards
+  whether it used the value — a Verilog module (HDL-8) reads every pin with it and calls
+  `reportFloating(pin)` when a floating pin's `X` reached what it drives or stores. That records
+  the `floating-input` as `read` would have (once until the net changes, never through a `sense`
+  pin), even if the net is driven by now: a flip-flop samples the values from before its edge.
 - The simulator reuses **one** context object for all components; never keep it after the
   callback. Closures from `create(props)` may hold only immutable configuration; all mutable
   state lives in `ctx.state`.

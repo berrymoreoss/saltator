@@ -126,6 +126,25 @@ const lamp = defineComponent<Record<string, never>, { seen: string }>({
   }),
 });
 
+/** Reads quietly and reports floating values when told: `sim.action('Q', ['level' | 'report', pin])`. */
+const quiet = defineComponent<Record<string, never>, { seen: string }>({
+  type: 'test/quiet',
+  name: 'Q',
+  title: 'Quiet reader',
+  pins: [
+    { name: 'A', dir: 'in' },
+    { name: 'B', dir: 'in', sense: true },
+  ],
+  create: () => ({
+    createState: () => ({ seen: '' }),
+    action(ctx, payload) {
+      const [what, pin] = payload as ['level' | 'report', number];
+      if (what === 'level') ctx.state.seen += levelChar(ctx.level(pin));
+      else ctx.reportFloating(pin);
+    },
+  }),
+});
+
 /** Misbehaving part for API error checks. */
 const bad = defineComponent({
   type: 'test/bad',
@@ -145,7 +164,7 @@ const bad = defineComponent({
   }),
 });
 
-const registry = new Registry([source, inverter, recorder, edges, clock, lamp, bad]);
+const registry = new Registry([source, inverter, recorder, edges, clock, lamp, quiet, bad]);
 
 const sim = (build: (b: NetlistBuilder) => NetlistBuilder, options = {}) =>
   new Simulator(build(new NetlistBuilder()).build(), registry, options);
@@ -182,6 +201,37 @@ describe('floating inputs', () => {
     expect(s.diagnostics.entries.map((d) => [d.kind, d.component, d.pin])).toEqual([
       ['floating-input', 'I', 'A'],
     ]);
+  });
+
+  it('level reads Z quietly; reportFloating records it once until the net changes', () => {
+    const s = sim((b) => b.add('S', 'test/source').add('Q', 'test/quiet').connect('S.Y', 'Q.A'));
+    s.settle();
+    s.action('Q', ['level', 0]);
+    s.settle();
+    expect((s.stateOf('Q') as { seen: string }).seen).toBe('Z');
+    expect(s.diagnostics.entries).toEqual([]);
+    s.action('Q', ['report', 0]);
+    s.action('Q', ['report', 0]);
+    s.settle();
+    const floating = () => s.diagnostics.entries.map((d) => [d.kind, d.component, d.pin, d.count]);
+    expect(floating()).toEqual([['floating-input', 'Q', 'A', 1]]);
+    expect(s.diagnostics.entries[0]?.message).toBe(
+      'floating input: Q.A reads net "S.Y", which nothing drives (reads as X)',
+    );
+    // Driven now, a value used from before still counts: the net changed since the report.
+    s.action('S', Drive.STRONG_1);
+    s.settle();
+    s.action('Q', ['report', 0]);
+    s.settle();
+    expect(floating()).toEqual([['floating-input', 'Q', 'A', 2]]);
+  });
+
+  it('reportFloating through a sense pin records nothing', () => {
+    const s = sim((b) => b.add('S', 'test/source').add('Q', 'test/quiet').connect('S.Y', 'Q.B'));
+    s.settle();
+    s.action('Q', ['report', 1]);
+    s.settle();
+    expect(s.diagnostics.entries).toEqual([]);
   });
 
   it('reading Z through a sense pin is not a floating input, but still evaluates', () => {
