@@ -291,7 +291,7 @@ function sameCamera(a: Camera, b: Camera): boolean {
   return a.x === b.x && a.y === b.y && a.scale === b.scale;
 }
 
-const UNLOAD_PREFIX = 'logic.unload.';
+const UNLOAD_PREFIX = 'saltator.unload.';
 
 /** The parts of `localStorage` recovery needs: listing keys. */
 export interface ListableStorage extends KeyValueStorage {
@@ -337,7 +337,7 @@ export interface SessionLocks {
   hold(name: string): Promise<boolean>;
 }
 
-export const SESSION_KEY = 'logic.session';
+export const SESSION_KEY = 'saltator.session';
 
 /**
  * This tab's session id, kept in `sessionStorage` so a reload finds it. A duplicated tab copies
@@ -359,7 +359,7 @@ export async function claimSessionId(
   return { id, ...(previous && { restoreFrom: previous }) };
 }
 
-const lockName = (id: string) => `logic.session.${id}`;
+const lockName = (id: string) => `saltator.session.${id}`;
 
 /**
  * What to show at start-up: the session `restoreFrom` names, else the most recent one; `stored`

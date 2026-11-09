@@ -23,7 +23,7 @@ async function storedView(page: Page): Promise<{ open?: string; path?: string } 
   return page.evaluate(
     () =>
       new Promise((resolve, reject) => {
-        const open = indexedDB.open('logic');
+        const open = indexedDB.open('saltator');
         open.onerror = () => reject(open.error);
         open.onsuccess = () => {
           const db = open.result;

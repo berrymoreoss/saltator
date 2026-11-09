@@ -164,7 +164,7 @@ describe('Autosave', () => {
     const local = new ListStorage();
     moveU1(7);
     autosave.flushOnUnload(local);
-    const key = 'logic.unload.tab-1';
+    const key = 'saltator.unload.tab-1';
     expect(JSON.parse(local.getItem(key)!)).toMatchObject({
       name: 'adder',
       fileName: 'adder.saltator.json',
@@ -189,12 +189,12 @@ describe('Autosave', () => {
     const local = new ListStorage();
     const newer: StoredSession = { id: 'a', name: 'kept', text: '{}', unsaved: false, updated: 9 };
     await store.put(newer);
-    local.setItem('logic.unload.a', JSON.stringify({ ...newer, name: 'older', updated: 5 }));
-    local.setItem('logic.unload.b', 'not json');
-    local.setItem('logic.settings.v1', '{}');
+    local.setItem('saltator.unload.a', JSON.stringify({ ...newer, name: 'older', updated: 5 }));
+    local.setItem('saltator.unload.b', 'not json');
+    local.setItem('saltator.settings.v1', '{}');
     await recoverUnloadWrites(store, local);
     expect((await store.get('a'))!.name).toBe('kept');
-    expect([...local.data.keys()]).toEqual(['logic.settings.v1']);
+    expect([...local.data.keys()]).toEqual(['saltator.settings.v1']);
   });
 
   it('a selection change is not a change; a camera move is (the view comes back too)', async () => {
@@ -445,7 +445,7 @@ describe('claimSessionId', () => {
     const held = new Set<string>();
     const first = await claimSessionId(storage, locks(held), newId);
     expect(first.restoreFrom).toBeUndefined();
-    expect(storage.getItem('logic.session')).toBe(first.id);
+    expect(storage.getItem('saltator.session')).toBe(first.id);
     held.clear(); // the page reloaded: its locks are gone
     expect(await claimSessionId(storage, locks(held), newId)).toEqual({
       id: first.id,
@@ -458,11 +458,11 @@ describe('claimSessionId', () => {
     const held = new Set<string>();
     const original = await claimSessionId(storage, locks(held), newId);
     const copy = new Storage();
-    copy.setItem('logic.session', original.id);
+    copy.setItem('saltator.session', original.id);
     const duplicate = await claimSessionId(copy, locks(held), newId);
     expect(duplicate.id).not.toBe(original.id);
     expect(duplicate.restoreFrom).toBe(original.id);
-    expect(copy.getItem('logic.session')).toBe(duplicate.id);
+    expect(copy.getItem('saltator.session')).toBe(duplicate.id);
   });
 
   it('works without locks or storage', async () => {

@@ -61,7 +61,7 @@ export const DEFAULT_SETTINGS: Settings = {
   memoryFollow: true,
 };
 
-export const SETTINGS_KEY = 'logic.settings.v1';
+export const SETTINGS_KEY = 'saltator.settings.v1';
 
 function oneOf<T extends string>(value: unknown, options: readonly T[], fallback: T): T {
   return options.includes(value as T) ? (value as T) : fallback;

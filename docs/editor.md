@@ -175,7 +175,7 @@ floating paste), else leaves the Wire or place tool for Select, else clears the 
 `iec`), grid on/off, scroll-wheel mode (`pan` · `zoom`), each dock's visibility and size, and
 the bottom dock's tab (`messages` · `simulation` · `part` · `memory` · `waves`) and whether the Memory tab
 follows the address (`memoryFollow`).
-They live in `localStorage` (`logic.settings.v1`), saved with a short debounce; reading repairs
+They live in `localStorage` (`saltator.settings.v1`), saved with a short debounce; reading repairs
 each invalid field to its default, and blocked storage (private mode) just means nothing is
 remembered.
 
@@ -1317,9 +1317,9 @@ The open document is restored as it was after a reload or a closed tab (`src/ui/
   session, the view or the debug setup (later changes in that time ride along; selection and
   pointer moves don't count),
   at once when the page is hidden, and synchronously to `localStorage` on `pagehide`
-  (`logic.unload.<id>`, without the handle: IndexedDB writes started while a page unloads don't
+  (`saltator.unload.<id>`, without the handle: IndexedDB writes started while a page unloads don't
   finish). At start-up `recoverUnloadWrites` moves those into IndexedDB when newer.
-- Storage: IndexedDB database `logic` (`src/ui/browser-storage.ts`): `sessions` (by id, with an
+- Storage: IndexedDB database `saltator` (`src/ui/browser-storage.ts`): `sessions` (by id, with an
   `updated` index; the 10 most recent are kept) and `recent` (Open Recent).
 - **Per tab**: `claimSessionId` keeps the tab's id in `sessionStorage` (a reload finds it) and
   holds a Web Lock on it, so a duplicated tab (same `sessionStorage`) gets a new id and copies
