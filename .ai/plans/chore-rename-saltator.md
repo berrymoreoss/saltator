@@ -101,7 +101,7 @@ spend the Actions quota for nothing.
 - [x] No product-name "Logic" or `.logic.json` left outside history (plans, accepted ADRs, done
   roadmap items) and the new ADR — checked with `grep`.
 - [x] No `logic` / `logic.*` browser storage keys left in `src/`.
-- [ ] `ci.yml` triggers only on `workflow_dispatch`; pushing the branch and opening the PR start
+- [x] `ci.yml` triggers only on `workflow_dispatch`; pushing the branch and opening the PR start
   no runs (`gh run list`).
 - [x] `LICENSE` is MIT.
 
@@ -135,10 +135,14 @@ spend the Actions quota for nothing.
   lessons: a rename sweep misses the escaped and case-varied spellings; zsh doesn't split unquoted
   variables. The CI criterion is checked on the pushed branch and PR before the merge.
 
+- 2026-11-10 — pushed; PR #1 opened; `gh run list` shows no new run and the PR has no checks:
+  the CI criterion holds. The user wants to look at the PR before the merge.
+
 ## Handoff
 
-- **State:** done; merged after the user's approval (the CI criterion ticked on the PR).
-- **Next step:** nothing pending here. Publication goes on in the untracked `docs/publication.md`
-  (stage 3: Pages, README screenshot and demo link, visibility). After the merge the user may
-  rename the local folder `logic/` → `saltator/` (move Claude Code's memory folder along) and
-  should save open documents to files before opening the new build.
+- **State:** done; PR #1 (berrymoreoss/saltator) open, waiting for the user's approval to merge.
+- **Next step:** after approval `gh pr merge 1 --merge --delete-branch`, then
+  `git switch main && git pull --ff-only`. Publication goes on in the untracked
+  `docs/publication.md` (stage 3: Pages, README screenshot and demo link, visibility). After the
+  merge the user may rename the local folder `logic/` → `saltator/` (move Claude Code's memory
+  folder along) and should save open documents to files before opening the new build.
