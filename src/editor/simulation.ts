@@ -221,6 +221,11 @@ export interface SimulationModel {
   flatNet(net: string): string | undefined;
   /** The netlist id of a part of the scene (`U1`), if the scene is what simulates. */
   flatPart(id: string): string | undefined;
+  /**
+   * The parts the netlist uses: the design's registry, which has the document's Verilog modules
+   * (HDL-1). Absent: the host's own (a plain library is enough without modules).
+   */
+  readonly registry?: ComponentRegistry;
 }
 
 /** The model of a flat circuit: its own netlist, ids as they are (tests, one-circuit hosts). */
@@ -391,7 +396,10 @@ export class Simulation {
   readonly ticks = new Store(0);
   /** Where the run stands in its history (start, present, behind it). */
   readonly history = new Store<HistoryStatus>({ start: 0, present: 0, behind: false });
-  readonly #registry: ComponentRegistry;
+  /** The registry the host was made with; a model's own (`SimulationModel.registry`) wins. */
+  readonly #library: ComponentRegistry;
+  /** The registry of the model simulating now. */
+  #registry: ComponentRegistry;
   readonly #clock: SimClock;
   readonly #budget: number;
   #model: SimulationModel;
@@ -443,12 +451,13 @@ export class Simulation {
     model: SimulationModel | Scene,
     options: SimulationOptions = {},
   ) {
-    this.#registry = registry;
+    this.#library = registry;
     this.#clock = options.clock ?? BROWSER_CLOCK;
     this.#budget = options.frameBudget ?? 8;
     this.#historyOptions = options.history ?? {};
     this.#model = 'netlist' in model ? model : sceneModel(model);
     this.#netlist = this.#model.netlist;
+    this.#registry = this.#model.registry ?? registry;
     this.status = new Store<SimStatus>({
       state: 'stopped',
       time: 0,
@@ -948,8 +957,9 @@ export class Simulation {
 
   /**
    * The document, the circuit shown or its instance changed (`renames`: old netlist id → new).
-   * Same structure: the simulator goes on as it is. Otherwise the simulation continues in the
-   * recompiled netlist.
+   * Same structure and the same part definitions: the simulator goes on as it is. Otherwise the
+   * simulation continues in the recompiled netlist (a Verilog module compiled again is another
+   * definition: its instances power on, the rest carries over).
    */
   sync(model: SimulationModel | Scene, renames?: ReadonlyMap<string, string>): void {
     const next = 'netlist' in model ? model : sceneModel(model);
@@ -960,10 +970,15 @@ export class Simulation {
     this.#model = next;
     const netlist = next.netlist;
     const previous = this.#netlist;
+    const before = this.#registry;
     this.#netlist = netlist;
+    this.#registry = next.registry ?? this.#library;
     const sim = this.#sim;
     if (!sim) return;
-    if (!sameNetlistStructure(previous, netlist)) {
+    const redefined = netlist.components.some(
+      (c) => before.get(c.type) !== this.#registry.get(c.type),
+    );
+    if (redefined || !sameNetlistStructure(previous, netlist)) {
       // The run goes on from here in another circuit: its recorded future is gone.
       if (this.#timeline?.hasFuture) this.#diverged(sim.now);
       const carry = sim.carryOver(renames ? { renames } : {});

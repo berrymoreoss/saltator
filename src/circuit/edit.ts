@@ -164,6 +164,14 @@ export function updateComponent(circuit: Circuit, id: string, patch: ComponentPa
 }
 
 /** Whether two documents hold the same circuits in the same order (`sameCircuit` each). */
+/** Both drawn, or both Verilog modules with the same IR (compiling one JSON twice is no change). */
+function sameVerilog(a: Circuit, b: Circuit): boolean {
+  if ((a.verilog === undefined) !== (b.verilog === undefined)) return false;
+  const x = a.verilog?.module;
+  const y = b.verilog?.module;
+  return x === y || (x !== undefined && y !== undefined && JSON.stringify(x) === JSON.stringify(y));
+}
+
 export function sameDocument(a: CircuitDocument, b: CircuitDocument): boolean {
   if (a === b) return true;
   return (
@@ -173,12 +181,13 @@ export function sameDocument(a: CircuitDocument, b: CircuitDocument): boolean {
 }
 
 /**
- * True if two circuits hold the same parts, wires, probes and test script in the same order (by
- * value).
+ * True if two circuits hold the same parts, wires, probes and test script in the same order, and
+ * the same Verilog module (by value).
  */
 export function sameCircuit(a: Circuit, b: Circuit): boolean {
   if (a === b) return true;
   if (a.id !== b.id || a.name !== b.name) return false;
+  if (!sameVerilog(a, b)) return false;
   if (a.components.length !== b.components.length || a.wires.length !== b.wires.length) {
     return false;
   }

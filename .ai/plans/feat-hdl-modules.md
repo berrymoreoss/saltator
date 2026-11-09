@@ -196,6 +196,13 @@ this same pipeline.
 
 ### Running and recompiling
 
+- The simulation host used to build its simulators with the plain library (subcircuits never
+  reach the kernel); a module's part is the document registry's, so `SimulationModel` carries
+  the design's registry, and `sync` rebuilds (with carry-over) when the structure **or a part's
+  definition** changed — a Compile with the same ports would otherwise keep the old simulator.
+- `sameCircuit` compares the IR (by object, else by JSON), so a Compile of the same JSON is no
+  edit; `Editor.edit` refuses parts or wires in a Verilog circuit (a paste while it is open).
+
 - **Carry-over by definition**: the kernel keeps a carried part's state only when its definition
   is the same object, not just the same type and props — otherwise it starts like a part whose
   props changed (power-on state and `init`, outputs driving what they drove). So a Compile
@@ -254,8 +261,8 @@ this same pipeline.
 - [x] 8. Circuit layer: modules in `DocumentRegistry` (ports, bus pins, symbol), `compileCircuit`
   of a module, flattening, issues (`hdl-not-compiled`, `hdl-warning`), benches with a
   module as the top, resolver references; a scenario test of the decoder in a circuit.
-- [ ] 9. Editor: `setModule` (one undo step), Add Verilog Module, carry-over on Compile while
-  running.
+- [x] 9. Editor: `setModule` (one undo step), `addCircuit(…, { verilog })`, carry-over on
+  Compile while running (the host now simulates with the design's registry).
 - [ ] 10. UI: the module view (JSON editor, Import JSON…, Compile, messages, summary, the
   command), the Circuits list's mark, File ▸ Import Yosys JSON…; looked at in the browser.
 - [ ] 11. Examples (decoder; counter and state machine) with `.v` sources, `pnpm hdl:examples`,
@@ -317,12 +324,21 @@ this same pipeline.
   in two phases); tests per cell against JavaScript (seeded) and per module through the core
   bench (decoder table and delay, counter, traffic light, every flip-flop flavour, latches,
   wires, shifts, a shift chain, snapshot/restore).
+- 2026-11-09 — tasks 6–8: carry-over keeps state only for the same definition (+ `hdlPart` on
+  registries); schema v6 (`Circuit.verilog`), examples re-saved; modules in the circuit layer
+  (part `U1`, bus pins, instance delay), scenario tests (a module's own benches, a recompile
+  while running).
 
 ## Handoff
 
-- **State:** plan approved, started; no task done yet.
-- **Next step:** task 1 (track and ADR re-scope). Task 2 needs `yosys` on `PATH` (installed:
-  0.70+post, Homebrew).
-- **Watch out:** the kernel's carry-over matches by type and props only (task 6 before a module
-  is recompiled while running). `pnpm test` must never run Yosys (fixtures).
-- **Verify with:** `pnpm check`.
+- **State:** tasks 1–8 done and committed (track/ADR re-scope, fixtures, IR + converter +
+  analysis, interpreter, carry-over by definition + `hdlPart` hook, schema v6, circuit layer).
+  The pipeline runs end to end in tests: Yosys JSON → `fromYosys` → `Circuit.verilog.module` →
+  `DocumentRegistry` (`hdlPart` once per IR) → `compileModule` (part `U1`, a net per port bit)
+  → flattening (`A1/U1`, the instance's `delay`) → benches.
+- **Next step:** task 9 — the editor: `Editor.setModule` (one undo step), Add Verilog Module
+  (`emptyVerilogCircuit`), then task 10's module view.
+- **Watch out:** a Verilog circuit has no canvas content; the editor still opens it as an empty
+  canvas until task 10. Examples are canonical (`examples.test.ts`): bump/re-save them with any
+  schema change. Messages from modules carry `src` and have it in front of the message.
+- **Verify with:** `pnpm check`; `pnpm hdl:fixtures` needs `yosys` on PATH (installed).

@@ -45,7 +45,7 @@ import {
   transformRect,
   updateComponent,
 } from '../circuit';
-import { type ComponentRegistry, type PropValue, resolveProps } from '../core';
+import { type ComponentRegistry, type HdlModule, type PropValue, resolveProps } from '../core';
 import { Analyzer } from './analyzer';
 import {
   BASE_SCALE,
@@ -485,6 +485,7 @@ export class Editor {
         path,
         flatNet: path === undefined ? () => undefined : (net) => design.netOf(path, net),
         flatPart: path === undefined ? () => undefined : (id) => prefix + id,
+        registry: design.registry,
       };
       this.#models.set(state, model);
     }
@@ -648,6 +649,10 @@ export class Editor {
    */
   edit(label: string, circuit: Circuit, options: EditOptions = {}): boolean {
     const before = this.state.get();
+    // A Verilog module has no parts or wires (HDL-1): a paste or a tool can't put any there.
+    if (before.circuit.verilog && (circuit.components.length > 0 || circuit.wires.length > 0)) {
+      return false;
+    }
     const own = circuit.id === before.circuit.id ? circuit : { ...circuit, id: before.circuit.id };
     const next = own.wires === before.circuit.wires ? own : normalizeWires(own);
     if (sameCircuit(next, before.circuit)) {
@@ -1149,6 +1154,21 @@ export class Editor {
       document.circuits.length > 1 ? `Edit Test Script of ${circuit.name}` : 'Edit Test Script',
       replaceCircuit(document, { ...circuit, testScript }),
       { coalesce: `script:${circuitId}` },
+    );
+  }
+
+  /**
+   * Sets the compiled module of Verilog circuit `circuitId` (HDL-1's Compile): one undo step,
+   * the circuit open stays open. The same IR again changes nothing. A running simulation goes
+   * on: the module's instances start from power-on, the rest carries over.
+   */
+  setModule(circuitId: string, module: HdlModule): boolean {
+    const { document } = this.state.get();
+    const circuit = document.circuits.find((c) => c.id === circuitId);
+    if (!circuit?.verilog) return false;
+    return this.editDocument(
+      `Compile ${circuit.name}`,
+      replaceCircuit(document, { ...circuit, verilog: { ...circuit.verilog, module } }),
     );
   }
 
