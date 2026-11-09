@@ -7,8 +7,10 @@
 /**
  * The passes, in order: read the sources, pick the top module, turn processes into cells
  * (`-norom`: a `case` stays logic instead of becoming a ROM, which modules can't hold yet),
- * flatten the hierarchy, optimize without dropping don't-care bits (`-keepdc`, so `X` behaves
- * as written), report problems, write the JSON netlist.
+ * flatten the hierarchy, turn tri-states into `$tribuf` cells (HDL-8: `-logic` merges the
+ * drivers of one net into one and makes those that reach no port logic), optimize without
+ * dropping don't-care bits (`-keepdc`, so `X` behaves as written), report problems, write the
+ * JSON netlist.
  */
 export function yosysScript(sources: readonly string[], output: string): string {
   return [
@@ -16,6 +18,7 @@ export function yosysScript(sources: readonly string[], output: string): string 
     'hierarchy -auto-top',
     'proc -norom',
     'flatten',
+    'tribuf -logic',
     'opt -keepdc',
     'check',
     `write_json ${output}`,

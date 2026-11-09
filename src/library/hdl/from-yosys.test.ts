@@ -148,7 +148,7 @@ describe('fromYosys: what it refuses', () => {
     ['loop', 'error loop.v:4.14-4.22: a combinational loop through y — not supported yet (HDL-9)'],
     ['signed', 'error signed.v:3.15-3.20: signed operands — not supported yet (HDL-9)'],
     ['wide', 'error wide.v:3.14-3.19: a 33-bit $add — operands up to 32 bits for now (HDL-9)'],
-    ['tristate', 'error tristate.v:3.14-3.27: a tri-state (z) — not supported yet (HDL-8)'],
+    ['tristate', 'error tristate.v:3.14-3.27: a tri-state buffer — not supported yet (HDL-8)'],
     [
       'ascending',
       "error ascending.v:2.31-2.32: port a is declared [0:3]: declare it [3:0] (bit 0 is the least significant in the app's buses)",
@@ -174,7 +174,7 @@ describe('fromYosys: what it refuses', () => {
   it('refuses an inout port and the tri-state behind it', () => {
     expect(lines('inout')).toEqual([
       'error inout.v:2.52-2.53: inout port d — not supported yet (HDL-8)',
-      'error inout.v:3.14-3.27: a tri-state (z) — not supported yet (HDL-8)',
+      'error inout.v:3.14-3.27: a tri-state buffer — not supported yet (HDL-8)',
     ]);
   });
 

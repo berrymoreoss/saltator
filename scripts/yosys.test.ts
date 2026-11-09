@@ -4,7 +4,7 @@ import { scriptFor } from './yosys.ts';
 describe('scriptFor', () => {
   it("is the command's script for an ordinary source", () => {
     expect(scriptFor('module m; endmodule\n', 'm.v', '/t/out.json')).toBe(
-      'read_verilog m.v; hierarchy -auto-top; proc -norom; flatten; opt -keepdc; check; write_json /t/out.json',
+      'read_verilog m.v; hierarchy -auto-top; proc -norom; flatten; tribuf -logic; opt -keepdc; check; write_json /t/out.json',
     );
   });
 
