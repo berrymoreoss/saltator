@@ -4,7 +4,7 @@
 | ---------- | ---------------------------------------------------------------------------------------------- |
 | Branch     | `feat/hdl-bus`                                                                                 |
 | Roadmap    | HDL-8 — Modules on a bus, track [Programmable logic](../../docs/roadmap/programmable-logic.md) |
-| Status     | in-progress                                                                                    |
+| Status     | done                                                                                           |
 | Depends on | — (builds on HDL-1 `feat/hdl-modules`, R12a bidirectional memory pins, R15a test benches)      |
 | Created    | 2026-11-10                                                                                     |
 
@@ -266,17 +266,16 @@ static `undriven-input` warning).
   ADR-0030 amended (the command, a module on a bus, the floating rule), the track's HDL-8
   section as built, lessons. Acceptance verified: check 3333 tests, build, e2e 96 passed,
   `pnpm test:circuits` 21 of 21.
+- 2026-11-10 — finished: HDL-8 done, HDL-9 next; the follow-up (`shorted-outputs` across
+  instances) is an idea of the Platform track. Summary: tri-state outputs and `inout` ports run
+  on a bus — the command's `tribuf -logic`, the IR's `inout`/`z`/`$tribuf` (schema v7), the
+  interpreter's `tristate`/`bidir` pins, floating pins reported where used
+  (`EvalContext.level`/`reportFloating`); proven by an I/O port's bench through its bus,
+  contention scenarios and e2e; HDL-1's speed unchanged.
 
 ## Handoff
 
-- **State:** all tasks done and acceptance verified (check, build, e2e 96, `test:circuits`);
-  the branch is ready for the finish-branch workflow (close the plan and the track item, then
-  merge with the user's approval; no remote: `git merge --no-ff`).
-- **Next step:** `/finish-branch` — plan `done`, HDL-8 `done`, the track's next item (HDL-9)
-  `next`.
-- **Follow-ups:** `shorted-outputs` never looks into subcircuit or module instances (R11a's
-  design; a candidate for the Platform track if wanted).
-- **Watch out:** `tribuf -logic` implies `-merge`; reading an inout assigned `z` reads a constant
-  in Yosys's netlist, not the pin.
-- **Verify with:** `pnpm check`; `pnpm e2e tests/e2e/hdl.spec.ts`; `pnpm bench
-  tests/bench/hdl.bench.ts`; `pnpm hdl:fixtures` / `pnpm hdl:examples` need `yosys`.
+- **State:** merged into `main`; nothing pending.
+- **Follow-ups:** shorted outputs across instances — an idea in the Platform track
+  ([platform.md](../../docs/roadmap/platform.md), Ideas ▸ Kernel and circuit model).
+- **Next in the track:** HDL-9 (`feat/hdl-semantics`, all of synthesizable Verilog).

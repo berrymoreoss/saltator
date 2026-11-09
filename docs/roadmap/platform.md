@@ -342,6 +342,10 @@ Not scheduled yet; promoting one gives it the next free id and a row in the tabl
   minima (not recorded yet: add them as a third requirement column); a "report only" setting
   that keeps bits known after a timing violation, if `X` gets in the way.
 - Design checks: unconnected power pins, fan-out/load limits, worst-case timing corner.
+- Shorted outputs across instances (HDL-8 follow-up): `shorted-outputs` checks a circuit's own
+  parts only — an instance's pins are `instancePins` — so two subcircuit or Verilog module
+  instances whose push-pull outputs share a net are found only at run time (`contention`).
+  Checking the flattened design would also see outputs tied through ports.
 
 ### Editor
 
