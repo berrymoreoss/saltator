@@ -208,7 +208,7 @@ this same pipeline.
   compiled to IR), HDL-3 re-scoped (what remains without an in-app Yosys: state carried
   over a recompile), ideas ("Yosys in the browser", gate-level netlists); ADR-0030 amended
   (still proposed until task 13). `pnpm check`; commit.
-- [ ] 2. `scripts/yosys.ts` with the system `yosys`; fixtures (`.v` + `.json`) for the decoder,
+- [x] 2. `scripts/yosys.ts` with the system `yosys`; fixtures (`.v` + `.json`) for the decoder,
   counter, FSM, a latch, and each refusal; `pnpm hdl:fixtures`.
 - [ ] 3. IR types and validation in core (`hdl-module.ts`); converter
   `src/library/hdl/from-yosys.ts`: ports and bit naming, refusals and warnings at their
