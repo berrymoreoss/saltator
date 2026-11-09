@@ -156,7 +156,9 @@ function CircuitProperties({
         <Row label="Id">
           <span className="mono">{circuit.id}</span>
         </Row>
-        <Row label="Role">{top ? 'Top circuit: it simulates' : 'Subcircuit'}</Row>
+        <Row label="Role">
+          {top ? 'Top circuit: it simulates' : circuit.verilog ? 'Verilog module' : 'Subcircuit'}
+        </Row>
         {document.circuits.length > 1 && (
           <Row label="Placed in">
             {uses.length === 0

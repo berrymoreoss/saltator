@@ -213,9 +213,10 @@ this same pipeline.
 
 - **Circuit ▸ Add Verilog Module** (and in the Circuits list): `Module N`, opened, empty.
 - Opening a module shows the **module view in place of the canvas** (`ModuleView.tsx`):
-  - a JSON editor (CodeMirror with the Tests tab's setup, no new package) where Yosys's output
-    is pasted; **Import JSON…** (also File ▸ Import Yosys JSON…) reads a file into it; a parse
-    error shows at its line;
+  - a JSON editor — a plain `<textarea>` (JSON is pasted, not written: no highlighting or
+    completion to earn CodeMirror's weight) — where Yosys's output is pasted; **Import JSON…**
+    reads a file into it; a parse error is a message with its position. No File-menu command:
+    importing belongs to the module open;
   - **Compile**: converts it, and on success writes the IR into the document; the converter's
     errors and warnings are listed with their source locations (`decoder.v:12: memories aren't
     supported yet (HDL-6)`). The editor's text is a draft of the session, not the document;
@@ -263,8 +264,10 @@ this same pipeline.
   module as the top, resolver references; a scenario test of the decoder in a circuit.
 - [x] 9. Editor: `setModule` (one undo step), `addCircuit(…, { verilog })`, carry-over on
   Compile while running (the host now simulates with the design's registry).
-- [ ] 10. UI: the module view (JSON editor, Import JSON…, Compile, messages, summary, the
-  command), the Circuits list's mark, File ▸ Import Yosys JSON…; looked at in the browser.
+- [x] 10. UI: the module view (JSON editor, Import JSON…, Compile, messages, summary, the
+  command), Add Verilog Module (Circuit menu, Circuits list), the list's mark, the role in
+  Properties; looked at in the browser (Playwright screenshots: the Chrome extension wasn't
+  connected).
 - [ ] 11. Examples (decoder; counter and state machine) with `.v` sources, `pnpm hdl:examples`,
   benches passing in the app and headless; `tests/e2e/hdl.spec.ts`.
 - [ ] 12. Benchmark `tests/bench/hdl.bench.ts`; the baseline recorded here and in the docs.
@@ -324,6 +327,10 @@ this same pipeline.
   in two phases); tests per cell against JavaScript (seeded) and per module through the core
   bench (decoder table and delay, counter, traffic light, every flip-flop flavour, latches,
   wires, shifts, a shift chain, snapshot/restore).
+- 2026-11-09 — tasks 9–10: `Editor.setModule`; the simulation host simulates with the
+  design's registry and rebuilds on a changed definition; the module view, Add Verilog Module.
+  The screenshots found the app's registry rebuilt from `createDefaultRegistry().list()`
+  without the `hdlPart` hook (every module an `hdl-error`): fixed in `App.tsx`.
 - 2026-11-09 — tasks 6–8: carry-over keeps state only for the same definition (+ `hdlPart` on
   registries); schema v6 (`Circuit.verilog`), examples re-saved; modules in the circuit layer
   (part `U1`, bus pins, instance delay), scenario tests (a module's own benches, a recompile

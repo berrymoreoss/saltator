@@ -81,4 +81,14 @@ describe('workbench commands', () => {
     const { editor } = commands();
     expect(freeCircuitName(editor.state.get().document)).toBe('Circuit 2');
   });
+
+  it('adds a Verilog module, not compiled yet, and opens it', () => {
+    const { editor, list } = commands();
+    list.find((c) => c.id === 'circuit.addVerilog')!.run();
+    const { circuit, document } = editor.state.get();
+    expect(document.circuits.map((c) => c.name)).toEqual(['Main', 'Module 2']);
+    expect(circuit.id).toBe('module-2');
+    expect(circuit.verilog).toEqual({});
+    expect(editor.history.get().past.at(-1)?.label).toBe('Add Verilog Module');
+  });
 });

@@ -10,6 +10,7 @@ import {
   CopyPlus,
   Eye,
   FastForward,
+  FileCode,
   FileDown,
   FilePlus,
   FlaskConical,
@@ -185,6 +186,18 @@ export function createCommands({
         const { document: next, id } = addCircuit(document, freeCircuitName(document));
         editor.editDocument('Add Circuit', next, { open: id });
         focusCircuitName();
+      },
+    },
+    {
+      id: 'circuit.addVerilog',
+      label: 'Add Verilog Module',
+      icon: FileCode,
+      run: () => {
+        const { document } = editor.state.get();
+        const { document: next, id } = addCircuit(document, freeModuleName(document), {
+          verilog: true,
+        });
+        editor.editDocument('Add Verilog Module', next, { open: id });
       },
     },
     {
@@ -1026,6 +1039,7 @@ export function workbenchMenus(examples: readonly Example[], recentCount?: numbe
       label: 'Circuit',
       items: [
         'circuit.add',
+        'circuit.addVerilog',
         'circuit.rename',
         'circuit.duplicate',
         'circuit.delete',
@@ -1205,12 +1219,17 @@ export const TOOLBAR: readonly (readonly string[])[] = [
 ];
 
 /** `Circuit 2`, `Circuit 3`, …: the first name no circuit of the document has. */
-export function freeCircuitName(document: CircuitDocument): string {
+export function freeCircuitName(document: CircuitDocument, stem = 'Circuit'): string {
   const names = new Set(document.circuits.map((c) => c.name));
   for (let n = document.circuits.length + 1; ; n++) {
-    const name = `Circuit ${n}`;
+    const name = `${stem} ${n}`;
     if (!names.has(name)) return name;
   }
+}
+
+/** The name of a new Verilog module: `Module N` (HDL-1). */
+export function freeModuleName(document: CircuitDocument): string {
+  return freeCircuitName(document, 'Module');
 }
 
 /** The CIRCUITS list's context menu: the Circuit commands, on the circuit it opened. */
