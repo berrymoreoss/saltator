@@ -76,34 +76,34 @@ spend the Actions quota for nothing.
 
 ## Tasks
 
-- [ ] 1. CI on demand: `ci.yml` → `workflow_dispatch`; finish-branch §5 (no CI to wait for; the
+- [x] 1. CI on demand: `ci.yml` → `workflow_dispatch`; finish-branch §5 (no CI to wait for; the
   local checks are the gate); docs that say "CI runs" (architecture, editor, circuit).
-- [ ] 2. ADR-0032 + its row in `docs/adr/README.md`.
-- [ ] 3. File format: `FILE_EXTENSION`, picker types; unit tests (`document-session.test.ts`,
+- [x] 2. ADR-0032 + its row in `docs/adr/README.md`.
+- [x] 3. File format: `FILE_EXTENSION`, picker types; unit tests (`document-session.test.ts`,
   files tests).
-- [ ] 4. Examples: `git mv examples/*.logic.json` → `*.saltator.json`; globs in
+- [x] 4. Examples: `git mv examples/*.logic.json` → `*.saltator.json`; globs in
   `example-files.ts` and `examples.test.ts`; `hdl-examples.ts`; `test-circuits.ts`' default;
   `biome.json`; their tests.
-- [ ] 5. The name in the app: `APP_NAME`; title, About, VCD `$version`, picker description and ids,
+- [x] 5. The name in the app: `APP_NAME`; title, About, VCD `$version`, picker description and ids,
   drag MIME, `index.html`, `package.json`, the `yosys.ts` temp prefix; unit and e2e expectations.
-- [ ] 6. Browser storage keys → `saltator` / `saltator.*` (Q2); `autosave.test.ts`, browser tests.
-- [ ] 7. Docs: AGENTS.md, README for outside readers, living specs (`.logic.json` →
+- [x] 6. Browser storage keys → `saltator` / `saltator.*` (Q2); `autosave.test.ts`, browser tests.
+- [x] 7. Docs: AGENTS.md, README for outside readers, living specs (`.logic.json` →
   `.saltator.json`, "Logic" → "Saltator" where it's the product); `LICENSE` (MIT, Q4).
-- [ ] 8. Verify: `pnpm check`, `pnpm build`, `pnpm test:circuits`, `pnpm e2e`; in the browser:
+- [x] 8. Verify: `pnpm check`, `pnpm build`, `pnpm test:circuits`, `pnpm e2e`; in the browser:
   title, About, the gallery, Save As.
 
 ## Acceptance criteria
 
-- [ ] `pnpm check`, `pnpm build`, `pnpm test:circuits` and `pnpm e2e` are green.
-- [ ] The app says Saltator: tab title `Untitled — Saltator`, About Saltator, VCD `$version Saltator`.
-- [ ] New documents save as `name.saltator.json`; the examples are `examples/*.saltator.json` and
+- [x] `pnpm check`, `pnpm build`, `pnpm test:circuits` and `pnpm e2e` are green.
+- [x] The app says Saltator: tab title `Untitled — Saltator`, About Saltator, VCD `$version Saltator`.
+- [x] New documents save as `name.saltator.json`; the examples are `examples/*.saltator.json` and
   open from the gallery.
-- [ ] No product-name "Logic" or `.logic.json` left outside history (plans, accepted ADRs, done
+- [x] No product-name "Logic" or `.logic.json` left outside history (plans, accepted ADRs, done
   roadmap items) and the new ADR — checked with `grep`.
-- [ ] No `logic` / `logic.*` browser storage keys left in `src/`.
+- [x] No `logic` / `logic.*` browser storage keys left in `src/`.
 - [ ] `ci.yml` triggers only on `workflow_dispatch`; pushing the branch and opening the PR start
   no runs (`gh run list`).
-- [ ] `LICENSE` is MIT.
+- [x] `LICENSE` is MIT.
 
 ## Open questions
 
@@ -121,11 +121,25 @@ spend the Actions quota for nothing.
 ## Progress log
 
 - 2026-11-10 — plan drafted; the user answered Q1–Q4 and approved the plan; started.
+- 2026-11-10 — tasks 1–8 done. CI on demand (`5851b1d`); ADR-0032 (`9fa4020`); tasks 3 and 4 in
+  one commit, so the examples' paths never disagree with the code (`1083caf`: 21 examples renamed,
+  a test pins `adder.logic.json` → `adder.logic`); `APP_NAME` (`6dd9aad`); storage keys
+  (`bb5dc1f`); README/AGENTS/LICENSE (`8025a85`). Kept on purpose: the VCD default scope `logic`
+  (a module name, digital logic), "74HC Logic", "Logic probe", "Programmable logic".
+  Verified: `pnpm check` (3334 tests), `pnpm test:circuits` (21 benches), `pnpm build`,
+  `pnpm e2e` (96 passed); in the browser the tab reads `Hello, LED — Saltator` and About shows
+  Saltator. Left for finish-branch: push the branch and open the PR, then `gh run list` shows no
+  run (the last criterion).
 
 ## Handoff
 
-- **State:** plan approved, nothing implemented yet.
-- **Next step:** task 1 (CI on demand).
+- **State:** all tasks done and verified locally; one acceptance criterion left (no CI run on push
+  and PR), checked during finish-branch.
+- **Next step:** `/finish-branch`: push, PR, `gh run list`, merge after approval. After the merge
+  the user may rename the local folder `logic/` → `saltator/` (move Claude Code's memory folder
+  along) and should save open documents to files before opening the new build (old browser data
+  stays behind).
 - **Watch out:** `docs/publication.md` is untracked on purpose (in `.git/info/exclude`): never
   `git add` it. `src/library/hdl/fixtures.ts` holds huge one-line JSON: exclude it from greps.
-- **Verify with:** `pnpm check`, `pnpm e2e`.
+  zsh doesn't split unquoted variables: pass file lists through `xargs`.
+- **Verify with:** `pnpm check`, `pnpm test:circuits`, `pnpm e2e`.
