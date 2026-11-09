@@ -4,7 +4,7 @@
 | ---------- | ---------------------------------------------------------------------------------- |
 | Branch     | `docs/hdl-roadmap`                                                                 |
 | Roadmap    | HDL-1…HDL-10, track [Programmable logic](../../docs/roadmap/programmable-logic.md) |
-| Status     | in-progress                                                                        |
+| Status     | done                                                                               |
 | Depends on | —                                                                                  |
 | Created    | 2026-11-09                                                                         |
 
@@ -68,19 +68,21 @@ parameters, speed) made items of their own. No product code changes.
 - [x] 1. Track file: goal, table, sections, ideas.
 - [x] 2. `docs/roadmap.md` track goal; ADR-0030 references.
 - [x] 3. `pnpm check` green; commit.
-- [ ] 4. User's review; merge with approval (finish-branch).
+- [x] 4. User's review; merge with approval (finish-branch).
 
 ## Acceptance criteria
 
 - [x] `pnpm check` is green; `pnpm roadmap` shows HDL-1 as the track's head.
-- [ ] The user approved the items and their order.
+- [x] The user approved the items and their order.
 
 ## Progress log
 
 - 2026-11-09 — agreed with the user: the decoder in Verilog first, the track growing toward
   cores and controllers; track rewritten, ADR-0030 references updated.
+- 2026-11-09 — the user approved the new order and items; merged.
 
 ## Handoff
 
-- **State:** docs written; waiting for the user's review and merge approval.
-- **Next step:** merge (finish-branch), then `/start-branch HDL-1`.
+- **State:** merged; nothing pending.
+- **Next step:** HDL-1 (`feat/hdl-modules`) via `/start-branch HDL-1`; accept or revise ADR-0030
+  there after its benchmark.
