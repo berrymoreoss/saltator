@@ -1,0 +1,103 @@
+import { expect, type Locator, type Page, test } from '@playwright/test';
+import addressDecoder from '../../examples/verilog-address-decoder.logic.json' with {
+  type: 'json',
+};
+import { YOSYS_FIXTURES } from '../../src/library/hdl/fixtures';
+import {
+  clickAt,
+  menu,
+  newCircuit,
+  openExample,
+  place,
+  properties,
+  summary,
+  watchErrors,
+} from './support';
+
+// HDL-1 in the browser: a module from Yosys's JSON, compiled in the app, placed and running.
+
+const view = (page: Page) => page.getByTestId('module-view');
+const messages = (page: Page) => page.getByTestId('module-messages');
+const circuits = (page: Page) => page.getByTestId('circuits');
+const level = (page: Page, pin: string): Locator =>
+  properties(page)
+    .locator('.prop-row')
+    .filter({ has: page.locator('.prop-label', { hasText: new RegExp(`^${pin}$`) }) })
+    .getByTestId('live-level');
+
+async function compile(page: Page, json: string) {
+  await page.getByTestId('module-json').fill(json);
+  await page.getByTestId('compile-module').click();
+}
+
+test('a Verilog module: the command, a refused JSON, Compile, undo, placed in Main', async ({
+  page,
+}) => {
+  const errors = watchErrors(page);
+  const grid = await newCircuit(page);
+  await page.getByTestId('add-verilog-module').click();
+  await expect(circuits(page).getByRole('button', { name: /Module 2/ })).toHaveAttribute(
+    'aria-current',
+    'page',
+  );
+  await expect(view(page)).toBeVisible();
+  await expect(page.getByTestId('yosys-command')).toContainText('proc -norom; flatten');
+  await expect(page.getByTestId('module-summary')).toHaveText('Not compiled yet.');
+
+  // What the interpreter can't run yet is refused with its source location.
+  await compile(page, YOSYS_FIXTURES.memory!);
+  await expect(messages(page)).toContainText(
+    'memory.v:4.33-4.42: a memory (r) — not supported yet (HDL-6)',
+  );
+  await expect(page.getByTestId('module-summary')).toHaveText('Not compiled yet.');
+
+  // Yosys's JSON of the decoder: compiled, its ports and cells listed.
+  await compile(page, YOSYS_FIXTURES.decoder!);
+  await expect(messages(page)).toContainText('Compiled decoder: 6 cells');
+  await expect(page.getByTestId('module-summary')).toContainText('addr[15:12]');
+
+  // Compile is one undo step.
+  await menu(page, 'Edit', /^Undo/);
+  await expect(page.getByTestId('module-summary')).toHaveText('Not compiled yet.');
+  await menu(page, 'Edit', /^Redo/);
+  await expect(page.getByTestId('module-summary')).toContainText('Module decoder');
+
+  // In Main: placed from Parts ▸ Subcircuits, an instance with the module's pins.
+  await circuits(page).getByRole('button', { name: /Main/ }).click();
+  await expect(view(page)).toBeHidden();
+  await place(page, grid, 'sub/module-2', [0, 0]);
+  await clickAt(page, grid([0, 0]));
+  await expect(summary(page)).toHaveText('A1 · Module 2');
+  await expect(properties(page)).toContainText('addr[15..12]');
+  await expect(circuits(page).getByRole('button', { name: /Module 2/ })).toContainText('1×');
+  expect(errors).toEqual([]);
+});
+
+test('Verilog Address Decoder: the switches select a chip, and its benches pass', async ({
+  page,
+}) => {
+  const errors = watchErrors(page);
+  const at = await openExample(
+    page,
+    'verilog-address-decoder',
+    'Verilog Address Decoder',
+    addressDecoder,
+  );
+  await page.keyboard.press('F5');
+  await expect(page.getByTestId('sim-status')).toHaveText(/Running · /);
+  // D3 lights while ROM is selected: its cathode on ROM_CS, LOW from A15 = 1.
+  await clickAt(page, at.center('D3'));
+  await expect(summary(page)).toHaveText('D3 · LED');
+  await expect(level(page, 'K')).toHaveText('1');
+  await clickAt(page, at.center('SW1'));
+  await expect(level(page, 'K')).toHaveText('0');
+  await clickAt(page, at.center('SW1'));
+  await expect(level(page, 'K')).toHaveText('1');
+  await page.keyboard.press('Shift+F5');
+
+  // The module's own benches and the board's, in the Tests tab's sandbox.
+  await page.getByRole('tab', { name: /^Tests/ }).click();
+  await menu(page, 'Test', 'Run All Tests');
+  await expect(page.getByRole('tab', { name: /^Tests/ })).toContainText('✓ 4', { timeout: 20_000 });
+  expect(errors).toEqual([]);
+});

@@ -26,7 +26,8 @@
     "test:65c02": "node --import ./scripts/resolve-hooks.ts scripts/test-65c02.ts",
     "check": "pnpm typecheck && pnpm lint && pnpm check:layers && pnpm check:roadmap && pnpm test",
     "bench": "vitest bench --run --reporter=verbose --experimental.viteModuleRunner=false --execArgv=--import=./scripts/resolve-hooks.ts",
-    "hdl:fixtures": "node --import ./scripts/resolve-hooks.ts scripts/hdl-fixtures.ts"
+    "hdl:fixtures": "node --import ./scripts/resolve-hooks.ts scripts/hdl-fixtures.ts",
+    "hdl:examples": "node --import ./scripts/resolve-hooks.ts scripts/hdl-examples.ts"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.4",

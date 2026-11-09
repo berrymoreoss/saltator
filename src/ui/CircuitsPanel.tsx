@@ -77,11 +77,11 @@ export function CircuitsPanel({
         <button
           type="button"
           className="circuits-add"
-          title="Add a circuit written in Verilog: Yosys's JSON netlist, compiled"
+          title="Add Verilog Module: a circuit written in Verilog, compiled from Yosys's JSON"
           onClick={() => commands.get('circuit.addVerilog').run()}
           data-testid="add-verilog-module"
         >
-          <Plus size={12} /> Add Verilog Module
+          <Plus size={12} /> Verilog Module
         </button>
       </div>
       {menu && (

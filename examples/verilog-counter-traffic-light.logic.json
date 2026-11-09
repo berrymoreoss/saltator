@@ -1,0 +1,191 @@
+{
+  "schemaVersion": 6,
+  "circuits": [
+    {
+      "id": "main",
+      "name": "Main",
+      "components": [
+        { "id": "X1", "type": "io/clock", "label": "CLK", "x": 0, "y": 0, "props": { "frequency": 4, "duty": 50, "mode": "auto" } },
+        { "id": "NL1", "type": "net/label", "x": 8, "y": 1, "props": { "name": "CLK" } },
+        { "id": "SW1", "type": "io/switch", "label": "RST", "x": 0, "y": 5, "props": { "contact": "spdt", "on": true } },
+        { "id": "NL2", "type": "net/label", "x": 8, "y": 6, "props": { "name": "RST" } },
+        { "id": "SW2", "type": "io/switch", "label": "EN", "x": 0, "y": 10, "props": { "contact": "spdt", "on": true } },
+        { "id": "NL3", "type": "net/label", "x": 8, "y": 11, "props": { "name": "EN" } },
+        { "id": "A1", "type": "sub/decade-counter", "x": 28, "y": 0, "props": { "delay": 15000 } },
+        { "id": "NL4", "type": "net/label", "x": 23, "y": 2, "rotation": 180, "props": { "name": "CLK" } },
+        { "id": "NL5", "type": "net/label", "x": 23, "y": 3, "rotation": 180, "props": { "name": "RST" } },
+        { "id": "NL6", "type": "net/label", "x": 23, "y": 4, "rotation": 180, "props": { "name": "EN" } },
+        { "id": "NL7", "type": "net/label", "x": 42, "y": 2, "props": { "name": "Q[3..0]" } },
+        { "id": "NL8", "type": "net/label", "x": 42, "y": 3, "props": { "name": "CO" } },
+        { "id": "U1", "type": "io/hex-display", "label": "COUNT", "x": 56, "y": 0, "props": { "color": "red" } },
+        { "id": "NL9", "type": "net/label", "x": 60, "y": 10, "rotation": 90, "props": { "name": "Q0" } },
+        { "id": "NL10", "type": "net/label", "x": 59, "y": 10, "rotation": 90, "props": { "name": "Q1" } },
+        { "id": "NL11", "type": "net/label", "x": 58, "y": 10, "rotation": 90, "props": { "name": "Q2" } },
+        { "id": "NL12", "type": "net/label", "x": 57, "y": 10, "rotation": 90, "props": { "name": "Q3" } },
+        { "id": "A2", "type": "sub/traffic-light", "x": 28, "y": 14, "props": { "delay": 15000 } },
+        { "id": "NL13", "type": "net/label", "x": 23, "y": 16, "rotation": 180, "props": { "name": "CLK" } },
+        { "id": "NL14", "type": "net/label", "x": 23, "y": 17, "rotation": 180, "props": { "name": "RST" } },
+        { "id": "NL15", "type": "net/label", "x": 23, "y": 18, "rotation": 180, "props": { "name": "CO" } },
+        { "id": "NL16", "type": "net/label", "x": 42, "y": 16, "props": { "name": "RED" } },
+        { "id": "D1", "type": "io/led", "label": "RED", "x": 56, "y": 19, "props": { "color": "red" } },
+        { "id": "NL19", "type": "net/label", "x": 52, "y": 20, "rotation": 180, "props": { "name": "RED" } },
+        { "id": "G1", "type": "io/gnd", "x": 63, "y": 20 },
+        { "id": "NL17", "type": "net/label", "x": 42, "y": 17, "props": { "name": "YELLOW" } },
+        { "id": "D2", "type": "io/led", "label": "YELLOW", "x": 56, "y": 23, "props": { "color": "yellow" } },
+        { "id": "NL20", "type": "net/label", "x": 52, "y": 24, "rotation": 180, "props": { "name": "YELLOW" } },
+        { "id": "G2", "type": "io/gnd", "x": 63, "y": 24 },
+        { "id": "NL18", "type": "net/label", "x": 42, "y": 18, "props": { "name": "GREEN" } },
+        { "id": "D3", "type": "io/led", "label": "GREEN", "x": 56, "y": 27, "props": { "color": "green" } },
+        { "id": "NL21", "type": "net/label", "x": 52, "y": 28, "rotation": 180, "props": { "name": "GREEN" } },
+        { "id": "G3", "type": "io/gnd", "x": 63, "y": 28 }
+      ],
+      "wires": [
+        { "id": "w1", "from": [4, 1], "to": [8, 1] },
+        { "id": "w2", "from": [4, 6], "to": [8, 6] },
+        { "id": "w3", "from": [4, 11], "to": [8, 11] },
+        { "id": "w4", "from": [28, 2], "to": [23, 2] },
+        { "id": "w5", "from": [28, 3], "to": [23, 3] },
+        { "id": "w6", "from": [28, 4], "to": [23, 4] },
+        { "id": "w7", "from": [37, 2], "to": [42, 2], "bus": true },
+        { "id": "w8", "from": [37, 3], "to": [42, 3] },
+        { "id": "w9", "from": [60, 8], "to": [60, 10] },
+        { "id": "w10", "from": [59, 8], "to": [59, 10] },
+        { "id": "w11", "from": [58, 8], "to": [58, 10] },
+        { "id": "w12", "from": [57, 8], "to": [57, 10] },
+        { "id": "w13", "from": [28, 16], "to": [23, 16] },
+        { "id": "w14", "from": [28, 17], "to": [23, 17] },
+        { "id": "w15", "from": [28, 18], "to": [23, 18] },
+        { "id": "w16", "from": [37, 16], "to": [42, 16] },
+        { "id": "w17", "from": [56, 20], "to": [52, 20] },
+        { "id": "w18", "from": [60, 20], "to": [64, 20] },
+        { "id": "w19", "from": [37, 17], "to": [42, 17] },
+        { "id": "w20", "from": [56, 24], "to": [52, 24] },
+        { "id": "w21", "from": [60, 24], "to": [64, 24] },
+        { "id": "w22", "from": [37, 18], "to": [42, 18] },
+        { "id": "w23", "from": [56, 28], "to": [52, 28] },
+        { "id": "w24", "from": [60, 28], "to": [64, 28] }
+      ],
+      "testScript": [
+        "// The board: a 4 Hz clock; RST resets both modules, the light steps on the counter's carry.",
+        "bench('counts, and steps the light every ten clocks', (b) => {",
+        "  b.set({ SW1: 1, SW2: 1 });",
+        "  b.wait(ms(300));",
+        "  b.expect({ 'Q[3..0]': 0, RED: 1, GREEN: 0 }, 'reset');",
+        "  b.set({ SW1: 0 });",
+        "  b.wait(ms(1000));",
+        "  b.expect({ 'Q[3..0]': 4, RED: 1 }, 'four clocks later');",
+        "  b.wait(ms(1500));",
+        "  b.expect({ 'Q[3..0]': 0, RED: 0, GREEN: 1 }, 'the carry stepped the light');",
+        "});",
+        ""
+      ]
+    },
+    {
+      "id": "decade-counter",
+      "name": "Decade Counter",
+      "verilog": {
+        "module": {
+          "format": 1,
+          "top": "decade_counter",
+          "creator": "Yosys 0.70+post (git sha1 0c11ea098be065e585a90a06e7b7da49936cf231, Release, AppleClang clang++ 21.0.0.21000334)",
+          "bitCount": 17,
+          "ports": [
+            { "name": "clk", "dir": "in", "lsb": 0, "bits": [0], "src": "decade_counter.v:4.11-4.14" },
+            { "name": "rst", "dir": "in", "lsb": 0, "bits": [1], "src": "decade_counter.v:5.11-5.14" },
+            { "name": "en", "dir": "in", "lsb": 0, "bits": [2], "src": "decade_counter.v:6.11-6.13" },
+            { "name": "q", "dir": "out", "lsb": 0, "bits": [3, 4, 5, 6], "src": "decade_counter.v:7.22-7.23" },
+            { "name": "co", "dir": "out", "lsb": 0, "bits": [7], "src": "decade_counter.v:8.12-8.14" }
+          ],
+          "signals": [],
+          "cells": [
+            { "type": "$add", "src": "decade_counter.v:12.44-12.52", "ports": { "A": [3, 4, 5, 6], "B": ["1", "0", "0", "0"], "Y": [8, 9, 10, 11] }, "params": {} },
+            { "type": "$and", "src": "decade_counter.v:13.15-13.31", "ports": { "A": [2], "B": [12], "Y": [7] }, "params": {} },
+            { "type": "$adffe", "src": "decade_counter.v:10.3-12.53", "ports": { "CLK": [0], "ARST": [1], "EN": [2], "D": [13, 14, 15, 16], "Q": [3, 4, 5, 6] }, "params": { "CLK_POLARITY": 1, "ARST_POLARITY": 1, "EN_POLARITY": 1, "ARST_VALUE": ["0", "0", "0", "0"] } },
+            { "type": "$eq", "src": "decade_counter.v:13.21-13.30", "ports": { "A": [3, 4, 5, 6], "B": ["1", "0", "0", "1"], "Y": [12] }, "params": {} },
+            { "type": "$mux", "src": "decade_counter.v:12.23-12.52", "ports": { "A": [8, 9, 10, 11], "B": ["0", "0", "0", "0"], "S": [12], "Y": [13, 14, 15, 16] }, "params": {} }
+          ]
+        }
+      },
+      "testScript": [
+        "// The counter alone: reset, ten clocks with the carry at 9, and holding while disabled.",
+        "bench('counts 0-9 and carries', (b) => {",
+        "  b.row({ rst: 1, en: 1, clk: 0 }, { 'q[3..0]': 0, co: 0 });",
+        "  b.set({ rst: 0 });",
+        "  for (let n = 1; n <= 12; n++) {",
+        "    b.row({ clk: 'C' }, { 'q[3..0]': n % 10, co: n % 10 === 9 ? 1 : 0 }, `clock ${n}`);",
+        "  }",
+        "});",
+        "",
+        "bench('holds while disabled, without a carry', (b) => {",
+        "  b.row({ rst: 1, en: 1, clk: 0 }, { 'q[3..0]': 0 });",
+        "  b.set({ rst: 0 });",
+        "  b.clock('clk', 9);",
+        "  b.table`",
+        "    en clk | q[3..0] co",
+        "    1  -   | 9       1",
+        "    0  -   | 9       0     # co only while enabled",
+        "    0  C   | 9       0     # disabled: holds",
+        "    1  C   | 0       0",
+        "  `;",
+        "});",
+        "",
+        "bench('starts unknown until reset', (b) => {",
+        "  b.row({ rst: 0, en: 1, clk: 0 }, { 'q[3..0]': 'unknown' });",
+        "});",
+        ""
+      ]
+    },
+    {
+      "id": "traffic-light",
+      "name": "Traffic Light",
+      "verilog": {
+        "module": {
+          "format": 1,
+          "top": "traffic_light",
+          "creator": "Yosys 0.70+post (git sha1 0c11ea098be065e585a90a06e7b7da49936cf231, Release, AppleClang clang++ 21.0.0.21000334)",
+          "bitCount": 12,
+          "ports": [
+            { "name": "clk", "dir": "in", "lsb": 0, "bits": [0], "src": "traffic_light.v:4.11-4.14" },
+            { "name": "rst", "dir": "in", "lsb": 0, "bits": [1], "src": "traffic_light.v:5.11-5.14" },
+            { "name": "tick", "dir": "in", "lsb": 0, "bits": [2], "src": "traffic_light.v:6.11-6.15" },
+            { "name": "red", "dir": "out", "lsb": 0, "bits": [3], "src": "traffic_light.v:7.12-7.15" },
+            { "name": "yellow", "dir": "out", "lsb": 0, "bits": [4], "src": "traffic_light.v:8.12-8.18" },
+            { "name": "green", "dir": "out", "lsb": 0, "bits": [5], "src": "traffic_light.v:9.12-9.17" }
+          ],
+          "signals": [
+            { "name": "state", "lsb": 0, "bits": [8, 9], "src": "traffic_light.v:12.13-12.18" }
+          ],
+          "cells": [
+            { "type": "$sdffe", "src": "traffic_light.v:13.3-20.14", "ports": { "CLK": [0], "SRST": [1], "EN": [2], "D": [6, 7], "Q": [8, 9] }, "params": { "CLK_POLARITY": 1, "SRST_POLARITY": 1, "EN_POLARITY": 1, "SRST_VALUE": ["0", "0"] } },
+            { "type": "$eq", "src": "traffic_light.v:21.32-21.45", "ports": { "A": [8, 9], "B": ["1", "1"], "Y": [10] }, "params": {} },
+            { "type": "$eq", "src": "traffic_light.v:22.19-22.34", "ports": { "A": [8, 9], "B": ["0", "1"], "Y": [4] }, "params": {} },
+            { "type": "$logic_or", "src": "traffic_light.v:21.16-21.45", "ports": { "A": [11], "B": [10], "Y": [3] }, "params": {} },
+            { "type": "$logic_not", "src": "traffic_light.v:16.19-16.19", "ports": { "A": [8, 9], "Y": [11] }, "params": {} },
+            { "type": "$pmux", "src": "traffic_light.v:17.29-17.29", "ports": { "A": ["0", "0"], "B": ["0", "1", "1", "0"], "S": [5, 11], "Y": [6, 7] }, "params": {} },
+            { "type": "$eq", "src": "traffic_light.v:17.29-17.29", "ports": { "A": [8, 9], "B": ["1", "0"], "Y": [5] }, "params": {} }
+          ]
+        }
+      },
+      "testScript": [
+        "// The state machine alone: reset to red, then one step per clock while tick is HIGH.",
+        "bench('steps red, green, yellow, red on ticks', (b) => {",
+        "  b.row({ rst: 1, tick: 0, clk: 'C' }, { red: 1, yellow: 0, green: 0 });",
+        "  b.set({ rst: 0 });",
+        "  b.table`",
+        "    tick clk | red yellow green",
+        "    1    C   | 0   0      1",
+        "    0    C   | 0   0      1      # no tick: stays",
+        "    1    C   | 0   1      0",
+        "    1    C   | 1   0      0",
+        "    1    C   | 0   0      1",
+        "  `;",
+        "});",
+        "",
+        "bench('is unknown until reset', (b) => {",
+        "  b.row({ rst: 0, tick: 1, clk: 'C' }, { red: 'X', green: 'X' });",
+        "});",
+        ""
+      ]
+    }
+  ]
+}
