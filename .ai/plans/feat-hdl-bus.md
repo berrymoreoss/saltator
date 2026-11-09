@@ -201,9 +201,9 @@ static `undriven-input` warning).
   tests per shape through the core bench, snapshot/restore, determinism, carry-over property.
 - [x] 6. Circuit layer: inout ports as `bidir` (bus) pins, inner pins' directions, flattening,
   benches; `tests/scenarios/verilog-bus.test.ts` (bench writes and reads, contention, a 74HC244).
-- [ ] 7. UI: the module view lists inout ports and shows the new command; looked at in the
+- [x] 7. UI: the module view lists inout ports and shows the new command; looked at in the
   browser.
-- [ ] 8. e2e (`hdl.spec.ts`): the I/O port fixture compiled, placed, its bench passing in the
+- [x] 8. e2e (`hdl.spec.ts`): the I/O port fixture compiled, placed, its bench passing in the
   Tests tab.
 - [ ] 9. Benchmark: `pnpm bench tests/bench/hdl.bench.ts` — HDL-1's numbers hold (no floating
   pin, no extra work); a bus case added.
@@ -248,6 +248,9 @@ static `undriven-input` warning).
   floats for the module's delay (and an output passing it on reports it); a 74HC244 enabling
   as a module releases fights it for a few ns; `shorted-outputs` never looks into instances
   (subcircuits or modules) — R11a's, left as is.
+- 2026-11-10 — tasks 7–8: the module view lists inout ports (task 2), the command shows
+  `tribuf -logic`; looked at in the browser (Playwright screenshots: the module view, an
+  instance with `d[7..0]` a bidirectional bus pin on the right); `hdl.spec.ts` 4 passed.
 
 ## Handoff
 
