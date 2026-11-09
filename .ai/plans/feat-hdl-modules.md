@@ -238,7 +238,7 @@ this same pipeline.
 - [x] 5. Interpreter, sequential: flip-flops and latches on strict edges, asynchronous and
   synchronous resets, enables, uncertain edges; counter and FSM tests; snapshot/restore and
   determinism tests.
-- [ ] 6. Core: carry-over by definition identity (+ regression test); `ComponentRegistry.hdlPart`
+- [x] 6. Core: carry-over by definition identity (+ regression test); `ComponentRegistry.hdlPart`
   hook implemented by the library registry.
 - [ ] 7. Document schema v6: `Circuit.module` (the IR), migration, validation, serialization
   (a line per cell), round trip.

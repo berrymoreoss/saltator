@@ -5,6 +5,7 @@
  * the shape check documents are loaded with; the semantic checks (one driver per bit, no
  * combinational loop, clocks from inputs) are the interpreter's. Spec: docs/components.md#verilog-modules.
  */
+import type { AnyComponentDefinition } from './component';
 import { BUS_NAME } from './net-names';
 
 /** The IR's format; a change gets a document migration. */
@@ -58,6 +59,13 @@ export interface HdlMessage {
   readonly message: string;
   /** `decoder.v:12.3-12.20`, when there is one. */
   readonly src?: string;
+}
+
+/** The part a module runs as (`ComponentRegistry.hdlPart`): none when it has errors. */
+export interface HdlPartResult {
+  readonly definition?: AnyComponentDefinition;
+  /** Its errors (it can't run) and warnings (latches, `init` values), errors first. */
+  readonly messages: readonly HdlMessage[];
 }
 
 /** A module: Yosys's top module, flattened, as the interpreter runs it. */

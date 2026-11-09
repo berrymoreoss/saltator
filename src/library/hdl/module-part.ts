@@ -8,12 +8,11 @@
  * snapshots, rewind and replicas work as for any part. Spec: docs/components.md#verilog-modules.
  */
 import {
-  type AnyComponentDefinition,
   type Behavior,
   defineComponent,
   type EvalContext,
-  type HdlMessage,
   type HdlModule,
+  type HdlPartResult,
   hdlModuleProblems,
   hdlPortName,
   hdlPortPins,
@@ -51,13 +50,6 @@ export const hdlDelayProp: PropDef = {
   default: HDL_DEFAULT_DELAY,
   min: 0,
 };
-
-/** What making a module's part gave: the definition unless it has errors, and the messages. */
-export interface HdlPartResult {
-  readonly definition?: AnyComponentDefinition;
-  /** The module's errors (it can't run) and warnings (latches, `init` values). */
-  readonly messages: readonly HdlMessage[];
-}
 
 type HdlProps = { delay: number };
 

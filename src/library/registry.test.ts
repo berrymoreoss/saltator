@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { designatorPrefixOf, familyOf } from '../core';
+import { YOSYS_FIXTURES } from './hdl/fixtures';
+import { fromYosys } from './hdl/from-yosys';
 import { createDefaultRegistry } from './registry';
 
 const MEMORIES = ['mem/at28c16', 'mem/at28c64b', 'mem/at28c256', 'mem/6116', 'mem/62256'];
@@ -154,5 +156,16 @@ describe('createDefaultRegistry', () => {
     const b = createDefaultRegistry();
     expect(a).not.toBe(b);
     expect(a.list()).toEqual(b.list());
+  });
+});
+
+describe('createDefaultRegistry: Verilog modules', () => {
+  it('makes the part a module runs as, without registering it', () => {
+    const registry = createDefaultRegistry();
+    const { module } = fromYosys(YOSYS_FIXTURES.decoder);
+    const result = registry.hdlPart?.('hdl/decoder', 'Decoder', module!);
+    expect(result?.definition?.type).toBe('hdl/decoder');
+    expect(result?.definition?.name).toBe('Decoder');
+    expect(registry.has('hdl/decoder')).toBe(false);
   });
 });

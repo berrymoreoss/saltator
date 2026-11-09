@@ -3,6 +3,7 @@
  * delta-cycle event loop. Spec: docs/simulation.md.
  */
 import {
+  type AnyComponentDefinition,
   type Behavior,
   type EvalContext,
   isDriverPin,
@@ -59,6 +60,8 @@ export interface SimulatorCarry {
 /** One component of a `SimulatorCarry`. */
 export interface CarriedComponent {
   readonly type: string;
+  /** Its definition: a part whose definition changed (a module compiled again) powers on. */
+  readonly definition: AnyComponentDefinition;
   readonly props: Readonly<Record<string, PropValue>>;
   /** The state object itself (moved, not copied). */
   readonly state: unknown;
@@ -301,13 +304,17 @@ export class Simulator {
     const netCount = nets.length;
 
     // What each component continues from a carried simulation: a part of the same type keeps
-    // its output drives; with the same props too, also its state, pending events and timers.
+    // its output drives; with the same definition and props too, also its state, pending events
+    // and timers (a module compiled again is another definition: its state has another shape).
     const carried = components.map((c) => {
       const old = carry?.components.get(c.id);
       return old?.type === c.definition.type ? old : undefined;
     });
     const kept = carried.map(
-      (old, i) => old !== undefined && sameProps(old.props, components[i]!.props),
+      (old, i) =>
+        old !== undefined &&
+        old.definition === components[i]!.definition &&
+        sameProps(old.props, components[i]!.props),
     );
 
     // Pins and driver slots.
@@ -557,6 +564,7 @@ export class Simulator {
       });
       components.set(idOf(i), {
         type: c.definition.type,
+        definition: c.definition,
         props: c.props,
         state: this.states[i],
         drives,

@@ -9,7 +9,6 @@ export { fromYosys, type YosysConversion } from './from-yosys';
 export {
   HDL_DEFAULT_DELAY,
   HDL_FAMILY,
-  type HdlPartResult,
   hdlDelayProp,
   hdlPart,
   hdlPins,

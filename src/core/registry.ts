@@ -8,6 +8,7 @@ import {
 } from './component';
 import { cpuProblems } from './cpu';
 import { validateFunctionTable } from './function-table';
+import type { HdlModule, HdlPartResult } from './hdl-module';
 import { symbolOf, validateSymbol } from './symbol';
 
 /**
@@ -19,6 +20,17 @@ export interface ComponentRegistry {
   has(type: string): boolean;
   /** All definitions, in registration order. */
   list(): readonly AnyComponentDefinition[];
+  /**
+   * Makes the part a Verilog module runs as (HDL-1), of type `type` (`hdl/<circuit id>`), named
+   * `name`. The library's registry can; the circuit layer asks it for a document's modules.
+   */
+  readonly hdlPart?: (type: string, name: string, module: HdlModule) => HdlPartResult;
+}
+
+/** What a `Registry` may be given besides its definitions. */
+export interface RegistryOptions {
+  /** How to make a Verilog module's part (`ComponentRegistry.hdlPart`); the library's. */
+  readonly hdlPart?: (type: string, name: string, module: HdlModule) => HdlPartResult;
 }
 
 /** `family/part`: lowercase letters, digits and dashes, e.g. `74xx/74hc00`, `prim/tristate-buffer`. */
@@ -32,8 +44,10 @@ export function familyOf(type: string): string {
 /** A registry that definitions can be added to. */
 export class Registry implements ComponentRegistry {
   private readonly byType = new Map<string, AnyComponentDefinition>();
+  readonly hdlPart?: (type: string, name: string, module: HdlModule) => HdlPartResult;
 
-  constructor(definitions: Iterable<AnyComponentDefinition> = []) {
+  constructor(definitions: Iterable<AnyComponentDefinition> = [], options: RegistryOptions = {}) {
+    if (options.hdlPart) this.hdlPart = options.hdlPart;
     this.register(...definitions);
   }
 
