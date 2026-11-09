@@ -139,6 +139,12 @@ export function hdlPart(type: string, name: string, module: HdlModule): HdlPartR
   }
   const analysis = analyzeHdlModule(module);
   if (analysis.messages.some((m) => m.severity === 'error')) return { messages: analysis.messages };
+  // Tri-states convert (HDL-8) before the interpreter runs them.
+  const tri =
+    module.cells.some((c) => c.type === '$tribuf') ||
+    module.ports.some((p) => p.dir === 'inout' || p.bits.includes('z'));
+  if (tri)
+    return { messages: [{ severity: 'error', message: "tri-states don't run yet (HDL-8)" }] };
   const program = compile(module, analysis.order, analysis.flipFlops);
   const counts = new Map<string, number>();
   for (const cell of module.cells) counts.set(cell.type, (counts.get(cell.type) ?? 0) + 1);

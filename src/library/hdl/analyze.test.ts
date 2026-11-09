@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { HdlCell, HdlModule } from '../../core';
-import { analyzeHdlModule, bitName } from './analyze';
+import { analyzeHdlModule, bitName, NO_DRIVER, PIN } from './analyze';
 
 const base = (cells: HdlCell[], bitCount = 8): HdlModule => ({
   format: 1,
@@ -101,6 +101,77 @@ describe('analyzeHdlModule', () => {
     expect(messages).toEqual([
       { severity: 'warning', message: 'a latch is inferred for y', src: 'a.v:5' },
     ]);
+  });
+});
+
+describe('analyzeHdlModule: tri-states (HDL-8)', () => {
+  const tribuf = (a: (number | '0')[], en: number | '1', y: number[], src = ''): HdlCell => ({
+    type: '$tribuf',
+    src,
+    ports: { A: a, EN: [en], Y: y },
+    params: {},
+  });
+  // oe = 0, a = 1..2, d (inout) = 3..4 driven by a tribuf, y = 5 = ~d[0], q = 6 <= d[1] on oe.
+  const bus = (cells: HdlCell[], ports: HdlModule['ports'] = []): HdlModule => ({
+    format: 1,
+    top: 't',
+    creator: '',
+    bitCount: 8,
+    ports: [
+      { name: 'oe', dir: 'in', lsb: 0, bits: [0] },
+      { name: 'a', dir: 'in', lsb: 0, bits: [1, 2] },
+      { name: 'd', dir: 'inout', lsb: 0, bits: [3, 4] },
+      { name: 'y', dir: 'out', lsb: 0, bits: [5] },
+      ...ports,
+    ],
+    signals: [],
+    cells,
+  });
+
+  it("reads an inout's bits from its pin, which its tri-state buffer drives", () => {
+    const { driver, messages } = analyzeHdlModule(bus([tribuf([1, 2], 0, [3, 4]), not(3, 5)]));
+    expect(messages).toEqual([]);
+    expect(Array.from(driver.slice(0, 6))).toEqual([PIN, PIN, PIN, PIN, PIN, 1]);
+    expect(driver[6]).toBe(NO_DRIVER);
+  });
+
+  it('lets a tri-state buffer drive bits inside the module and outputs', () => {
+    const { driver, order } = analyzeHdlModule(bus([not(6, 7), tribuf([1, '0'], 0, [5, 6])]));
+    expect([driver[5], driver[6], driver[7]]).toEqual([1, 1, 0]);
+    expect(order).toEqual([1, 0]);
+  });
+
+  it('refuses a tri-state buffer driving an input, and two inouts joined', () => {
+    expect(analyzeHdlModule(bus([tribuf([2], 0, [1], 'b.v:3')])).messages).toEqual([
+      { severity: 'error', message: 'a[0] is driven twice', src: 'b.v:3' },
+    ]);
+    const joined = { name: 'e', dir: 'inout' as const, lsb: 0, bits: [4], src: 'b.v:2' };
+    expect(analyzeHdlModule(bus([], [joined])).messages).toEqual([
+      {
+        severity: 'error',
+        message:
+          "inout ports d and e are joined inside the module — a part can't be a wire between two of its pins",
+        src: 'b.v:2',
+      },
+    ]);
+  });
+
+  it('lets an inout drive what logic or an input gives it, and clock a flip-flop', () => {
+    const shared = { name: 'w', dir: 'inout' as const, lsb: 0, bits: [1, 7] };
+    const { driver, messages } = analyzeHdlModule(
+      bus([not(0, 7), dff(3, 2, 6)], [shared, { name: 'q', dir: 'out', lsb: 0, bits: [6] }]),
+    );
+    expect(messages).toEqual([]);
+    expect([driver[1], driver[7], driver[3]]).toEqual([PIN, 0, PIN]);
+  });
+
+  it('gives each cell the pins its value can come from, stopping at flip-flops', () => {
+    // t7 = ~d0; t6 = t7 & a1; q5 <= t6 on oe; d = {a1, q5} while a2.
+    const { cones, messages } = analyzeHdlModule(
+      bus([not(3, 7), and(7, 1, 6), dff(0, 6, 5), tribuf([5, 1], 2, [3, 4])]),
+    );
+    expect(messages).toEqual([]);
+    expect(cones).toEqual([[3], [1, 3], [0, 1, 3], [1, 2]]);
   });
 });
 

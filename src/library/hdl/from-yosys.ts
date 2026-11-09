@@ -2,7 +2,7 @@
  * Yosys's JSON netlist → the IR of a module (HDL-1, ADR-0030). Accepts what the command
  * (`yosysScript`) makes; refuses, with the reason and the source location, what the interpreter
  * can't run yet and what another command made (a hierarchy not flattened, a ROM `proc` made of a
- * `case`, a gate-level netlist). Spec: docs/components.md#verilog-modules-hdl.
+ * `case`, a gate-level netlist, a tri-state left a `$mux`). Spec: docs/components.md#verilog-modules-hdl.
  */
 import {
   HDL_CELLS,
@@ -117,6 +117,13 @@ const IGNORED: Readonly<Record<string, string>> = {
   $assume: 'assumptions are not checked (yet): ignored',
   $cover: 'cover statements are ignored',
 };
+/** Yosys's port directions as the IR's. */
+const DIRECTIONS: Readonly<Record<string, HdlPort['dir']>> = {
+  input: 'in',
+  output: 'out',
+  inout: 'inout',
+};
+
 /** Cells with a signedness that matters, by parameter. */
 const SIGNED = ['A_SIGNED', 'B_SIGNED'];
 
@@ -169,13 +176,25 @@ export function fromYosys(json: unknown): YosysConversion {
   // Bits are renumbered from 0 in order of first appearance; Yosys's start at 2.
   const renumber = new Map<number, number>();
   let bad = false;
-  const bitsOf = (raw: unknown, where: string, src?: string): HdlBit[] => {
+  /**
+   * The bits of a connection. A constant `z` stays `z` in an output's or inout's bits (never
+   * driven); read by a cell it reads `x`, as a released net does (`readsZ` is told).
+   */
+  function bitsOf(raw: unknown, where: string, src: string | undefined): HdlBit[];
+  function bitsOf(raw: unknown, where: string, src: string | undefined, z: 'keep'): HdlPortBit[];
+  function bitsOf(raw: unknown, where: string, src: string | undefined, z: () => void): HdlBit[];
+  function bitsOf(
+    raw: unknown,
+    where: string,
+    src: string | undefined,
+    z?: 'keep' | (() => void),
+  ): HdlPortBit[] {
     if (!Array.isArray(raw)) {
       error(`${where}: expected bits`, src);
       bad = true;
       return [];
     }
-    return raw.map((bit: YosysBit) => {
+    return raw.map((bit: YosysBit): HdlPortBit => {
       if (typeof bit === 'number') {
         let index = renumber.get(bit);
         if (index === undefined) {
@@ -185,29 +204,30 @@ export function fromYosys(json: unknown): YosysConversion {
         return index;
       }
       if (bit === '0' || bit === '1' || bit === 'x') return bit;
-      if (bit === 'z') {
-        error('a tri-state (z) — not supported yet (HDL-8)', src);
-      } else {
-        error(`${where}: unknown bit ${JSON.stringify(bit)}`, src);
+      if (bit === 'z' && z === 'keep') return 'z';
+      if (bit === 'z' && typeof z === 'function') {
+        z();
+        return 'x';
       }
+      error(`${where}: unknown bit ${JSON.stringify(bit)}`, src);
       bad = true;
       return 'x';
     });
-  };
+  }
 
   const netnames = mod.netnames ?? {};
   const ports: HdlPort[] = [];
   for (const [name, port] of Object.entries(mod.ports ?? {})) {
     const src = srcOf(netnames[name]?.attributes) || undefined;
-    if (port.direction === 'inout') {
-      error(`inout port ${name} — not supported yet (HDL-8)`, src);
-      continue;
-    }
-    if (port.direction !== 'input' && port.direction !== 'output') {
+    const direction = String(port.direction);
+    const dir = Object.hasOwn(DIRECTIONS, direction) ? DIRECTIONS[direction] : undefined;
+    if (!dir) {
       error(`port ${name}: unknown direction ${JSON.stringify(port.direction)}`, src);
       continue;
     }
-    const bits = bitsOf(port.bits, `port ${name}`, src);
+    const where = `port ${name}`;
+    const bits =
+      dir === 'in' ? bitsOf(port.bits, where, src) : bitsOf(port.bits, where, src, 'keep');
     if (bits.length > 1 && port.upto === 1) {
       const msb = (typeof port.offset === 'number' ? port.offset : 0) + bits.length - 1;
       error(
@@ -220,7 +240,7 @@ export function fromYosys(json: unknown): YosysConversion {
     const init = initOf(netnames[name], bits.length);
     const shape: HdlPort = {
       name,
-      dir: port.direction === 'input' ? 'in' : 'out',
+      dir,
       lsb,
       bits,
       ...(init ? { init } : {}),
@@ -284,10 +304,6 @@ export function fromYosys(json: unknown): YosysConversion {
       }
       continue;
     }
-    if (type === '$tribuf') {
-      error('a tri-state buffer — not supported yet (HDL-8)', src);
-      continue;
-    }
     if (!isHdlCellType(type)) {
       error(`${type} cells are not supported yet (HDL-9)`, src);
       continue;
@@ -301,8 +317,27 @@ export function fromYosys(json: unknown): YosysConversion {
     }
     const connections = cell.connections ?? {};
     const cellPorts: Record<string, HdlBit[]> = {};
-    for (const port of [...spec.inputs, spec.output]) {
-      cellPorts[port] = bitsOf(connections[port], `${type} port ${port}`, src);
+    let readsZ = false;
+    for (const port of spec.inputs) {
+      cellPorts[port] = bitsOf(connections[port], `${type} port ${port}`, src, () => {
+        readsZ = true;
+      });
+    }
+    cellPorts[spec.output] = bitsOf(connections[spec.output], `${type} port ${spec.output}`, src);
+    if (readsZ && (type === '$mux' || type === '$pmux')) {
+      once('no tribuf', () =>
+        error(
+          'a tri-state left a multiplexer with z inputs: make the JSON with the command (tribuf -logic)',
+          src,
+        ),
+      );
+      continue;
+    }
+    if (readsZ) {
+      warning(
+        'a constant z is read here, which reads X: an inout assigned z reads X inside the module, not its pin (leave it unassigned to read the pin)',
+        src,
+      );
     }
     if (spec.word) {
       const widest = Math.max(...Object.values(cellPorts).map((bits) => bits.length));
@@ -326,15 +361,18 @@ export function fromYosys(json: unknown): YosysConversion {
         bad = true;
         continue;
       }
-      params[name] = bitsOf([...raw].reverse(), `${type} ${name}`, src);
+      params[name] = bitsOf([...raw].reverse(), `${type} ${name}`, src, () => {});
     }
     cells.push({ type, src: src ?? '', ports: cellPorts, params });
   }
 
   // Bits nothing drives (an output never assigned) read X: they become the constant x.
   const driven = new Set<number>();
-  for (const port of ports)
-    if (port.dir === 'in') for (const b of port.bits) driven.add(b as number);
+  // An input's bits come from its pin, and so do an inout's that no logic drives.
+  for (const port of ports) {
+    if (port.dir === 'out') continue;
+    for (const b of port.bits) if (typeof b === 'number') driven.add(b);
+  }
   for (const cell of cells) {
     for (const b of cell.ports[HDL_CELLS[cell.type].output]!) driven.add(b as number);
   }
@@ -361,7 +399,7 @@ export function fromYosys(json: unknown): YosysConversion {
     const rawBits = Array.isArray(net.bits) ? net.bits : [];
     // Signals keep only bits the module has (a name may be left over a removed wire).
     if (rawBits.some((b) => typeof b === 'number' && !renumber.has(b))) continue;
-    const bits = settle(bitsOf(rawBits, `signal ${name}`, src));
+    const bits = settle(bitsOf(rawBits, `signal ${name}`, src, () => {}));
     const init = initOf(net, bits.length);
     signals.push({
       name,

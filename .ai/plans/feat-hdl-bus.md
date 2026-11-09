@@ -193,7 +193,7 @@ static `undriven-input` warning).
   otherwise — checked).
 - [x] 2. IR in core: `inout`, `'z'`, `$tribuf`; shape check and its tests; schema v7 with a
   no-op migration, round trip.
-- [ ] 3. Converter and analysis: accept and refuse as above (messages at source lines); drivers
+- [x] 3. Converter and analysis: accept and refuse as above (messages at source lines); drivers
   with pins read back; fan-in cones of the consumers (if Q1 as proposed).
 - [ ] 4. Core (if Q1 as proposed): `EvalContext.level`, `EvalContext.reportFloating`; kernel tests
   (once until the net changes, snapshots and replicas).
