@@ -21,10 +21,18 @@ const ACCEPTED = [
   'display',
   'flattened',
   'init',
+  'inout',
+  'inout_shapes',
+  'io_port',
   'latches',
+  'open_drain',
   'ops',
   'shifts',
   'traffic',
+  'tri_internal',
+  'tri_merged',
+  'tri_register',
+  'tristate',
   'wires',
 ];
 
@@ -138,6 +146,62 @@ describe('fromYosys: modules it runs', () => {
   });
 });
 
+describe('fromYosys: tri-states (HDL-8)', () => {
+  it('keeps an inout port, read back where the module uses it, and its tri-state buffer', () => {
+    const { module, messages } = convert('inout');
+    expect(messages).toEqual([]);
+    expect(module?.ports.map((p) => [p.name, p.dir, p.bits])).toEqual([
+      ['oe', 'in', [0]],
+      ['q', 'in', [1, 2, 3, 4]],
+      ['d', 'inout', [5, 6, 7, 8]],
+      ['r', 'out', [5, 6, 7, 8]],
+    ]);
+    expect(module?.cells).toEqual([
+      {
+        type: '$tribuf',
+        src: 'inout.v:3.14-3.27',
+        ports: { A: [1, 2, 3, 4], EN: [0], Y: [5, 6, 7, 8] },
+        params: {},
+      },
+    ]);
+  });
+
+  it('keeps z in the bits of an output never driven, and an open drain as a buffer of 0', () => {
+    const { module, messages } = convert('open_drain');
+    expect(messages).toEqual([]);
+    expect(module?.ports.map((p) => [p.name, p.dir, p.bits])).toEqual([
+      ['irq', 'in', [0]],
+      ['irq_n', 'out', [1]],
+      ['nc', 'out', ['z']],
+    ]);
+    expect(module?.cells[0]?.ports).toEqual({ A: ['0'], EN: [0], Y: [1] });
+  });
+
+  it("reads a constant z as x, with a warning where an inout's z is read", () => {
+    const { module, messages } = convert('inout_shapes');
+    expect(lines('inout_shapes')).toEqual([
+      'warning inout_shapes.v:17.15-17.23: a constant z is read here, which reads X: an inout assigned z reads X inside the module, not its pin (leave it unassigned to read the pin)',
+    ]);
+    expect(messages).toHaveLength(1);
+    expect(module?.ports.find((p) => p.name === 'z')?.bits).toEqual(['z']);
+    expect(module?.cells.find((c) => c.type === '$and')?.ports.A).toEqual(['x']);
+    // w = a: the inout's bits are the input's, which it drives.
+    expect(module?.ports.find((p) => p.name === 'w')?.bits).toEqual(
+      module?.ports.find((p) => p.name === 'a')?.bits,
+    );
+  });
+
+  it('merges two drivers of one inout into one buffer, and makes tri-states inside logic', () => {
+    const types = (name: string) => convert(name).module?.cells.map((c) => c.type);
+    expect(types('tri_merged')).toEqual(['$pmux', '$tribuf', '$reduce_or']);
+    // Submodules sharing a bus became a $pmux; the merged buffer reaching y stays, enabled.
+    const internal = convert('tri_internal').module;
+    expect(internal?.cells.filter((c) => c.type === '$tribuf').map((c) => c.ports.EN)).toEqual([
+      ['1'],
+    ]);
+  });
+});
+
 describe('fromYosys: what it refuses', () => {
   it.each([
     ['memory', 'error memory.v:4.33-4.42: a memory (r) — not supported yet (HDL-6)'],
@@ -148,7 +212,14 @@ describe('fromYosys: what it refuses', () => {
     ['loop', 'error loop.v:4.14-4.22: a combinational loop through y — not supported yet (HDL-9)'],
     ['signed', 'error signed.v:3.15-3.20: signed operands — not supported yet (HDL-9)'],
     ['wide', 'error wide.v:3.14-3.19: a 33-bit $add — operands up to 32 bits for now (HDL-9)'],
-    ['tristate', 'error tristate.v:3.14-3.27: a tri-state (z) — not supported yet (HDL-8)'],
+    [
+      'no_tribuf',
+      'error no_tribuf.v:4.14-4.27: a tri-state left a multiplexer with z inputs: make the JSON with the command (tribuf -logic)',
+    ],
+    [
+      'inout_joined',
+      "error inout_joined.v:2.49-2.50: inout ports a and b are joined inside the module — a part can't be a wire between two of its pins",
+    ],
     [
       'ascending',
       "error ascending.v:2.31-2.32: port a is declared [0:3]: declare it [3:0] (bit 0 is the least significant in the app's buses)",
@@ -169,13 +240,6 @@ describe('fromYosys: what it refuses', () => {
     const result = convert(name);
     expect(result.module).toBeUndefined();
     expect(lines(name)).toEqual([message]);
-  });
-
-  it('refuses an inout port and the tri-state behind it', () => {
-    expect(lines('inout')).toEqual([
-      'error inout.v:2.52-2.53: inout port d — not supported yet (HDL-8)',
-      'error inout.v:3.14-3.27: a tri-state (z) — not supported yet (HDL-8)',
-    ]);
   });
 
   it("says what isn't a netlist", () => {

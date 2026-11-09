@@ -776,7 +776,7 @@ describe('compileDocument', () => {
   it('compiles the first circuit', () => {
     const result = compileDocument(
       {
-        schemaVersion: 6,
+        schemaVersion: 7,
         circuits: [
           circuit([part('H1', 'test/high', 0, 0)]),
           circuit([part('U1', 'test/and', 0, 0)]),

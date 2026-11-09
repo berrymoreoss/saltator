@@ -1,8 +1,10 @@
 /**
- * What the interpreter needs to know about a module before it runs it (HDL-1): the order of its
- * combinational cells, its flip-flops, and what it can't run — a bit driven twice, a clock or an
- * asynchronous reset made inside the module, a combinational loop — or runs differently from a
- * Verilog simulator (an inferred latch, an `init` value). Spec: docs/components.md#verilog-modules-hdl.
+ * What the interpreter needs to know about a module before it runs it (HDL-1): who drives each
+ * bit (a pin, a cell), the order of its combinational cells, its flip-flops, the pins each cell
+ * depends on (HDL-8: a floating pin is reported where it is used), and what it can't run — a bit
+ * driven twice, two inout ports joined, a clock or an asynchronous reset made inside the module,
+ * a combinational loop — or runs differently from a Verilog simulator (an inferred latch, an
+ * `init` value). Spec: docs/components.md#verilog-modules-hdl.
  */
 import {
   HDL_CELLS,
@@ -13,15 +15,29 @@ import {
 } from '../../core';
 
 export interface HdlAnalysis {
+  /**
+   * Who gives each bit its value: `PIN` (an input's, or an inout's that no logic drives: read
+   * from the pin), a cell (its index), or `NO_DRIVER`. A `$tribuf` driving an inout's bit drives
+   * the pin, not the bit: the module reads that bit back from the pin.
+   */
+  readonly driver: Int32Array;
   /** The combinational cells (latches among them) in evaluation order: each after those it reads. */
   readonly order: readonly number[];
   /** The flip-flops, in cell order. */
   readonly flipFlops: readonly number[];
+  /**
+   * Per cell, the bits read from pins that its inputs depend on with no flip-flop between, least
+   * first: the floating pins its value can come from.
+   */
+  readonly cones: readonly (readonly number[])[];
   /** Errors (it can't run) first, then warnings. */
   readonly messages: readonly HdlMessage[];
 }
 
-const INPUT = -1;
+/** A bit read from a pin (`HdlAnalysis.driver`). */
+export const PIN = -1;
+/** A bit nothing drives (`HdlAnalysis.driver`). */
+export const NO_DRIVER = -2;
 
 /** The name of the port or signal a bit belongs to (`q`, `state[1]`), for messages. */
 export function bitName(module: HdlModule, bit: HdlBit): string {
@@ -52,22 +68,47 @@ export function analyzeHdlModule(module: HdlModule): HdlAnalysis {
   const warning = (message: string, src?: string) =>
     warnings.push({ severity: 'warning', message, ...(src ? { src } : {}) });
 
-  // Who drives each bit: an input (INPUT), a cell (its index), or nothing (−2).
-  const driver = new Int32Array(module.bitCount).fill(-2);
+  // Who drives each bit: an input's pin, a cell, or nothing; then the inouts' pins for the bits
+  // no logic drives (a `$tribuf` drives the pin, which the module reads back).
+  const driver = new Int32Array(module.bitCount).fill(NO_DRIVER);
   for (const port of module.ports) {
     if (port.dir !== 'in') continue;
-    for (const bit of port.bits) driver[bit as number] = INPUT;
+    for (const bit of port.bits) driver[bit as number] = PIN;
+  }
+  const inoutOf = new Map<number, string>();
+  for (const port of module.ports) {
+    if (port.dir !== 'inout') continue;
+    for (const bit of port.bits) if (typeof bit === 'number') inoutOf.set(bit, port.name);
   }
   const { cells } = module;
   for (const [index, cell] of cells.entries()) {
     const spec: HdlCellSpec = HDL_CELLS[cell.type];
     for (const bit of cell.ports[spec.output]!) {
       const b = bit as number;
-      if (driver[b] !== -2) {
+      if (spec.kind === 'tribuf' && inoutOf.has(b)) continue;
+      if (driver[b] !== NO_DRIVER) {
         error(`${bitName(module, b)} is driven twice`, cell.src);
         continue;
       }
       driver[b] = index;
+    }
+  }
+  // Two inouts reading one bit would be a wire between two pins, which a part can't be.
+  const readBy = new Map<number, string>();
+  for (const port of module.ports) {
+    if (port.dir !== 'inout') continue;
+    for (const bit of port.bits) {
+      if (typeof bit !== 'number') continue;
+      const other = readBy.get(bit);
+      if (other !== undefined && other !== port.name) {
+        error(
+          `inout ports ${other} and ${port.name} are joined inside the module — a part can't be a wire between two of its pins`,
+          port.src,
+        );
+        break;
+      }
+      if (driver[bit] === NO_DRIVER) driver[bit] = PIN;
+      if (driver[bit] === PIN && !isInputBit(module, bit)) readBy.set(bit, port.name);
     }
   }
 
@@ -85,7 +126,7 @@ export function analyzeHdlModule(module: HdlModule): HdlAnalysis {
     const q = outputName(module, cell.ports.Q!);
     const fromInput = (port: string) => {
       const bit = cell.ports[port]?.[0];
-      return bit === undefined || typeof bit !== 'number' || driver[bit] === INPUT;
+      return bit === undefined || typeof bit !== 'number' || driver[bit] === PIN;
     };
     if (!fromInput('CLK'))
       error(`the clock of ${q} is made inside the module — not supported yet (HDL-9)`, cell.src);
@@ -146,5 +187,27 @@ export function analyzeHdlModule(module: HdlModule): HdlAnalysis {
     }
   }
 
-  return { order, flipFlops, messages: [...errors, ...warnings] };
+  // The cones, in evaluation order so a driver's is ready before its readers'.
+  const cones: (readonly number[])[] = cells.map(() => []);
+  for (const index of [...order, ...flipFlops]) {
+    const cell = cells[index]!;
+    const spec: HdlCellSpec = HDL_CELLS[cell.type];
+    const cone = new Set<number>();
+    for (const port of spec.inputs) {
+      for (const bit of cell.ports[port]!) {
+        if (typeof bit !== 'number') continue;
+        const from = driver[bit]!;
+        if (from === PIN) cone.add(bit);
+        else if (from >= 0 && isCombinational[from]) for (const b of cones[from]!) cone.add(b);
+      }
+    }
+    cones[index] = [...cone].sort((a, b) => a - b);
+  }
+
+  return { driver, order, flipFlops, cones, messages: [...errors, ...warnings] };
+}
+
+/** Whether `bit` is an input port's. */
+function isInputBit(module: HdlModule, bit: number): boolean {
+  return module.ports.some((port) => port.dir === 'in' && port.bits.includes(bit));
 }

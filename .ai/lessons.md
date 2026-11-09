@@ -496,3 +496,19 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
   against the dev server takes the screenshots.
 - 2026-11-09 (HDL-1) — `pnpm check` run while `pnpm e2e` runs timed out in `rewind.test.ts`
   (5 s a test under load); alone it passes. Run them one after the other.
+- 2026-11-10 (HDL-8) — Yosys's `tribuf -logic` implies `-merge`: two drivers of one net become
+  one `$tribuf` fed by a `$pmux` (both enabled: `X`, no contention to the kernel), and a merged
+  buffer reaching an output stays even with `EN = 1` on internal bits. `assign io = 1'bz` makes
+  every read of `io` a constant `z`, not the pin: try a construct on the real Yosys before
+  designing for it (14 small sources settled the IR in minutes).
+- 2026-11-10 (HDL-8) — `shorted-outputs` only looks at a circuit's own parts: instance pins are
+  `instancePins`, never checked across. A scenario "no shorted outputs" with two modules passed
+  even with every module pin `out` — the mutation check showed it proved nothing. Mutation-check
+  "no error" tests too, not only "error" ones.
+- 2026-11-10 (HDL-8) — Handing a bus over at one instant is a real fight or a real float: a
+  74HC244 enables (`ten`) faster than a module releases (its 15 ns delay), and a module's output
+  that passes the bus on (`assign r = d`) shows the float. Tests (and benches) turn a bus round
+  with time between, as a 6502 system's bus cycle does.
+- 2026-11-10 (HDL-8) — `pnpm` refuses to run in a `git worktree` whose `node_modules` is a
+  symlink ("installing dependencies"); call the binaries directly there (`node_modules/.bin/vitest
+  bench --run …`, as `package.json`'s script does) to benchmark `main` against a branch.

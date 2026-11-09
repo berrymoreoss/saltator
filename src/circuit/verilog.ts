@@ -8,6 +8,7 @@
 import {
   type HdlMessage,
   type HdlPartResult,
+  hdlPinDirs,
   hdlPortName,
   hdlPortPins,
   type NetlistComponent,
@@ -20,14 +21,17 @@ import type { CircuitPort } from './subcircuit';
 /** The designator of the part a module runs as in its circuit: `A1/U1` in instance `A1`. */
 export const MODULE_PART = 'U1';
 
-/** A module's ports as its instances' pins: in declaration order, inputs left, outputs right. */
+/**
+ * A module's ports as its instances' pins: in declaration order, inputs left, outputs and inouts
+ * (HDL-8: bidirectional) right.
+ */
 export function modulePorts(circuit: Circuit): CircuitPort[] {
   const module = circuit.verilog?.module;
   if (!module) return [];
   return module.ports.map((port, i) => ({
     component: MODULE_PART,
     name: hdlPortName(port),
-    direction: port.dir,
+    direction: port.dir === 'inout' ? 'bidir' : port.dir,
     side: port.dir === 'in' ? 'left' : 'right',
     bus: port.bits.length > 1,
     at: [0, i],
@@ -68,12 +72,15 @@ export function compileModule(circuit: Circuit, part: HdlPartResult | undefined)
     ? [{ id: MODULE_PART, type: definition.type }]
     : [];
   const nets: CircuitNet[] = [];
+  // Tri-state outputs as such, so modules sharing a bus are no `shorted-outputs` (HDL-8).
+  const dirs = module ? hdlPinDirs(module) : [];
+  let index = 0;
   for (const port of module?.ports ?? []) {
     for (const pin of hdlPortPins(port)) {
       const placed: PlacedPin = {
         component: MODULE_PART,
         pin,
-        dir: port.dir,
+        dir: dirs[index++]!,
         weak: false,
         sense: false,
         at: [0, 0],

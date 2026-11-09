@@ -5,7 +5,7 @@
  * the shape check documents are loaded with; the semantic checks (one driver per bit, no
  * combinational loop, clocks from inputs) are the interpreter's. Spec: docs/components.md#verilog-modules-hdl.
  */
-import type { AnyComponentDefinition, PropDef } from './component';
+import type { AnyComponentDefinition, PinDir, PropDef } from './component';
 import { BUS_NAME } from './net-names';
 import { ns } from './time';
 
@@ -33,20 +33,30 @@ export const hdlDelayProp: PropDef = {
 };
 
 /**
- * One bit of a connection: a signal bit (an index below `bitCount`) or a constant. Yosys's
- * `z` never reaches the IR (tri-states come with HDL-8).
+ * One bit of a connection: a signal bit (an index below `bitCount`) or a constant. Yosys's `z`
+ * reaches only port bits (`HdlPortBit`): inside the module a released net reads `x`.
  */
 export type HdlBit = number | '0' | '1' | 'x';
 
-/** A port of the module. */
+/** A port's bit: a connection's, or `z` where the module never drives an output or inout bit. */
+export type HdlPortBit = HdlBit | 'z';
+
+/**
+ * A port of the module. An `inout` (HDL-8) is a pin that drives and reads: where a `$tribuf`
+ * drives its bit, or nothing does, the module reads the pin's level there; where other logic
+ * does, the pin always drives it.
+ */
 export interface HdlPort {
   /** Its Verilog name: `addr`. */
   readonly name: string;
-  readonly dir: 'in' | 'out';
+  readonly dir: 'in' | 'out' | 'inout';
   /** The Verilog index of `bits[0]`: `addr[15:12]` has `lsb` 12. */
   readonly lsb: number;
-  /** Least significant first. An input's are distinct signal bits; an output's may be any. */
-  readonly bits: readonly HdlBit[];
+  /**
+   * Least significant first. An input's are distinct signal bits; an output's or an inout's may
+   * be any, `z` too (never driven).
+   */
+  readonly bits: readonly HdlPortBit[];
   /** An output register's power-up value (`output reg q = 1`), as a signal's `init`. */
   readonly init?: readonly HdlBit[];
   /** Where it is declared: `decoder.v:3.18-3.22`. */
@@ -98,7 +108,7 @@ export interface HdlModule {
   readonly creator: string;
   /** The number of signal bits; bits are numbered from 0. */
   readonly bitCount: number;
-  /** Inputs and outputs in declaration order. */
+  /** Inputs, outputs and inouts in declaration order. */
   readonly ports: readonly HdlPort[];
   readonly signals: readonly HdlSignal[];
   readonly cells: readonly HdlCell[];
@@ -111,7 +121,8 @@ export type HdlCellKind =
   | 'mux' // A, B, S → Y
   | 'pmux' // A, B, S → Y (one-hot S)
   | 'flip-flop' // CLK (EN, ARST, SRST), D → Q
-  | 'latch'; // EN (ARST), D → Q
+  | 'latch' // EN (ARST), D → Q
+  | 'tribuf'; // A, EN → Y (released while EN is 0)
 
 /** A cell type's shape: its input and output ports and its parameters. */
 export interface HdlCellSpec {
@@ -150,7 +161,10 @@ const flipFlop = (inputs: readonly string[], flags: string[], values: string[] =
 const latch = (inputs: readonly string[], flags: string[], values: string[] = []) =>
   ({ kind: 'latch', inputs, output: 'Q', flags, values, word: false }) as const;
 
-/** The cells HDL-1 runs: what `proc -norom; flatten; opt -keepdc` leave of a decoder, a counter, a state machine. */
+/**
+ * The cells modules run: what the command leaves of a decoder, a counter, a state machine
+ * (HDL-1) and of tri-states (`$tribuf`, HDL-8).
+ */
 export const HDL_CELLS = {
   $not: unary(false),
   $pos: unary(false),
@@ -204,6 +218,7 @@ export const HDL_CELLS = {
   ),
   $dlatch: latch(['EN', 'D'], ['EN_POLARITY']),
   $adlatch: latch(['EN', 'ARST', 'D'], ['EN_POLARITY', 'ARST_POLARITY'], ['ARST_VALUE']),
+  $tribuf: { kind: 'tribuf', inputs: ['A', 'EN'], output: 'Y', flags: [], values: [], word: false },
 } as const satisfies Record<string, HdlCellSpec>;
 
 export type HdlCellType = keyof typeof HDL_CELLS;
@@ -232,6 +247,35 @@ export function hdlPortPins(port: Pick<HdlPort, 'name' | 'lsb' | 'bits'>): strin
   return width === 1
     ? [port.name]
     : Array.from({ length: width }, (_, i) => `${port.name}${port.lsb + i}`);
+}
+
+/**
+ * The direction of each of a module's pins, in pin order (each port's bits, least significant
+ * first): an input's `in`, an inout's `bidir`, an output's `tristate` where a `$tribuf` drives
+ * the bit or it is `z` (never driven), else `out` (HDL-8).
+ */
+export function hdlPinDirs(module: Pick<HdlModule, 'ports' | 'cells'>): PinDir[] {
+  // A buffer driving an inout's bit drives the inout's pin; an output reading that bit back
+  // drives what the pin reads, push-pull.
+  const inout = new Set<number>();
+  for (const port of module.ports) {
+    if (port.dir !== 'inout') continue;
+    for (const bit of port.bits) if (typeof bit === 'number') inout.add(bit);
+  }
+  const buffered = new Set<number>();
+  for (const cell of module.cells) {
+    if (cell.type !== '$tribuf') continue;
+    for (const bit of cell.ports.Y ?? []) {
+      if (typeof bit === 'number' && !inout.has(bit)) buffered.add(bit);
+    }
+  }
+  return module.ports.flatMap((port) =>
+    port.bits.map((bit): PinDir => {
+      if (port.dir === 'in') return 'in';
+      if (port.dir === 'inout') return 'bidir';
+      return bit === 'z' || (typeof bit === 'number' && buffered.has(bit)) ? 'tristate' : 'out';
+    }),
+  );
 }
 
 /** A port name the app's pins can take: a plain Verilog identifier without `$`, ≤ 32 characters. */
@@ -284,20 +328,32 @@ export function hdlModuleProblems(value: unknown, path = 'module'): string[] {
     return problems;
   }
 
-  const bitsProblem = (bits: unknown, signalsOnly: boolean): string | undefined => {
+  /** `signals`: signal bits only; `constants`: or 0, 1, x; `released`: or z too (port bits). */
+  const bitsProblem = (
+    bits: unknown,
+    allowed: 'signals' | 'constants' | 'released',
+  ): string | undefined => {
     if (!Array.isArray(bits)) return 'expected an array of bits';
     for (const bit of bits) {
       if (isIndex(bit)) {
         if (bit >= bitCount) return `bit ${bit} is not below bitCount ${bitCount}`;
-      } else if (signalsOnly || (bit !== '0' && bit !== '1' && bit !== 'x')) {
-        return `expected ${signalsOnly ? 'signal bits' : 'signal bits or "0", "1", "x"'}, got ${JSON.stringify(bit)}`;
+        continue;
       }
+      const constant = bit === '0' || bit === '1' || bit === 'x';
+      if (allowed === 'constants' && constant) continue;
+      if (allowed === 'released' && (constant || bit === 'z')) continue;
+      const expected = {
+        signals: 'signal bits',
+        constants: 'signal bits or "0", "1", "x"',
+        released: 'signal bits or "0", "1", "x", "z"',
+      }[allowed];
+      return `expected ${expected}, got ${JSON.stringify(bit)}`;
     }
     return undefined;
   };
   const initProblem = (where: string, init: unknown, bits: unknown) => {
     if (init === undefined) return;
-    if (bitsProblem(init, false) || (init as unknown[]).some(isIndex))
+    if (bitsProblem(init, 'constants') || (init as unknown[]).some(isIndex))
       at(`${where}.init`, 'expected constant bits');
     else if (Array.isArray(bits) && (init as unknown[]).length !== bits.length)
       at(`${where}.init`, 'expected as many bits as its bits');
@@ -320,16 +376,17 @@ export function hdlModuleProblems(value: unknown, path = 'module'): string[] {
         if (!['name', 'dir', 'lsb', 'bits', 'init', 'src'].includes(key))
           at(`${where}.${key}`, 'unknown field');
       }
-      if (port.dir !== 'in' && port.dir !== 'out') at(`${where}.dir`, 'expected "in" or "out"');
+      if (port.dir !== 'in' && port.dir !== 'out' && port.dir !== 'inout')
+        at(`${where}.dir`, 'expected "in", "out" or "inout"');
       initProblem(where, port.init, port.bits);
       if (!isIndex(port.lsb)) at(`${where}.lsb`, 'expected an integer ≥ 0');
       optionalSrc(where, port.src);
-      const problem = bitsProblem(port.bits, port.dir === 'in');
+      const problem = bitsProblem(port.bits, port.dir === 'in' ? 'signals' : 'released');
       if (problem) {
         at(`${where}.bits`, problem);
         continue;
       }
-      const bits = port.bits as HdlBit[];
+      const bits = port.bits as HdlPortBit[];
       if (bits.length === 0) {
         at(`${where}.bits`, 'expected at least one bit');
         continue;
@@ -373,7 +430,7 @@ export function hdlModuleProblems(value: unknown, path = 'module'): string[] {
       if (typeof signal.name !== 'string') at(`${where}.name`, 'expected a string');
       if (!isIndex(signal.lsb)) at(`${where}.lsb`, 'expected an integer ≥ 0');
       optionalSrc(where, signal.src);
-      const problem = bitsProblem(signal.bits, false);
+      const problem = bitsProblem(signal.bits, 'constants');
       if (problem) at(`${where}.bits`, problem);
       initProblem(where, signal.init, signal.bits);
     }
@@ -393,7 +450,7 @@ export function hdlModuleProblems(value: unknown, path = 'module'): string[] {
       }
       if (typeof cell.src !== 'string') at(`${where}.src`, 'expected a string');
       if (typeof cell.type !== 'string' || !isHdlCellType(cell.type)) {
-        at(`${where}.type`, `not a cell HDL-1 runs: ${JSON.stringify(cell.type)}`);
+        at(`${where}.type`, `not a cell modules run: ${JSON.stringify(cell.type)}`);
         continue;
       }
       const spec: HdlCellSpec = HDL_CELLS[cell.type];
@@ -409,7 +466,7 @@ function cellShapeProblems(
   spec: HdlCellSpec,
   ports: unknown,
   params: unknown,
-  bitsProblem: (bits: unknown, signalsOnly: boolean) => string | undefined,
+  bitsProblem: (bits: unknown, allowed: 'signals' | 'constants') => string | undefined,
 ): { at: string; message: string }[] {
   const problems: { at: string; message: string }[] = [];
   if (!isObject(ports)) return [{ at: 'ports', message: 'expected an object' }];
@@ -419,7 +476,7 @@ function cellShapeProblems(
   }
   const width: Record<string, number> = {};
   for (const name of names) {
-    const problem = bitsProblem(ports[name], name === spec.output);
+    const problem = bitsProblem(ports[name], name === spec.output ? 'signals' : 'constants');
     if (problem) {
       problems.push({ at: `ports.${name}`, message: problem });
       continue;
@@ -447,6 +504,8 @@ function cellShapeProblems(
       problems.push({ at: 'ports.B', message: `expected ${y * width.S!} bits (Y × S)` });
   } else if (spec.kind === 'flip-flop' || spec.kind === 'latch') {
     sameAsY('D');
+  } else if (spec.kind === 'tribuf') {
+    sameAsY('A');
   }
 
   if (!isObject(params)) return [...problems, { at: 'params', message: 'expected an object' }];
@@ -459,7 +518,7 @@ function cellShapeProblems(
       problems.push({ at: `params.${flag}`, message: 'expected 0 or 1' });
   }
   for (const name of spec.values) {
-    const problem = bitsProblem(params[name], false);
+    const problem = bitsProblem(params[name], 'constants');
     if (problem || (params[name] as unknown[]).some(isIndex))
       problems.push({ at: `params.${name}`, message: 'expected constant bits' });
     else if ((params[name] as unknown[]).length !== y)

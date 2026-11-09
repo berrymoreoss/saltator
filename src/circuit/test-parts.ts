@@ -9,6 +9,7 @@ import {
   type HdlModule,
   type HdlPartResult,
   hdlDelayProp,
+  hdlPinDirs,
   hdlPortPins,
   Level,
   ns,
@@ -326,9 +327,10 @@ export function testRegistry(): Registry {
  * outputs stay unknown) — enough to see a module's part wired into a design.
  */
 export function testHdlPart(type: string, name: string, module: HdlModule): HdlPartResult {
-  const pins: PinDef[] = module.ports.flatMap((port) =>
-    hdlPortPins(port).map((pin): PinDef => ({ name: pin, dir: port.dir })),
-  );
+  const dirs = hdlPinDirs(module);
+  const pins: PinDef[] = module.ports
+    .flatMap((port) => hdlPortPins(port))
+    .map((pin, i): PinDef => ({ name: pin, dir: dirs[i]! }));
   const at = (pin: string) => pins.findIndex((p) => p.name === pin);
   const definition = defineComponent<{ delay: number }, undefined>({
     type,

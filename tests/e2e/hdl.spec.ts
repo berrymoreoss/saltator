@@ -135,3 +135,42 @@ test("Verilog Counter and Traffic Light: its modules' benches and the board's pa
   await expect(page.getByRole('tab', { name: /^Tests/ })).toContainText('✓ 6', { timeout: 30_000 });
   expect(errors).toEqual([]);
 });
+
+// HDL-8: a module on a bus — an inout port, its bench writing and reading through it.
+const IO_PORT_BENCH = `bench('writes $A5, reads its pins', (b) => {
+  b.set({ strobe: 0, cs_n: 0, rw: 0, 'pins[7..0]': 0x3c, 'd[7..0]': 0xa5 });
+  b.wait('1us');
+  b.clock('strobe');
+  b.expect({ 'q[7..0]': 0xa5 });
+  b.set({ rw: 1, 'd[7..0]': 'Z', strobe: 1 });
+  b.wait('1us');
+  b.expect({ 'd[7..0]': 0x3c });
+});
+`;
+
+test('a module on a bus: an inout port, its bench, placed as a bus pin', async ({ page }) => {
+  const errors = watchErrors(page);
+  const grid = await newCircuit(page);
+  await page.getByTestId('add-verilog-module').click();
+  await expect(page.getByTestId('yosys-command')).toContainText('flatten; tribuf -logic; opt');
+  await compile(page, YOSYS_FIXTURES.io_port!);
+  await expect(messages(page)).toContainText('Compiled io_port: 7 cells');
+  const ports = page.getByTestId('module-summary');
+  await expect(ports.getByRole('row').filter({ hasText: 'd[7:0]' })).toContainText('inout');
+  await expect(ports.getByRole('row').filter({ hasText: 'q[7:0]' })).toContainText('output');
+
+  await page.getByRole('tab', { name: /^Tests/ }).click();
+  const code = page.getByTestId('tests-panel').locator('.cm-content');
+  await code.click();
+  await page.keyboard.insertText(IO_PORT_BENCH);
+  await page.keyboard.press('ControlOrMeta+Enter');
+  const benches = page.getByTestId('test-results').getByTestId('bench-row');
+  await expect(benches.and(page.locator('[data-state="pass"]'))).toHaveCount(1);
+
+  await circuits(page).getByRole('button', { name: /Main/ }).click();
+  await place(page, grid, 'sub/module-2', [0, 0]);
+  await clickAt(page, grid([0, 0]));
+  await expect(summary(page)).toHaveText('A1 · Module 2');
+  await expect(properties(page)).toContainText('d[7..0]');
+  expect(errors).toEqual([]);
+});

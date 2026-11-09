@@ -24,8 +24,8 @@ sound controllers drive (a VGA monitor — the "Video output" track idea; the bu
 | ID     | Branch                | Title                           | Needs | Status  |
 | ------ | --------------------- | ------------------------------- | ----- | ------- |
 | HDL-1  | `feat/hdl-modules`    | Verilog modules in the document | —     | done    |
-| HDL-8  | `feat/hdl-bus`        | Modules on a bus                | —     | next    |
-| HDL-9  | `feat/hdl-semantics`  | All of synthesizable Verilog    | —     | planned |
+| HDL-8  | `feat/hdl-bus`        | Modules on a bus                | —     | done    |
+| HDL-9  | `feat/hdl-semantics`  | All of synthesizable Verilog    | —     | next    |
 | HDL-3  | `feat/hdl-recompile`  | Recompiling a running module    | —     | planned |
 | HDL-4  | `feat/hdl-inspection` | Inside a module                 | —     | planned |
 | HDL-6  | `feat/hdl-memories`   | Memories in modules             | —     | planned |
@@ -71,12 +71,21 @@ a 1 000-cell module at ≈ 6 kHz.
 
 ## HDL-8 · Modules on a bus — `feat/hdl-bus`
 
-Modules that share a bus with other parts: tri-state outputs (`assign d = oe ? q : 8'bz`) become
-drivers that release their pins (`Z`), `inout` ports `bidir` pins the module reads back, an input
-at `Z` reads as `X`. The command gains `tribuf`, which keeps the `z` through optimization as
-`$tribuf` cells; tri-states inside a module become logic (`tribuf -logic`). Taking and releasing the bus use the
-module's delay until HDL-2 brings per-path timing. Proof: an I/O port on a data bus, written and
-read through it by a test bench; two drivers at once reported as `contention`.
+**Built** ([plan](../../.ai/plans/feat-hdl-bus.md), [ADR-0030](../adr/0030-hdl-modules.md)
+amended): modules share a bus with other parts. The command gains `tribuf -logic` after
+`flatten`: tri-states (`assign d = oe ? q : 8'bz`, also from an `always` block) become `$tribuf`
+cells, the drivers of one net merged into one, those reaching no port made logic. The IR gains
+`inout` ports, `z` port bits (never driven) and `$tribuf` (schema v7). An output a buffer drives
+is a `tristate` pin — released while its enable is 0, `X` while unknown —, an `inout` a `bidir`
+pin the module reads back from the net; inside the module a released net reads `X`; taking and
+releasing the bus use the module's delay until HDL-2. Floating pins are reported only where
+their `X` is used (an output driven `X`, a flip-flop loading it, an open latch, an asynchronous
+reset — by the cells' combinational cones; core's `EvalContext.level` and `reportFloating`), so
+an idle bus is no noise. Refused with the reason: two inouts joined inside the module, a `$mux`
+with `z` inputs (the command without `tribuf`). Proof (no example: the user's choice): an I/O
+port written and read through its data bus by its own bench, headless and in the browser; a
+bench fighting it, two modules and a 74HC244 on one bus give `contention`
+(`tests/scenarios/verilog-bus.test.ts`, `tests/e2e/hdl.spec.ts`); HDL-1's benchmark unchanged.
 
 ## HDL-9 · All of synthesizable Verilog — `feat/hdl-semantics`
 

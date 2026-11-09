@@ -14,8 +14,8 @@ Modules: `time`, `logic` (levels, drives, resolution, 4-state operators), `event
 `validateSymbol`; `pinTextRuns`, a pin's text with its overlines as drawn), `registry`, `netlist`
 (`NetlistBuilder`, `resolveNetlist`, `sameNetlistStructure`), `diagnostics`, `simulator`
 (including `carryOver` for editing while running: state only for the same definition, HDL-1),
-`hdl-module` (the IR of a Verilog module: types, the cells HDL-1 runs, its ports' pins, the
-shape check, `HDL_FAMILY` and the `delay` prop, HDL-1), `function-table` (the datasheet table format,
+`hdl-module` (the IR of a Verilog module: types, the cells modules run, its ports' pins and
+their directions, the shape check, `HDL_FAMILY` and the `delay` prop, HDL-1; tri-states, HDL-8), `function-table` (the datasheet table format,
 sequential letters included), `timing-checks` (`TimingChecks`: set-up, hold, pulse width and
 recovery against `timing.min`, R09a; edge-to-edge and hold-only set-up/hold, R09b; cycle time,
 the LCD branch), `memory`

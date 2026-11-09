@@ -28,7 +28,7 @@ in `st7789-controller.ts`, the panels' windows in `st7789-panels.ts`, the glass 
 estimated from its lines in `text.ts`), `hdl/` (HDL-1: Verilog modules — the Yosys command in
 `command.ts`, Yosys JSON → IR in `from-yosys.ts`, the analysis in `analyze.ts`, the interpreter
 in `cells.ts` and `module-part.ts`, fixtures made by `pnpm hdl:fixtures` in `fixtures/` and
-`fixtures.ts`) and `registry.ts` (`createDefaultRegistry()`, which can make a module's part:
+`fixtures.ts`; tri-states and `inout` ports, HDL-8) and `registry.ts` (`createDefaultRegistry()`, which can make a module's part:
 `hdlPart`). One part per file (or one factory file for a
 family of near-identical parts, like `primitives/gates.ts`), with a colocated `*.test.ts` built
 from the datasheet function table. Recipe: `.ai/workflows/add-component.md`.

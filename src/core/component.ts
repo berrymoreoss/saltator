@@ -151,6 +151,17 @@ export interface EvalContext<State = unknown> {
   readonly id: string;
   /** Current resolved level of the pin's net. Reading `Z` records a `floating-input`. */
   read(pin: PinRef): Level;
+  /**
+   * The pin's level like `read`, but a `Z` records nothing: for a part that decides afterwards
+   * whether it used the value (a Verilog module, HDL-8) and then calls `reportFloating`.
+   */
+  level(pin: PinRef): Level;
+  /**
+   * Records a `floating-input` on the pin's net as `read` of a `Z` does — once until the net
+   * changes, never through a `sense` pin — for a floating value the part read with `level` and
+   * used, now or just before this delta (a flip-flop sampling it at an edge).
+   */
+  reportFloating(pin: PinRef): void;
   /** Level of the pin's net before the change in the triggering delta (= `read` if unchanged). */
   prev(pin: PinRef): Level;
   /** Did this pin's net change in the triggering delta cycle? */
