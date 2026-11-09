@@ -89,7 +89,7 @@ A desktop CAD-style window (`Workbench`), dense like KiCad or Altium: 12 px UI t
   example gallery, "Save changes?" and file problems ([Files](#files)). Escape or a click
   outside closes them (for "Save changes?" that is Cancel).
 - **Document name** at the right end of the menu bar and in the browser tab's title
-  (`adder — Logic`), with `•` while there are unsaved changes.
+  (`adder — Saltator`), with `•` while there are unsaved changes.
 
 ### Part info
 

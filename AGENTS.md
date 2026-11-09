@@ -2,7 +2,7 @@
 
 Instructions for AI coding agents working in this repository. Humans: see [README.md](README.md).
 
-**Logic** is a browser-based, event-driven digital logic simulator for designing and verifying
+**Saltator** is a browser-based, event-driven digital logic simulator for designing and verifying
 computers built from real chips (74HC series first, then ROM/RAM, 6502, peripherals) before
 building them: _test before fab_. Start with [docs/vision.md](docs/vision.md) if the domain is new.
 
