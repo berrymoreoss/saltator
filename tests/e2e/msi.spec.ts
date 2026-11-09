@@ -92,7 +92,7 @@ test('the Clock Module example opens and runs without design issues', async ({ p
   await newCircuit(page);
   await menu(page, 'File', 'New from Example…');
   await page.getByTestId('example-gallery').locator('[data-example="clock-module"]').click();
-  await expect(page).toHaveTitle('Clock Module — Logic');
+  await expect(page).toHaveTitle('Clock Module — Saltator');
   await expect(page.getByTestId('bottom-panel')).toContainText('No problems found');
   await page.keyboard.press('F5');
   await expect(page.getByTestId('sim-status')).toHaveText(/Running · /);

@@ -9,7 +9,7 @@ test('the gallery shows every example with a thumbnail and opens one', async ({ 
   const errors = watchErrors(page);
   await openApp(page);
   await menu(page, 'File', 'New Document');
-  await expect(page).toHaveTitle('Untitled — Logic');
+  await expect(page).toHaveTitle('Untitled — Saltator');
 
   await menu(page, 'File', 'New from Example…');
   const gallery = page.getByTestId('example-gallery');
@@ -31,7 +31,7 @@ test('the gallery shows every example with a thumbnail and opens one', async ({ 
 
   await gallery.locator('[data-example="hello-led"]').click();
   await expect(gallery).toBeHidden();
-  await expect(page).toHaveTitle('Hello, LED — Logic');
+  await expect(page).toHaveTitle('Hello, LED — Saltator');
   await expect(counts(page)).toHaveText(HELLO_COUNTS);
   expect(errors).toEqual([]);
 });
@@ -43,5 +43,5 @@ test('opening an example over unsaved changes asks first', async ({ page }) => {
   await page.getByTestId('example-gallery').locator('[data-example="gallery"]').click();
   await expect(unsavedDialog(page)).toBeVisible();
   await unsavedDialog(page).getByRole('button', { name: 'Don’t Save' }).click();
-  await expect(page).toHaveTitle('Symbol Gallery — Logic');
+  await expect(page).toHaveTitle('Symbol Gallery — Saltator');
 });

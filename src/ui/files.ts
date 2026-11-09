@@ -74,8 +74,8 @@ export interface FallbackPrimitives {
 
 const PICKER_OPTIONS: PickerOptions = {
   // Lets the browser remember the folder for these pickers.
-  id: 'logic-circuits',
-  types: [{ description: 'Logic circuit', accept: { 'application/json': [FILE_EXTENSION] } }],
+  id: 'saltator-circuits',
+  types: [{ description: 'Saltator circuit', accept: { 'application/json': [FILE_EXTENSION] } }],
 };
 
 /** A picker the user closed rejects with `AbortError`: not an error. */
@@ -212,7 +212,7 @@ export function nativeImageAccess(pickers: NativePickers): ImageFileAccess {
     async openBytes() {
       try {
         const [handle] = await pickers.showOpenFilePicker({
-          id: 'logic-images',
+          id: 'saltator-images',
           types: [
             { description: 'Memory image', accept: { 'application/octet-stream': IMAGE_ACCEPT } },
           ],
@@ -230,7 +230,7 @@ export function nativeImageAccess(pickers: NativePickers): ImageFileAccess {
       try {
         handle = await pickers.showSaveFilePicker({
           // Waveform dumps go to a folder of their own.
-          id: kind === 'vcd' ? 'logic-waveforms' : 'logic-images',
+          id: kind === 'vcd' ? 'saltator-waveforms' : 'saltator-images',
           types: [IMAGE_TYPES[kind]],
           suggestedName,
         });

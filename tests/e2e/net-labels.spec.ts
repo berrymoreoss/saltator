@@ -81,7 +81,7 @@ test('the Net Labels example opens without design issues and runs cleanly', asyn
   await newCircuit(page);
   await menu(page, 'File', 'New from Example…');
   await page.getByTestId('example-gallery').locator('[data-example="net-labels"]').click();
-  await expect(page).toHaveTitle('Net Labels — Logic');
+  await expect(page).toHaveTitle('Net Labels — Saltator');
   await expect(page.getByTestId('bottom-panel')).toContainText('No problems found');
   await page.keyboard.press('F5');
   await expect(page.getByTestId('sim-status')).toHaveText(/Running · /);

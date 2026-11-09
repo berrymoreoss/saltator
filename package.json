@@ -1,9 +1,10 @@
 {
-  "name": "logic",
+  "name": "saltator",
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "Event-driven digital logic simulator for designing and testing 74HC-based (and beyond) computers before building them.",
+  "description": "Saltator — an event-driven digital logic simulator for designing and testing 74HC-based (and beyond) computers before building them.",
+  "license": "MIT",
   "packageManager": "pnpm@12.6.0",
   "engines": {
     "node": ">=24"

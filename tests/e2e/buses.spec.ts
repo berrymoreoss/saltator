@@ -108,7 +108,7 @@ test('the Data Bus example runs cleanly; LOAD latches 0x2A from the bus into the
   await newCircuit(page);
   await menu(page, 'File', 'New from Example…');
   await page.getByTestId('example-gallery').locator('[data-example="data-bus"]').click();
-  await expect(page).toHaveTitle('Data Bus — Logic');
+  await expect(page).toHaveTitle('Data Bus — Saltator');
   await expect(page.getByTestId('bottom-panel')).toContainText('No problems found');
 
   // The example opens fitted to the canvas: where its parts are on screen.

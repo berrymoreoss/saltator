@@ -31,6 +31,7 @@ import {
   levelText,
 } from './condition-terms';
 import { Dialog } from './Dialogs';
+import { APP_NAME } from './document-session';
 import type { ImageFileAccess } from './files';
 import { useStore } from './hooks';
 import { formatSpan, type VcdRange, vcdFile, vcdSpan } from './vcd-export';
@@ -816,7 +817,7 @@ export function VcdExportAction({
       range,
       title: title(),
       date: new Date().toISOString(),
-      version: 'Logic',
+      version: APP_NAME,
     });
     if (typeof file === 'string') {
       setProblem(file);

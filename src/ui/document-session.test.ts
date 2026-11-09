@@ -110,7 +110,7 @@ describe('file names', () => {
   });
 
   it('the title marks unsaved changes', () => {
-    expect(documentTitle('adder', false)).toBe('adder — Logic');
-    expect(documentTitle('adder', true)).toBe('• adder — Logic');
+    expect(documentTitle('adder', false)).toBe('adder — Saltator');
+    expect(documentTitle('adder', true)).toBe('• adder — Saltator');
   });
 });

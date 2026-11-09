@@ -40,7 +40,7 @@ function setup(probes = true) {
   return { clock, editor };
 }
 
-const options = { range: 'all' as const, title: 'Clock: test', date: 'today', version: 'Logic' };
+const options = { range: 'all' as const, title: 'Clock: test', date: 'today', version: 'Saltator' };
 
 describe('vcdFile', () => {
   it('says why there is nothing to export', () => {

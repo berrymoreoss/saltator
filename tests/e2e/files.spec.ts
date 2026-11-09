@@ -27,37 +27,37 @@ test.describe('with the File System Access API', () => {
   test('Save writes a file, Save again needs no picker, Open reads it back', async ({ page }) => {
     const errors = watchErrors(page);
     await openApp(page);
-    await expect(page).toHaveTitle('Hello, LED — Logic');
+    await expect(page).toHaveTitle('Hello, LED — Saltator');
     await expect(documentName(page)).toHaveText('Hello, LED');
 
     await edit(page);
-    await expect(page).toHaveTitle('• Hello, LED — Logic');
+    await expect(page).toHaveTitle('• Hello, LED — Saltator');
     await expect(documentName(page)).toHaveText('•Hello, LED');
 
     await pick(page, 'save', 'hello.saltator.json');
     await page.keyboard.press('ControlOrMeta+S');
-    await expect(page).toHaveTitle('hello — Logic');
+    await expect(page).toHaveTitle('hello — Saltator');
     expect(firstX(await readFile(page, 'hello.saltator.json'))).toBe(1);
 
     // Saved state reached again by undo: clean; redo: unsaved.
     await page.keyboard.press('ControlOrMeta+Z');
-    await expect(page).toHaveTitle('• hello — Logic');
+    await expect(page).toHaveTitle('• hello — Saltator');
     await page.keyboard.press('ControlOrMeta+Shift+Z');
-    await expect(page).toHaveTitle('hello — Logic');
+    await expect(page).toHaveTitle('hello — Saltator');
 
     await page.keyboard.press('ArrowRight');
     await page.keyboard.press('ControlOrMeta+S');
-    await expect(page).toHaveTitle('hello — Logic');
+    await expect(page).toHaveTitle('hello — Saltator');
     expect(await pickerCount(page)).toBe(1);
     expect(firstX(await readFile(page, 'hello.saltator.json'))).toBe(2);
 
     await menu(page, 'File', 'New Document');
-    await expect(page).toHaveTitle('Untitled — Logic');
+    await expect(page).toHaveTitle('Untitled — Saltator');
     await expect(counts(page)).toHaveText('0 parts · 0 wires');
 
     await pick(page, 'open', 'hello.saltator.json');
     await page.keyboard.press('ControlOrMeta+O');
-    await expect(page).toHaveTitle('hello — Logic');
+    await expect(page).toHaveTitle('hello — Saltator');
     await expect(counts(page)).toHaveText(HELLO_COUNTS);
     // Opening isn't an edit: nothing to undo.
     await expect(page.getByRole('button', { name: /^Undo/ })).toBeDisabled();
@@ -72,7 +72,7 @@ test.describe('with the File System Access API', () => {
     await expect(unsavedDialog(page)).toContainText('Save changes to “Hello, LED”');
     await unsavedDialog(page).getByRole('button', { name: 'Cancel' }).click();
     await expect(unsavedDialog(page)).toBeHidden();
-    await expect(page).toHaveTitle('• Hello, LED — Logic');
+    await expect(page).toHaveTitle('• Hello, LED — Saltator');
 
     // Escape cancels too; the shortcut asks as well.
     await page.keyboard.press('ControlOrMeta+Alt+N');
@@ -88,7 +88,7 @@ test.describe('with the File System Access API', () => {
       unsavedDialog(page).getByRole('button', { name: 'Save', exact: true }),
     ).toBeFocused();
     await page.keyboard.press('Enter');
-    await expect(page).toHaveTitle('Untitled — Logic');
+    await expect(page).toHaveTitle('Untitled — Saltator');
     expect(await readFile(page, 'kept.saltator.json')).toContain('"SW1"');
 
     // Don't Save drops the changes.
@@ -97,7 +97,7 @@ test.describe('with the File System Access API', () => {
     await edit(page);
     await menu(page, 'File', 'New Document');
     await unsavedDialog(page).getByRole('button', { name: 'Don’t Save' }).click();
-    await expect(page).toHaveTitle('Untitled — Logic');
+    await expect(page).toHaveTitle('Untitled — Saltator');
   });
 
   test('a file that does not load shows its problems and leaves the circuit alone', async ({
@@ -116,7 +116,7 @@ test.describe('with the File System Access API', () => {
     await expect(dialog).toContainText('circuits[0].components[0].x');
     await dialog.getByRole('button', { name: 'OK' }).click();
     await expect(dialog).toBeHidden();
-    await expect(page).toHaveTitle('Hello, LED — Logic');
+    await expect(page).toHaveTitle('Hello, LED — Saltator');
     await expect(counts(page)).toHaveText(HELLO_COUNTS);
   });
 
@@ -133,7 +133,7 @@ test.describe('with the File System Access API', () => {
           new DragEvent('drop', { dataTransfer: data, bubbles: true, cancelable: true }),
         );
     });
-    await expect(page).toHaveTitle('dropped — Logic');
+    await expect(page).toHaveTitle('dropped — Saltator');
     await expect(counts(page)).toHaveText('1 parts · 0 wires');
   });
 
@@ -143,10 +143,10 @@ test.describe('with the File System Access API', () => {
     await openApp(page);
     await pick(page, 'save', 'first.saltator.json');
     await page.keyboard.press('ControlOrMeta+S');
-    await expect(page).toHaveTitle('first — Logic');
+    await expect(page).toHaveTitle('first — Saltator');
     await pick(page, 'save', 'second.saltator.json');
     await page.keyboard.press('ControlOrMeta+Shift+S');
-    await expect(page).toHaveTitle('second — Logic');
+    await expect(page).toHaveTitle('second — Saltator');
 
     await page.getByRole('menuitem', { name: 'File', exact: true }).click();
     await page.getByRole('menuitem', { name: 'Open Recent' }).click();
@@ -160,11 +160,11 @@ test.describe('with the File System Access API', () => {
 
     await menu(page, 'File', 'New Document');
     await page.reload();
-    await expect(page).toHaveTitle('Untitled — Logic');
+    await expect(page).toHaveTitle('Untitled — Saltator');
     await page.getByRole('menuitem', { name: 'File', exact: true }).click();
     await page.getByRole('menuitem', { name: 'Open Recent' }).click();
     await page.getByRole('menuitem', { name: 'first.saltator.json' }).click();
-    await expect(page).toHaveTitle('first — Logic');
+    await expect(page).toHaveTitle('first — Saltator');
     await expect(counts(page)).toHaveText(HELLO_COUNTS);
     expect(await pickerCount(page)).toBe(0);
 
@@ -195,17 +195,17 @@ test.describe('without the File System Access API (Firefox, Safari)', () => {
     let saved = '';
     for await (const chunk of await file.createReadStream()) saved += String(chunk);
     expect(JSON.parse(saved).circuits[0].components[0]).toMatchObject({ id: 'SW1', x: 1 });
-    await expect(page).toHaveTitle('Hello, LED — Logic');
+    await expect(page).toHaveTitle('Hello, LED — Saltator');
     const path = test.info().outputPath('mine.saltator.json');
     await file.saveAs(path);
 
     await menu(page, 'File', 'New Document');
-    await expect(page).toHaveTitle('Untitled — Logic');
+    await expect(page).toHaveTitle('Untitled — Saltator');
 
     const chooser = page.waitForEvent('filechooser');
     await menu(page, 'File', 'Open…');
     await (await chooser).setFiles(path);
-    await expect(page).toHaveTitle('mine — Logic');
+    await expect(page).toHaveTitle('mine — Saltator');
     await expect(counts(page)).toHaveText(HELLO_COUNTS);
     // No file handles, no Open Recent.
     await page.getByRole('menuitem', { name: 'File', exact: true }).click();

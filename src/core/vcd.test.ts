@@ -85,7 +85,7 @@ describe('writeVcd', () => {
         { name: 'D[0..1]', channels: [d0, d1] },
         { name: '~{RD}', channels: [clk] },
       ],
-      { scope: 'Main Board', date: '2026-11-07 21:00', version: 'Logic 0.1' },
+      { scope: 'Main Board', date: '2026-11-07 21:00', version: 'Saltator 0.1' },
     );
     expect(text).toBe(
       [
@@ -93,7 +93,7 @@ describe('writeVcd', () => {
         '  2026-11-07 21:00',
         '$end',
         '$version',
-        '  Logic 0.1',
+        '  Saltator 0.1',
         '$end',
         '$timescale 1ps $end',
         '$scope module Main_Board $end',

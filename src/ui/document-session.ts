@@ -21,6 +21,8 @@ export interface DocumentSession {
   readonly saved?: CircuitDocument;
 }
 
+/** The product's name: window title, About, file exports (ADR-0032). */
+export const APP_NAME = 'Saltator';
 export const UNTITLED = 'Untitled';
 export const FILE_EXTENSION = '.saltator.json';
 
@@ -93,7 +95,7 @@ export function nameOfFile(fileName: string): string {
   return name === '' ? UNTITLED : name;
 }
 
-/** The browser tab title: `adder — Logic`, with `• ` in front while there are unsaved changes. */
+/** The browser tab title: `adder — Saltator`, with `• ` in front while there are unsaved changes. */
 export function documentTitle(name: string, unsaved: boolean): string {
-  return `${unsaved ? '• ' : ''}${name} — Logic`;
+  return `${unsaved ? '• ' : ''}${name} — ${APP_NAME}`;
 }
