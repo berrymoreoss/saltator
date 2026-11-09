@@ -53,6 +53,25 @@ export {
   validateFunctionTable,
 } from './function-table';
 export {
+  HDL_CELLS,
+  HDL_FORMAT,
+  HDL_WORD,
+  type HdlBit,
+  type HdlCell,
+  type HdlCellKind,
+  type HdlCellSpec,
+  type HdlCellType,
+  type HdlMessage,
+  type HdlModule,
+  type HdlPort,
+  type HdlSignal,
+  hdlModuleProblems,
+  hdlPortName,
+  hdlPortPins,
+  hdlPortProblem,
+  isHdlCellType,
+} from './hdl-module';
+export {
   applyImageWrites,
   detectImageFormat,
   formatAddress,

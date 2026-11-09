@@ -46,7 +46,7 @@ this same pipeline.
   scheduled (Q5).
 - The `.v` source in the document → not kept (Q6); it lives with the user (and in git).
 - Tri-state outputs, `inout` ports (refused with an error) → HDL-8.
-- Signed operands, `$mul`/`$div`/…, `$shift`/`$shiftx`, `$bmux`/`$demux`, `$eqx`, other
+- Signed operands, `$mul`/`$div`/…, `$bmux`/`$demux`, `$eqx`, other
   flip-flop flavours, values over 32 bits, clocks made inside the module, combinational loops,
   `init` power-up values (refused, or for `init` a warning) → HDL-9.
 - Gate-level netlists (`$_AND_`, `$_DFF_P_`, … from `synth`/`techmap`; refused with the
@@ -86,8 +86,12 @@ this same pipeline.
   docs:
 
   ```sh
-  yosys -p 'read_verilog decoder.v; hierarchy -auto-top; proc; flatten; opt -keepdc; check; write_json decoder.json'
+  yosys -q -p 'read_verilog decoder.v; hierarchy -auto-top; proc -norom; flatten; opt -keepdc; check; write_json decoder.json'
   ```
+
+  `proc -norom`: plain `proc` turns a `case` with constant outputs (a decoder written as a
+  table) into a ROM (`$memrd_v2` + `$meminit`), which modules can't hold before HDL-6; the
+  converter recognizes that ROM and asks for the command.
 
   No `-specify` yet (HDL-2); SystemVerilog through `read_verilog -sv` works as far as the cells
   it produces are supported. Several files, `` `include ``, the top module — the user's command
@@ -95,8 +99,9 @@ this same pipeline.
 - The converter accepts what this command produces and refuses anything else with the reason
   and the command: no module marked `top`, cells of user module types (not flattened),
   processes left (`proc` not run), gate-level cells (`synth`/`techmap` run).
-- **Version**: the JSON's `creator` is kept with the IR; a Yosys older than the one the
-  fixtures were made with gives a warning (the cell library changed over time).
+- **Version**: the JSON's `creator` is kept with the IR and shown; no version warning — the
+  converter refuses any cell it doesn't know, which is the real safety net (an old Yosys without
+  `proc -norom` fails on the command itself).
 - **The repo** uses the system `yosys` on `PATH` (`brew install yosys`): `scripts/yosys.ts`
   runs the command; `pnpm hdl:fixtures` regenerates the converter's fixtures, `pnpm
   hdl:examples` the examples' modules, both from `.v` files kept next to them. Neither is part
@@ -106,18 +111,29 @@ this same pipeline.
 
 - Types and validation in **core** (`src/core/hdl-module.ts`): `circuit` stores and validates
   it in documents, `library` produces and runs it, and both may import only `core`.
-- Shape (format 1): `{ format: 1, top, creator, ports: [{ name, dir: 'in'|'out', width, lsb,
-  msbFirst, bits }], bitCount, names: [{ name, bits }] (named signals, for HDL-4), cells:
-  [{ type, src, a?, b?, s?, y, clk?, en?, rst?, params… }] }` — every connection a list of
-  bit indices or 4-state constants, as Yosys gives them (the interpreter gathers them into
-  words), each cell with its source location for messages. JSON-serializable; written one cell
-  per line. A later format change gets a document migration like any schema change.
-- **Converter** (`src/library/hdl/from-yosys.ts`): Yosys JSON (text) → IR and messages. Refuses,
-  at the cell's or port's source location: cells outside HDL-1's set, signed operands, operands
-  or ports over 32 bits, memories, `inout` ports, `z` driving outputs, combinational loops (found
-  by the topological sort), clocks or resets driven from inside the module. Warns: an inferred
-  latch (`$dlatch`), an `init` value that isn't simulated yet, an old Yosys. Port names must be
-  net names (`NET_NAME`: ≤ 32 characters, no `$`), vector indices ≤ 99.
+- Shape (format 1, `src/core/hdl-module.ts`): `{ format: 1, top, creator, bitCount, ports:
+  [{ name, dir, lsb, bits, init?, src? }], signals: [{ name, lsb, bits, init?, src? }], cells:
+  [{ type, src, ports: { A: bits, … }, params: { CLK_POLARITY: 0|1, ARST_VALUE: bits, … } }] }`
+  — Yosys's port names, every connection a list of bit indices (renumbered from 0, no gaps) or
+  the constants `'0'`, `'1'`, `'x'`, each cell with its first source location. Polarity
+  parameters are numbers, reset values bits least significant first; widths come from the
+  connections. A later format change gets a document migration like any schema change.
+- `hdlModuleProblems` (core) checks the shape for loading documents; the semantics — one driver
+  per bit, flip-flop clocks and asynchronous resets from inputs or constants, no combinational
+  loop — are `analyzeHdlModule`'s (library), which also gives the evaluation order and the
+  warnings (an inferred latch, an `init` value).
+- **Converter** (`src/library/hdl/from-yosys.ts`): Yosys JSON (text or value) → IR and messages,
+  at the cell's or port's source location. Refuses: cells outside HDL-1's set, signed operands,
+  word operands over 32 bits, memories (and a ROM `proc` made of a `case`), `inout` ports and
+  `z`, a hierarchy not flattened, a gate-level netlist, and what the analysis refuses. Word cells
+  (arithmetic, comparisons, shifts) take operands up to 32 bits; bitwise cells, multiplexers,
+  flip-flops, latches and ports have no width limit. `$shift`/`$shiftx` (a variable bit or part
+  select, `v[i]`, `v[i +: 2]`) are in HDL-1, their amount may be signed.
+- Ports: plain identifiers (no `$`), vector indices 0–99 (bus names); an ascending vector
+  (`[0:3]`) is refused — its numeric value would read reversed against the app's buses.
+  Outputs may be input bits or constants; bits nothing drives become `x` with a warning.
+- Dropped: `$scopeinfo` (hierarchy information `flatten` leaves) silently; `$print`
+  (`$display`) and `$check`/assertions with a warning.
 - Tested on committed fixtures (`.v` sources and the `.json` Yosys made of them), so `pnpm test`
   never needs Yosys.
 
@@ -210,7 +226,7 @@ this same pipeline.
   (still proposed until task 13). `pnpm check`; commit.
 - [x] 2. `scripts/yosys.ts` with the system `yosys`; fixtures (`.v` + `.json`) for the decoder,
   counter, FSM, a latch, and each refusal; `pnpm hdl:fixtures`.
-- [ ] 3. IR types and validation in core (`hdl-module.ts`); converter
+- [x] 3. IR types and validation in core (`hdl-module.ts`); converter
   `src/library/hdl/from-yosys.ts`: ports and bit naming, refusals and warnings at their
   source locations, the "not made by the command" checks.
 - [ ] 4. Interpreter, combinational: cell evaluators with `X` rules, topological order, the part
@@ -247,7 +263,7 @@ this same pipeline.
 - [ ] The decoder example's bench passes in the Tests tab and with `pnpm test:circuits`, with no
   Yosys involved.
 - [ ] The counter and the state machine run and pass their benches (in the app and headless).
-- [ ] JSONs with a memory, a combinational loop, a signed operand, a 33-bit port, an `inout`
+- [ ] JSONs with a memory, a combinational loop, a signed operand, a 33-bit addition, an `inout`
   port, an unflattened module and a gate-level netlist are refused with the reason and the
   source location (or the command); an inferred latch is a warning with its location.
 - [ ] A module's state rewinds (the rewind property test covers the examples).
@@ -280,6 +296,10 @@ this same pipeline.
   compiled to IR in the document. Plan rewritten: no worker, no wasm, no in-app Verilog editor;
   Q6, Q7 answered as proposed.
 - 2026-11-09 — the user approved the plan and installed Yosys 0.70+post (Homebrew); started.
+- 2026-11-09 — tasks 1–3: track and ADR re-scoped; fixtures from the system Yosys (21 sources);
+  IR in core, converter and analysis in the library. Found: plain `proc` makes a ROM of a
+  decoder's `case` (the command uses `proc -norom`); `v[i +: 2]` gives a `$shiftx` with a signed
+  amount (accepted); `init` sits on output ports too.
 
 ## Handoff
 
