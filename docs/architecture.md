@@ -303,7 +303,7 @@ flowchart LR
 
 ## Persistence
 
-Documents are `.logic.json` files written by `serializeDocument` (R07,
+Documents are `.saltator.json` files written by `serializeDocument` (R07,
 [ADR-0012](adr/0012-files-and-sessions.md)): opened and saved through the File System Access API
 in Chromium (Save writes back through the file's handle) and a file input / download elsewhere,
 behind one `FileAccess` interface (`src/ui/files.ts`). A `DocumentController` keeps the document
@@ -325,7 +325,7 @@ runs, R12a); they load and save as `.bin` and Intel HEX in the Memory tab (R12b,
   it as the top — through its ports or switches, in fixed steps, checks soft, simulation errors
   failing — on a pure runner in `circuit`; the script's text becomes code only in a script host
   (a `node:vm` context in Node, the app's sandbox in the browser). Every example bench runs in
-  `pnpm check`, and `pnpm test:circuits` runs any document's in CI
+  `pnpm check`, and `pnpm test:circuits` runs any document's headless (also in CI)
   ([circuit.md](circuit.md#test-benches), [ADR-0025](adr/0025-test-benches.md)); the Tests tab
   runs them in the app (R15b, `tests.spec.ts`).
 - **Editor/UI**: unit tests for pure logic (camera, scene, hit-testing, selection, shortcuts,

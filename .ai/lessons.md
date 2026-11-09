@@ -512,3 +512,10 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
 - 2026-11-10 (HDL-8) — `pnpm` refuses to run in a `git worktree` whose `node_modules` is a
   symlink ("installing dependencies"); call the binaries directly there (`node_modules/.bin/vitest
   bench --run …`, as `package.json`'s script does) to benchmark `main` against a branch.
+- 2026-11-10 (chore/rename-saltator) — A rename by `sed 's/\.logic\.json/…/'` misses the
+  string's other spellings: the regex form in tests (`/\.logic\.json$/`, escaped dots) and case
+  variants (`Adder.LOGIC.JSON`) stayed, and one test failed. After a sweep, grep with `-F` for
+  the escaped form and `-i` for case before calling it done.
+- 2026-11-10 (chore/rename-saltator) — The agent's shell is zsh, which doesn't word-split an
+  unquoted `$FILES`: `sed -i '' … $FILES` got one long "file name" and changed nothing. Pipe
+  file lists through `xargs` (or `${=FILES}`).

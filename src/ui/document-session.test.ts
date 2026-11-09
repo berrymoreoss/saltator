@@ -39,7 +39,7 @@ describe('document session', () => {
 
   it('an opened file is clean until edited, and clean again when undone to the saved document', () => {
     const saved = documentWith(circuit());
-    const file = { name: 'adder.logic.json' };
+    const file = { name: 'adder.saltator.json' };
     const session = openedSession('adder', saved, file);
     expect(session.file).toBe(file);
     expect(hasUnsavedChanges(session, saved)).toBe(false);
@@ -71,7 +71,7 @@ describe('document session', () => {
     const session = newSession();
     const edited = documentWith(circuit(), circuit('sub'));
     expect(hasUnsavedChanges(session, edited)).toBe(true);
-    const file = { name: 'nand.logic.json' };
+    const file = { name: 'nand.saltator.json' };
     const saved = savedSession(session, edited, 'nand', file);
     expect(saved).toMatchObject({ name: 'nand', file, saved: edited, document: edited });
     expect(hasUnsavedChanges(saved, edited)).toBe(false);
@@ -88,25 +88,29 @@ describe('document session', () => {
 });
 
 describe('file names', () => {
-  it('a name becomes a .logic.json file name, unusable characters replaced', () => {
-    expect(fileNameOf('Hello, LED')).toBe('Hello, LED.logic.json');
-    expect(fileNameOf('a/b:c*?"<>|\\d')).toBe('a-b-c-------d.logic.json');
-    expect(fileNameOf('tab\there')).toBe('tab-here.logic.json');
-    expect(fileNameOf('   ')).toBe('Untitled.logic.json');
+  it('a name becomes a .saltator.json file name, unusable characters replaced', () => {
+    expect(fileNameOf('Hello, LED')).toBe('Hello, LED.saltator.json');
+    expect(fileNameOf('a/b:c*?"<>|\\d')).toBe('a-b-c-------d.saltator.json');
+    expect(fileNameOf('tab\there')).toBe('tab-here.saltator.json');
+    expect(fileNameOf('   ')).toBe('Untitled.saltator.json');
   });
 
   it('a file name becomes the document name', () => {
-    expect(nameOfFile('adder.logic.json')).toBe('adder');
-    expect(nameOfFile('Adder.LOGIC.JSON')).toBe('Adder');
+    expect(nameOfFile('adder.saltator.json')).toBe('adder');
+    expect(nameOfFile('Adder.SALTATOR.JSON')).toBe('Adder');
     expect(nameOfFile('adder.json')).toBe('adder');
-    expect(nameOfFile('adder (1).logic.json')).toBe('adder (1)');
+    expect(nameOfFile('adder (1).saltator.json')).toBe('adder (1)');
     expect(nameOfFile('notes.txt')).toBe('notes.txt');
-    expect(nameOfFile('.logic.json')).toBe(UNTITLED);
+    expect(nameOfFile('.saltator.json')).toBe(UNTITLED);
     expect(nameOfFile(fileNameOf('Hello, LED'))).toBe('Hello, LED');
   });
 
+  it('an old .logic.json file loads as plain .json: no legacy extension (ADR-0032)', () => {
+    expect(nameOfFile('adder.logic.json')).toBe('adder.logic');
+  });
+
   it('the title marks unsaved changes', () => {
-    expect(documentTitle('adder', false)).toBe('adder — Logic');
-    expect(documentTitle('adder', true)).toBe('• adder — Logic');
+    expect(documentTitle('adder', false)).toBe('adder — Saltator');
+    expect(documentTitle('adder', true)).toBe('• adder — Saltator');
   });
 });

@@ -1,5 +1,5 @@
 /**
- * `pnpm hdl:examples` (HDL-1): writes the Verilog examples — `examples/verilog-*.logic.json` —
+ * `pnpm hdl:examples` (HDL-1): writes the Verilog examples — `examples/verilog-*.saltator.json` —
  * from the sources in `examples/verilog/`, synthesized by the system `yosys` with the command
  * modules are made with and compiled to the IR, around a top circuit built here. Deterministic:
  * the same sources and Yosys give the same files. `pnpm check` reads what it wrote.
@@ -304,6 +304,6 @@ for (const [id, make] of [
   ['verilog-address-decoder', addressDecoder],
   ['verilog-counter-traffic-light', counterAndTrafficLight],
 ] as const) {
-  writeFileSync(join(ROOT, 'examples', `${id}.logic.json`), serializeDocument(make()));
-  console.log(`wrote examples/${id}.logic.json`);
+  writeFileSync(join(ROOT, 'examples', `${id}.saltator.json`), serializeDocument(make()));
+  console.log(`wrote examples/${id}.saltator.json`);
 }

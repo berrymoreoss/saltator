@@ -1,5 +1,5 @@
 import { expect, type Page, test } from '@playwright/test';
-import dataBus from '../../examples/data-bus.logic.json' with { type: 'json' };
+import dataBus from '../../examples/data-bus.saltator.json' with { type: 'json' };
 import { loadDocument, type Point } from '../../src/circuit';
 import { buildScene, fitRect } from '../../src/editor';
 import { createDefaultRegistry } from '../../src/library';
@@ -108,7 +108,7 @@ test('the Data Bus example runs cleanly; LOAD latches 0x2A from the bus into the
   await newCircuit(page);
   await menu(page, 'File', 'New from Example…');
   await page.getByTestId('example-gallery').locator('[data-example="data-bus"]').click();
-  await expect(page).toHaveTitle('Data Bus — Logic');
+  await expect(page).toHaveTitle('Data Bus — Saltator');
   await expect(page.getByTestId('bottom-panel')).toContainText('No problems found');
 
   // The example opens fitted to the canvas: where its parts are on screen.

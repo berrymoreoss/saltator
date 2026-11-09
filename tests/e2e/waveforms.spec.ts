@@ -1,6 +1,6 @@
 import { expect, type Page, test } from '@playwright/test';
-import clockModule from '../../examples/clock-module.logic.json' with { type: 'json' };
-import dataBus from '../../examples/data-bus.logic.json' with { type: 'json' };
+import clockModule from '../../examples/clock-module.saltator.json' with { type: 'json' };
+import dataBus from '../../examples/data-bus.saltator.json' with { type: 'json' };
 import { pick, readFile, stubFileSystemAccess } from './file-system';
 import { clickAt, menu, openExample, watchErrors } from './support';
 
@@ -109,10 +109,10 @@ test('Probes: added from the context menu, undone, and saved with the circuit', 
   await expect(rows(page)).toHaveCount(5);
   await expect(page.getByTestId('sim-status')).toContainText('Running');
 
-  await pick(page, 'save', 'clock.logic.json');
+  await pick(page, 'save', 'clock.saltator.json');
   await menu(page, 'File', /Save As/);
-  await expect(page).toHaveTitle('clock — Logic');
-  const saved = (await readFile(page, 'clock.logic.json'))!;
+  await expect(page).toHaveTitle('clock — Saltator');
+  const saved = (await readFile(page, 'clock.saltator.json'))!;
   expect(saved).toContain('"schemaVersion": 7');
   expect(saved).toContain('        { "ref": "U3.OUT" },\n        { "ref": "U5.1Y" }\n      ]');
   expect(errors).toEqual([]);

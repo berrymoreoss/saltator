@@ -122,7 +122,7 @@ export async function openExample(page: Page, id: string, title: string, documen
   await newCircuit(page);
   await menu(page, 'File', 'New from Example…');
   await page.getByTestId('example-gallery').locator(`[data-example="${id}"]`).click();
-  await expect(page).toHaveTitle(`${title} — Logic`);
+  await expect(page).toHaveTitle(`${title} — Saltator`);
   await expect(page.getByTestId('bottom-panel')).toContainText('No problems found');
   return fitted(page, document);
 }

@@ -89,7 +89,7 @@ A desktop CAD-style window (`Workbench`), dense like KiCad or Altium: 12 px UI t
   example gallery, "Save changes?" and file problems ([Files](#files)). Escape or a click
   outside closes them (for "Save changes?" that is Cancel).
 - **Document name** at the right end of the menu bar and in the browser tab's title
-  (`adder — Logic`), with `•` while there are unsaved changes.
+  (`adder — Saltator`), with `•` while there are unsaved changes.
 
 ### Part info
 
@@ -175,7 +175,7 @@ floating paste), else leaves the Wire or place tool for Select, else clears the 
 `iec`), grid on/off, scroll-wheel mode (`pan` · `zoom`), each dock's visibility and size, and
 the bottom dock's tab (`messages` · `simulation` · `part` · `memory` · `waves`) and whether the Memory tab
 follows the address (`memoryFollow`).
-They live in `localStorage` (`logic.settings.v1`), saved with a short debounce; reading repairs
+They live in `localStorage` (`saltator.settings.v1`), saved with a short debounce; reading repairs
 each invalid field to its default, and blocked storage (private mode) just means nothing is
 remembered.
 
@@ -1259,34 +1259,34 @@ Dev builds expose the editor as `window.logicEditor` and the document controller
 
 ## Files
 
-Circuits are `.logic.json` files ([circuit.md](circuit.md#loading-versioning-saving)); R07,
+Circuits are `.saltator.json` files ([circuit.md](circuit.md#loading-versioning-saving)); R07,
 [ADR-0012](adr/0012-files-and-sessions.md).
 
 ### Document session
 
 `DocumentSession` (`src/ui/document-session.ts`, pure) is the open document around the editor's:
-its **name** (the file name without `.logic.json`, `Untitled`, or an example's title), the
+its **name** (the file name without `.saltator.json`, `Untitled`, or an example's title), the
 **document** as loaded (the editor edits every circuit of it, R11a), the **file** Save writes to
 (a File System Access handle) and the document as last **saved**. Unsaved changes = the editor's
 document differs from the saved one, by identity then by value (`sameDocument`: the same circuits
 in the same order, `sameCircuit` each) — an edit in any circuit, a circuit added, removed or
 made the top; undoing back to the saved state is clean again. File names map both
 ways (`fileNameOf` replaces characters no file system accepts; `nameOfFile` strips
-`.logic.json` or `.json`).
+`.saltator.json` or `.json`).
 
 `DocumentController` (`src/ui/document-controller.ts`) runs the File commands on a
 `Store<DocumentSession>`; it asks and reports through callbacks (the workbench shows dialogs),
 one file operation at a time:
 
 - **New Document** (`Mod+Alt+N`), **Open…** (`Mod+O`), **Open Recent**, an **example** and a
-  `.logic.json` **dropped** anywhere on the window replace the document: with unsaved changes
+  `.saltator.json` **dropped** anywhere on the window replace the document: with unsaved changes
   they first ask **"Save changes to “name”?"** — Save (the default button; a cancelled Save
   cancels the action), Don't Save, Cancel (also Escape). Then `setCircuit` (history cleared,
   simulation stopped, zoom to fit).
 - An example opens as an **untitled copy** named after it; unchanged, it is clean.
 - **Save** (`Mod+S`) writes to the document's file; without one (untitled, an example, a
   download) or without write permission it is **Save As…** (`Mod+Shift+S`): a save picker
-  suggesting `name.logic.json`. The session then takes the saved file's name.
+  suggesting `name.saltator.json`. The session then takes the saved file's name.
 - A file that doesn't load opens nothing and shows "Cannot open file" with every problem of
   the `DocumentError` (or "saved by a newer version"); a failing write shows "File error".
   Unknown part types are not load errors (the compiler reports them).
@@ -1296,11 +1296,11 @@ one file operation at a time:
 `FileAccess` (`src/ui/files.ts`), picked by feature detection:
 
 - **native** (File System Access, Chromium): `showOpenFilePicker` / `showSaveFilePicker`
-  (`.logic.json`, the folder remembered by the picker id); Save writes through the handle and,
+  (`.saltator.json`, the folder remembered by the picker id); Save writes through the handle and,
   after a reload, asks for write permission first (refused → Save As). A closed picker
   (`AbortError`) is not an error.
 - **fallback** (Firefox, Safari): Open is a file input (`cancel` resolves nothing); Save and
-  Save As download `name.logic.json`, so every Save downloads; no Open Recent.
+  Save As download `name.saltator.json`, so every Save downloads; no Open Recent.
 
 The browser primitives are injected (`nativeFileAccess(pickers)`, `fallbackFileAccess(...)`), so
 both run in Node tests; `droppedFile(dataTransfer)` reads a dropped file during the event and
@@ -1317,9 +1317,9 @@ The open document is restored as it was after a reload or a closed tab (`src/ui/
   session, the view or the debug setup (later changes in that time ride along; selection and
   pointer moves don't count),
   at once when the page is hidden, and synchronously to `localStorage` on `pagehide`
-  (`logic.unload.<id>`, without the handle: IndexedDB writes started while a page unloads don't
+  (`saltator.unload.<id>`, without the handle: IndexedDB writes started while a page unloads don't
   finish). At start-up `recoverUnloadWrites` moves those into IndexedDB when newer.
-- Storage: IndexedDB database `logic` (`src/ui/browser-storage.ts`): `sessions` (by id, with an
+- Storage: IndexedDB database `saltator` (`src/ui/browser-storage.ts`): `sessions` (by id, with an
   `updated` index; the 10 most recent are kept) and `recent` (Open Recent).
 - **Per tab**: `claimSessionId` keeps the tab's id in `sessionStorage` (a reload finds it) and
   holds a Web Lock on it, so a duplicated tab (same `sessionStorage`) gets a new id and copies
@@ -1447,7 +1447,7 @@ one directly.
 
 Example files are kept canonical (`tests/scenarios/examples.test.ts`): exactly what
 `serializeDocument` writes, wires normalized, every resolved prop stored, no design issues.
-Biome ignores `*.logic.json`, which it would reformat. To change an example, open it in the app,
+Biome ignores `*.saltator.json`, which it would reformat. To change an example, open it in the app,
 edit, and save over the file.
 
 ## Testing
@@ -1511,4 +1511,4 @@ edit, and save over the file.
   after a reload. The File System Access pickers are stubbed with handles from
   the origin private file system (`tests/e2e/file-system.ts`); specs load the app with
   `openApp`, which waits for the start-up restore. Not part of `pnpm check` (it needs a
-  browser); CI runs it after the build.
+  browser); the CI workflow runs it after the build.

@@ -15,7 +15,7 @@ for (const [id, title] of [
     await newCircuit(page);
     await menu(page, 'File', 'New from Example…');
     await page.getByTestId('example-gallery').locator(`[data-example="${id}"]`).click();
-    await expect(page).toHaveTitle(`${title} — Logic`);
+    await expect(page).toHaveTitle(`${title} — Saltator`);
     await expect(page.getByTestId('bottom-panel')).toContainText('No problems found');
     await page.keyboard.press('F5');
     await expect(page.getByTestId('sim-status')).toHaveText(/Running · /);

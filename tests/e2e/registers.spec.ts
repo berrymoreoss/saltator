@@ -68,7 +68,7 @@ test('the SAP-1 A Register example opens without design issues and runs cleanly'
   await newCircuit(page);
   await menu(page, 'File', 'New from Example…');
   await page.getByTestId('example-gallery').locator('[data-example="sap-1-register"]').click();
-  await expect(page).toHaveTitle('SAP-1 A Register — Logic');
+  await expect(page).toHaveTitle('SAP-1 A Register — Saltator');
   await expect(page.getByTestId('bottom-panel')).toContainText('No problems found');
   await page.keyboard.press('F5');
   await expect(page.getByTestId('sim-status')).toHaveText(/Running · /);

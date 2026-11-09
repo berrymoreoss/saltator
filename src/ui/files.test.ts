@@ -59,7 +59,7 @@ function pickers(open: () => FakeHandle[], save: (name: string) => FakeHandle): 
 
 describe('native file access (File System Access API)', () => {
   it('opens a picked file with its handle', async () => {
-    const handle = new FakeHandle('adder.logic.json', '{"schemaVersion":1}');
+    const handle = new FakeHandle('adder.saltator.json', '{"schemaVersion":1}');
     const access = nativeFileAccess(
       pickers(
         () => [handle],
@@ -68,7 +68,7 @@ describe('native file access (File System Access API)', () => {
     );
     expect(access.kind).toBe('native');
     expect(await access.open()).toEqual({
-      name: 'adder.logic.json',
+      name: 'adder.saltator.json',
       text: '{"schemaVersion":1}',
       handle,
     });
@@ -80,19 +80,19 @@ describe('native file access (File System Access API)', () => {
       showSaveFilePicker: async () => Promise.reject(abort()),
     });
     expect(await cancelled.open()).toBeUndefined();
-    expect(await cancelled.saveAs('x', 'a.logic.json')).toBeUndefined();
+    expect(await cancelled.saveAs('x', 'a.saltator.json')).toBeUndefined();
 
     const broken = nativeFileAccess({
       showOpenFilePicker: async () => Promise.reject(new Error('SecurityError')),
       showSaveFilePicker: async () => Promise.reject(new Error('SecurityError')),
     });
     await expect(broken.open()).rejects.toThrow('SecurityError');
-    await expect(broken.saveAs('x', 'a.logic.json')).rejects.toThrow('SecurityError');
+    await expect(broken.saveAs('x', 'a.saltator.json')).rejects.toThrow('SecurityError');
   });
 
   it('Save As writes the picked file and returns its handle', async () => {
     let suggested = '';
-    const handle = new FakeHandle('picked.logic.json', '');
+    const handle = new FakeHandle('picked.saltator.json', '');
     const access = nativeFileAccess(
       pickers(
         () => [],
@@ -102,11 +102,11 @@ describe('native file access (File System Access API)', () => {
         },
       ),
     );
-    expect(await access.saveAs('TEXT', 'Hello, LED.logic.json')).toEqual({
-      name: 'picked.logic.json',
+    expect(await access.saveAs('TEXT', 'Hello, LED.saltator.json')).toEqual({
+      name: 'picked.saltator.json',
       handle,
     });
-    expect(suggested).toBe('Hello, LED.logic.json');
+    expect(suggested).toBe('Hello, LED.saltator.json');
     expect(handle.text).toBe('TEXT');
   });
 
@@ -117,18 +117,18 @@ describe('native file access (File System Access API)', () => {
         () => new FakeHandle('x', ''),
       ),
     );
-    const granted = new FakeHandle('a.logic.json', 'old');
+    const granted = new FakeHandle('a.saltator.json', 'old');
     expect(await access.write(granted, 'new')).toBe(true);
     expect(granted.text).toBe('new');
     expect(granted.requests).toEqual([]);
 
     // After a reload the restored handle asks again.
-    const prompt = new FakeHandle('b.logic.json', 'old', 'prompt', 'granted');
+    const prompt = new FakeHandle('b.saltator.json', 'old', 'prompt', 'granted');
     expect(await access.write(prompt, 'new')).toBe(true);
     expect(prompt.requests).toEqual(['readwrite']);
     expect(prompt.text).toBe('new');
 
-    const refused = new FakeHandle('c.logic.json', 'old', 'prompt', 'denied');
+    const refused = new FakeHandle('c.saltator.json', 'old', 'prompt', 'denied');
     expect(await access.write(refused, 'new')).toBe(false);
     expect(refused.text).toBe('old');
   });
@@ -140,8 +140,8 @@ describe('native file access (File System Access API)', () => {
         () => new FakeHandle('x', ''),
       ),
     );
-    const handle = new FakeHandle('a.logic.json', 'TEXT', 'prompt', 'granted');
-    expect(await access.read(handle)).toEqual({ name: 'a.logic.json', text: 'TEXT', handle });
+    const handle = new FakeHandle('a.saltator.json', 'TEXT', 'prompt', 'granted');
+    expect(await access.read(handle)).toEqual({ name: 'a.saltator.json', text: 'TEXT', handle });
     expect(handle.requests).toEqual(['read']);
     expect(await access.read(new FakeHandle('b', 'x', 'prompt', 'denied'))).toBeUndefined();
   });
@@ -163,19 +163,21 @@ describe('fallback file access (file input and download)', () => {
 
   it('opens the chosen file, without a handle', async () => {
     const { access, accept } = fallback(
-      Object.assign(new Blob(['TEXT']), { name: 'a.logic.json' }),
+      Object.assign(new Blob(['TEXT']), { name: 'a.saltator.json' }),
     );
     expect(access.kind).toBe('fallback');
-    expect(await access.open()).toEqual({ name: 'a.logic.json', text: 'TEXT' });
-    expect(accept()).toContain('.logic.json');
+    expect(await access.open()).toEqual({ name: 'a.saltator.json', text: 'TEXT' });
+    expect(accept()).toContain('.saltator.json');
     expect(await fallback().access.open()).toBeUndefined();
   });
 
   it('Save As downloads; there is no handle to read or write', async () => {
     const { access, downloads } = fallback();
-    expect(await access.saveAs('TEXT', 'adder.logic.json')).toEqual({ name: 'adder.logic.json' });
-    expect(downloads).toEqual([['adder.logic.json', 'TEXT']]);
-    expect(await access.write({ name: 'adder.logic.json' }, 'TEXT')).toBe(false);
-    expect(await access.read({ name: 'adder.logic.json' })).toBeUndefined();
+    expect(await access.saveAs('TEXT', 'adder.saltator.json')).toEqual({
+      name: 'adder.saltator.json',
+    });
+    expect(downloads).toEqual([['adder.saltator.json', 'TEXT']]);
+    expect(await access.write({ name: 'adder.saltator.json' }, 'TEXT')).toBe(false);
+    expect(await access.read({ name: 'adder.saltator.json' })).toBeUndefined();
   });
 });

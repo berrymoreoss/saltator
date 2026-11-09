@@ -63,6 +63,7 @@ import { ALL_SPEEDS, type Editor, type Store } from '../editor';
 import type { ClipboardBridge } from './clipboard';
 import type { Command } from './commands';
 import type { DocumentController } from './document-controller';
+import { APP_NAME } from './document-session';
 import { BusIcon, GateIcon, WireIcon } from './icons';
 import { RECENT_LIMIT, type RecentFiles } from './recent-files';
 import type { PanelId, Settings, ThemeSetting } from './settings';
@@ -952,7 +953,7 @@ export function createCommands({
     },
     {
       id: 'help.about',
-      label: 'About Logic',
+      label: `About ${APP_NAME}`,
       icon: Info,
       run: () => ui.update((s) => ({ ...s, dialog: 'about' })),
     },

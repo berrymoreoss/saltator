@@ -51,8 +51,9 @@ merge**. Then:
   gh pr create --base main --title "<title> (<id>)" --body "<summary + link to the plan>"
   ```
 
-  Wait for CI; merge with a merge commit after the user approves (`gh pr merge --merge
-  --delete-branch`), then `git switch main && git pull --ff-only`.
+  CI runs only on demand (`gh workflow run CI`), so there is nothing to wait for: the local
+  checks above are the gate. Merge with a merge commit after the user approves (`gh pr merge
+  --merge --delete-branch`), then `git switch main && git pull --ff-only`.
 - **Without a remote**:
 
   ```sh

@@ -1,5 +1,5 @@
 /**
- * M1 "Hello, LED" as shipped (`examples/hello-led.logic.json`): a switch through a 74HC00 gate to
+ * M1 "Hello, LED" as shipped (`examples/hello-led.saltator.json`): a switch through a 74HC00 gate to
  * an LED and a 1 Hz clock blinking another, compiled from the document and run.
  */
 import { describe, expect, it } from 'vitest';

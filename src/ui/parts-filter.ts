@@ -65,7 +65,7 @@ export function groupParts(
 }
 
 /** Data type of a part dragged from the Parts panel onto the canvas (the value is its type). */
-export const PART_DRAG_TYPE = 'application/x-logic-part';
+export const PART_DRAG_TYPE = 'application/x-saltator-part';
 
 /**
  * The parts that may be placed in circuit `open`: every part of the document's registry but the

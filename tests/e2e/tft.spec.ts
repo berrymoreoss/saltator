@@ -1,5 +1,5 @@
 import { expect, type Page, test } from '@playwright/test';
-import tftColorBars from '../../examples/tft-color-bars.logic.json' with { type: 'json' };
+import tftColorBars from '../../examples/tft-color-bars.saltator.json' with { type: 'json' };
 import type { Point } from '../../src/circuit';
 import { canvas, openExample, watchErrors } from './support';
 

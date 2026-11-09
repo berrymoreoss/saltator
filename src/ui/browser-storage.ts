@@ -1,12 +1,12 @@
 /**
- * The browser side of autosave: IndexedDB (database `logic`) and Web Locks. Thin on purpose —
+ * The browser side of autosave: IndexedDB (database `saltator`) and Web Locks. Thin on purpose —
  * the logic is in `autosave.ts`, tested in Node with a memory store; this file is covered by the
  * browser tests.
  */
 import type { SessionLocks, SessionStore, StoredSession } from './autosave';
 import type { RecentFile, RecentStore } from './recent-files';
 
-export const DATABASE = 'logic';
+export const DATABASE = 'saltator';
 // 1: sessions (autosave); 2: recent (Open Recent).
 const VERSION = 2;
 const SESSIONS = 'sessions';

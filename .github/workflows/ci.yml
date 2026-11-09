@@ -1,9 +1,9 @@
 name: CI
 
+# On demand only (Run workflow in Actions, or `gh workflow run CI`): one developer runs every
+# check locally, and automatic runs would only spend the Actions quota. Back on with the deploy.
 on:
-  push:
-    branches: [main]
-  pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}

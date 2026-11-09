@@ -2,6 +2,7 @@ import { X } from 'lucide-react';
 import { type ReactNode, useEffect, useRef } from 'react';
 import type { CommandRegistry } from './commands';
 import type { FileProblem, UnsavedChoice } from './document-controller';
+import { APP_NAME } from './document-session';
 import { formatShortcut } from './shortcuts';
 
 interface DialogProps {
@@ -150,8 +151,8 @@ export function ShortcutsDialog({
 
 export function AboutDialog({ onClose }: { readonly onClose: () => void }) {
   return (
-    <Dialog title="About Logic" onClose={onClose} testId="about-dialog">
-      <p className="about-title">Logic</p>
+    <Dialog title={`About ${APP_NAME}`} onClose={onClose} testId="about-dialog">
+      <p className="about-title">{APP_NAME}</p>
       <p>
         An event-driven digital logic simulator for designing and verifying computers built from
         real chips — <em>test before fab</em>.

@@ -1,5 +1,5 @@
 import { expect, type Page, test } from '@playwright/test';
-import ramByHand from '../../examples/ram-by-hand.logic.json' with { type: 'json' };
+import ramByHand from '../../examples/ram-by-hand.saltator.json' with { type: 'json' };
 import { pick, stubFileSystemAccess, writeFile } from './file-system';
 import { canvas, menu, openExample, watchErrors } from './support';
 
@@ -131,7 +131,7 @@ test('a script can reach neither the app’s storage nor the network', async ({ 
     [
       "bench('probes', (b) => {",
       '  b.log(typeof localStorage, typeof document, typeof window, self.origin);',
-      "  try { indexedDB.open('logic'); b.log('indexedDB open'); } catch (e) { b.log('indexedDB', e.name); }",
+      "  try { indexedDB.open('saltator'); b.log('indexedDB open'); } catch (e) { b.log('indexedDB', e.name); }",
       `  try { const x = new XMLHttpRequest(); x.open('GET', '${origin}/leak', false); x.send(); b.log('xhr', x.status); } catch (e) { b.log('xhr', e.name); }`,
       `  try { importScripts('${script}'); b.log('imported'); } catch (e) { b.log('importScripts', e.name); }`,
       '});',

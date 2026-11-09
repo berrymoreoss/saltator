@@ -38,7 +38,7 @@ export function hasYosys(): boolean {
  * `decoder.v:12.3-12.20`. The JSON is returned as Yosys wrote it.
  */
 export function runYosys(path: string): YosysRun {
-  const dir = mkdtempSync(join(tmpdir(), 'logic-yosys-'));
+  const dir = mkdtempSync(join(tmpdir(), 'saltator-yosys-'));
   try {
     const output = join(dir, 'out.json');
     const script = scriptFor(readFileSync(path, 'utf8'), basename(path), output);

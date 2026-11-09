@@ -36,11 +36,11 @@ const failingRead = (name: string): FileAccess => ({
 describe('RecentFiles', () => {
   it('lists files newest first, once each, at most ten', async () => {
     const { recent, names, store } = setup();
-    await recent.add('a.logic.json', handle('/x/a.logic.json'));
-    await recent.add('b.logic.json', handle('/x/b.logic.json'));
+    await recent.add('a.saltator.json', handle('/x/a.saltator.json'));
+    await recent.add('b.saltator.json', handle('/x/b.saltator.json'));
     // The same file again (a new handle to it) moves to the top.
-    await recent.add('a.logic.json', handle('/x/a.logic.json'));
-    expect(names()).toEqual(['a.logic.json', 'b.logic.json']);
+    await recent.add('a.saltator.json', handle('/x/a.saltator.json'));
+    expect(names()).toEqual(['a.saltator.json', 'b.saltator.json']);
     expect(store.files.size).toBe(2);
 
     for (let i = 0; i < RECENT_LIMIT; i++) await recent.add(`f${i}`, handle(`/y/f${i}`));
@@ -76,17 +76,17 @@ describe('RecentFiles', () => {
 
   it('a file that is gone leaves the list with a clear message', async () => {
     const { recent, names } = setup();
-    await recent.add('a.logic.json', handle('/a.logic.json'));
+    await recent.add('a.saltator.json', handle('/a.saltator.json'));
     const [file] = recent.list.get();
     await expect(recent.read(file!, failingRead('NotFoundError'))).rejects.toThrow(
-      '“a.logic.json” was moved or deleted',
+      '“a.saltator.json” was moved or deleted',
     );
     expect(names()).toEqual([]);
 
-    await recent.add('b.logic.json', handle('/b.logic.json'));
+    await recent.add('b.saltator.json', handle('/b.saltator.json'));
     await expect(recent.read(recent.list.get()[0]!, failingRead('SecurityError'))).rejects.toThrow(
       'gone',
     );
-    expect(names()).toEqual(['b.logic.json']);
+    expect(names()).toEqual(['b.saltator.json']);
   });
 });

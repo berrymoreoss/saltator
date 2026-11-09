@@ -1,6 +1,8 @@
 import { expect, type Page, test } from '@playwright/test';
-import dataBus from '../../examples/data-bus.logic.json' with { type: 'json' };
-import programCounter from '../../examples/sap-1-program-counter.logic.json' with { type: 'json' };
+import dataBus from '../../examples/data-bus.saltator.json' with { type: 'json' };
+import programCounter from '../../examples/sap-1-program-counter.saltator.json' with {
+  type: 'json',
+};
 import { clickAt, menu, openExample, watchErrors } from './support';
 
 // R14b in the browser: stepping back on Ben Eater's program counter (Step Back Clock, Step

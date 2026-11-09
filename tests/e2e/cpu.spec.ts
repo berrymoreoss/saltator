@@ -1,6 +1,6 @@
 import { expect, type Page, test } from '@playwright/test';
-import nopSled from '../../examples/6502-nop-sled.logic.json' with { type: 'json' };
-import romRam from '../../examples/6502-rom-ram.logic.json' with { type: 'json' };
+import nopSled from '../../examples/6502-nop-sled.saltator.json' with { type: 'json' };
+import romRam from '../../examples/6502-rom-ram.saltator.json' with { type: 'json' };
 import { clickAt, openExample, properties, summary, watchErrors } from './support';
 
 // R17a in the browser: the W65C02S examples open from the gallery and their benches — the CPU

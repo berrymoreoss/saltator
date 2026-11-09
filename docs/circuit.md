@@ -700,10 +700,10 @@ benchService(library, host); // (request, reply) => void: a runner by messages (
   bench it will run, with its line), a `script-error` per circuit whose script doesn't load,
   then `started` (an index into the plan) and `result` for each bench; every request ends with
   `done`. Synchronous and pure; answers are plain data (structured clone).
-- **Headless**: `pnpm test:circuits [--timeout=ms] [files…]` (default: `examples/*.logic.json`)
+- **Headless**: `pnpm test:circuits [--timeout=ms] [files…]` (default: `examples/*.saltator.json`)
   prints one line per bench, every failure, log and error, and a summary; exit 0 when all
-  passed, 1 when one failed or erred or a script didn't load, 2 when a file didn't load. CI runs
-  it; `pnpm check` runs every example bench (`tests/scenarios/example-benches.test.ts`).
+  passed, 1 when one failed or erred or a script didn't load, 2 when a file didn't load. The CI
+  workflow runs it; `pnpm check` runs every example bench (`tests/scenarios/example-benches.test.ts`).
 - References are not rewritten when a part is renamed (they are strings in code, maybe
   computed): the bench then says `U9: no part or net named U9`.
 
