@@ -1245,7 +1245,9 @@ the carry-over property over random TFT networks, an SPI bus benchmark, and the 
 ## Verilog modules (`hdl/*`)
 
 HDL-1 ([ADR-0030](adr/0030-hdl-modules.md)): logic written in Verilog runs as a part; HDL-8 put
-it on a bus (tri-state outputs, `inout` ports). The user
+it on a bus (tri-state outputs, `inout` ports); HDL-9 runs the rest of synthesizable Verilog
+(every cell `proc` and `opt` leave, signed and of any width, clocks and asynchronous controls
+made inside a module, combinational loops, power-up values), and makes races `X`. The user
 synthesizes their `.v` with Yosys on their own computer, the app takes Yosys's JSON netlist
 and keeps its IR in the document as a circuit written in Verilog
 ([circuit.md](circuit.md#verilog-modules)); the library's interpreter runs that IR. The app
@@ -1273,37 +1275,49 @@ numbered from 0, the ports in declaration order (`name`, `dir` — `in`, `out`, 
 the Verilog index of bit 0 —, `bits` least significant first, `init`, `src`), named signals (for
 HDL-4) and the cells: each its Yosys type, its first source location (`decoder.v:12.3-12.20`),
 its ports' bits (a signal bit or the constants `'0'`, `'1'`, `'x'`) and parameters (polarities
-0/1, reset values as bits). An output's or inout's bits may also be `'z'`: never driven.
+0/1, the operands' signedness `A_SIGNED`/`B_SIGNED` — kept only where 1, absent meaning
+unsigned —, reset values as bits). An output's or inout's bits may also be `'z'`: never driven.
 `hdlModuleProblems` checks the shape (documents are loaded with it); widths come from the
 connections.
 
-**The cells** of HDL-1 (`HDL_CELLS`): `$not` `$pos` `$neg`, the reductions (`$reduce_and`,
-`_or`, `_xor`, `_xnor`, `_bool`), `$logic_not` `$logic_and` `$logic_or`, `$and` `$or` `$xor`
-`$xnor`, `$add` `$sub`, the comparisons (`$eq` `$ne` `$lt` `$le` `$gt` `$ge`), the shifts
-(`$shl` `$shr` `$sshl` `$sshr`, `$shift` and `$shiftx` — `v[i]`, `v[i +: 2]` — whose amount may
-be signed), `$mux` `$pmux`, the flip-flops `$dff` `$dffe` `$adff` `$adffe` `$sdff` `$sdffe`
-`$sdffce`, the latches `$dlatch` `$adlatch`, and the tri-state buffer `$tribuf` (HDL-8: `A`,
-`EN` → `Y`). Unsigned operands; arithmetic, comparisons and shifts up to 32 bits (bitwise cells,
-multiplexers, flip-flops, buffers and ports have no limit).
+**The cells** (`HDL_CELLS`): `$not` `$pos` `$neg`, the reductions (`$reduce_and`, `_or`,
+`_xor`, `_xnor`, `_bool`), `$logic_not` `$logic_and` `$logic_or`, `$and` `$or` `$xor` `$xnor`,
+the arithmetic (`$add` `$sub` `$mul` `$div` `$mod` `$divfloor` `$modfloor` `$pow`), the
+comparisons (`$eq` `$ne` `$eqx` `$nex` `$lt` `$le` `$gt` `$ge`), the shifts (`$shl` `$shr`
+`$sshl` `$sshr`, `$shift` and `$shiftx` — `v[i]`, `v[i +: 2]`), the multiplexers (`$mux`
+`$pmux`, and `$bmux` `$demux` `$bwmux`, which other front ends' RTLIL holds), the flip-flops
+`$dff` `$dffe` `$adff` `$adffe` `$sdff` `$sdffe` `$sdffce` `$dffsr` `$dffsre` (per-bit
+asynchronous `SET`/`CLR`) `$aldff` `$aldffe` (an asynchronous load of `AD`), the latches
+`$dlatch` `$adlatch` `$dlatchsr`, `$sr`, and the tri-state buffer `$tribuf` (HDL-8: `A`, `EN` →
+`Y`). Every width; signed operands as Yosys's cell library (`simlib.v`) reads them: an operand
+extended by its sign bit, an operation of two operands signed only when both are (`$pow`: each
+on its own), a shift extending `A` to the wider of A and Y by its signedness (`$shiftx` selects
+from `A` as it is). HDL-1 ran unsigned operands up to 32 bits.
 
 **The converter** (`fromYosys`) refuses, with the reason and the source location: memories
 (`$mem*`; a ROM `proc` made of a `case` asks for the command), a multiplexer with `z` inputs (a
-tri-state the command's `tribuf` didn't see: it asks for the command), signed operands and other
-cells (HDL-9), word operands over 32 bits, a
+tri-state the command's `tribuf` didn't see: it asks for the command), cells of synthesis passes
+the command doesn't run (`$alu`, `$macc`, `$lut`, `$sop`, `$fsm`, …: it asks for the command),
+formal verification cells (`$ff` on the global clock, `$anyseq`, `$initstate`, …), a
 module that places others (not flattened), gate-level cells (`$_AND_`, … from `synth`), an
 ascending vector port (`[0:3]`: its value would read reversed against the app's buses: declare
 it `[3:0]`), port names that aren't plain identifiers (no `$`, ≤ 32 characters, indices 0–99).
 It drops `$scopeinfo` silently and `$print` (`$display`) and assertions with a warning; bits
-nothing drives become `x` with a warning. A constant `z` read by a cell becomes `x` with a
+nothing drives become `x` with a warning. A `$pow` (`a ** b`, a power not of 2 — `2 ** n` is a
+shift) runs, with a warning: Yosys's `synth` makes no logic of it, so a board's flow can't build
+it. A constant `z` read by a cell becomes `x` with a
 warning: Yosys makes the reads of an inout assigned `z` (`assign io = 1'bz`) a constant, not the
 pin, so an inout to be read is left unassigned. The **analysis** (`analyzeHdlModule`) finds who
 drives each bit — an input's pin, an inout's pin where no logic drives the bit (a `$tribuf`
 driving an inout drives its pin, and the module reads the bit back from it), a cell — and
-refuses a bit driven twice, two inout ports joined inside the module (a wire between two pins),
-a flip-flop clocked or asynchronously reset from inside the module (HDL-9; an inout's pin may
-clock one) and a combinational loop (HDL-9); it warns about inferred latches and `init` values
-(not simulated yet: the flip-flop starts unknown), orders the combinational cells and gives each
-cell its **cone**: the pins its value can come from with no flip-flop between.
+refuses a bit driven twice and two inout ports joined inside the module (a wire between two
+pins); it warns about inferred latches and **combinational loops** (HDL-9: the strongly
+connected components of the combinational cells, found by Tarjan's algorithm, each named by a
+signal on it), orders the combinational cells (Kahn's order over the components, a loop's cells
+together) and gives each cell its **cone**: the pins its value can come from with no flip-flop
+between (a loop's cells the whole loop's), and each flip-flop its data cone (`D`, `EN`, `SRST`:
+what an edge samples) and its asynchronous cone (`ARST`, `SET`, `CLR`, `ALOAD`, `AD`). Clocks
+and asynchronous controls may come from pins or from logic (HDL-9).
 
 **The part** (`hdlPart(type, name, module)`, the `hdlPart` hook of the library's registry):
 type `hdl/<circuit id>`, a pin per port bit (`addr12`…`addr15` for `addr[15:12]`, a one-bit
@@ -1313,22 +1327,55 @@ property `delay` (`hdlDelayProp`, default 15 ns, an ATF22V10C-15's tPD) for ever
 and releasing the bus too until HDL-2's per-path timing. No definition while the module has
 errors.
 
-**The interpreter** (`module-part.ts`, cells compiled once per definition in `cells.ts`):
-state is two byte planes over the bits — value and unknown — plus the flip-flops' next states,
-plain data for snapshots, rewind and replicas. Each `evaluate`:
+**The interpreter** (`module-part.ts`; cells compiled once per definition in `cells.ts`, the
+word cells in `word-cells.ts` on numbers up to 32 bits and on 32-bit limbs beyond, `words.ts`):
+state is two byte planes over the bits — value and unknown — plus the flip-flops' next states
+and the value each flip-flop last saw of its clock, plain data for snapshots, rewind and
+replicas. **Power-up**: the bits with an `init` (`reg q = 0`) start at it, as an FPGA's
+bitstream loads them — the rest `X` — and the logic settles from them, pins unknown, so a clock
+made from an initialized register (`~div`) is known before anything happens; the kernel's
+evaluation at t = 0 drives them after `delay`. Each `evaluate` runs, in phases, only what the
+module needs (a decoder: steps 2, 3 and 6):
 
-1. Flip-flops whose clock had an edge (`clockEdge`, strict: `0 → 1` for a rising edge) compute
-   their next state **from the planes as they were before this delta** — D, EN, SRST — then all
-   load at once, so a shift chain shifts by one. An uncertain edge (`0 → X`, `X → 1`, `Z`) makes
-   `X` only the bits a load would change, as the library's chips do (`0 → X → 1` is two such
-   edges). A data input changing in the same delta as the clock is sampled before the change —
-   a race on real hardware too, which timing checks (HDL-2) will report.
+1. Flip-flops whose pin clock had an edge (`clockEdge`, strict: `0 → 1` for a rising edge)
+   compute their next state **from the planes as they were before this delta** — D, EN, SRST —
+   then all load at once, so a shift chain shifts by one. An uncertain edge (`0 → X`, `X → 1`,
+   `Z`) makes `X` only the bits a load would change, as the library's chips do (`0 → X → 1` is
+   two such edges). **A race** (HDL-9): when a pin of a flip-flop's data cone changed in the
+   same delta as its clock, no flip-flop loads yet; after step 3 its next state is computed again
+   from the pins after the change and merged with the first — the bits that differ load `X` —
+   and the module reports a `setup-violation` on that pin ("d0 changed at the clock edge of q"),
+   as the library's chips do for the same input.
 2. The input pins and the inouts' pins read back are read into the planes (`Z` reads `X`).
-3. Asynchronous resets apply while active; an unknown one merges the reset value in.
-4. The combinational cells, the latches (`Q = EN ? D : Q`, merged while EN is unknown) and the
-   tri-state buffers run once each in topological order — no events inside a module, zero
-   delay. Inside the module a buffer gives `EN ? A : X`: a released net reads `X`.
-5. Every output bit is driven with `delay` (inertial: an unchanged output costs nothing, and a
+3. **Settle**: the combinational cells, the latches (`Q = EN ? D : Q`, merged while EN is
+   unknown; `$dlatchsr` and `$sr` clear, then set, per bit) and the tri-state buffers run in
+   order — no events inside a module, zero delay; a buffer gives `EN ? A : X` inside the module
+   (a released net reads `X`). A **combinational loop** runs as one step, over and over until no
+   bit of it changes (an SR latch of NANDs sets, resets, holds; one that starts `X` stays `X`);
+   past twice its cells and two passes the bits still changing go `X` until that settles, and
+   the module reports `oscillation` ("the combinational loop through r3 doesn't settle: X") —
+   the simulation goes on, unlike a loop of parts with no delay, which the kernel halts. Then the
+   asynchronous controls apply while active, from pins or from logic (reset to `ARST_VALUE`, load
+   `AD`, per bit clear then set; merged while unknown), and the logic settles again while they
+   change a flip-flop.
+4. **Rounds** (HDL-9): every flip-flop clocked by logic (a divider, a ripple stage, a gated
+   `clk & en`) compares its clock with the value it last saw; those with an edge compute their
+   next states from the planes as they are, all load at once, the logic settles (step 3), and
+   another round looks — a ripple chain of n stages takes n rounds. Inside one evaluation
+   everything is one instant, so a flip-flop on a clock made by logic whose data changed in it
+   (since the evaluation began) **races** its clock: its next state is merged with the one from
+   the evaluation's start, `X` where they differ, and the module reports a `race-violation`
+   ("gated is clocked by logic, and its data changed at the same instant: … use a clock
+   enable"): a gated clock sampling a register of its own source clock, a divided clock sampling
+   the faster domain. On a board the winner depends on gating and routing delays — the reason
+   FPGA tools warn about gated clocks; Verilog simulators and Yosys's `sim` pick one. Data that
+   changes only at the clock's own edges (a divider's counter, a ripple stage's `~q`, a shift
+   chain on one derived clock) is certain. A flip-flop clocked twice in one evaluation is a
+   glitching clock: its second load races its first. An uncertain edge already merges and isn't
+   checked. Past twice the internal flip-flops and four rounds, those still clocking go `X`
+   with an `oscillation`.
+5. With floating pins, the floating rule below.
+6. Every output bit is driven with `delay` (inertial: an unchanged output costs nothing, and a
    bit released and taken again within the delay never floats). A buffer's pin drives `A`
    while `EN` is 1, is released while 0 and drives `X` while unknown — it might be driving, as
    the library's 3-state buffers do. A `z` bit is never driven; `tristate` and `bidir` pins
@@ -1339,7 +1386,8 @@ plain data for snapshots, rewind and replicas. Each `evaluate`:
 reports a floating one (`ctx.reportFloating`) only where its `X` is used, as the library's chips
 read their pins only where it matters: an output driven `X` (not released), a flip-flop loading
 an `X` at its edge (from the pins as they were before it), an open latch holding `X`, an
-asynchronous reset — each checked against its cone, so an idle bus a module doesn't use reports
+asynchronous control at `X` or loading `X` (HDL-9: reset, set, clear, load) — each checked
+against its cone, so an idle bus a module doesn't use reports
 nothing, a register still `X` from power-on names no pin, and a write that samples a floating
 bus does. Clock pins are read by `clockEdge` and reported as any read. A bus handed over at one
 instant floats for the module's delay: an output that passes the bus on (`assign r = d`)
@@ -1348,22 +1396,44 @@ enabled drive `X` without a `contention` (one driver to the kernel).
 
 `X` is pessimistic only where it must be: bitwise cells per bit (`0 & X = 0`, `1 | X = 1`),
 reductions and logic operators known when the known bits decide, comparisons sure when every
-value the unknown bits allow agrees (`0X0X < 0110`), arithmetic unknown from the lowest unknown
-bit up, a shift by an unknown amount all `X`, `$mux` with an unknown select the bits both inputs
-agree on, `$pmux` likewise between "no case" and the one case that could be selected (`X` when
-two could). A constant `x` in a comparison makes it unknown, as Verilog's `==` does.
+value the unknown bits allow agrees (`0X0X < 0110`; signed ones in signed order), sums and
+products unknown from the lowest unknown bit up (a product's bit depends only on the bits at and
+below it), a shift by an unknown amount all `X`, `$mux` with an unknown select the bits both
+inputs agree on, `$pmux` likewise between "no case" and the one case that could be selected (`X`
+when two could), `$bmux` merging the words an unknown select could pick (all `X` past 256 of
+them), `$demux` merging `A` with 0 where it could go. A constant `x` in a comparison makes it
+unknown, as Verilog's `==` does — and `===` too (HDL-9): Verilog compares an `x` literally, but a
+board has no `x` to compare, so `$eqx` and `$nex` are `$eq` and `$ne`. A division, a remainder or
+a power with an unknown operand, a division by zero and `0 ** −n` are all `X` (Verilog's and
+Yosys's `x`; a board's value would depend on the synthesis). Division truncates (`$div`,
+`$mod`) or floors (`$divfloor`, `$modfloor`) at the widest of A, B and Y; a power follows
+Verilog for a negative exponent (`1 ** −n` is 1, `−1 ** −n` ±1, any other base 0).
 
 **Speed** (`tests/bench/hdl.bench.ts`, Apple M3 Pro): about 10 M combinational cells a second —
 every cell on every evaluation; a 1 000-cell module clocks at ≈ 6 kHz per second of wall time
-(HDL-8 left it the same: the floating rule costs nothing while no pin floats). An I/O port
-written and read through its bus: ≈ 0.96 M evaluations a second. HDL-10 makes it fast.
+(HDL-8 and HDL-9 left it the same: the floating rule costs nothing while no pin floats, rounds
+and loops nothing in a module without them). An I/O port written and read through its bus:
+≈ 0.96 M evaluations a second. HDL-9's: a 64-bit counter with a 32 × 32 multiplier and 72-bit
+words, new operands every cycle, ≈ 73 k evaluations a second (words read bit by bit from the
+planes); a divider, a ripple chain and a reset by logic ≈ 0.64 M. HDL-10 makes it fast.
 
 **Tests**: the converter on fixtures Yosys made of `src/library/hdl/fixtures/*.v` (`pnpm
 hdl:fixtures`, the system `yosys`; `pnpm check` never runs Yosys), every cell against
-JavaScript on seeded values and with `X`, the decoder's function table and delay, the counter,
-the traffic light, every flip-flop flavour, latches, a shift chain, snapshots, every tri-state
-shape Yosys makes (an I/O port, a 74HC574, merged drivers, an open drain, inouts read, driven
-and clocking) and the floating rule (`src/library/hdl/*.test.ts`); across the layers
+JavaScript (`BigInt`) on seeded values of 1 to 128 bits, signed and unsigned, and with `X`, the
+decoder's function table and delay, the counter, the traffic light, every flip-flop flavour,
+latches, a shift chain, power-up values, clocks made inside a module, races, loops, snapshots,
+every tri-state shape Yosys makes (an I/O port, a 74HC574, merged drivers, an open drain, inouts
+read, driven and clocking) and the floating rule (`src/library/hdl/*.test.ts`). **Differential
+tests** (HDL-9): `pnpm hdl:differential` (the system `yosys`) synthesizes seeded random
+expressions over every word cell (half of the modules all signed), the sequential designs of
+`src/library/hdl/differential/*.v` and `examples/verilog/*.v`, drives each with seeded vectors
+in Yosys's own `sim` (a witness replayed, its VCD read back; a clock never changes with data) and
+commits the IR, the vectors and every output; `differential.test.ts` checks every output bit
+Yosys knows — about 115 k bits over 18 designs. Where `sim` differs on purpose they stay out,
+and unit tests cover them: `===` of an `x`, `$aldff` while ALOAD is active (`sim` loads AD a step
+late; the interpreter follows AD, as the set/clear logic Yosys maps it to does), a power of mixed
+signedness (`sim` reads it unsigned, Verilog and `simlib.v` don't), and an asynchronous control
+made from its own flip-flop (it loops `sim` forever). Across the layers
 `tests/scenarios/verilog-modules.test.ts` and `verilog-bus.test.ts` (an I/O port's bench, two
 modules and a 74HC244 on one bus), the examples' benches, the rewind property, and the browser
 (`tests/e2e/hdl.spec.ts`).

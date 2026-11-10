@@ -381,6 +381,352 @@ describe('variable selects (shifts)', () => {
   });
 });
 
+describe('signed and wide words (HDL-9)', () => {
+  it('compares signed operands', () => {
+    const bench = new Bench(part('signed'));
+    // −2 < 3, 3 < −2 is false, −8 < 7.
+    for (const [a, b, lt] of [
+      [0b1110, 0b0011, 1],
+      [0b0011, 0b1110, 0],
+      [0b1000, 0b0111, 1],
+    ] as const) {
+      bench.set({ ...word('a', 0, 4, a), ...word('b', 0, 4, b) });
+      bench.run(us(1));
+      bench.expect({ lt });
+    }
+  });
+
+  it('multiplies, divides, raises to a power and compares with === (arith)', () => {
+    const bench = new Bench(part('arith'));
+    bench.set({ ...word('a', 0, 8, 200), ...word('b', 0, 8, 7), ...word('n', 0, 3, 3) });
+    bench.run(us(1));
+    expect(read(bench, 'mul', 0, 16)).toBe((1400).toString(2).padStart(16, '0'));
+    expect(read(bench, 'div', 0, 8)).toBe((28).toString(2).padStart(8, '0'));
+    expect(read(bench, 'mod', 0, 8)).toBe((4).toString(2).padStart(8, '0'));
+    expect(read(bench, 'pow', 0, 8)).toBe((200 ** 3 % 256).toString(2).padStart(8, '0'));
+    expect(read(bench, 'pow2', 0, 8)).toBe('00001000');
+    bench.expect({ eqx: 0, nex: 1 });
+    bench.set(word('b', 0, 8, 0));
+    bench.run(us(1));
+    expect(read(bench, 'div', 0, 8)).toBe('XXXXXXXX');
+  });
+
+  it('adds 33-bit words', () => {
+    const bench = new Bench(part('wide'));
+    const bits = (value: bigint) =>
+      Object.fromEntries(
+        Array.from({ length: 33 }, (_, i) => [`a${i}`, Number((value >> BigInt(i)) & 1n) as 0 | 1]),
+      );
+    bench.set(bits(2n ** 32n - 1n));
+    bench.run(us(1));
+    expect(read(bench, 'y', 0, 33)).toBe(`1${'0'.repeat(32)}`);
+    bench.set(bits(2n ** 33n - 1n));
+    bench.run(us(1));
+    expect(read(bench, 'y', 0, 33)).toBe('0'.repeat(33));
+  });
+});
+
+describe('power-up values (HDL-9)', () => {
+  it('start each register at its init and drive it from t = 0; without one it is unknown', () => {
+    const bench = new Bench(part('inits'));
+    bench.run(us(1));
+    bench.expect({ q: 1 });
+    expect(read(bench, 'count', 0, 4)).toBe('0101');
+    expect(read(bench, 'o', 0, 8)).toBe('10100101');
+    expect(read(bench, 'none', 0, 4)).toBe('XXXX');
+    // Driven by the forced evaluation at t = 0, after the module's delay.
+    const fresh = new Bench(part('inits'));
+    fresh.run(ns(14));
+    expect(fresh.get('q')).toBe(Level.X);
+    fresh.run(ns(2));
+    expect(fresh.get('q')).toBe(Level.L1);
+    tick(bench);
+    bench.expect({ q: 0 });
+    expect(read(bench, 'count', 0, 4)).toBe('0110');
+    expect(read(bench, 'o', 0, 8)).toBe('01001011');
+    expect(read(bench, 'none', 0, 4)).toBe('XXXX');
+  });
+});
+
+describe('clocks made inside the module (HDL-9)', () => {
+  const value = (bench: Bench, name: string) => Number.parseInt(read(bench, name, 0, 4), 2);
+
+  it('a divider clocks its counter and a shift chain; ripple and self-clearing counters count', () => {
+    const bench = new Bench(part('clocks'));
+    bench.set({ clk: 0, ...word('d', 0, 4, 0) });
+    bench.run(us(1));
+    expect(['slow', 'ripple', 'decade'].map((n) => read(bench, n, 0, 4))).toEqual([
+      '0000',
+      '0000',
+      '0000',
+    ]);
+    for (let n = 1; n <= 23; n++) {
+      bench.set(word('d', 0, 4, n % 16));
+      bench.run(us(1));
+      tick(bench);
+      // The divided clock rises on odd edges of clk: slow counts them, s1 takes d, s2 takes s1.
+      expect(value(bench, 'slow'), `slow after ${n}`).toBe(Math.ceil(n / 2) % 16);
+      expect(value(bench, 'ripple'), `ripple after ${n}`).toBe(n % 16);
+      expect(value(bench, 'decade'), `decade after ${n}`).toBe(n % 10);
+      if (n % 2 === 1) expect(value(bench, 's1'), `s1 after ${n}`).toBe(n % 16);
+      if (n % 2 === 1 && n > 1) expect(value(bench, 's2'), `s2 after ${n}`).toBe((n - 2) % 16);
+    }
+    bench.expectNoDiagnostics();
+  });
+
+  it('runs on to the same values after a snapshot is restored', () => {
+    const bench = new Bench(part('clocks'));
+    bench.set({ clk: 0, ...word('d', 0, 4, 9) });
+    bench.run(us(1));
+    tick(bench);
+    const snapshot = bench.sim.snapshot();
+    const run = () =>
+      Array.from({ length: 5 }, () => {
+        tick(bench);
+        return ['slow', 'ripple', 'decade'].map((n) => read(bench, n, 0, 4)).join(' ');
+      });
+    const first = run();
+    bench.sim.restore(snapshot);
+    expect(run()).toEqual(first);
+  });
+
+  it('a clock made from a register with a power-up value makes no edge at power-on', () => {
+    // q <= 1 on the rising edges of ~d; d is 0 from power-up and never clocked (its clock is 0).
+    const module: HdlModule = {
+      format: 1,
+      top: 'derived',
+      creator: '',
+      bitCount: 4,
+      ports: [{ name: 'q', dir: 'out', lsb: 0, bits: [3], init: ['0'] }],
+      signals: [{ name: 'd', lsb: 0, bits: [1], init: ['0'] }],
+      cells: [
+        {
+          type: '$dff',
+          src: '',
+          ports: { CLK: ['0'], D: ['1'], Q: [1] },
+          params: { CLK_POLARITY: 1 },
+        },
+        { type: '$not', src: '', ports: { A: [1], Y: [2] }, params: {} },
+        {
+          type: '$dff',
+          src: '',
+          ports: { CLK: [2], D: ['1'], Q: [3] },
+          params: { CLK_POLARITY: 1 },
+        },
+      ],
+    };
+    const bench = new Bench(hdlPart('hdl/derived', 'Derived', module).definition!);
+    bench.run(us(1));
+    bench.expect({ q: 0 });
+    bench.expectNoDiagnostics();
+  });
+
+  it('a gated clock and a divided clock sampling a register clk changes race: X, reported', () => {
+    const bench = new Bench(part('races'));
+    bench.set({ clk: 0, en: 1, ...word('d', 0, 4, 5) });
+    bench.run(us(1));
+    tick(bench); // q: X → 5 at the edge g and div rise on
+    tick(bench); // q stays 5: g's edge samples it surely; div falls
+    expect(read(bench, 'q', 0, 4)).toBe('0101');
+    expect(read(bench, 'gated', 0, 4)).toBe('0101');
+    bench.set(word('d', 0, 4, 6));
+    bench.run(us(1));
+    tick(bench); // q: 5 → 6 at the edge g and div rise on: X where 5 and 6 differ
+    expect(read(bench, 'gated', 0, 4)).toBe('01XX');
+    expect(read(bench, 'divided', 0, 4)).toBe('01XX');
+    const race = bench.diagnostics.find((d) => d.kind === 'race-violation');
+    expect(race?.message).toMatch(/clocked by logic, and its data changed at the same instant/);
+    expect(bench.diagnostics.map((d) => d.kind)).not.toContain('setup-violation');
+  });
+
+  it('a data pin changing in the same delta as its clock loads X where it matters', () => {
+    const bench = new Bench(part('races'));
+    bench.set({ clk: 0, en: 0, ...word('d', 0, 4, 5) });
+    bench.run(us(1));
+    tick(bench);
+    bench.set({ clk: 0 });
+    bench.run(us(1));
+    expect(bench.diagnostics.map((d) => d.kind)).not.toContain('setup-violation');
+    bench.set({ clk: 1, ...word('d', 0, 4, 6) });
+    bench.run(us(1));
+    expect(read(bench, 'q', 0, 4)).toBe('01XX');
+    const setup = bench.diagnostics.find((d) => d.kind === 'setup-violation');
+    expect(setup?.message).toMatch(/^d\d changed at the clock edge of q: it loads X/);
+    expect(setup?.pin).toMatch(/^d\d$/);
+  });
+
+  it('a flip-flop clocked again in the same instant goes X, reported: no endless loop', () => {
+    // x1 toggles on c's rising edges, x2 on its falling ones (both reset by r); c = ~(x1 ^ x2 ^ k):
+    // every edge of c flips x1 ^ x2, which flips c again — once k moves, it would never settle.
+    // x2's second edge in one instant finds its own data changed: a glitching clock, X.
+    const toggle = (q: number, nq: number, rising: number): HdlModule['cells'] => [
+      { type: '$not', src: '', ports: { A: [q], Y: [nq] }, params: {} },
+      {
+        type: '$adff',
+        src: `t.v:${q}`,
+        ports: { CLK: [4], ARST: [7], D: [nq], Q: [q] },
+        params: { CLK_POLARITY: rising, ARST_POLARITY: 1, ARST_VALUE: ['0'] },
+      },
+    ];
+    const module: HdlModule = {
+      format: 1,
+      top: 'ring',
+      creator: '',
+      bitCount: 8,
+      ports: [
+        { name: 'k', dir: 'in', lsb: 0, bits: [0] },
+        { name: 'r', dir: 'in', lsb: 0, bits: [7] },
+        { name: 'o', dir: 'out', lsb: 0, bits: [5] },
+      ],
+      signals: [
+        { name: 'x1', lsb: 0, bits: [1] },
+        { name: 'x2', lsb: 0, bits: [2] },
+      ],
+      cells: [
+        ...toggle(1, 3, 1),
+        ...toggle(2, 6, 0),
+        { type: '$xor', src: '', ports: { A: [1], B: [2], Y: [5] }, params: {} },
+        { type: '$xnor', src: '', ports: { A: [5], B: [0], Y: [4] }, params: {} },
+      ],
+    };
+    const { definition } = hdlPart('hdl/ring', 'Ring', module);
+    const bench = new Bench(definition!);
+    bench.set({ k: 0, r: 1 });
+    bench.run(us(1));
+    bench.set({ r: 0 });
+    bench.run(us(1));
+    bench.expect({ o: 0 });
+    bench.expectNoDiagnostics();
+    bench.set({ k: 1 });
+    bench.run(us(1));
+    bench.expect({ o: 'X' });
+    expect(bench.diagnostics.map((d) => d.message)).toContainEqual(
+      expect.stringMatching(/^x2 is clocked again in the same instant/),
+    );
+  });
+});
+
+describe('combinational loops (HDL-9)', () => {
+  it('an SR latch of two NANDs starts unknown, sets, holds and resets', () => {
+    const bench = new Bench(part('loops'));
+    bench.set({ s_n: 1, r_n: 1, en: 0 });
+    bench.run(us(1));
+    bench.expect({ q: 'X', q_n: 'X' });
+    const steps: [0 | 1, 0 | 1, string][] = [
+      [0, 1, '10'],
+      [1, 1, '10'],
+      [1, 0, '01'],
+      [1, 1, '01'],
+      [0, 1, '10'],
+    ];
+    for (const [s_n, r_n, q] of steps) {
+      bench.set({ s_n, r_n });
+      bench.run(us(1));
+      expect(`${levelChar(bench.get('q'))}${levelChar(bench.get('q_n'))}`, `${s_n}${r_n}`).toBe(q);
+    }
+    bench.expectNoDiagnostics();
+  });
+
+  it("a loop that doesn't settle goes X and reports an oscillation; the simulation goes on", () => {
+    const bench = new Bench(part('loops'));
+    bench.set({ s_n: 1, r_n: 1, en: 0 });
+    bench.run(us(1));
+    bench.expect({ ring: 1 });
+    bench.expectNoDiagnostics();
+    bench.set({ en: 1 });
+    bench.run(us(1));
+    bench.expect({ ring: 'X' });
+    const oscillation = bench.diagnostics.find((d) => d.kind === 'oscillation');
+    expect(oscillation?.message).toMatch(/^the combinational loop through r\d doesn't settle: X$/);
+    // The rest of the module runs on: the latch still sets.
+    bench.set({ s_n: 0 });
+    bench.run(us(1));
+    bench.expect({ q: 1, q_n: 0 });
+    expect(bench.sim.halted).toBe(false);
+  });
+});
+
+describe('flip-flop and latch flavours of HDL-9 (ff_flavours, by_name)', () => {
+  it('$dffsr and $dffsre: clear wins over set, both asynchronous; the edge loads D', () => {
+    const bench = new Bench(part('ff_flavours'));
+    const both = () => [read(bench, 'q_sr', 0, 4), read(bench, 'q_sre', 0, 4)];
+    bench.set({ clk: 0, rst: 1, set: 0, en: 0, load: 0, g: 0, ...word('d', 0, 4, 3) });
+    bench.run(us(1));
+    expect(both()).toEqual(['0000', '0000']);
+    bench.set({ rst: 0, set: 1 });
+    bench.run(us(1));
+    expect(both()).toEqual(['1111', '1111']);
+    bench.set({ rst: 1 });
+    bench.run(us(1));
+    expect(both()).toEqual(['0000', '0000']);
+    bench.set({ rst: 0, set: 0 });
+    bench.run(us(1));
+    tick(bench);
+    expect(both()).toEqual(['0011', '0000']);
+    bench.set({ en: 1 });
+    tick(bench);
+    expect(both()).toEqual(['0011', '0011']);
+  });
+
+  it('$aldff and $aldffe follow AD while loading, load D on edges otherwise', () => {
+    const bench = new Bench(part('ff_flavours'));
+    bench.set({ clk: 0, rst: 0, set: 0, en: 0, load: 1, g: 0, ...word('ad', 0, 4, 10) });
+    bench.set(word('d', 0, 4, 3));
+    bench.run(us(1));
+    expect(read(bench, 'q_ald', 0, 4)).toBe('1010');
+    expect(read(bench, 'q_alde', 0, 4)).toBe('1010');
+    bench.set(word('ad', 0, 4, 5));
+    bench.run(us(1));
+    expect(read(bench, 'q_ald', 0, 4)).toBe('0101');
+    bench.set({ load: 0 });
+    tick(bench);
+    expect(read(bench, 'q_ald', 0, 4)).toBe('0011');
+    expect(read(bench, 'q_alde', 0, 4)).toBe('0101');
+    bench.set({ en: 1 });
+    tick(bench);
+    expect(read(bench, 'q_alde', 0, 4)).toBe('0011');
+  });
+
+  it('a reset value with an x bit; a latch with set and reset', () => {
+    const bench = new Bench(part('ff_flavours'));
+    bench.set({ clk: 0, rst: 0, set: 0, en: 0, load: 0, g: 1, ...word('d', 0, 4, 6) });
+    bench.run(us(1));
+    expect(read(bench, 'q_x', 0, 4)).toBe('10X1');
+    expect(read(bench, 'lat_sr', 0, 4)).toBe('0110');
+    bench.set({ g: 0, ...word('d', 0, 4, 9) });
+    bench.run(us(1));
+    expect(read(bench, 'lat_sr', 0, 4)).toBe('0110');
+    bench.set({ set: 1 });
+    bench.run(us(1));
+    expect(read(bench, 'lat_sr', 0, 4)).toBe('1111');
+  });
+
+  it('$sr and $dlatchsr per bit, clear first; $bmux $demux $bwmux $divfloor $modfloor', () => {
+    const bench = new Bench(part('by_name'));
+    bench.set({ set: 0, clr: 0, en: 1, ...word('w', 0, 4, 6) });
+    bench.set({ ...word('a', 0, 16, 0x8421), ...word('s', 0, 2, 2), ...word('m', 0, 4, 3) });
+    bench.set({ ...word('n', 0, 8, 0xf9), ...word('d', 0, 8, 2) });
+    bench.run(us(1));
+    // $sr: CLR is active LOW here, so clr = 0 clears.
+    expect(read(bench, 'sr', 0, 4)).toBe('0000');
+    expect(read(bench, 'lsr', 0, 4)).toBe('0110');
+    bench.set({ set: 1, clr: 1 });
+    bench.run(us(1));
+    expect(read(bench, 'sr', 0, 4)).toBe('1111');
+    // $dlatchsr: SET reaches bit 3, CLR bit 0 (both active HIGH).
+    expect(read(bench, 'lsr', 0, 4)).toBe('1110');
+    bench.set({ set: 0 });
+    bench.run(us(1));
+    expect(read(bench, 'sr', 0, 4)).toBe('1111');
+    expect(read(bench, 'bmux', 0, 4)).toBe('0100');
+    expect(read(bench, 'demux', 0, 16)).toBe('0000011000000000');
+    expect(read(bench, 'bwmux', 0, 4)).toBe('0101');
+    // −7 / 2 floors to −4, −7 mod 2 to 1.
+    expect(read(bench, 'dfloor', 0, 8)).toBe('11111100');
+    expect(read(bench, 'mfloor', 0, 8)).toBe('00000001');
+  });
+});
+
 describe('clock edges', () => {
   it('load every flip-flop from the values before the edge (a shift chain)', () => {
     // q1 <= d; q2 <= q1, on one clock.

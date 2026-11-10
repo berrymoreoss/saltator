@@ -523,3 +523,17 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
   `public/favicon.svg`, whose `<title>Logic</title>` survived the merge. Static assets (`public/`,
   `index.html`, SVG titles) carry the product name too: sweep the whole tracked tree
   (`git grep`), not the source folders.
+- 2026-11-11 (HDL-9) — Yosys's `sim` is a reference with its own quirks: it loops forever on an
+  asynchronous control made from the flip-flop's own output (give it a timeout), loads `$aldff`'s
+  AD a step late, reads a `$pow` of mixed signedness as unsigned and compares `x` literally in
+  `===`. Before "fixing" the interpreter to match a mismatch, read `simlib.v` (the cell's meaning)
+  and `techmap.v` (what a board gets: `$pow` gets nothing) in `$(yosys-config --datdir)`.
+- 2026-11-11 (HDL-9) — One large `evaluate` with every phase inline cost a decoder 5–8 % though
+  it did the same work; small phase functions, each run only where the module needs it, made it
+  faster than before. Benchmark against main alternately in one sitting: main alone moved ±8 %
+  over a day.
+- 2026-11-11 (HDL-9) — Seeded random differential tests looked complete and weren't: Verilog
+  makes an operation signed only when every operand is, so random modules almost never divided
+  signed numbers, and a broken quotient sign passed. Mutation-check a differential test too, and
+  add targeted designs for what the generator can't reach. Generated names also bite: `if` is a
+  keyword, and port `o1`'s bit 10 is port `o11`'s bit 0 (`o110`).

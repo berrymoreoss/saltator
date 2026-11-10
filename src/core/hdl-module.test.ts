@@ -92,9 +92,12 @@ describe('HDL_CELLS', () => {
   it('lists the cells modules run and nothing else', () => {
     expect(isHdlCellType('$adffe')).toBe(true);
     expect(isHdlCellType('$tribuf')).toBe(true);
-    expect(isHdlCellType('$mul')).toBe(false);
+    expect(isHdlCellType('$mul')).toBe(true);
+    expect(isHdlCellType('$dffsr')).toBe(true);
+    expect(isHdlCellType('$lut')).toBe(false);
+    expect(isHdlCellType('$_AND_')).toBe(false);
     expect(isHdlCellType('toString')).toBe(false);
-    expect(Object.keys(HDL_CELLS)).toHaveLength(41);
+    expect(Object.keys(HDL_CELLS)).toHaveLength(58);
   });
 });
 
@@ -138,7 +141,7 @@ describe('hdlModuleProblems', () => {
 
   it("reports cells modules don't run and cells of the wrong shape", () => {
     const cells = [
-      { type: '$mul', src: '', ports: {}, params: {} },
+      { type: '$lut', src: '', ports: {}, params: {} },
       { type: '$and', src: '', ports: { A: [1], B: [2, 1], Y: ['0'], Z: [] }, params: {} },
       { type: '$mux', src: '', ports: { A: [1], B: [2], S: [0, 1], Y: [3] }, params: {} },
       {
@@ -151,7 +154,7 @@ describe('hdlModuleProblems', () => {
         type: '$add',
         src: '',
         ports: { A: Array(33).fill('0'), B: [1], Y: [3] },
-        params: {},
+        params: { A_SIGNED: 2 },
       },
       {
         type: '$sdff',
@@ -161,12 +164,12 @@ describe('hdlModuleProblems', () => {
       },
     ];
     expect(hdlModuleProblems({ ...sample, cells }, 'm')).toEqual([
-      'm.cells[0].type: not a cell modules run: "$mul"',
+      'm.cells[0].type: not a cell modules run: "$lut"',
       'm.cells[1].ports.Z: not a port of it',
       'm.cells[1].ports.Y: expected signal bits, got "0"',
       'm.cells[2].ports.S: expected one bit',
       'm.cells[3].ports.CLK: expected one bit',
-      'm.cells[4].ports.A: wider than 32 bits',
+      'm.cells[4].params.A_SIGNED: expected 0 or 1',
       'm.cells[5].params.WIDTH: not a parameter of it',
       'm.cells[5].params.SRST_VALUE: expected constant bits',
     ]);
@@ -179,6 +182,93 @@ describe('hdlModuleProblems', () => {
     expect(hdlModuleProblems({ ...sample, ports, cells }, 'm')).toEqual([
       'm.ports[3].init: expected as many bits as its bits',
       'm.cells[0].params.ARST_VALUE: expected 2 bits, as Q',
+    ]);
+  });
+
+  it('takes words of any width, signed operands and the cells of HDL-9', () => {
+    const wide = Array.from({ length: 40 }, (_, i) => i);
+    const ports = [
+      { name: 'a', dir: 'in', lsb: 0, bits: wide },
+      { name: 'c', dir: 'in', lsb: 0, bits: [40, 41, 42, 43, 44] },
+      { name: 'y', dir: 'out', lsb: 0, bits: [45, 46, 47, 48] },
+    ];
+    const four = [45, 46, 47, 48];
+    const cells = [
+      { type: '$mul', src: '', ports: { A: wide, B: wide, Y: wide }, params: {} },
+      {
+        type: '$div',
+        src: '',
+        ports: { A: [0, 1], B: [2, 3], Y: [4, 5] },
+        params: { A_SIGNED: 1, B_SIGNED: 1 },
+      },
+      { type: '$eqx', src: '', ports: { A: [0], B: [1], Y: [2] }, params: { A_SIGNED: 0 } },
+      { type: '$bmux', src: '', ports: { A: wide.slice(0, 16), S: [40, 41], Y: four }, params: {} },
+      {
+        type: '$demux',
+        src: '',
+        ports: { A: [0, 1], S: [40, 41], Y: wide.slice(0, 8) },
+        params: {},
+      },
+      {
+        type: '$bwmux',
+        src: '',
+        ports: { A: [0, 1], B: [2, 3], S: [4, 5], Y: [6, 7] },
+        params: {},
+      },
+      {
+        type: '$dffsre',
+        src: '',
+        ports: { CLK: [40], SET: [0, 1], CLR: [2, 3], EN: [41], D: [4, 5], Q: [6, 7] },
+        params: { CLK_POLARITY: 1, SET_POLARITY: 1, CLR_POLARITY: 0, EN_POLARITY: 1 },
+      },
+      {
+        type: '$aldff',
+        src: '',
+        ports: { CLK: [40], ALOAD: [41], AD: [0, 1], D: [2, 3], Q: [6, 7] },
+        params: { CLK_POLARITY: 1, ALOAD_POLARITY: 1 },
+      },
+      {
+        type: '$sr',
+        src: '',
+        ports: { SET: [0, 1], CLR: [2, 3], Q: [6, 7] },
+        params: { SET_POLARITY: 1, CLR_POLARITY: 0 },
+      },
+      {
+        type: '$dlatchsr',
+        src: '',
+        ports: { EN: [40], SET: [0, 1], CLR: [2, 3], D: [4, 5], Q: [6, 7] },
+        params: { EN_POLARITY: 1, SET_POLARITY: 1, CLR_POLARITY: 1 },
+      },
+    ];
+    const module = { ...sample, bitCount: 49, ports, signals: [], cells };
+    expect(hdlModuleProblems(module)).toEqual([]);
+    expect(hdlModuleProblems(JSON.parse(JSON.stringify(module)))).toEqual([]);
+  });
+
+  it('checks the widths of the HDL-9 cells', () => {
+    const cells = [
+      { type: '$bmux', src: '', ports: { A: [0, 1, 2], S: [3], Y: [4] }, params: {} },
+      { type: '$demux', src: '', ports: { A: [0], S: [1, 2], Y: [3, 4] }, params: {} },
+      { type: '$bwmux', src: '', ports: { A: [0, 1], B: [2, 3], S: [4], Y: [5, 3] }, params: {} },
+      {
+        type: '$dffsr',
+        src: '',
+        ports: { CLK: [0], SET: [1], CLR: [2, 3], D: [4, 5], Q: [5, 3] },
+        params: { CLK_POLARITY: 1, SET_POLARITY: 1, CLR_POLARITY: 1 },
+      },
+      {
+        type: '$aldffe',
+        src: '',
+        ports: { CLK: [0], ALOAD: [1, 2], AD: [1], EN: [2], D: [4], Q: [5] },
+        params: { CLK_POLARITY: 1, ALOAD_POLARITY: 1, EN_POLARITY: 1 },
+      },
+    ];
+    expect(hdlModuleProblems({ ...sample, cells }, 'm')).toEqual([
+      'm.cells[0].ports.A: expected 2 bits (Y × 2^S)',
+      'm.cells[1].ports.Y: expected 4 bits (A × 2^S)',
+      'm.cells[2].ports.S: expected 2 bits, as Y',
+      'm.cells[3].ports.SET: expected 2 bits, as Q',
+      'm.cells[4].ports.ALOAD: expected one bit',
     ]);
   });
 

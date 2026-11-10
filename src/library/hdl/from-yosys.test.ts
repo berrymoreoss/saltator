@@ -16,23 +16,36 @@ const lines = (name: string) =>
   convert(name).messages.map((m) => `${m.severity} ${m.src ?? '-'}: ${m.message}`);
 
 const ACCEPTED = [
+  'arith',
+  'by_name',
+  'clock',
+  'clocks',
   'counter',
   'decoder',
   'display',
+  'ff_flavours',
   'flattened',
   'init',
   'inout',
   'inout_shapes',
+  'inits',
   'io_port',
   'latches',
+  'loop',
+  'loops',
   'open_drain',
   'ops',
+  'races',
   'shifts',
+  'signed',
+  'signed_ops',
   'traffic',
   'tri_internal',
   'tri_merged',
   'tri_register',
   'tristate',
+  'wide',
+  'wide_ops',
   'wires',
 ];
 
@@ -110,10 +123,33 @@ describe('fromYosys: modules it runs', () => {
     expect(module?.cells.find((c) => c.type === '$pmux')?.src).toBe('traffic.v:16.29-16.29');
   });
 
-  it('accepts a shift by a signed amount (a variable part-select)', () => {
+  it('accepts a shift by a signed amount (a variable part-select), signedness kept only where 1', () => {
     const { module } = convert('shifts');
     const shiftx = module?.cells.filter((c) => c.type === '$shiftx') ?? [];
-    expect(shiftx.map((c) => c.params.B_SIGNED)).toEqual([0, 1]);
+    expect(shiftx.map((c) => c.params.B_SIGNED)).toEqual([undefined, 1]);
+    expect(shiftx.every((c) => !('A_SIGNED' in c.params))).toBe(true);
+  });
+
+  it("warns that a power not of 2 can't be built on a board", () => {
+    expect(lines('arith')).toEqual([
+      "warning arith.v:10.16-10.22: a ** b (a power not of 2): Yosys's synth makes no logic of it — it runs here, but a board's flow can't build it",
+    ]);
+  });
+
+  it('keeps signedness where Yosys gives it, also on the cells unsigned code makes signed', () => {
+    const { module } = convert('signed_ops');
+    const signedness = (type: string) =>
+      module?.cells
+        .filter((c) => c.type === type)
+        .map((c) => [c.params.A_SIGNED ?? 0, c.params.B_SIGNED ?? 0]);
+    expect(signedness('$div')).toEqual([[1, 1]]);
+    expect(signedness('$sshr')).toEqual([[1, 0]]);
+    // d[sel] = 1'b1: a signed $neg and a $shift by a signed amount.
+    expect(signedness('$shift')).toEqual([[0, 1]]);
+    expect(signedness('$neg')).toContainEqual([1, 0]);
+    // Widths over 32 bits are kept as they are.
+    const wide = convert('wide_ops').module;
+    expect(wide?.cells.find((c) => c.type === '$mul')?.ports.Y).toHaveLength(64);
   });
 
   it('keeps named signals, not ports', () => {
@@ -122,14 +158,12 @@ describe('fromYosys: modules it runs', () => {
     expect(module?.signals[0]?.bits).toEqual(module?.ports.find((p) => p.name === 'st')?.bits);
   });
 
-  it('warns about latches, initial values, $display and outputs nothing drives', () => {
+  it('warns about latches, $display and outputs nothing drives; keeps initial values', () => {
     expect(lines('latches')).toEqual([
       'warning latches.v:10.3-10.54: a latch is inferred for r',
       'warning latches.v:9.3-9.27: a latch is inferred for q',
     ]);
-    expect(lines('init')).toEqual([
-      'warning init.v:2.36-2.37: q has an initial value, not simulated yet (HDL-9): it starts unknown',
-    ]);
+    expect(lines('init')).toEqual([]);
     expect(convert('init').module?.ports[1]?.init).toEqual(['1']);
     expect(lines('display')).toEqual([
       'warning display.v:5.5-5.25: $display and $write are not shown (yet): ignored',
@@ -209,9 +243,6 @@ describe('fromYosys: what it refuses', () => {
       'rom',
       'error rom.v:4.13-9.10: a case statement became a ROM: make the JSON with the command (proc -norom)',
     ],
-    ['loop', 'error loop.v:4.14-4.22: a combinational loop through y — not supported yet (HDL-9)'],
-    ['signed', 'error signed.v:3.15-3.20: signed operands — not supported yet (HDL-9)'],
-    ['wide', 'error wide.v:3.14-3.19: a 33-bit $add — operands up to 32 bits for now (HDL-9)'],
     [
       'no_tribuf',
       'error no_tribuf.v:4.14-4.27: a tri-state left a multiplexer with z inputs: make the JSON with the command (tribuf -logic)',
@@ -231,10 +262,6 @@ describe('fromYosys: what it refuses', () => {
     [
       'gates',
       'error -: a gate-level netlist ($_ANDNOT_): make the JSON with the command — without synth or techmap',
-    ],
-    [
-      'clock',
-      'error clock.v:4.3-4.31: the clock of q is made inside the module — not supported yet (HDL-9)',
     ],
   ])('%s', (name, message) => {
     const result = convert(name);
@@ -274,13 +301,28 @@ describe('fromYosys: what it refuses', () => {
     ]);
   });
 
-  it("refuses cells it doesn't run yet by type", () => {
+  it('refuses formal cells and cells it knows nothing of, by type', () => {
+    const cell = (type: string) => ({
+      attributes: { top: '1' },
+      ports: { a: { direction: 'input', bits: [2] }, y: { direction: 'output', bits: [3] } },
+      cells: { c: { type, parameters: {}, attributes: {}, connections: { A: [2], Y: [3] } } },
+      netnames: {},
+    });
+    expect(fromYosys({ modules: { m: cell('$anyseq') } }).messages[0]?.message).toBe(
+      "$anyseq is a formal verification cell, which a simulation can't run",
+    );
+    expect(fromYosys({ modules: { m: cell('$frobnicate') } }).messages[0]?.message).toBe(
+      '$frobnicate cells are not supported',
+    );
+  });
+
+  it("refuses cells of synthesis passes the command doesn't run", () => {
     const module = {
       attributes: { top: '1' },
       ports: { a: { direction: 'input', bits: [2, 3] }, y: { direction: 'output', bits: [4, 5] } },
       cells: {
         m: {
-          type: '$mul',
+          type: '$alu',
           parameters: {},
           attributes: { src: 'm.v:3.1-3.2' },
           connections: { A: [2, 3], B: [2, 3], Y: [4, 5] },
@@ -291,7 +333,8 @@ describe('fromYosys: what it refuses', () => {
     expect(fromYosys({ modules: { m: module } }).messages).toEqual([
       {
         severity: 'error',
-        message: '$mul cells are not supported yet (HDL-9)',
+        message:
+          "$alu comes from synthesis passes the command doesn't run (synth, alumacc, fsm): make the JSON with the command",
         src: 'm.v:3.1-3.2',
       },
     ]);

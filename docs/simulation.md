@@ -436,12 +436,13 @@ sim.restore(copy.snapshot());
   `{ time, kind, message, net?, component?, pin?, count, lastTime }` with kinds `contention`,
   `floating-input`, `oscillation` (`KernelDiagnosticKind`) and component-reported ones
   (`setup-violation`, `hold-violation`, `pulse-width-violation`, `recovery-violation`
-  from the [timing checks](#timing-checks), …). Repeats with the same kind/net/component/pin are
+  from the [timing checks](#timing-checks); a Verilog module's `setup-violation`,
+  `race-violation` and `oscillation`, HDL-9, …). Repeats with the same kind/net/component/pin are
   merged (`count`, `lastTime`); at most `maxDiagnostics` distinct entries are kept, the rest are
   counted in `dropped`. `subscribe(listener)` is called for each new entry.
   `diagnosticSeverity` makes `contention`, `oscillation`, every kind ending in `-violation`
-  (the timing checks', an LCD's `busy-violation`) and `cpu-lost` (a CPU acting on unknown bits,
-  R17a) errors, the rest warnings.
+  (the timing checks', an LCD's `busy-violation`, a module's `race-violation`) and `cpu-lost`
+  (a CPU acting on unknown bits, R17a) errors, the rest warnings.
   `contention` is reported when a net starts to conflict and again (merged) after it cleared.
   `onOccurrence(listener)` (R14) is called for every report — repeats of a merged entry and
   dropped ones included — so a debugger can break on each.

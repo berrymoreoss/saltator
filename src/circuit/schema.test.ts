@@ -111,7 +111,7 @@ describe('loadDocument', () => {
       schemaVersion: SCHEMA_VERSION,
       circuits: [{ ...v1.circuits[0], probes: [], testScript: [] }],
     });
-    expect(SCHEMA_VERSION).toBe(7);
+    expect(SCHEMA_VERSION).toBe(8);
   });
 
   it('opens a schema v2 document (before probes) with none', () => {
@@ -406,9 +406,9 @@ describe('loadDocument: Verilog modules (v6)', () => {
   });
 
   it('reports an IR that is not one, with its path', () => {
-    const module = { ...testModule, cells: [{ ...testModule.cells[0], type: '$mul' }] };
+    const module = { ...testModule, cells: [{ ...testModule.cells[0], type: '$lut' }] };
     expect(problemsOf(v6({ id: 'gate', name: 'Gate', verilog: { module } }))).toEqual([
-      'circuits[1].verilog.module.cells[0].type: not a cell modules run: "$mul"',
+      'circuits[1].verilog.module.cells[0].type: not a cell modules run: "$lut"',
     ]);
     expect(problemsOf(v6({ id: 'gate', name: 'Gate', verilog: { modul: 1 } }))).toEqual([
       'circuits[1].verilog: unknown field "modul"',
@@ -433,7 +433,7 @@ describe('loadDocument: Verilog modules (v6)', () => {
 
   it('opens a v6 module unchanged as v7, which may hold tri-states (HDL-8)', () => {
     const loaded = loadDocument(v6({ id: 'gate', name: 'Gate', verilog: { module: testModule } }));
-    expect(loaded.schemaVersion).toBe(7);
+    expect(loaded.schemaVersion).toBe(SCHEMA_VERSION);
     expect(loaded.circuits[1]?.verilog?.module).toEqual(testModule);
     const tri = {
       ...testModule,
@@ -448,5 +448,29 @@ describe('loadDocument: Verilog modules (v6)', () => {
       schemaVersion: 7,
     };
     expect(problemsOf(doc7)).toEqual([]);
+  });
+
+  it('opens a v7 module unchanged as v8, which may hold signed and HDL-9 cells', () => {
+    const doc7 = { ...v6({ id: 'gate', name: 'Gate', verilog: { module: testModule } }) };
+    const loaded = loadDocument({ ...doc7, schemaVersion: 7 });
+    expect(loaded.schemaVersion).toBe(8);
+    expect(loaded.circuits[1]?.verilog?.module).toEqual(testModule);
+    const signed = {
+      ...testModule,
+      cells: [
+        ...testModule.cells,
+        {
+          type: '$mul',
+          src: '',
+          ports: { A: ['1'], B: ['0'], Y: [0] },
+          params: { A_SIGNED: 1, B_SIGNED: 1 },
+        },
+      ],
+    };
+    const doc8 = {
+      ...v6({ id: 'gate', name: 'Gate', verilog: { module: signed } }),
+      schemaVersion: 8,
+    };
+    expect(problemsOf(doc8)).toEqual([]);
   });
 });

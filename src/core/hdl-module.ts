@@ -1,9 +1,9 @@
 /**
  * The IR of a Verilog module (HDL-1, ADR-0030): what the library's converter makes of Yosys's
  * JSON netlist, what a document keeps as a module, and what the library's interpreter runs.
- * Plain JSON-serializable data. Here: its types, the cells HDL-1 runs, the pins a port gives and
- * the shape check documents are loaded with; the semantic checks (one driver per bit, no
- * combinational loop, clocks from inputs) are the interpreter's. Spec: docs/components.md#verilog-modules-hdl.
+ * Plain JSON-serializable data. Here: its types, the cells modules run, the pins a port gives and
+ * the shape check documents are loaded with; the semantic checks (one driver per bit, what the
+ * interpreter can't run) are the analysis's. Spec: docs/components.md#verilog-modules-hdl.
  */
 import type { AnyComponentDefinition, PinDir, PropDef } from './component';
 import { BUS_NAME } from './net-names';
@@ -68,7 +68,7 @@ export interface HdlSignal {
   readonly name: string;
   readonly lsb: number;
   readonly bits: readonly HdlBit[];
-  /** Its power-up value (`reg q = 1`), least significant first; not simulated until HDL-9. */
+  /** Its power-up value (`reg q = 1`), least significant first: the bits start at it (HDL-9). */
   readonly init?: readonly HdlBit[];
   readonly src?: string;
 }
@@ -80,7 +80,10 @@ export interface HdlCell {
   readonly src: string;
   /** Yosys's port names (`A`, `B`, `Y`, `CLK`, `D`, `Q`, …), each least significant bit first. */
   readonly ports: Readonly<Record<string, readonly HdlBit[]>>;
-  /** Polarities (0 or 1), `B_SIGNED` of shifts, and reset values (bits, least significant first). */
+  /**
+   * Polarities (0 or 1), the operands' signedness (`A_SIGNED`, `B_SIGNED`: 1, or absent for
+   * unsigned) and reset values (bits, least significant first).
+   */
   readonly params: Readonly<Record<string, number | readonly HdlBit[]>>;
 }
 
@@ -120,8 +123,12 @@ export type HdlCellKind =
   | 'binary' // A, B → Y
   | 'mux' // A, B, S → Y
   | 'pmux' // A, B, S → Y (one-hot S)
-  | 'flip-flop' // CLK (EN, ARST, SRST), D → Q
-  | 'latch' // EN (ARST), D → Q
+  | 'bmux' // A, S → Y (A holds 2^S words of Y's width; S picks one)
+  | 'demux' // A, S → Y (Y holds 2^S words of A's width; S picks the one that is A)
+  | 'bwmux' // A, B, S → Y (a multiplexer per bit: S as wide as Y)
+  | 'flip-flop' // CLK (EN, ARST, SRST, SET, CLR, ALOAD, AD), D → Q
+  | 'latch' // EN (ARST, SET, CLR), D → Q
+  | 'sr' // SET, CLR → Q (no clock: set and cleared per bit)
   | 'tribuf'; // A, EN → Y (released while EN is 0)
 
 /** A cell type's shape: its input and output ports and its parameters. */
@@ -129,41 +136,62 @@ export interface HdlCellSpec {
   readonly kind: HdlCellKind;
   readonly inputs: readonly string[];
   readonly output: string;
-  /** Parameters that are a polarity (0 or 1) or a flag. */
+  /** Parameters that are a polarity (0 or 1). */
   readonly flags: readonly string[];
+  /**
+   * Flags that may be absent, meaning 0: the operands' signedness (`A_SIGNED`, `B_SIGNED`; HDL-9),
+   * so modules saved before they mattered load unchanged.
+   */
+  readonly signedness: readonly string[];
   /** Parameters that are a value as wide as the output. */
   readonly values: readonly string[];
-  /** Whether its operands are words (at most `HDL_WORD` bits) rather than bits side by side. */
+  /** Whether its operands are words (numbers of any width) rather than bits side by side. */
   readonly word: boolean;
 }
-
-/** The widest operand a word cell (arithmetic, comparison, shift) takes in HDL-1. */
-export const HDL_WORD = 32;
 
 const unary = (word: boolean): HdlCellSpec => ({
   kind: 'unary',
   inputs: ['A'],
   output: 'Y',
   flags: [],
+  signedness: ['A_SIGNED'],
   values: [],
   word,
 });
-const binary = (word: boolean, flags: readonly string[] = []): HdlCellSpec => ({
+const binary = (word: boolean): HdlCellSpec => ({
   kind: 'binary',
   inputs: ['A', 'B'],
   output: 'Y',
-  flags,
+  flags: [],
+  signedness: ['A_SIGNED', 'B_SIGNED'],
   values: [],
   word,
 });
+const select = (kind: 'mux' | 'pmux' | 'bmux' | 'demux' | 'bwmux'): HdlCellSpec => ({
+  kind,
+  inputs: kind === 'bmux' || kind === 'demux' ? ['A', 'S'] : ['A', 'B', 'S'],
+  output: 'Y',
+  flags: [],
+  signedness: [],
+  values: [],
+  word: false,
+});
+const stateful = (
+  kind: 'flip-flop' | 'latch' | 'sr',
+  inputs: readonly string[],
+  flags: string[],
+  values: string[] = [],
+) => ({ kind, inputs, output: 'Q', flags, signedness: [], values, word: false }) as const;
 const flipFlop = (inputs: readonly string[], flags: string[], values: string[] = []) =>
-  ({ kind: 'flip-flop', inputs, output: 'Q', flags, values, word: false }) as const;
+  stateful('flip-flop', inputs, flags, values);
 const latch = (inputs: readonly string[], flags: string[], values: string[] = []) =>
-  ({ kind: 'latch', inputs, output: 'Q', flags, values, word: false }) as const;
+  stateful('latch', inputs, flags, values);
 
 /**
  * The cells modules run: what the command leaves of a decoder, a counter, a state machine
- * (HDL-1) and of tri-states (`$tribuf`, HDL-8).
+ * (HDL-1), of tri-states (`$tribuf`, HDL-8), and of the rest of synthesizable Verilog —
+ * multiplication, division, powers, `===`, every flip-flop and latch flavour — plus the
+ * multiplexers and floor divisions other front ends' RTLIL holds (HDL-9).
  */
 export const HDL_CELLS = {
   $not: unary(false),
@@ -183,8 +211,16 @@ export const HDL_CELLS = {
   $logic_or: binary(false),
   $add: binary(true),
   $sub: binary(true),
+  $mul: binary(true),
+  $div: binary(true),
+  $mod: binary(true),
+  $divfloor: binary(true),
+  $modfloor: binary(true),
+  $pow: binary(true),
   $eq: binary(true),
   $ne: binary(true),
+  $eqx: binary(true),
+  $nex: binary(true),
   $lt: binary(true),
   $le: binary(true),
   $gt: binary(true),
@@ -193,10 +229,13 @@ export const HDL_CELLS = {
   $shr: binary(true),
   $sshl: binary(true),
   $sshr: binary(true),
-  $shift: binary(true, ['B_SIGNED']),
-  $shiftx: binary(true, ['B_SIGNED']),
-  $mux: { kind: 'mux', inputs: ['A', 'B', 'S'], output: 'Y', flags: [], values: [], word: false },
-  $pmux: { kind: 'pmux', inputs: ['A', 'B', 'S'], output: 'Y', flags: [], values: [], word: false },
+  $shift: binary(true),
+  $shiftx: binary(true),
+  $mux: select('mux'),
+  $pmux: select('pmux'),
+  $bmux: select('bmux'),
+  $demux: select('demux'),
+  $bwmux: select('bwmux'),
   $dff: flipFlop(['CLK', 'D'], ['CLK_POLARITY']),
   $dffe: flipFlop(['CLK', 'EN', 'D'], ['CLK_POLARITY', 'EN_POLARITY']),
   $adff: flipFlop(['CLK', 'ARST', 'D'], ['CLK_POLARITY', 'ARST_POLARITY'], ['ARST_VALUE']),
@@ -216,9 +255,29 @@ export const HDL_CELLS = {
     ['CLK_POLARITY', 'SRST_POLARITY', 'EN_POLARITY'],
     ['SRST_VALUE'],
   ),
+  $dffsr: flipFlop(['CLK', 'SET', 'CLR', 'D'], ['CLK_POLARITY', 'SET_POLARITY', 'CLR_POLARITY']),
+  $dffsre: flipFlop(
+    ['CLK', 'SET', 'CLR', 'EN', 'D'],
+    ['CLK_POLARITY', 'SET_POLARITY', 'CLR_POLARITY', 'EN_POLARITY'],
+  ),
+  $aldff: flipFlop(['CLK', 'ALOAD', 'AD', 'D'], ['CLK_POLARITY', 'ALOAD_POLARITY']),
+  $aldffe: flipFlop(
+    ['CLK', 'ALOAD', 'AD', 'EN', 'D'],
+    ['CLK_POLARITY', 'ALOAD_POLARITY', 'EN_POLARITY'],
+  ),
   $dlatch: latch(['EN', 'D'], ['EN_POLARITY']),
   $adlatch: latch(['EN', 'ARST', 'D'], ['EN_POLARITY', 'ARST_POLARITY'], ['ARST_VALUE']),
-  $tribuf: { kind: 'tribuf', inputs: ['A', 'EN'], output: 'Y', flags: [], values: [], word: false },
+  $dlatchsr: latch(['EN', 'SET', 'CLR', 'D'], ['EN_POLARITY', 'SET_POLARITY', 'CLR_POLARITY']),
+  $sr: stateful('sr', ['SET', 'CLR'], ['SET_POLARITY', 'CLR_POLARITY']),
+  $tribuf: {
+    kind: 'tribuf',
+    inputs: ['A', 'EN'],
+    output: 'Y',
+    flags: [],
+    signedness: [],
+    values: [],
+    word: false,
+  },
 } as const satisfies Record<string, HdlCellSpec>;
 
 export type HdlCellType = keyof typeof HDL_CELLS;
@@ -228,7 +287,10 @@ export function isHdlCellType(type: string): type is HdlCellType {
 }
 
 /** Ports whose bits are each one control signal, whatever the cell's width. */
-const ONE_BIT = new Set(['CLK', 'EN', 'ARST', 'SRST']);
+const ONE_BIT = new Set(['CLK', 'EN', 'ARST', 'SRST', 'ALOAD']);
+
+/** Ports as wide as the output: data, and controls per bit (`SET`, `CLR` of `$dffsr`, `$sr`). */
+const AS_WIDE_AS_Q = ['D', 'AD', 'SET', 'CLR'];
 
 // --- Pins ---------------------------------------------------------------------------------------
 
@@ -485,8 +547,6 @@ function cellShapeProblems(
     if (width[name] === 0) problems.push({ at: `ports.${name}`, message: 'expected bits' });
     if (ONE_BIT.has(name) && width[name] !== 1)
       problems.push({ at: `ports.${name}`, message: 'expected one bit' });
-    if (spec.word && width[name]! > HDL_WORD)
-      problems.push({ at: `ports.${name}`, message: `wider than ${HDL_WORD} bits` });
   }
   if (problems.length > 0) return problems;
   const y = width[spec.output]!;
@@ -502,19 +562,37 @@ function cellShapeProblems(
     sameAsY('A');
     if (width.B !== y * width.S!)
       problems.push({ at: 'ports.B', message: `expected ${y * width.S!} bits (Y × S)` });
-  } else if (spec.kind === 'flip-flop' || spec.kind === 'latch') {
-    sameAsY('D');
+  } else if (spec.kind === 'bmux') {
+    // A holds a word of Y's width for each value of S.
+    if (width.A !== y * 2 ** width.S!)
+      problems.push({ at: 'ports.A', message: `expected ${y * 2 ** width.S!} bits (Y × 2^S)` });
+  } else if (spec.kind === 'demux') {
+    if (y !== width.A! * 2 ** width.S!)
+      problems.push({
+        at: 'ports.Y',
+        message: `expected ${width.A! * 2 ** width.S!} bits (A × 2^S)`,
+      });
+  } else if (spec.kind === 'bwmux') {
+    sameAsY('A');
+    sameAsY('B');
+    sameAsY('S');
+  } else if (spec.kind === 'flip-flop' || spec.kind === 'latch' || spec.kind === 'sr') {
+    for (const name of AS_WIDE_AS_Q) if (width[name] !== undefined) sameAsY(name);
   } else if (spec.kind === 'tribuf') {
     sameAsY('A');
   }
 
   if (!isObject(params)) return [...problems, { at: 'params', message: 'expected an object' }];
   for (const key of Object.keys(params)) {
-    if (!spec.flags.includes(key) && !spec.values.includes(key))
+    if (!spec.flags.includes(key) && !spec.signedness.includes(key) && !spec.values.includes(key))
       problems.push({ at: `params.${key}`, message: 'not a parameter of it' });
   }
   for (const flag of spec.flags) {
     if (params[flag] !== 0 && params[flag] !== 1)
+      problems.push({ at: `params.${flag}`, message: 'expected 0 or 1' });
+  }
+  for (const flag of spec.signedness) {
+    if (params[flag] !== undefined && params[flag] !== 0 && params[flag] !== 1)
       problems.push({ at: `params.${flag}`, message: 'expected 0 or 1' });
   }
   for (const name of spec.values) {
