@@ -4,7 +4,7 @@
 | ---------- | --------------------------------------------------------- |
 | Branch     | `docs/readme-screenshot`                                  |
 | Roadmap    | — (publication under the `berrymoreoss` org, not a track) |
-| Status     | in-progress                                               |
+| Status     | done                                                      |
 | Depends on | `chore/pre-public` (merged)                               |
 | Created    | 2026-11-10                                                |
 
@@ -52,14 +52,16 @@ waveforms.
 
 - [x] 1. Take both screenshots into `docs/images/`; look at them.
 - [x] 2. README: the `<picture>` under the tagline, with alt text.
-- [ ] 3. Verify: `pnpm check`; the README renders the picture on GitHub (after the push).
+- [x] 3. Verify: `pnpm check`; the README renders the picture on GitHub (after the push).
 
 ## Acceptance criteria
 
-- [ ] `pnpm check` is green.
-- [ ] `docs/images/screenshot-dark.png` and `screenshot-light.png` show the running Two-Digit
+- [x] `pnpm check` is green.
+- [x] `docs/images/screenshot-dark.png` and `screenshot-light.png` show the running Two-Digit
   Counter with its waveforms.
-- [ ] The README on GitHub shows the screenshot matching the theme.
+- [x] The README on GitHub shows the screenshot matching the theme. (The branch page in
+  headless Chromium: dark loads `screenshot-dark.png`, light `screenshot-light.png`; GitHub wraps
+  the `<picture>` in its `themed-picture`.)
 
 ## Open questions
 
@@ -73,11 +75,15 @@ waveforms.
 - 2026-11-10 — the repository went public. Candidates shot (six examples, then the counter and
   the 6502 with waveforms); the user picked the counter, both themes, one-off. Plan written,
   started.
+- 2026-11-10 — tasks 1–3 done (`db5ebe3`): both shots taken (2560×1600, the displays read 47,
+  ~270 KB each after a lossless `oxipng -o 4`), the README's `<picture>` under the tagline.
+  `pnpm check` green (3334 tests). Pushed; on GitHub the branch page picks the shot by theme.
 
 ## Handoff
 
-- **State:** in-progress; plan written.
-- **Next step:** task 1.
+- **State:** done; PR open, the user merges it.
+- **Next step:** after the merge `git switch main && git pull --ff-only`, delete the branch.
+  Publication goes on in the untracked `docs/publication.md` (stage 3, after the switch).
 - **Watch out:** the app keeps layout and settings in browser storage: shoot in a fresh browser
   context.
 - **Verify with:** `pnpm check`; the README on GitHub.
