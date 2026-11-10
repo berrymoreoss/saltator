@@ -96,4 +96,17 @@ describe('Editor: Verilog modules', () => {
     expect(editor.simulation.simulator?.now).toBe(now);
     expect(editor.simulation.state).toBe('running');
   });
+
+  it('watches a signal inside a module and asks to show the Debug tab (HDL-4)', () => {
+    const editor = new Editor(registry, withModule(moduleOf('traffic')));
+    editor.watch('A1/state');
+    expect(editor.requests.get()).toMatchObject({ kind: 'watched', ref: 'A1/state' });
+    expect(editor.requests.get()).not.toHaveProperty('problem');
+    expect(editor.debug.watches.get().map((w) => w.label)).toEqual(['A1/state']);
+    editor.watch('A1/nope');
+    expect(editor.requests.get()).toMatchObject({
+      kind: 'watched',
+      problem: 'no part, net or signal named nope in A1 (signals: state)',
+    });
+  });
 });

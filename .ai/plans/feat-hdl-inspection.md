@@ -188,7 +188,7 @@ Rejected (for the ADR):
 - [x] 5. Debugger: breakpoints on inner signals (incl. Reverse Continue's replica), watches.
 - [x] 6. Benches: inner outputs for `get`/`expect`/`row`, drives refused; `pnpm test:circuits`.
 - [x] 7. Suggestions: Waveforms/Debug boxes and the bench editor.
-- [ ] 8. Module view: the Signals section (Q3).
+- [x] 8. Module view: the Signals section (Q3).
 - [ ] 9. Proof (Q4): examples, `tests/scenarios/verilog-inspection.test.ts`,
   `tests/e2e/hdl.spec.ts`, a benchmark of inner channels.
 - [ ] 10. Docs: ADR-0035, circuit.md (references), simulation.md (recorder), components.md (the
