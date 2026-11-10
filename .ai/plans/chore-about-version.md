@@ -46,7 +46,7 @@ workflow — so a bug report or a look at the live demo names the exact `main` i
   `GITHUB_SHA` (no date), else nulls.
 - **How it gets into the app:** `vite.config.ts` puts it in `define` as `__SALTATOR_BUILD__`
   (JSON). `src/ui/build-info.ts` declares the constant, holds the formatting
-  (`formatVersion`) and the repo URL, and is imported by the About dialog only, so nothing run by
+  (`describeVersion`) and the repo URL, and is imported by the About dialog only, so nothing run by
   Node directly (the headless scripts) touches the undefined global.
 - **Dev server:** the config is read once at server start, so the hash may lag later commits; the
   `· dev` mark (`import.meta.env.DEV`) says not to trust it fully.
@@ -54,19 +54,19 @@ workflow — so a bug report or a look at the live demo names the exact `main` i
 
 ## Tasks
 
-- [ ] 1. `scripts/build-info.ts` + tests; `define` in `vite.config.ts`.
-- [ ] 2. `src/ui/build-info.ts` (`formatVersion`) + tests; the new About dialog and its styles;
+- [x] 1. `scripts/build-info.ts` + tests; `define` in `vite.config.ts`.
+- [x] 2. `src/ui/build-info.ts` (`describeVersion`) + tests; the new About dialog and its styles;
   an e2e test (Help ▸ About shows the text and a 7-hex version).
-- [ ] 3. Docs: ADR-0034, `docs/adr/README.md`, `docs/editor.md`; a subpath build checked by hand.
+- [x] 3. Docs: ADR-0034, `docs/adr/README.md`, `docs/editor.md`; a subpath build checked by hand.
 
 ## Acceptance criteria
 
-- [ ] `pnpm check`, `pnpm build` and `pnpm e2e` are green.
-- [ ] A clean `pnpm build` shows `Version <HEAD short hash> · <commit date>` in About, the hash
+- [x] `pnpm check`, `pnpm build` and `pnpm e2e` are green.
+- [x] A clean `pnpm build` shows `Version <HEAD short hash> · <commit date>` in About, the hash
   linking to the commit on GitHub; with uncommitted changes it says `-dirty`; `pnpm dev` adds
   `· dev`.
-- [ ] A build with no git and no `GITHUB_SHA` still builds and About says the version is unknown.
-- [ ] The Pages workflow needs no change: its checkout has HEAD, and its build reads it.
+- [x] A build with no git and no `GITHUB_SHA` still builds and About says the version is unknown.
+- [x] The Pages workflow needs no change: its checkout has HEAD, and its build reads it.
 
 ## Open questions
 
@@ -78,10 +78,16 @@ workflow — so a bug report or a look at the live demo names the exact `main` i
 ## Progress log
 
 - 2026-11-11 — plan drafted, Q1–Q2 answered, started.
+- 2026-11-11 — tasks 1–3 done. Checked by hand: a `--base=/saltator/` build in light and dark
+  (`Version 350fadb · 2026-11-11`, no console errors), the dev server (`· dev`), a `git archive`
+  copy without `.git` (`commit: null`, and the hash from `GITHUB_SHA`). The hint says
+  **File ▸ New from Example…** (the gallery command) rather than the approved draft's
+  "File ▸ Examples", which is a submenu of single examples.
 
 ## Handoff
 
-- **State:** plan approved, no code yet.
-- **Next step:** task 1.
-- **Watch out:** —
+- **State:** all tasks done, acceptance verified; waiting for the user's approval to merge.
+- **Next step:** finish-branch (merge with `--no-ff`); a Pages deploy only if the user asks.
+- **Watch out:** `__SALTATOR_BUILD__` exists only under Vite; keep `src/ui/build-info.ts` out of
+  anything Node runs directly.
 - **Verify with:** `pnpm check`, `pnpm build && pnpm preview`, Help ▸ About.
