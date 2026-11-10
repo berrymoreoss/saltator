@@ -89,12 +89,13 @@ user's pick (`head-16`, temporary).
   (`dist/favicon.ico` identical), `pnpm e2e` (96 passed); `pnpm dev` and `pnpm preview` serve it,
   headless Chromium decodes 16/32/48. Lesson: the rename's grep looked at `src/` and missed
   `public/`.
+- 2026-11-10 — pushed; PR #2 opened. The user will merge it with a squash.
 
 ## Handoff
 
-- **State:** done; waiting for the user's approval to merge.
-- **Next step:** after approval push, open the PR, `gh pr merge --merge --delete-branch`, then
-  `git switch main && git pull --ff-only`. Publication goes on in the untracked
-  `docs/publication.md` (stage 3).
+- **State:** done; PR #2 (berrymoreoss/saltator) open. The user merges it (squash).
+- **Next step:** after the merge `git switch main && git pull --ff-only` and
+  `git branch -D chore/pre-public` (a squash isn't an ancestor, so `-d` refuses). Publication
+  goes on in the untracked `docs/publication.md` (stage 3).
 - **Watch out:** `playground/` is git-ignored: only the generated `favicon.ico` entered the repo.
 - **Verify with:** `pnpm check && pnpm build && pnpm e2e`.
