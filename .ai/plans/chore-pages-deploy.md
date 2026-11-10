@@ -4,7 +4,7 @@
 | ---------- | --------------------------------------------------------- |
 | Branch     | `chore/pages-deploy`                                      |
 | Roadmap    | — (publication under the `berrymoreoss` org, not a track) |
-| Status     | in-progress                                               |
+| Status     | done                                                      |
 | Depends on | `docs/readme-screenshot` (merged); the repo is public     |
 | Created    | 2026-11-10                                                |
 
@@ -75,9 +75,10 @@ without installing anything.
 
 ## Acceptance criteria
 
-- [ ] `pnpm check` and `pnpm build` are green.
-- [ ] `pages.yml` triggers only on `workflow_dispatch` and refuses a ref other than `main`.
-- [ ] A `--base /saltator/` build runs under the subpath without 404s or console errors.
+- [x] `pnpm check` and `pnpm build` are green.
+- [x] `pages.yml` triggers only on `workflow_dispatch` and refuses a ref other than `main`.
+  (Its first step fails off `main`; the `github-pages` environment's branch policy is `main`.)
+- [x] A `--base /saltator/` build runs under the subpath without 404s or console errors.
 - [ ] After the first deploy, `https://berrymoreoss.github.io/saltator/` opens the app with its
   favicon, and `?example=two-digit-counter` opens the example.
 
@@ -94,11 +95,21 @@ without installing anything.
 
 - 2026-11-10 — plan drafted. The user asked for Pages with a manual deploy only; answered
   Q1–Q3 (build only, `main` only, CI stays on demand). Started.
+- 2026-11-10 — tasks 1–3 done. The subpath: `pnpm build --base=/saltator/` rewrites the favicon,
+  JS and CSS to `/saltator/…`; served under `/saltator/`, a Chromium smoke (gallery,
+  `?example=two-digit-counter`, Run, a test bench in its worker) saw no 4xx and no console errors,
+  so no code changes. `pages.yml` (`cff800f`); Pages enabled with the Actions source (the
+  `github-pages` environment allows `main` only). Docs (`574b98e`): ADR-0033, AGENTS.md,
+  finish-branch, the README link. `pnpm check` (3334) and `pnpm build` green. The first deploy
+  waits for the merge.
 
 ## Handoff
 
-- **State:** in-progress; plan approved.
-- **Next step:** task 1.
+- **State:** done but the first deploy; PR open, the user merges it.
+- **Next step:** after the merge, `gh workflow run Pages` on `main` (the user starts it or asks);
+  check the live site (favicon, `?example=two-digit-counter`); set the repo's website field to
+  the demo URL. No commits to `main`: the last criterion and task 4 are ticked by the next branch
+  that touches publication.
 - **Watch out:** e2e tests use absolute paths (`page.goto('/')`), so they can't run under the
   subpath; the subpath smoke is a separate, local check.
 - **Verify with:** `pnpm check && pnpm build`.
