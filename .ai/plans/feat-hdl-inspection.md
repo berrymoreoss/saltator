@@ -4,7 +4,7 @@
 | ---------- | --------------------------------------------------------------------------------------------- |
 | Branch     | `feat/hdl-inspection`                                                                         |
 | Roadmap    | HDL-4 — Inside a module, track [Programmable logic](../../docs/roadmap/programmable-logic.md) |
-| Status     | in-progress                                                                                   |
+| Status     | done                                                                                          |
 | Depends on | HDL-1, HDL-8, HDL-9 (the IR keeps named signals; the interpreter's planes)                    |
 | Created    | 2026-11-11                                                                                    |
 
@@ -251,17 +251,12 @@ Rejected (for the ADR):
   12.0k (≈ 2 %); decoder 2.0M, counter 2.5M, wide words 75.7k, internal clocks 632k evaluations/s.
   Looked at in the browser (dev server, Playwright screenshots): the UART's probes, the
   transmitter's Signals in A1 with live values and the Probe/Watch icons.
+- 2026-11-11 — finished: acceptance verified (`pnpm check` 3462 tests, `pnpm build`, `pnpm e2e`
+  98, `pnpm test:circuits` 28 benches); `main` hadn't moved, ADR-0035 kept its number. HDL-4
+  done, HDL-6 the track's next. Merged with the user's approval.
 
 ## Handoff
 
-- **State:** every task done and committed on `feat/hdl-inspection` (local only: the user asked
-  for no push). Plan status `in-progress`, the track's HDL-4 `in-progress` with its Built
-  section written.
-- **Next step:** the finish-branch workflow — verify the acceptance criteria one by one (most are
-  covered by tests: `src/editor/analyzer.test.ts`, `debugger.test.ts`,
-  `tests/scenarios/verilog-inspection.test.ts`, `tests/e2e/hdl.spec.ts`), `pnpm build`, the full
-  `pnpm e2e`, then ask the user before merging.
-- **Watch out:** resolvers need `design.registry` to see modules' parts (lessons); the
-  UART's board bench timings assume its 100 Hz clock rising at 5 ms, 15 ms, ….
-- **Verify with:** `pnpm check`, `pnpm test:circuits`, `pnpm e2e tests/e2e/hdl.spec.ts`,
-  `pnpm bench tests/bench/hdl.bench.ts`.
+- **State:** merged; nothing pending.
+- **Follow-ups:** none new. R17b (MOS 6502) may show the CPU's registers through the same
+  `signals` view (ADR-0035); HDL-6 puts module memories beside it in the `memory` view.
