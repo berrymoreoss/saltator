@@ -83,6 +83,10 @@ workflow — so a bug report or a look at the live demo names the exact `main` i
   copy without `.git` (`commit: null`, and the hash from `GITHUB_SHA`). The hint says
   **File ▸ New from Example…** (the gallery command) rather than the approved draft's
   "File ▸ Examples", which is a submenu of single examples.
+- 2026-11-11 — the user asked for the pixel-art bird on a chip in About: round-1 art copied from
+  `playground/art/staging/saltator/1x/chip.png` (32×32, git-ignored source; the icon isn't picked
+  yet) to `src/ui/assets/saltator-chip.png`, shown at 64 px with `image-rendering: pixelated`;
+  Vite inlines it (under 4 KB), so the subpath build needs nothing. Checked in both themes.
 
 ## Handoff
 

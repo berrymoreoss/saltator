@@ -1,5 +1,7 @@
 import { X } from 'lucide-react';
 import { type ReactNode, useEffect, useRef } from 'react';
+// Round-1 pixel art, 32×32 (playground/art, not in git); swapped when the icon is picked.
+import saltatorIcon from './assets/saltator-chip.png';
 import { BUILD, describeVersion, ORG_URL, REPO_URL } from './build-info';
 import type { CommandRegistry } from './commands';
 import type { FileProblem, UnsavedChoice } from './document-controller';
@@ -154,10 +156,15 @@ export function AboutDialog({ onClose }: { readonly onClose: () => void }) {
   const version = describeVersion(BUILD, import.meta.env.DEV);
   return (
     <Dialog title={`About ${APP_NAME}`} onClose={onClose} testId="about-dialog">
-      <p className="about-title">{APP_NAME}</p>
-      <p className="about-tagline">
-        A digital logic simulator for the browser. <em>Test before fab.</em>
-      </p>
+      <div className="about-head">
+        <img className="about-icon" src={saltatorIcon} alt="" width={64} height={64} />
+        <div>
+          <p className="about-title">{APP_NAME}</p>
+          <p className="about-tagline">
+            A digital logic simulator for the browser. <em>Test before fab.</em>
+          </p>
+        </div>
+      </div>
       <p>
         Build circuits from real chips — 74HC logic, ROM and RAM, the 6502 CPU, displays, your own
         Verilog modules — and run them with the delays from their datasheets. Watch every wire, look
