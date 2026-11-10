@@ -181,7 +181,7 @@ Rejected (for the ADR):
   constant bits, `X` before power-up values.
 - [x] 2. Resolver: the `inner` target, sources in `ProbeTarget`, names with `.`, slices (Q2),
   errors, paths through subcircuits, the module's own scope. Tests in `resolve.test.ts`.
-- [ ] 3. Recorder: sampled channels (`attach`, `attachChannel`, `removeChannel`, `#links`),
+- [x] 3. Recorder: sampled channels (`attach`, `attachChannel`, `removeChannel`, `#links`),
   `sample()` per instant, the trigger sampling first. Tests: one level per instant, a trigger on
   an inner channel, rewind.
 - [ ] 4. Waveforms (`analyzer.ts`): probes on inner signals, the trigger on them, VCD.

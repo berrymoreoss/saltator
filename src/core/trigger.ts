@@ -161,6 +161,9 @@ export class Trigger {
 
   #instant(now: Time): void {
     const recorder = this.#recorder;
+    // Bits inside parts are read at the end of the instant: before the recorder's own listener
+    // maybe, so read them now (HDL-4).
+    recorder.sample();
     let changed = false;
     for (const channel of this.#channels) {
       if (recorder.lastChange(channel) === now) {

@@ -4,11 +4,17 @@
  *
  * Channels are numbered by the recorder and point at nets only through `attach`, because nets
  * have no identity across compiles: after a carry-over the caller re-resolves what each channel
- * shows and attaches the new simulator, and the record goes on.
+ * shows and attaches the new simulator, and the record goes on. A channel may also show a bit
+ * inside a part (HDL-4: a Verilog module's register), which changes inside the part's evaluation
+ * rather than on a net: it is sampled at the end of each instant.
  */
+import { type InnerBit, innerReader } from './inner-signals';
 import type { Level } from './logic';
 import type { Simulator } from './simulator';
 import type { Time } from './time';
+
+/** What a channel shows in the attached simulator: a net's index, or a bit inside a part. */
+export type ChannelSource = number | InnerBit;
 
 /** Stored instead of a level where a channel has no data (it lost its net, or was detached). */
 export const NO_DATA = 4;
@@ -126,6 +132,11 @@ export class Recorder {
   #present: Time = 0;
   /** First channel on each net of the attached simulator (−1: none). */
   #netFirst = new Int32Array(0);
+  /** What each live channel shows, as attached. */
+  #sources = new Map<number, ChannelSource>();
+  /** The live channels on bits inside parts, read at the end of each instant (HDL-4). */
+  #sampled: { readonly track: Track; readonly read: () => Level }[] = [];
+  #offInstant: (() => void) | undefined;
 
   constructor(options: RecorderOptions = {}) {
     this.budget = Math.max(16, Math.floor(options.budget ?? DEFAULT_BUDGET));
@@ -143,11 +154,11 @@ export class Recorder {
   removeChannel(channel: number): void {
     const track = this.#tracks[channel];
     if (!track) return;
-    const links = this.#links();
-    links.delete(channel);
+    const sources = new Map(this.#sources);
+    sources.delete(channel);
     this.#total -= track.count;
     this.#tracks[channel] = undefined;
-    if (this.#sim) this.#link(this.#sim, links);
+    if (this.#sim) this.#link(this.#sim, sources);
   }
 
   /** Ids of the channels, in the order they were added. */
@@ -162,27 +173,32 @@ export class Recorder {
   // ── Recording ────────────────────────────────────────────────────────────────────────────
 
   /**
-   * Records `sim` from its current instant: `nets` maps channel ids to the net index each one
-   * shows there. A channel left out (its reference no longer resolves) gets no data from now on;
-   * one given a net records its current level now and every change after. Replaces any simulator
-   * attached before (a carry-over's old one).
+   * Records `sim` from its current instant: `sources` maps channel ids to what each one shows
+   * there — a net's index, or a bit inside a part. A channel left out (its reference no longer
+   * resolves) gets no data from now on; one given a source records its current level now and
+   * every change after. Replaces any simulator attached before (a carry-over's old one).
    */
-  attach(sim: Simulator, nets: ReadonlyMap<number, number>): void {
+  attach(sim: Simulator, sources: ReadonlyMap<number, ChannelSource>): void {
     this.#off?.();
+    this.#offInstant?.();
+    this.#offInstant = undefined;
     this.#sim = sim;
     const now = sim.now;
+    const live = new Map<number, ChannelSource>();
     this.#tracks.forEach((track, id) => {
       if (!track) return;
-      const net = nets.get(id);
-      if (net === undefined || net < 0 || net >= sim.netCount) {
+      const source = sources.get(id);
+      const level = source === undefined ? undefined : levelOf(sim, source);
+      if (level === undefined) {
         if (track.live) this.#record(track, now, NO_DATA);
         track.live = false;
       } else {
-        this.#record(track, firstAt(track, now), sim.levels[net]!);
+        this.#record(track, firstAt(track, now), level);
         track.live = true;
+        live.set(id, source!);
       }
     });
-    this.#link(sim, nets);
+    this.#link(sim, live);
     this.#off = sim.onNetChange((time, net, level) => {
       const replaying = this.#replaying;
       for (let c = this.#netFirst[net]!; c >= 0; ) {
@@ -194,16 +210,37 @@ export class Recorder {
     });
   }
 
-  /** Gives `channel` a net in the attached simulator from now on (a probe added while running). */
-  attachChannel(channel: number, net: number): void {
+  /**
+   * Gives `channel` a net or a bit inside a part in the attached simulator from now on (a probe
+   * added while running); nothing where `sim` has no such source.
+   */
+  attachChannel(channel: number, source: ChannelSource): void {
     const sim = this.#sim;
     const track = this.#tracks[channel];
     if (!sim || !track) return;
-    const nets = this.#links();
-    nets.set(channel, net);
-    this.#record(track, firstAt(track, sim.now), sim.levels[net]!);
+    const level = levelOf(sim, source);
+    if (level === undefined) return;
+    const sources = new Map(this.#sources);
+    sources.set(channel, source);
+    this.#record(track, firstAt(track, sim.now), level);
     track.live = true;
-    this.#link(sim, nets);
+    this.#link(sim, sources);
+  }
+
+  /**
+   * Reads the channels on bits inside parts at the attached simulator's present instant: done at
+   * the end of every instant, and by anything that reads the record there before the recorder's
+   * own listener runs (a `Trigger`). Reading again at one instant changes nothing.
+   */
+  sample(): void {
+    const sim = this.#sim;
+    if (!sim) return;
+    const now = sim.now;
+    const replaying = this.#replaying;
+    for (const { track, read } of this.#sampled) {
+      if (replaying) this.#record(track, now, read());
+      else this.#append(track, now, read());
+    }
   }
 
   /** Stops recording (Stop): the record ends at the simulator's current instant. */
@@ -213,7 +250,11 @@ export class Recorder {
     this.#endReplay();
     this.#off?.();
     this.#off = undefined;
+    this.#offInstant?.();
+    this.#offInstant = undefined;
     this.#sim = undefined;
+    this.#sources = new Map();
+    this.#sampled = [];
     for (const track of this.#tracks) if (track) track.live = false;
   }
 
@@ -398,28 +439,38 @@ export class Recorder {
     return track;
   }
 
-  /** The nets of the live channels, as attached. */
-  #links(): Map<number, number> {
-    const links = new Map<number, number>();
-    const first = this.#netFirst;
-    for (let net = 0; net < first.length; net++) {
-      for (let c = first[net]!; c >= 0; c = this.#tracks[c]!.next) links.set(c, net);
-    }
-    return links;
-  }
-
-  #link(sim: Simulator, nets: ReadonlyMap<number, number>): void {
+  /**
+   * Points the live channels at their sources in `sim`: the nets' channel lists, and the bits
+   * inside parts to sample at the end of each instant (listening for instants only while there
+   * are any, so a recorder of nets costs the kernel nothing more).
+   */
+  #link(sim: Simulator, sources: ReadonlyMap<number, ChannelSource>): void {
     const first = new Int32Array(sim.netCount).fill(-1);
     for (const track of this.#tracks) if (track) track.next = -1;
+    const sampled: { readonly track: Track; readonly read: () => Level }[] = [];
     // Highest id first, so each net's list runs in ascending channel order.
     for (let id = this.#tracks.length - 1; id >= 0; id--) {
       const track = this.#tracks[id];
-      const net = nets.get(id);
-      if (!track?.live || net === undefined || net < 0 || net >= first.length) continue;
-      track.next = first[net]!;
-      first[net] = id;
+      const source = sources.get(id);
+      if (!track?.live || source === undefined) continue;
+      if (typeof source === 'number') {
+        if (source < 0 || source >= first.length) continue;
+        track.next = first[source]!;
+        first[source] = id;
+      } else {
+        const read = innerReader(sim, source);
+        if (read) sampled.unshift({ track, read });
+      }
     }
     this.#netFirst = first;
+    this.#sources = new Map(sources);
+    this.#sampled = sampled;
+    if (sampled.length > 0 && !this.#offInstant) {
+      this.#offInstant = sim.onInstant(() => this.sample());
+    } else if (sampled.length === 0 && this.#offInstant) {
+      this.#offInstant();
+      this.#offInstant = undefined;
+    }
   }
 
   /**
@@ -495,6 +546,12 @@ export class Recorder {
  * the rest of the instant — so a change still made at `now` (an action while paused, the
  * power-on of a carried-over simulator) is an edge after it, not merged into it.
  */
+/** A source's level in `sim` now; undefined where `sim` has no such net or bit. */
+function levelOf(sim: Simulator, source: ChannelSource): Level | undefined {
+  if (typeof source !== 'number') return innerReader(sim, source)?.();
+  return source >= 0 && source < sim.netCount ? (sim.levels[source] as Level) : undefined;
+}
+
 function firstAt(track: Track, now: Time): Time {
   return track.count === 0 && now > 0 ? now - 1 : now;
 }

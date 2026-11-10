@@ -48,8 +48,9 @@ export function innerReader(sim: Simulator, source: InnerBit): (() => Level) | u
   const view = sim.definitionOf(source.part)?.signals;
   const signal = view?.list[source.signal];
   if (!view || !signal || source.bit < 0 || source.bit >= signal.width) return undefined;
-  const state = sim.stateOf(source.part);
-  return () => view.level(state, source.signal, source.bit);
+  const { part, signal: index, bit } = source;
+  // The state is looked up on every read: a restore whose state changed shape replaces it.
+  return () => view.level(sim.stateOf(part), index, bit);
 }
 
 /** The problems of a part's `signals` view, for the registry: names given and unique, widths. */
