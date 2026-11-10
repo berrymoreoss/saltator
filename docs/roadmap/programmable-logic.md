@@ -21,18 +21,18 @@ sound controllers drive (a VGA monitor — the "Video output" track idea; the bu
 
 ## Items
 
-| ID     | Branch                | Title                           | Needs | Status  |
-| ------ | --------------------- | ------------------------------- | ----- | ------- |
-| HDL-1  | `feat/hdl-modules`    | Verilog modules in the document | —     | done    |
-| HDL-8  | `feat/hdl-bus`        | Modules on a bus                | —     | done    |
-| HDL-9  | `feat/hdl-semantics`  | All of synthesizable Verilog    | —     | next    |
-| HDL-3  | `feat/hdl-recompile`  | Recompiling a running module    | —     | planned |
-| HDL-4  | `feat/hdl-inspection` | Inside a module                 | —     | planned |
-| HDL-6  | `feat/hdl-memories`   | Memories in modules             | —     | planned |
-| HDL-7  | `example/picorv32`    | PicoRV32 soft core              | —     | planned |
-| HDL-10 | `feat/hdl-fast`       | Fast evaluation                 | —     | planned |
-| HDL-2  | `feat/hdl-library`    | Library parts in Verilog        | —     | planned |
-| HDL-5  | `feat/pld-devices`    | Programmable devices            | —     | planned |
+| ID     | Branch                | Title                           | Needs | Status      |
+| ------ | --------------------- | ------------------------------- | ----- | ----------- |
+| HDL-1  | `feat/hdl-modules`    | Verilog modules in the document | —     | done        |
+| HDL-8  | `feat/hdl-bus`        | Modules on a bus                | —     | done        |
+| HDL-9  | `feat/hdl-semantics`  | All of synthesizable Verilog    | —     | in-progress |
+| HDL-3  | `feat/hdl-recompile`  | Recompiling a running module    | —     | planned     |
+| HDL-4  | `feat/hdl-inspection` | Inside a module                 | —     | planned     |
+| HDL-6  | `feat/hdl-memories`   | Memories in modules             | —     | planned     |
+| HDL-7  | `example/picorv32`    | PicoRV32 soft core              | —     | planned     |
+| HDL-10 | `feat/hdl-fast`       | Fast evaluation                 | —     | planned     |
+| HDL-2  | `feat/hdl-library`    | Library parts in Verilog        | —     | planned     |
+| HDL-5  | `feat/pld-devices`    | Programmable devices            | —     | planned     |
 
 ## HDL-1 · Verilog modules in the document — `feat/hdl-modules`
 
