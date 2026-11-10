@@ -203,17 +203,26 @@ Rejected (for the ADR):
 
 ## Acceptance criteria
 
-- [ ] `pnpm check` and `pnpm build` are green; `pnpm e2e` passes; `pnpm test:circuits` passes.
-- [ ] A probe on `A1/shift` in the UART example draws the shift register next to `tx`, changing
-  at the clock edge, `tx` the module's delay later.
-- [ ] A breakpoint "`A2/shift` = 0x55" pauses at the instant it loads; Reverse Continue finds it.
-- [ ] A watch on `A1/left` shows its value at each stop, marked when changed.
-- [ ] A bench reads `A1/state` with `get` and checks it in `expect` and a `row`, headless and in
-  the app; driving it is refused with the reason.
-- [ ] Inner signals in the suggestions of every reference box and in the bench editor.
-- [ ] (Q3) the module view lists the signals with live values; Probe/Watch from there work.
-- [ ] Names with `.` (a flattened submodule) and slices resolve; wrong ones say what exists.
-- [ ] No cost without inner probes (HDL-1's benchmark unchanged); the cost with them measured.
+- [x] `pnpm check` and `pnpm build` are green; `pnpm e2e` passes; `pnpm test:circuits` passes.
+  (2026-11-11: 3462 tests, 98 e2e, 28 example benches.)
+- [x] A probe on `A1/shift` in the UART example draws the shift register next to `tx`, changing
+  at the clock edge, `tx` the module's delay later. (The UART opens with it, e2e; the edge and
+  the pin 15 ns later: `analyzer.test.ts`, on the `clocks` module.)
+- [x] A breakpoint on a value inside a module pauses at the instant it loads; Reverse Continue
+  finds it. (`debugger.test.ts`: `A1/rip = 3`, `A1/rip[1:0] = 2`, Reverse Continue in a replay.)
+- [x] A watch on `A1/left` shows its value at each stop, marked when changed. (e2e adds it from
+  the Signals list; changed marks: `debugger.test.ts`.)
+- [x] A bench reads a module's signal with `get` and checks it in `expect` and a `row`, headless
+  and in the app; driving it is refused with the reason. (`verilog-inspection.test.ts`; in the
+  app the traffic light's benches with their `state` column pass in the sandbox, e2e.)
+- [x] Inner signals in the suggestions of every reference box and in the bench editor.
+  (`waveforms-view.test.ts`, `script-editor.test.ts`.)
+- [x] (Q3) the module view lists the signals with live values; Probe/Watch from there work.
+  (e2e; looked at in the browser.)
+- [x] Names with `.` (a flattened submodule) and slices resolve; wrong ones say what exists.
+  (`resolve.test.ts`.)
+- [x] No cost without inner probes (HDL-1's benchmark unchanged); the cost with them measured.
+  (≈ 2 % for 16 bits, progress log.)
 
 ## Open questions
 
