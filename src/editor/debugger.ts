@@ -5,13 +5,20 @@
  * statistics. The debug setup lives in the session, not in the document (ADR-0020). No DOM: the
  * Debug tab draws it, and tests drive it with a fake clock. Spec: docs/editor.md#debugger.
  */
-import { type Design, type ProbeRadix, Resolver, renameReference } from '../circuit';
 import {
-  busMembers,
+  channelSource,
+  type Design,
+  type ProbeRadix,
+  Resolver,
+  renameReference,
+  type SignalBit,
+  signalBitLevel,
+} from '../circuit';
+import {
+  type ChannelSource,
   conditionProblems,
   diagnosticSeverity,
   formatTime,
-  isBusName,
   Level,
   Recorder,
   resolveProps,
@@ -298,9 +305,12 @@ export class Debugger {
   readonly #recorder = new Recorder({ budget: DEBUG_BUDGET });
   #design: Design | undefined;
   #sim: Simulator | undefined;
-  /** Recorder channel by bit reference; net id (of the scene's compile) by bit reference. */
+  /**
+   * Recorder channel by bit reference; what each bit reference shows in the scene's compile — a
+   * net, or a bit inside a part.
+   */
   #bits = new Map<string, number>();
-  #nets = new Map<string, string>();
+  #sources = new Map<string, SignalBit>();
   /**
    * Built breakpoints, by id: their trigger (kept while its condition is the same: a carry-over
    * processes the instant it fired at again, and a fresh trigger would fire there twice), or
@@ -626,12 +636,9 @@ export class Debugger {
     const conditions = [...this.#built]
       .filter(([, built]) => built.trigger !== undefined)
       .map(([id, built]) => ({ id, condition: built.trigger!.condition }));
-    const channels = new Map<number, number>();
-    for (const [key, channel] of this.#bits) {
-      const net = this.#nets.get(key);
-      const index = net === undefined ? undefined : this.#editor.simulation.netOf(net);
-      if (index !== undefined) channels.set(channel, index);
-    }
+    const bits = [...this.#bits].map(
+      ([key, channel]) => [channel, this.#sources.get(key)] as const,
+    );
     const top = Math.max(-1, ...this.#bits.values());
     // Segments replay newest first and the search ends with the first that has a hit: the
     // latest hit seen is the one to go to.
@@ -646,6 +653,12 @@ export class Debugger {
         // A recorder of the replica's own, its channels numbered as the debugger's.
         const recorder = new Recorder({ budget: DEBUG_BUDGET });
         for (let c = 0; c <= top; c++) recorder.addChannel();
+        // The replica's own nets and parts: the same netlist, the same ids.
+        const channels = new Map<number, ChannelSource>();
+        for (const [channel, bit] of bits) {
+          const source = channelSource(sim, bit);
+          if (source !== undefined) channels.set(channel, source);
+        }
         recorder.attach(sim, channels);
         const note = (position: TimelinePosition, reason: string) => {
           if (comparePositions(position, before) >= 0) return;
@@ -892,10 +905,10 @@ export class Debugger {
     this.#built = new Map();
     const resolver = this.#resolver();
     const used = new Set<string>();
-    const nets = new Map<string, string>();
+    const sources = new Map<string, SignalBit>();
     for (const breakpoint of this.setup.get().breakpoints) {
       const { id } = breakpoint;
-      const built = this.#buildTerms(breakpoint.terms, resolver, used, nets);
+      const built = this.#buildTerms(breakpoint.terms, resolver, used, sources);
       if (typeof built === 'string') {
         this.#built.set(id, { key: '', problem: built });
         continue;
@@ -927,14 +940,13 @@ export class Debugger {
       this.#recorder.removeChannel(channel);
       this.#bits.delete(key);
     }
-    this.#nets = nets;
+    this.#sources = sources;
     const sim = this.#sim;
     if (!sim) return;
-    const attached = new Map<number, number>();
+    const attached = new Map<number, ChannelSource>();
     for (const [key, channel] of this.#bits) {
-      const net = this.#nets.get(key);
-      const index = net === undefined ? undefined : this.#editor.simulation.netOf(net);
-      if (index !== undefined) attached.set(channel, index);
+      const source = channelSource(sim, this.#sources.get(key));
+      if (source !== undefined) attached.set(channel, source);
     }
     this.#recorder.attach(sim, attached);
     for (const built of this.#built.values()) built.trigger?.attach(sim);
@@ -945,7 +957,7 @@ export class Debugger {
     terms: readonly DebugTerm[],
     resolver: Resolver,
     used = new Set<string>(),
-    nets = new Map<string, string>(),
+    sources = new Map<string, SignalBit>(),
   ): { terms: TriggerTerm[] } | string {
     const built: TriggerTerm[] = [];
     for (const term of terms) {
@@ -955,11 +967,10 @@ export class Debugger {
       const target =
         one === undefined ? resolver.probe({ name: term.signal, members }) : resolver.signal(one);
       if (typeof target === 'string') return target;
-      const keys = one === undefined ? members : isBusName(one) ? busMembers(one) : [one];
-      const channels = keys.map((key, i) => {
+      const channels = target.keys.map((key, i) => {
         used.add(key);
-        const net = target.bits[i];
-        if (typeof net === 'string') nets.set(key, net);
+        const bit = target.bits[i];
+        if (bit !== undefined) sources.set(key, bit);
         let channel = this.#bits.get(key);
         if (channel === undefined) {
           channel = this.#recorder.addChannel();
@@ -1117,10 +1128,7 @@ export class Debugger {
     const { vector } = target;
     const sim = this.#sim;
     if (!sim) return { value: '', vector };
-    const levels = target.bits.map((net) => {
-      const index = typeof net === 'string' ? this.#editor.simulation.netOf(net) : undefined;
-      return index === undefined ? Level.Z : (sim.levels[index] as Level);
-    });
+    const levels = target.bits.map((bit) => signalBitLevel(sim, bit));
     if (!vector) return { value: levelText(levels[0] ?? Level.Z), vector };
     return { value: formatValue(levels, radix), vector };
   }

@@ -185,7 +185,7 @@ Rejected (for the ADR):
   `sample()` per instant, the trigger sampling first. Tests: one level per instant, a trigger on
   an inner channel, rewind.
 - [x] 4. Waveforms (`analyzer.ts`): probes on inner signals, the trigger on them, VCD.
-- [ ] 5. Debugger: breakpoints on inner signals (incl. Reverse Continue's replica), watches.
+- [x] 5. Debugger: breakpoints on inner signals (incl. Reverse Continue's replica), watches.
 - [ ] 6. Benches: inner outputs for `get`/`expect`/`row`, drives refused; `pnpm test:circuits`.
 - [ ] 7. Suggestions: Waveforms/Debug boxes and the bench editor.
 - [ ] 8. Module view: the Signals section (Q3).
