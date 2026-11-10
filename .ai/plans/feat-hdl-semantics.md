@@ -288,7 +288,7 @@ bytes and checking each one received.
   of NANDs, a ring of inverters, a latch feeding itself).
 - [x] 9. Differential tests: the script, the designs, the committed vectors,
   `differential.test.ts`; mutation-checked (a wrong cell fails it).
-- [ ] 10. Example (Q2): the UART sources, `pnpm hdl:examples`, its benches in the app and
+- [x] 10. Example (Q2): the UART sources, `pnpm hdl:examples`, its benches in the app and
   headless (`pnpm test:circuits`); looked at in the browser.
 - [ ] 11. Benchmark: HDL-1's numbers for its module (one round), and the new costs (a 64-bit
   counter, a 32 × 32 multiplier, a divider chain) recorded.
@@ -407,14 +407,20 @@ bytes and checking each one received.
   (Design, "Differential tests"); the converter now warns on `$pow`. Mutation-checked: the
   quotient's sign survived until `signed_math.v` was added; the "both operands signed" rule
   can't be seen from Verilog (Yosys always sets both flags alike) — a unit test.
+- 2026-11-11 — task 10: the Verilog UART example (`examples/verilog/uart_tx.v`, `uart_rx.v`, 8N1,
+  8 clocks a bit, idle from power-up by `init` values; `scripts/hdl-examples.ts`): a 100 Hz
+  clock, RST, a SEND button, an 8-way DIP switch for the byte (switch k = bit k − 1), LINE, BUSY,
+  VALID, ERR LEDs and an LED bar for the received byte (LED k = bit k − 1, as the switches); its
+  six benches (the board's two, two per module) pass headless and in the app's Tests tab (Run All
+  ✓ 6, no console errors), mutation-checked (data <= ~shift fails two); listed in
+  `example-files.ts`; `pnpm hdl:differential` now holds both modules too (18 designs).
 
 ## Handoff
 
-- **State:** tasks 1–9 done: everything HDL-9 runs is built and agrees with Yosys's `sim` (the
-  differential tests). Left: the UART example, benchmark notes, docs.
-- **Next step:** task 10 — the UART example (Q2): `examples/verilog/uart_tx.v`, `uart_rx.v`,
-  a loop with switches, a button and LEDs in `scripts/hdl-examples.ts`, benches; `pnpm
-  hdl:differential` again (it picks up `examples/verilog/*.v`); look at it in the browser.
+- **State:** tasks 1–10 done: everything HDL-9 runs is built, agrees with Yosys's `sim`, and the
+  UART example runs. Left: benchmark notes (task 11), docs (task 12), e2e before finishing.
+- **Next step:** task 11 — benchmark notes (HDL-1's numbers held; measure a 64-bit counter, a
+  32 × 32 multiplier, a divider chain) — then task 12, docs.
 - **Watch out:** Yosys's `sim -r` takes no `-clock` with a witness file (the clocks are in it).
   `evaluate` must stay a few small phase functions: one large function cost the decoder 5–8 %.
   A test needing known flip-flops at power-on with a pin-made clock needs a reset (an edge from

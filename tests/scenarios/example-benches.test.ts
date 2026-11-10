@@ -46,6 +46,9 @@ describe('example benches', () => {
       'verilog-counter-traffic-light/decade-counter',
       'verilog-counter-traffic-light/main',
       'verilog-counter-traffic-light/traffic-light',
+      'verilog-uart/main',
+      'verilog-uart/uart-rx',
+      'verilog-uart/uart-tx',
     ]);
     for (const { id } of EXAMPLE_FILES) {
       for (const circuit of exampleDocument(id).circuits) {

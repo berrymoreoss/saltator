@@ -138,6 +138,12 @@ export const EXAMPLE_FILES: readonly ExampleFile[] = [
     description:
       'Two Verilog modules on a 4 Hz clock: a decade counter on a hex display, its carry stepping a traffic light state machine. RST off to start.',
   },
+  {
+    id: 'verilog-uart',
+    title: 'Verilog UART',
+    description:
+      'A UART transmitter and receiver in Verilog, 8N1 at 8 clocks a bit: set a byte on the DIP switch, press SEND, watch LINE blink and the byte arrive on the LED bar.',
+  },
 ];
 
 // Not a JSON import: the text is kept as saved and parsed (migrated, validated) like any file.

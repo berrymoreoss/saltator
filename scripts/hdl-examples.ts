@@ -296,6 +296,154 @@ function counterAndTrafficLight(): CircuitDocument {
   );
 }
 
+// ── Verilog UART ─────────────────────────────────────────────────────────────────────────
+
+const UART_TX_BENCHES = `// The transmitter alone: the byte out of tx a bit every 8 clocks.
+const frame = (byte) => [0, ...Array.from({ length: 8 }, (_, i) => (byte >> i) & 1), 1];
+
+bench('sends a start bit, the byte least significant bit first, a stop bit', (b) => {
+  b.row({ rst: 1, start: 0, 'data[7..0]': 0xa5, clk: 'C' }, { tx: 1, busy: 0 });
+  b.set({ rst: 0 });
+  b.row({ start: 1, clk: 'C' }, { tx: 0, busy: 1 }, 'the start bit');
+  for (const [i, bit] of frame(0xa5).slice(1).entries()) {
+    b.clock('clk', 8);
+    b.expect({ tx: bit, busy: 1 }, i < 8 ? \`data bit \${i}\` : 'the stop bit');
+  }
+  b.clock('clk', 8);
+  b.expect({ tx: 1, busy: 0 }, 'idle again');
+});
+
+bench('sends one byte for a start held down', (b) => {
+  b.row({ rst: 1, start: 0, 'data[7..0]': 0xff, clk: 'C' }, { busy: 0 });
+  b.set({ rst: 0 });
+  b.row({ start: 1, clk: 'C' }, { busy: 1 });
+  b.clock('clk', 80);
+  b.expect({ busy: 0, tx: 1 }, 'done, start still held');
+  b.clock('clk', 16);
+  b.expect({ busy: 0 }, 'nothing more until start rises again');
+});
+`;
+
+const UART_RX_BENCHES = `// The receiver alone: rx driven a bit every 8 clocks, as the transmitter sends them.
+const send = (b, byte, stop = 1) => {
+  for (const bit of [0, ...Array.from({ length: 8 }, (_, i) => (byte >> i) & 1), stop]) {
+    b.set({ rx: bit });
+    b.clock('clk', 8);
+  }
+};
+
+bench('receives bytes and holds the last, valid', (b) => {
+  b.row({ rst: 1, rx: 1, clk: 'C' }, { valid: 0, err: 0 });
+  b.set({ rst: 0 });
+  b.clock('clk', 4);
+  send(b, 0x5a);
+  b.expect({ 'data[7..0]': 0x5a, valid: 1, err: 0 });
+  b.clock('clk', 16);
+  b.expect({ 'data[7..0]': 0x5a, valid: 1 }, 'held while the line idles');
+  send(b, 0xc3);
+  b.expect({ 'data[7..0]': 0xc3, valid: 1, err: 0 });
+});
+
+bench('reports a stop bit at 0 as a framing error', (b) => {
+  b.row({ rst: 1, rx: 1, clk: 'C' }, { err: 0 });
+  b.set({ rst: 0 });
+  b.clock('clk', 4);
+  send(b, 0x81, 0);
+  b.expect({ err: 1, valid: 0 });
+});
+`;
+
+const UART_MAIN_BENCHES = `// The board: the DIP switch sets a byte, SEND sends it down LINE at 100 clocks a second, 8 a bit;
+// the receiver's byte lights the LED bar, as the switches are set.
+const sendByte = (b, byte) => {
+  b.set({ SW2: byte });
+  b.wait(ms(50));
+  b.press('BTN1');
+  b.wait(ms(50));
+  b.expect({ BUSY: 1 }, 'sending');
+  b.release('BTN1');
+  b.wait(ms(1000));
+};
+
+bench('sends the byte on the switches; the receiver shows it', (b) => {
+  b.wait(ms(50));
+  b.expect({ LINE: 1, BUSY: 0, VALID: 0 }, 'idle from power-up');
+  sendByte(b, 0x5a);
+  b.expect({ 'R[7..0]': 0x5a, VALID: 1, ERR: 0, BUSY: 0, LINE: 1 });
+  sendByte(b, 0xc3);
+  b.expect({ 'R[7..0]': 0xc3, VALID: 1, ERR: 0 });
+});
+
+bench('RST stops a byte on its way', (b) => {
+  b.set({ SW2: 0xff });
+  b.press('BTN1');
+  b.wait(ms(300));
+  b.release('BTN1');
+  b.set({ SW1: 1 });
+  b.wait(ms(50));
+  b.expect({ BUSY: 0, LINE: 1, VALID: 0 });
+});
+`;
+
+function uart(): CircuitDocument {
+  const tx = moduleCircuit('uart-tx', 'UART Transmitter', 'uart_tx.v', UART_TX_BENCHES);
+  const rx = moduleCircuit('uart-rx', 'UART Receiver', 'uart_rx.v', UART_RX_BENCHES);
+  return document(
+    (b) => {
+      b.add('X1', 'io/clock', { at: [0, 0], label: 'CLK', props: { frequency: 100 } });
+      b.label('NL1', 'CLK', 'X1.Y', 4);
+      b.switch('SW1', 'RST', [0, 5]);
+      b.label('NL2', 'RST', 'SW1.Y', 4);
+      b.add('BTN1', 'io/button', { at: [0, 10], label: 'SEND', props: { contact: 'spdt' } });
+      b.label('NL3', 'SEND', 'BTN1.Y', 4);
+      // Switch k sets bit k - 1, as the LED bar shows the received byte: LED k is bit k - 1.
+      b.add('SW2', 'io/dip-switch', {
+        at: [0, 15],
+        label: 'BYTE',
+        props: { count: 8, contact: 'spdt' },
+      });
+      for (let i = 0; i < 8; i++) b.label(`NL${4 + i}`, `D${i}`, `SW2.S${i + 1}`, 4);
+
+      b.add('A1', 'sub/uart-tx', { at: [28, 0] });
+      b.label('NL12', 'CLK', 'A1.clk', -5);
+      b.label('NL13', 'RST', 'A1.rst', -5);
+      b.label('NL14', 'SEND', 'A1.start', -5);
+      b.busLabel('NL15', 'D[7..0]', 'A1.data[7..0]', -5);
+      b.label('NL16', 'LINE', 'A1.tx', 5);
+      b.label('NL17', 'BUSY', 'A1.busy', 5);
+
+      b.add('A2', 'sub/uart-rx', { at: [28, 16] });
+      b.label('NL18', 'CLK', 'A2.clk', -5);
+      b.label('NL19', 'RST', 'A2.rst', -5);
+      b.label('NL20', 'LINE', 'A2.rx', -5);
+      b.busLabel('NL21', 'R[7..0]', 'A2.data[7..0]', 5);
+      b.label('NL22', 'VALID', 'A2.valid', 5);
+      b.label('NL23', 'ERR', 'A2.err', 5);
+
+      const lights = [
+        ['LINE', 'yellow', 0],
+        ['BUSY', 'yellow', 4],
+        ['VALID', 'green', 16],
+        ['ERR', 'red', 20],
+      ] as const;
+      lights.forEach(([net, color, y], i) => {
+        b.add(`D${i + 1}`, 'io/led', { at: [58, y], label: net, props: { color } });
+        b.label(`NL${24 + i}`, net, `D${i + 1}.A`, -4);
+        b.add(`G${i + 1}`, 'io/gnd', { at: [b.pin(`D${i + 1}.K`)[0] + 3, y + 1] });
+        b.connect(`D${i + 1}.K`, `G${i + 1}.Y`);
+      });
+      b.add('D5', 'io/led-bar', { at: [60, 26], label: 'RX', props: { count: 8, color: 'green' } });
+      for (let i = 0; i < 8; i++) b.label(`NL${28 + i}`, `R${i}`, `D5.A${i + 1}`, -4);
+      // The cathodes on one wire to ground.
+      b.wire('D5.K1', 'D5.K8');
+      b.add('G5', 'io/gnd', { at: [b.pin('D5.K8')[0] + 3, b.pin('D5.K8')[1] + 1] });
+      b.connect('D5.K8', 'G5.Y');
+    },
+    UART_MAIN_BENCHES,
+    [tx, rx],
+  );
+}
+
 if (!hasYosys()) {
   console.error('yosys is not on the PATH (macOS: brew install yosys)');
   process.exit(2);
@@ -303,6 +451,7 @@ if (!hasYosys()) {
 for (const [id, make] of [
   ['verilog-address-decoder', addressDecoder],
   ['verilog-counter-traffic-light', counterAndTrafficLight],
+  ['verilog-uart', uart],
 ] as const) {
   writeFileSync(join(ROOT, 'examples', `${id}.saltator.json`), serializeDocument(make()));
   console.log(`wrote examples/${id}.saltator.json`);
