@@ -1,8 +1,10 @@
 /**
- * The Verilog interpreter's speed (HDL-1; a bus, HDL-8): the baseline HDL-7 (PicoRV32) measures
- * against and HDL-10 (fast evaluation) is held to. Printed as module evaluations/s and cells/s — every
- * evaluation runs every combinational cell once (no events inside a module). `pnpm bench` runs
- * this on native `import`. Results are recorded in the plan of the branch that changed them.
+ * The Verilog interpreter's speed (HDL-1; a bus, HDL-8; wide words and internal clocks, HDL-9):
+ * the baseline HDL-7 (PicoRV32) measures against and HDL-10 (fast evaluation) is held to. Printed
+ * as module evaluations/s and cells/s — every evaluation runs every combinational cell once (no
+ * events inside a module; a loop's cells until they settle, a clock made by logic another round).
+ * `pnpm bench` runs this on native `import`. Results are recorded in the plan of the branch that
+ * changed them.
  */
 import { describe, type TestContext, test } from 'vitest';
 import {
@@ -148,6 +150,60 @@ describe('Verilog modules', () => {
     };
     cycle();
     await measure(bench, 'synthetic 1 024 cells', sim, combinational(module), cycle);
+  });
+
+  test('wide words (64-bit counter, 32 × 32 multiplier, 72-bit sum, compare, shift): a clock cycle with new operands', async ({
+    bench,
+  }) => {
+    const module = convert('wide_ops');
+    const sim = simulate(module);
+    const word = (name: string, width: number, value: bigint) => {
+      for (let i = 0; i < width; i++) {
+        sim.action(`D_${name}${i}`, strong((value >> BigInt(i)) & 1n ? 1 : 0));
+      }
+    };
+    word('x', 72, 0x89_abcd_ef01_2345_6789n);
+    word('y', 72, 0x12_3456_789a_bcde_f012n);
+    word('n', 7, 13n);
+    sim.action('D_s', strong(1));
+    sim.action('D_rst', strong(1));
+    sim.action('D_clk', strong(0));
+    sim.settle();
+    sim.action('D_clk', strong(1));
+    sim.settle();
+    sim.action('D_clk', strong(0));
+    sim.action('D_rst', strong(0));
+    sim.settle();
+    let value = 0x12345678;
+    const cycle = () => {
+      value = (Math.imul(value, 1103515245) + 12345) >>> 0;
+      word('a', 32, BigInt(value));
+      word('b', 32, BigInt(value ^ 0x5a5a5a5a));
+      sim.action('D_clk', strong(1));
+      sim.settle();
+      sim.action('D_clk', strong(0));
+      sim.settle();
+    };
+    cycle();
+    await measure(bench, 'wide words', sim, combinational(module), cycle);
+  });
+
+  test('clocks made inside the module (a divider, a ripple chain, a reset by logic): a clock cycle', async ({
+    bench,
+  }) => {
+    const module = convert('clocks');
+    const sim = simulate(module);
+    for (let i = 0; i < 4; i++) sim.action(`D_d${i}`, strong(i % 2 ? 1 : 0));
+    sim.action('D_clk', strong(0));
+    sim.settle();
+    const cycle = () => {
+      sim.action('D_clk', strong(1));
+      sim.settle();
+      sim.action('D_clk', strong(0));
+      sim.settle();
+    };
+    cycle();
+    await measure(bench, 'internal clocks', sim, combinational(module), cycle);
   });
 
   test('I/O port (7 cells) on its data bus: a write and a read', async ({ bench }) => {

@@ -290,7 +290,7 @@ bytes and checking each one received.
   `differential.test.ts`; mutation-checked (a wrong cell fails it).
 - [x] 10. Example (Q2): the UART sources, `pnpm hdl:examples`, its benches in the app and
   headless (`pnpm test:circuits`); looked at in the browser.
-- [ ] 11. Benchmark: HDL-1's numbers for its module (one round), and the new costs (a 64-bit
+- [x] 11. Benchmark: HDL-1's numbers for its module (one round), and the new costs (a 64-bit
   counter, a 32 × 32 multiplier, a divider chain) recorded.
 - [ ] 12. Docs: components.md (cells, signedness, widths, rounds, loops, power-up), circuit.md
   (schema v8), ADR-0030 amended (Q1), the track's HDL-9 section as built, roadmap, lessons.
@@ -414,13 +414,23 @@ bytes and checking each one received.
   six benches (the board's two, two per module) pass headless and in the app's Tests tab (Run All
   ✓ 6, no console errors), mutation-checked (data <= ~shift fails two); listed in
   `example-files.ts`; `pnpm hdl:differential` now holds both modules too (18 designs).
+- 2026-11-11 — task 11: `tests/bench/hdl.bench.ts` gains wide words (`wide_ops`: a 64-bit
+  counter, a 32 × 32 multiplier, a 72-bit sum, comparison and shift, new operands every cycle —
+  the iteration drives 64 pins too) and internal clocks (`clocks`: a divider, a ripple chain, a
+  reset by logic). Apple M3 Pro: address decoder 1.96 M evaluations/s, decade counter 2.43 M,
+  synthetic 11.8 k (9.1 M cells/s), I/O port 0.99 M — HDL-1's and HDL-8's numbers hold; wide
+  words 73 k evaluations/s (0.4 M cells/s: most of it the 64 pins driven a cycle and 72-bit words
+  read bit by bit from the planes — HDL-10's 32-bit fast path), internal clocks 640 k (5.1 M
+  cells/s).
 
 ## Handoff
 
-- **State:** tasks 1–10 done: everything HDL-9 runs is built, agrees with Yosys's `sim`, and the
-  UART example runs. Left: benchmark notes (task 11), docs (task 12), e2e before finishing.
-- **Next step:** task 11 — benchmark notes (HDL-1's numbers held; measure a 64-bit counter, a
-  32 × 32 multiplier, a divider chain) — then task 12, docs.
+- **State:** tasks 1–11 done: everything HDL-9 runs is built, agrees with Yosys's `sim`, the
+  UART example runs, the benchmark is recorded. Left: docs (task 12), e2e before finishing.
+- **Next step:** task 12 — docs: components.md (cells, signedness, widths, rounds and races,
+  loops, power-up, the differential tests, speed), circuit.md (done for schema v8 and
+  `hdl-warning`), simulation.md (the `race-violation` kind, if kinds are listed), ADR-0030
+  amended (Q1), the track's HDL-9 section as built + status, roadmap, lessons; then `pnpm e2e`.
 - **Watch out:** Yosys's `sim -r` takes no `-clock` with a witness file (the clocks are in it).
   `evaluate` must stay a few small phase functions: one large function cost the decoder 5–8 %.
   A test needing known flip-flops at power-on with a pin-made clock needs a reset (an edge from
