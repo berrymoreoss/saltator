@@ -4,7 +4,7 @@
 | ---------- | --------------------------------------------------------- |
 | Branch     | `chore/pre-public`                                        |
 | Roadmap    | — (publication under the `berrymoreoss` org, not a track) |
-| Status     | in-progress                                               |
+| Status     | done                                                      |
 | Depends on | `chore/rename-saltator` (merged)                          |
 | Created    | 2026-11-10                                                |
 
@@ -60,15 +60,17 @@ third-party data shipped without its full license notice, and a leftover of the 
 - [x] 1. SingleStepTests notice: the full MIT text in `sample-65c02.ts`' header template;
   regenerate the sample (only the header changes).
 - [x] 2. Favicon: `public/favicon.ico` from `head-16`; remove `public/favicon.svg`; `index.html`.
-- [ ] 3. Verify: `pnpm check`, `pnpm build`, `pnpm e2e`; in the browser the tab shows the bird.
+- [x] 3. Verify: `pnpm check`, `pnpm build`, `pnpm e2e`; in the browser the tab shows the bird.
 
 ## Acceptance criteria
 
-- [ ] `pnpm check`, `pnpm build` and `pnpm e2e` are green.
-- [ ] `w65c02s-sst-sample.ts` carries the SingleStepTests copyright line and MIT permission
+- [x] `pnpm check`, `pnpm build` and `pnpm e2e` are green.
+- [x] `w65c02s-sst-sample.ts` carries the SingleStepTests copyright line and MIT permission
   notice; regenerating it gives the same file.
-- [ ] No product-name "Logic" left in `public/` or `index.html`.
-- [ ] The dev server and the build serve `favicon.ico` (16, 32, 48) and the tab shows it.
+- [x] No product-name "Logic" left in `public/` or `index.html`.
+- [x] The dev server and the build serve `favicon.ico` (16, 32, 48) and the tab shows it.
+  (Headless Chromium: the page links it, it loads, all three sizes decode; the Chrome extension
+  wasn't connected, so the tab strip itself is for the user to glance at.)
 
 ## Open questions
 
@@ -80,10 +82,19 @@ user's pick (`head-16`, temporary).
 - 2026-11-10 — pre-publication audit (files, history, GitHub settings); the user approved items
   1–3. Item 1 done on `main` (pulled the merge of PR #1; the remote branch was already gone, the
   local one deleted). `main` green (`pnpm check`). Branch created, plan written, started.
+- 2026-11-10 — tasks 1–3 done. The notice (`6726f93`): the generator writes SingleStepTests' MIT
+  text; regenerated from the cache, only the header changed, and a second run is identical. The
+  favicon (`eb24a62`): `favicon.ico` (896 bytes; 16 from `staging/saltator/1x/head-16.png`, 32 and
+  48 nearest-neighbour), `favicon.svg` removed. Verified: `pnpm check` (3334 tests), `pnpm build`
+  (`dist/favicon.ico` identical), `pnpm e2e` (96 passed); `pnpm dev` and `pnpm preview` serve it,
+  headless Chromium decodes 16/32/48. Lesson: the rename's grep looked at `src/` and missed
+  `public/`.
 
 ## Handoff
 
-- **State:** in-progress; plan written.
-- **Next step:** task 1.
-- **Watch out:** `playground/` is git-ignored: only the generated `favicon.ico` enters the repo.
+- **State:** done; waiting for the user's approval to merge.
+- **Next step:** after approval push, open the PR, `gh pr merge --merge --delete-branch`, then
+  `git switch main && git pull --ff-only`. Publication goes on in the untracked
+  `docs/publication.md` (stage 3).
+- **Watch out:** `playground/` is git-ignored: only the generated `favicon.ico` entered the repo.
 - **Verify with:** `pnpm check && pnpm build && pnpm e2e`.
