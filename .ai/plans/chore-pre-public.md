@@ -59,7 +59,7 @@ third-party data shipped without its full license notice, and a leftover of the 
 
 - [x] 1. SingleStepTests notice: the full MIT text in `sample-65c02.ts`' header template;
   regenerate the sample (only the header changes).
-- [ ] 2. Favicon: `public/favicon.ico` from `head-16`; remove `public/favicon.svg`; `index.html`.
+- [x] 2. Favicon: `public/favicon.ico` from `head-16`; remove `public/favicon.svg`; `index.html`.
 - [ ] 3. Verify: `pnpm check`, `pnpm build`, `pnpm e2e`; in the browser the tab shows the bird.
 
 ## Acceptance criteria
