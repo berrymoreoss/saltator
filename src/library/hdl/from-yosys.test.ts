@@ -122,6 +122,22 @@ describe('fromYosys: modules it runs', () => {
     expect(shiftx.every((c) => !('A_SIGNED' in c.params))).toBe(true);
   });
 
+  it('keeps signedness where Yosys gives it, also on the cells unsigned code makes signed', () => {
+    const { module } = convert('signed_ops');
+    const signedness = (type: string) =>
+      module?.cells
+        .filter((c) => c.type === type)
+        .map((c) => [c.params.A_SIGNED ?? 0, c.params.B_SIGNED ?? 0]);
+    expect(signedness('$div')).toEqual([[1, 1]]);
+    expect(signedness('$sshr')).toEqual([[1, 0]]);
+    // d[sel] = 1'b1: a signed $neg and a $shift by a signed amount.
+    expect(signedness('$shift')).toEqual([[0, 1]]);
+    expect(signedness('$neg')).toContainEqual([1, 0]);
+    // Widths over 32 bits are kept as they are.
+    const wide = convert('wide_ops').module;
+    expect(wide?.cells.find((c) => c.type === '$mul')?.ports.Y).toHaveLength(64);
+  });
+
   it('keeps named signals, not ports', () => {
     const { module } = convert('traffic');
     expect(module?.signals.map((s) => s.name)).toEqual(['state']);
@@ -278,7 +294,22 @@ describe('fromYosys: what it refuses', () => {
     ]);
   });
 
-  it("refuses cells it doesn't run yet by type", () => {
+  it('refuses formal cells and cells it knows nothing of, by type', () => {
+    const cell = (type: string) => ({
+      attributes: { top: '1' },
+      ports: { a: { direction: 'input', bits: [2] }, y: { direction: 'output', bits: [3] } },
+      cells: { c: { type, parameters: {}, attributes: {}, connections: { A: [2], Y: [3] } } },
+      netnames: {},
+    });
+    expect(fromYosys({ modules: { m: cell('$anyseq') } }).messages[0]?.message).toBe(
+      "$anyseq is a formal verification cell, which a simulation can't run",
+    );
+    expect(fromYosys({ modules: { m: cell('$frobnicate') } }).messages[0]?.message).toBe(
+      '$frobnicate cells are not supported',
+    );
+  });
+
+  it("refuses cells of synthesis passes the command doesn't run", () => {
     const module = {
       attributes: { top: '1' },
       ports: { a: { direction: 'input', bits: [2, 3] }, y: { direction: 'output', bits: [4, 5] } },
@@ -295,7 +326,8 @@ describe('fromYosys: what it refuses', () => {
     expect(fromYosys({ modules: { m: module } }).messages).toEqual([
       {
         severity: 'error',
-        message: '$alu cells are not supported yet (HDL-9)',
+        message:
+          "$alu comes from synthesis passes the command doesn't run (synth, alumacc, fsm): make the JSON with the command",
         src: 'm.v:3.1-3.2',
       },
     ]);

@@ -116,6 +116,21 @@ const IGNORED: Readonly<Record<string, string>> = {
   $assume: 'assumptions are not checked (yet): ignored',
   $cover: 'cover statements are ignored',
 };
+/** Cells of synthesis passes the command doesn't run: such a JSON was made by another command. */
+const SYNTHESIS = new Set(['$alu', '$macc', '$macc_v2', '$fa', '$lcu', '$lut', '$sop', '$fsm']);
+/** Cells of formal verification: they mean nothing to a simulation. */
+const FORMAL = new Set([
+  '$ff',
+  '$anyconst',
+  '$anyseq',
+  '$allconst',
+  '$allseq',
+  '$anyinit',
+  '$initstate',
+  '$equiv',
+  '$live',
+  '$fair',
+]);
 /** Yosys's port directions as the IR's. */
 const DIRECTIONS: Readonly<Record<string, HdlPort['dir']>> = {
   input: 'in',
@@ -301,7 +316,16 @@ export function fromYosys(json: unknown): YosysConversion {
       continue;
     }
     if (!isHdlCellType(type)) {
-      error(`${type} cells are not supported yet (HDL-9)`, src);
+      if (SYNTHESIS.has(type)) {
+        once(`synthesis ${type}`, () =>
+          error(
+            `${type} comes from synthesis passes the command doesn't run (synth, alumacc, fsm): make the JSON with the command`,
+            src,
+          ),
+        );
+      } else if (FORMAL.has(type)) {
+        error(`${type} is a formal verification cell, which a simulation can't run`, src);
+      } else error(`${type} cells are not supported`, src);
       continue;
     }
     const spec: HdlCellSpec = HDL_CELLS[type];

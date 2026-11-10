@@ -262,7 +262,7 @@ bytes and checking each one received.
   values, with `X`.
 - [x] 4. New combinational cells: `$mul`, `$div` `$mod` `$divfloor` `$modfloor`, `$pow`,
   `$eqx` `$nex`, `$bmux` `$demux` `$bwmux`; tests against `BigInt` and per `X` rule.
-- [ ] 5. Converter: accept the cells, signedness and widths; refusals and warnings updated;
+- [x] 5. Converter: accept the cells, signedness and widths; refusals and warnings updated;
   tests on the fixtures.
 - [ ] 6. Power-up values: planes from `init`, the `init` hook; tests (`reg q = 1`, a counter from
   5, an output register).
@@ -348,15 +348,18 @@ bytes and checking each one received.
   `$bmux` (unknown S merges ≤ 256 candidate words, else X) `$demux` `$bwmux` in `cells.ts`. Tests
   against BigInt, six mutations all caught. `arith`, `signed_ops`, `wide_ops` convert and run;
   `PENDING` holds only the six flip-flop/latch flavours.
+- 2026-11-10 — task 5 (most of it went with task 2): cells out of HDL-9's scope get their own
+  messages — synthesis cells (`$alu`, `$lut`, `$fsm`, …) ask for the command, formal cells say a
+  simulation can't run them, others "not supported" (no more "yet (HDL-9)"); signedness kept
+  where Yosys gives it, tested on `signed_ops`.
 
 ## Handoff
 
-- **State:** tasks 1–4 done: every combinational cell of the scope runs, any width and
+- **State:** tasks 1–5 done: every combinational cell of the scope runs, any width and
   signedness. `PENDING` (analyze.ts) still refuses `$dffsr` `$dffsre` `$aldff` `$aldffe`
   `$dlatchsr` `$sr` (task 7).
-- **Next step:** task 5 — the converter: messages for cells out of scope (not "HDL-9"), the
-  fixtures' comments (`loop.v`, `clock.v`, `init.v`) and the refusal tests that HDL-9 changes;
-  then task 6 (power-up values).
+- **Next step:** task 6 — power-up values: planes from `init` in `createState`, an `init` hook
+  evaluating once at t = 0, the analysis's `init` warning gone (`init.v`'s comment and test).
 - **Watch out:** Yosys's `sim -r` takes no `-clock` with a witness file (the clocks are in it).
 - **Verify with:** `pnpm check`; `pnpm bench tests/bench/hdl.bench.ts` against main (a
   worktree with `node_modules` symlinked, `./node_modules/.bin/vitest bench --run …` there).
