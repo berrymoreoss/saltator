@@ -255,7 +255,7 @@ bytes and checking each one received.
 - [x] 1. Probe fixtures (`src/library/hdl/fixtures/`): arithmetic, signed, wide, every
   flip-flop flavour, internal clocks, loops, `init`, cells instantiated by name; `pnpm
   hdl:fixtures`; HDL-1's and HDL-8's fixtures unchanged otherwise.
-- [ ] 2. Core IR: the new cells and kinds, optional `A_SIGNED`/`B_SIGNED`, no word limit; shape
+- [x] 2. Core IR: the new cells and kinds, optional `A_SIGNED`/`B_SIGNED`, no word limit; shape
   check and its tests; schema v8 with a no-op migration, round trip.
 - [ ] 3. Words of any width in `cells.ts`: scratch words, sign extension, `$add` `$sub` `$neg`,
   comparisons, shifts ported to any width and signedness; tests against `BigInt` on seeded
@@ -327,11 +327,19 @@ bytes and checking each one received.
 - 2026-11-10 — task 1: probe fixtures `arith`, `signed_ops`, `wide_ops`, `ff_flavours`, `clocks`,
   `races`, `loops`, `inits`, `by_name` (`-icells`); the old fixtures unchanged (`hdl:fixtures`
   now normalizes the pointer in a `$display` cell's name, which changed on every run).
+- 2026-11-10 — task 2: `HDL_CELLS` holds the 17 new cells (kinds `bmux`, `demux`, `bwmux`, `sr`),
+  `signedness` optional flags on unary and binary cells (the converter keeps them only where 1,
+  so `$shiftx`'s `B_SIGNED: 0` is dropped), no word limit in the shape; schema v8, examples
+  re-saved. The analysis now refuses what the interpreter can't run yet (`PENDING` cells, signed
+  operands other than a shift's amount, words over 32 bits) — moved from the converter, so
+  `hdlPart` is guarded too; each later task shrinks it.
 
 ## Handoff
 
-- **State:** task 1 done (probe fixtures); no production code yet.
-- **Next step:** task 2 — the IR in core: new cells and kinds, optional `A_SIGNED`/`B_SIGNED`,
-  no word limit, shape check, schema v8.
+- **State:** tasks 1–2 done (fixtures; the IR holds every cell, signedness, any width; schema
+  v8). The analysis's `PENDING`/`pendingProblem` (analyze.ts) refuses what isn't built yet.
+- **Next step:** task 3 — words of any width in `cells.ts` (scratch words, sign extension,
+  `$add` `$sub` `$neg`, comparisons, shifts at any width and signedness), tests against `BigInt`;
+  then drop the width and signedness refusals for those cells.
 - **Watch out:** Yosys's `sim -r` takes no `-clock` with a witness file (the clocks are in it).
 - **Verify with:** `pnpm check`.

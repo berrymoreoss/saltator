@@ -12,7 +12,7 @@ produce new values.
 
 ```ts
 interface CircuitDocument {
-  schemaVersion: 7;
+  schemaVersion: 8;
   circuits: Circuit[]; // at least one; the first is the top circuit (R11a)
 }
 
@@ -112,7 +112,9 @@ interface Wire {
   `circuits[1].verilog.module.cells[3].type: …`), and a module with parts or wires is a load
   error; its migration changes nothing. v7 (HDL-8) let a module's IR hold tri-states (`inout`
   ports, `z` port bits, `$tribuf` cells), so an older app refuses such a document as newer
-  instead of as broken; its migration changes nothing.
+  instead of as broken; its migration changes nothing. v8 (HDL-9) let it hold the rest of the
+  cells (`$mul`, `$div`, `$pow`, `$eqx`, `$bmux`, `$dffsr`, `$aldff`, `$sr`, …) and signed
+  operands (`A_SIGNED`, `B_SIGNED`, absent meaning unsigned); its migration changes nothing.
 - `serializeDocument(doc)` writes stable JSON: fixed key order, defaults omitted, one line per
   component, per wire, per probe and per line of the test script (no `probes` or `testScript`
   key without any) — a Verilog module instead of its (empty) `components` and `wires` its

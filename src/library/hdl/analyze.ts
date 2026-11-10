@@ -39,6 +39,49 @@ export const PIN = -1;
 /** A bit nothing drives (`HdlAnalysis.driver`). */
 export const NO_DRIVER = -2;
 
+/** Cells the IR holds that the interpreter doesn't run yet (removed as HDL-9 builds them). */
+const PENDING: ReadonlySet<string> = new Set([
+  '$mul',
+  '$div',
+  '$mod',
+  '$divfloor',
+  '$modfloor',
+  '$pow',
+  '$eqx',
+  '$nex',
+  '$bmux',
+  '$demux',
+  '$bwmux',
+  '$dffsr',
+  '$dffsre',
+  '$aldff',
+  '$aldffe',
+  '$dlatchsr',
+  '$sr',
+]);
+
+/** The widest word operand the interpreter takes yet (until HDL-9's words of any width). */
+const WORD = 32;
+
+/** What the interpreter can't run of a cell yet (HDL-9 lifts these), or undefined. */
+function pendingProblem(cell: HdlModule['cells'][number]): string | undefined {
+  const spec: HdlCellSpec = HDL_CELLS[cell.type];
+  if (PENDING.has(cell.type)) return `${cell.type} cells are not supported yet (HDL-9)`;
+  // Shifts by a signed amount (a variable part-select) ran in HDL-1; nothing else signed did.
+  const shift = cell.type === '$shift' || cell.type === '$shiftx';
+  const signed = spec.signedness.filter((name) => !(shift && name === 'B_SIGNED'));
+  if (signed.some((name) => cell.params[name] === 1)) {
+    return 'signed operands — not supported yet (HDL-9)';
+  }
+  if (spec.word) {
+    const widest = Math.max(...Object.values(cell.ports).map((bits) => bits.length));
+    if (widest > WORD) {
+      return `a ${widest}-bit ${cell.type} — operands up to ${WORD} bits for now (HDL-9)`;
+    }
+  }
+  return undefined;
+}
+
 /** The name of the port or signal a bit belongs to (`q`, `state[1]`), for messages. */
 export function bitName(module: HdlModule, bit: HdlBit): string {
   if (typeof bit !== 'number') return `constant ${bit}`;
@@ -81,6 +124,10 @@ export function analyzeHdlModule(module: HdlModule): HdlAnalysis {
     for (const bit of port.bits) if (typeof bit === 'number') inoutOf.set(bit, port.name);
   }
   const { cells } = module;
+  for (const cell of cells) {
+    const problem = pendingProblem(cell);
+    if (problem) error(problem, cell.src || undefined);
+  }
   for (const [index, cell] of cells.entries()) {
     const spec: HdlCellSpec = HDL_CELLS[cell.type];
     for (const bit of cell.ports[spec.output]!) {

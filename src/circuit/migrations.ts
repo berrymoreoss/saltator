@@ -27,6 +27,8 @@ export const MIGRATIONS: Migrations = {
   5: (doc) => doc,
   // v7 let modules hold tri-states (`inout` ports, `z` port bits, `$tribuf`, HDL-8); v6 ones have none.
   6: (doc) => doc,
+  // v8 let modules hold the rest of the cells and signed operands (HDL-9); v7 ones have none.
+  7: (doc) => doc,
 };
 
 function slugCircuitIds(doc: RawDocument): RawDocument {

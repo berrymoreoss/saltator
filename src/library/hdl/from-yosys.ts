@@ -7,7 +7,6 @@
 import {
   HDL_CELLS,
   HDL_FORMAT,
-  HDL_WORD,
   type HdlBit,
   type HdlCell,
   type HdlCellSpec,
@@ -123,9 +122,6 @@ const DIRECTIONS: Readonly<Record<string, HdlPort['dir']>> = {
   output: 'out',
   inout: 'inout',
 };
-
-/** Cells with a signedness that matters, by parameter. */
-const SIGNED = ['A_SIGNED', 'B_SIGNED'];
 
 /**
  * Converts Yosys's JSON (its text or the parsed value) into a module. Every problem found is a
@@ -310,11 +306,6 @@ export function fromYosys(json: unknown): YosysConversion {
     }
     const spec: HdlCellSpec = HDL_CELLS[type];
     const parameters = cell.parameters ?? {};
-    const signedOk = spec.flags.includes('B_SIGNED') ? ['A_SIGNED'] : SIGNED;
-    if (signedOk.some((name) => flag(parameters[name]) === 1)) {
-      error('signed operands — not supported yet (HDL-9)', src);
-      continue;
-    }
     const connections = cell.connections ?? {};
     const cellPorts: Record<string, HdlBit[]> = {};
     let readsZ = false;
@@ -339,13 +330,6 @@ export function fromYosys(json: unknown): YosysConversion {
         src,
       );
     }
-    if (spec.word) {
-      const widest = Math.max(...Object.values(cellPorts).map((bits) => bits.length));
-      if (widest > HDL_WORD) {
-        error(`a ${widest}-bit ${type} — operands up to ${HDL_WORD} bits for now (HDL-9)`, src);
-        continue;
-      }
-    }
     const params: Record<string, number | HdlBit[]> = {};
     for (const name of spec.flags) {
       const v = flag(parameters[name]);
@@ -354,6 +338,8 @@ export function fromYosys(json: unknown): YosysConversion {
         bad = true;
       } else params[name] = v;
     }
+    // Signedness is kept only where an operand is signed: absent means unsigned.
+    for (const name of spec.signedness) if (flag(parameters[name]) === 1) params[name] = 1;
     for (const name of spec.values) {
       const raw = parameters[name];
       if (typeof raw !== 'string' || !/^[01xz]+$/.test(raw)) {

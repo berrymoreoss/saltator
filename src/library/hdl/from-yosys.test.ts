@@ -110,10 +110,11 @@ describe('fromYosys: modules it runs', () => {
     expect(module?.cells.find((c) => c.type === '$pmux')?.src).toBe('traffic.v:16.29-16.29');
   });
 
-  it('accepts a shift by a signed amount (a variable part-select)', () => {
+  it('accepts a shift by a signed amount (a variable part-select), signedness kept only where 1', () => {
     const { module } = convert('shifts');
     const shiftx = module?.cells.filter((c) => c.type === '$shiftx') ?? [];
-    expect(shiftx.map((c) => c.params.B_SIGNED)).toEqual([0, 1]);
+    expect(shiftx.map((c) => c.params.B_SIGNED)).toEqual([undefined, 1]);
+    expect(shiftx.every((c) => !('A_SIGNED' in c.params))).toBe(true);
   });
 
   it('keeps named signals, not ports', () => {

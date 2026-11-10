@@ -57,7 +57,6 @@ export {
   HDL_DEFAULT_DELAY,
   HDL_FAMILY,
   HDL_FORMAT,
-  HDL_WORD,
   type HdlBit,
   type HdlCell,
   type HdlCellKind,
