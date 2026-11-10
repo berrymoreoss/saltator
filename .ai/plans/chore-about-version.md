@@ -4,7 +4,7 @@
 | ---------- | ------------------------------------------------- |
 | Branch     | `chore/about-version`                             |
 | Roadmap    | — (product polish around the live demo, no track) |
-| Status     | in-progress                                       |
+| Status     | done                                              |
 | Depends on | `chore/pages-deploy` (merged, ADR-0033)           |
 | Created    | 2026-11-11                                        |
 
@@ -87,11 +87,15 @@ workflow — so a bug report or a look at the live demo names the exact `main` i
   `playground/art/staging/saltator/1x/chip.png` (32×32, git-ignored source; the icon isn't picked
   yet) to `src/ui/assets/saltator-chip.png`, shown at 64 px with `image-rendering: pixelated`;
   Vite inlines it (under 4 KB), so the subpath build needs nothing. Checked in both themes.
+- 2026-11-11 — finished: About explains the product and shows the build's commit (ADR-0034), with
+  the round-1 bird-on-a-chip art; `pnpm check`, `pnpm build`, `pnpm e2e` green. Merged and the
+  demo deployed at the user's request.
 
 ## Handoff
 
-- **State:** all tasks done, acceptance verified; waiting for the user's approval to merge.
-- **Next step:** finish-branch (merge with `--no-ff`); a Pages deploy only if the user asks.
+- **State:** merged; nothing pending.
+- **Next step:** —
 - **Watch out:** `__SALTATOR_BUILD__` exists only under Vite; keep `src/ui/build-info.ts` out of
-  anything Node runs directly.
-- **Verify with:** `pnpm check`, `pnpm build && pnpm preview`, Help ▸ About.
+  anything Node runs directly. The About art is round 1: replace `src/ui/assets/saltator-chip.png`
+  when the icon is picked.
+- **Verify with:** Help ▸ About on the live demo shows the commit of `main`.
