@@ -41,17 +41,6 @@ export const NO_DRIVER = -2;
 
 /** Cells the IR holds that the interpreter doesn't run yet (removed as HDL-9 builds them). */
 const PENDING: ReadonlySet<string> = new Set([
-  '$mul',
-  '$div',
-  '$mod',
-  '$divfloor',
-  '$modfloor',
-  '$pow',
-  '$eqx',
-  '$nex',
-  '$bmux',
-  '$demux',
-  '$bwmux',
   '$dffsr',
   '$dffsre',
   '$aldff',

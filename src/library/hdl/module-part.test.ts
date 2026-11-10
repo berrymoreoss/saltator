@@ -396,6 +396,21 @@ describe('signed and wide words (HDL-9)', () => {
     }
   });
 
+  it('multiplies, divides, raises to a power and compares with === (arith)', () => {
+    const bench = new Bench(part('arith'));
+    bench.set({ ...word('a', 0, 8, 200), ...word('b', 0, 8, 7), ...word('n', 0, 3, 3) });
+    bench.run(us(1));
+    expect(read(bench, 'mul', 0, 16)).toBe((1400).toString(2).padStart(16, '0'));
+    expect(read(bench, 'div', 0, 8)).toBe((28).toString(2).padStart(8, '0'));
+    expect(read(bench, 'mod', 0, 8)).toBe((4).toString(2).padStart(8, '0'));
+    expect(read(bench, 'pow', 0, 8)).toBe((200 ** 3 % 256).toString(2).padStart(8, '0'));
+    expect(read(bench, 'pow2', 0, 8)).toBe('00001000');
+    bench.expect({ eqx: 0, nex: 1 });
+    bench.set(word('b', 0, 8, 0));
+    bench.run(us(1));
+    expect(read(bench, 'div', 0, 8)).toBe('XXXXXXXX');
+  });
+
   it('adds 33-bit words', () => {
     const bench = new Bench(part('wide'));
     const bits = (value: bigint) =>

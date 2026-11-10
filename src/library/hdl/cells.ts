@@ -25,6 +25,16 @@ import {
 } from './planes';
 import { compileWordStep } from './word-cells';
 
+/** The most words an unknown select of `$bmux` merges; beyond, its output is all `X`. */
+const MERGE_LIMIT = 256;
+
+/** The number of set bits. */
+function popCount(x: number): number {
+  let n = 0;
+  for (let v = x; v !== 0; v &= v - 1) n++;
+  return n;
+}
+
 /** Whether any of the bits is 1 (1), none can be (0), or it depends on unknown ones (`X`). */
 function anyOne(val: Uint8Array, unk: Uint8Array, idx: Int32Array): number {
   let unknown = false;
@@ -159,6 +169,75 @@ export function compileStep(cell: HdlCell, bitCount: number): CellStep {
             const pb = tri(val, unk, b[chosen * width + i]!);
             put(val, unk, y[i]!, sure ? pb : merge(pa, pb));
           }
+        }
+      };
+    }
+    case '$bmux': {
+      // A holds 2^S words of Y's width; S picks one. An unknown S merges the words it could pick.
+      const s = indices(cell, 'S', bitCount);
+      const words = 2 ** s.length;
+      return (val, unk) => {
+        let known = 0;
+        let unknown = 0;
+        for (let k = 0; k < s.length; k++) {
+          if (unk[s[k]!]) unknown |= 1 << k;
+          else if (val[s[k]!]) known |= 1 << k;
+        }
+        if (unknown === 0) {
+          for (let i = 0; i < width; i++) {
+            const src = a[known * width + i]!;
+            unk[y[i]!] = unk[src]!;
+            val[y[i]!] = val[src]!;
+          }
+          return;
+        }
+        // Many candidates would cost more than they could tell: all X then.
+        if (2 ** popCount(unknown) > MERGE_LIMIT) {
+          fill(val, unk, y, TX);
+          return;
+        }
+        for (let i = 0; i < width; i++) {
+          let t = -1;
+          for (let w = 0; w < words && t !== TX; w++) {
+            if ((w & ~unknown) !== known) continue;
+            const v = tri(val, unk, a[w * width + i]!);
+            t = t === -1 ? v : merge(t, v);
+          }
+          put(val, unk, y[i]!, t);
+        }
+      };
+    }
+    case '$demux': {
+      // Y holds 2^S words of A's width: A in the one S picks, 0 in the others; merged while S is
+      // unknown (A where it could be picked and might not be, X unless A's bit is 0).
+      const s = indices(cell, 'S', bitCount);
+      const aw = a.length;
+      const words = 2 ** s.length;
+      return (val, unk) => {
+        let known = 0;
+        let unknown = 0;
+        for (let k = 0; k < s.length; k++) {
+          if (unk[s[k]!]) unknown |= 1 << k;
+          else if (val[s[k]!]) known |= 1 << k;
+        }
+        for (let w = 0; w < words; w++) {
+          const could = (w & ~unknown) === known;
+          for (let i = 0; i < aw; i++) {
+            const target = y[w * aw + i]!;
+            if (!could) put(val, unk, target, 0);
+            else if (unknown === 0) put(val, unk, target, tri(val, unk, a[i]!));
+            else put(val, unk, target, merge(tri(val, unk, a[i]!), 0));
+          }
+        }
+      };
+    }
+    case '$bwmux': {
+      // A multiplexer per bit: S[i] picks B[i] (1) or A[i] (0).
+      const s = indices(cell, 'S', bitCount);
+      return (val, unk) => {
+        for (let i = 0; i < width; i++) {
+          const sel = tri(val, unk, s[i]!);
+          put(val, unk, y[i]!, pick(sel, tri(val, unk, b[i]!), tri(val, unk, a[i]!)));
         }
       };
     }

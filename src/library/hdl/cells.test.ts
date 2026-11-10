@@ -415,3 +415,163 @@ describe('words of any width and signedness (HDL-9)', () => {
     expect(pick({ A: '10010110', B: 2n ** 35n })).toBe('XX');
   });
 });
+
+describe('multiplication, division and powers (HDL-9)', () => {
+  it('$mul wraps at Y, signed when both operands are', () => {
+    const random = new SeededRandom(41);
+    for (const shape of SHAPES) {
+      for (const signed of [false, true]) {
+        const run = harness('$mul', shape, signed ? SIGNED : {});
+        for (let n = 0; n < 25; n++) {
+          const a = operand(random, shape.a);
+          const b = operand(random, shape.b);
+          const want = numberOf(a, shape.a, signed) * numberOf(b, shape.b, signed);
+          expect(run({ A: a, B: b }), `${JSON.stringify(shape)} ${signed} ${a} ${b}`).toBe(
+            bits(want, shape.y),
+          );
+        }
+      }
+    }
+  });
+
+  it('$mul is unknown from the lowest unknown bit up', () => {
+    // The lowest unknown bit is bit 2: 0X10 × 3 is known only below it (…10).
+    expect(harness('$mul', { a: 4, b: 4, y: 8 })({ A: '0X10', B: '0011' })).toBe('XXXXXX10');
+    const wide = harness('$mul', { a: 40, b: 40, y: 40 });
+    expect(wide({ A: `X${'0'.repeat(38)}1`, B: 3 })).toBe(`X${'0'.repeat(37)}11`);
+  });
+
+  it('$div $mod truncate, $divfloor $modfloor floor; all at the widest of A, B, Y', () => {
+    const random = new SeededRandom(43);
+    const refs = {
+      $div: (a: bigint, b: bigint) => a / b,
+      $mod: (a: bigint, b: bigint) => a % b,
+      $divfloor: (a: bigint, b: bigint) => (a % b !== 0n && a < 0n !== b < 0n ? a / b - 1n : a / b),
+      $modfloor: (a: bigint, b: bigint) => {
+        const r = a % b;
+        return r !== 0n && r < 0n !== b < 0n ? r + b : r;
+      },
+    };
+    for (const shape of [...SHAPES, { a: 8, b: 8, y: 16 }, { a: 16, b: 4, y: 8 }]) {
+      for (const signed of [false, true]) {
+        for (const [type, f] of Object.entries(refs) as [
+          HdlCellType,
+          (a: bigint, b: bigint) => bigint,
+        ][]) {
+          const run = harness(type, shape, signed ? SIGNED : {});
+          for (let n = 0; n < 25; n++) {
+            const a = operand(random, shape.a);
+            let b = operand(random, shape.b);
+            if (b === 0n) b = BigInt(1 + (n % 3));
+            const want = f(numberOf(a, shape.a, signed), numberOf(b, shape.b, signed));
+            expect(
+              run({ A: a, B: b }),
+              `${type} ${JSON.stringify(shape)} ${signed} ${a} ${b}`,
+            ).toBe(bits(want, shape.y));
+          }
+        }
+      }
+    }
+  });
+
+  it('a division by zero or with an unknown bit is all X', () => {
+    for (const type of ['$div', '$mod', '$divfloor', '$modfloor'] as const) {
+      const run = harness(type, { a: 8, b: 8, y: 8 }, SIGNED);
+      expect(run({ A: 7, B: 0 }), type).toBe('XXXXXXXX');
+      expect(run({ A: '0000011X', B: 1 }), type).toBe('XXXXXXXX');
+      const wide = harness(type, { a: 40, b: 40, y: 40 });
+      expect(wide({ A: 7, B: 0 }), type).toBe('X'.repeat(40));
+    }
+    // The most negative value divided by −1 wraps, as Verilog does at the operation's width.
+    expect(harness('$div', { a: 8, b: 8, y: 8 }, SIGNED)({ A: -128, B: -1 })).toBe('10000000');
+  });
+
+  it('$pow by square and multiply, with Verilog rules for a negative exponent', () => {
+    const random = new SeededRandom(47);
+    const powMod = (base: bigint, exp: bigint, width: number) => {
+      let r = 1n;
+      let b = BigInt.asUintN(width, base);
+      for (let e = exp; e > 0n; e >>= 1n) {
+        if (e & 1n) r = BigInt.asUintN(width, r * b);
+        b = BigInt.asUintN(width, b * b);
+      }
+      return r;
+    };
+    const shapes = [
+      { a: 8, b: 3, y: 8 },
+      { a: 8, b: 8, y: 16 },
+      { a: 40, b: 6, y: 40 },
+      { a: 5, b: 40, y: 72 },
+    ];
+    for (const shape of shapes) {
+      for (const [signedA, signedB] of [
+        [false, false],
+        [true, false],
+        [false, true],
+        [true, true],
+      ] as const) {
+        const params = { ...(signedA ? { A_SIGNED: 1 } : {}), ...(signedB ? { B_SIGNED: 1 } : {}) };
+        const run = harness('$pow', shape, params);
+        for (let n = 0; n < 25; n++) {
+          let a = operand(random, shape.a);
+          if (n % 5 === 1) a = BigInt.asUintN(shape.a, BigInt((n % 3) - 1)); // −1, 0, 1
+          const b = operand(random, shape.b);
+          const base = numberOf(a, shape.a, signedA);
+          const exp = numberOf(b, shape.b, signedB);
+          let want: string;
+          if (exp < 0n) {
+            want =
+              base === 0n
+                ? 'X'.repeat(shape.y)
+                : bits(
+                    base === 1n ? 1n : base === -1n ? (exp % 2n === 0n ? 1n : -1n) : 0n,
+                    shape.y,
+                  );
+          } else want = bits(powMod(base, exp, shape.y), shape.y);
+          expect(
+            run({ A: a, B: b }),
+            `${JSON.stringify(shape)} ${signedA} ${signedB} ${base} ** ${exp}`,
+          ).toBe(want);
+        }
+      }
+    }
+    expect(harness('$pow', { a: 4, b: 2, y: 4 })({ A: '0X10', B: 2 })).toBe('XXXX');
+  });
+});
+
+describe('=== and the multiplexers of other front ends (HDL-9)', () => {
+  it('$eqx and $nex compare as == and != do: a board has no X to compare', () => {
+    const eqx = harness('$eqx', { a: 4, b: 4, y: 1 });
+    expect([
+      eqx({ A: '1010', B: '1010' }),
+      eqx({ A: '1X10', B: '1X10' }),
+      eqx({ A: '1X10', B: '0X10' }),
+    ]).toEqual(['1', 'X', '0']);
+    const nex = harness('$nex', { a: 40, b: 40, y: 1 });
+    expect([nex({ A: 5, B: 5 }), nex({ A: 5, B: 2n ** 39n + 5n })]).toEqual(['0', '1']);
+  });
+
+  it('$bmux picks the word S selects, merges the words an unknown S could pick', () => {
+    // Words of 2 bits: 0 = 00, 1 = 01, 2 = 11, 3 = 10 (word 0 in the low bits).
+    const run = harness('$bmux', { a: 8, s: 2, y: 2 });
+    const A = '10110100';
+    expect([0, 1, 2, 3].map((s) => run({ A, S: s }))).toEqual(['00', '01', '11', '10']);
+    expect(run({ A, S: 'X0' })).toBe('XX'); // word 0 or 2: 00 or 11
+    expect(run({ A, S: '0X' })).toBe('0X'); // word 0 or 1: 00 or 01
+    expect(run({ A, S: '1X' })).toBe('1X'); // word 2 or 3: 11 or 10
+    expect(run({ A, S: 'XX' })).toBe('XX');
+  });
+
+  it('$demux puts A in the word S selects and 0 in the others', () => {
+    const run = harness('$demux', { a: 2, s: 2, y: 8 });
+    expect(run({ A: '11', S: 2 })).toBe('00110000');
+    expect(run({ A: '01', S: 'X0' })).toBe('000X000X');
+    expect(run({ A: '10', S: 0 })).toBe('00000010');
+  });
+
+  it('$bwmux picks per bit', () => {
+    const run = harness('$bwmux', { a: 4, b: 4, s: 4, y: 4 });
+    expect(run({ A: '0000', B: '1111', S: '01X1' })).toBe('01X1');
+    expect(run({ A: '1100', B: '1010', S: 'XXXX' })).toBe('1XX0');
+  });
+});

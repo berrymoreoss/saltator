@@ -260,7 +260,7 @@ bytes and checking each one received.
 - [x] 3. Words of any width in `cells.ts`: scratch words, sign extension, `$add` `$sub` `$neg`,
   comparisons, shifts ported to any width and signedness; tests against `BigInt` on seeded
   values, with `X`.
-- [ ] 4. New combinational cells: `$mul`, `$div` `$mod` `$divfloor` `$modfloor`, `$pow`,
+- [x] 4. New combinational cells: `$mul`, `$div` `$mod` `$divfloor` `$modfloor`, `$pow`,
   `$eqx` `$nex`, `$bmux` `$demux` `$bwmux`; tests against `BigInt` and per `X` rule.
 - [ ] 5. Converter: accept the cells, signedness and widths; refusals and warnings updated;
   tests on the fixtures.
@@ -342,15 +342,21 @@ bytes and checking each one received.
   run. Tests against BigInt, mutation-checked (a surviving mutation — an unknown bit 0 in wide
   arithmetic — got its test). Benchmark unchanged: synthetic 12.0k evaluations/s on the branch,
   11.7–13.2k on main in three runs (noise); decoder 1.85 M/s, counter 2.5 M/s, I/O port 0.96 M/s.
+- 2026-11-10 — task 4: `$mul` (with `$add`'s X rule; `Math.imul` up to 32 bits), `$div` `$mod`
+  `$divfloor` `$modfloor` (at max(A, B, Y), magnitudes and signs; zero divisor or any X: all X),
+  `$pow` (Yosys's four signedness cases and negative-exponent rules), `$eqx` `$nex` (as `$eq`),
+  `$bmux` (unknown S merges ≤ 256 candidate words, else X) `$demux` `$bwmux` in `cells.ts`. Tests
+  against BigInt, six mutations all caught. `arith`, `signed_ops`, `wide_ops` convert and run;
+  `PENDING` holds only the six flip-flop/latch flavours.
 
 ## Handoff
 
-- **State:** tasks 1–3 done (fixtures; IR with every cell, signedness, any width, schema v8;
-  word cells of any width and signedness in `word-cells.ts` on `words.ts` limbs). The analysis's
-  `PENDING` (analyze.ts) refuses the cells not built yet.
-- **Next step:** task 4 — `$mul`, `$div` `$mod` `$divfloor` `$modfloor`, `$pow`, `$eqx` `$nex`
-  (pessimistic, as `$eq`), `$bmux` `$demux` `$bwmux` in `word-cells.ts`/`cells.ts`; tests against
-  BigInt; remove them from `PENDING`.
+- **State:** tasks 1–4 done: every combinational cell of the scope runs, any width and
+  signedness. `PENDING` (analyze.ts) still refuses `$dffsr` `$dffsre` `$aldff` `$aldffe`
+  `$dlatchsr` `$sr` (task 7).
+- **Next step:** task 5 — the converter: messages for cells out of scope (not "HDL-9"), the
+  fixtures' comments (`loop.v`, `clock.v`, `init.v`) and the refusal tests that HDL-9 changes;
+  then task 6 (power-up values).
 - **Watch out:** Yosys's `sim -r` takes no `-clock` with a witness file (the clocks are in it).
 - **Verify with:** `pnpm check`; `pnpm bench tests/bench/hdl.bench.ts` against main (a
   worktree with `node_modules` symlinked, `./node_modules/.bin/vitest bench --run …` there).

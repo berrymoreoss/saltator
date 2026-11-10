@@ -16,6 +16,7 @@ const lines = (name: string) =>
   convert(name).messages.map((m) => `${m.severity} ${m.src ?? '-'}: ${m.message}`);
 
 const ACCEPTED = [
+  'arith',
   'counter',
   'decoder',
   'display',
@@ -29,12 +30,14 @@ const ACCEPTED = [
   'ops',
   'shifts',
   'signed',
+  'signed_ops',
   'traffic',
   'tri_internal',
   'tri_merged',
   'tri_register',
   'tristate',
   'wide',
+  'wide_ops',
   'wires',
 ];
 
@@ -281,7 +284,7 @@ describe('fromYosys: what it refuses', () => {
       ports: { a: { direction: 'input', bits: [2, 3] }, y: { direction: 'output', bits: [4, 5] } },
       cells: {
         m: {
-          type: '$mul',
+          type: '$alu',
           parameters: {},
           attributes: { src: 'm.v:3.1-3.2' },
           connections: { A: [2, 3], B: [2, 3], Y: [4, 5] },
@@ -292,7 +295,7 @@ describe('fromYosys: what it refuses', () => {
     expect(fromYosys({ modules: { m: module } }).messages).toEqual([
       {
         severity: 'error',
-        message: '$mul cells are not supported yet (HDL-9)',
+        message: '$alu cells are not supported yet (HDL-9)',
         src: 'm.v:3.1-3.2',
       },
     ]);
