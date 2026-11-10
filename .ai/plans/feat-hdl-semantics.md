@@ -201,10 +201,10 @@ same-delta data change silently loads the old value, where a board has a setup v
 ### Power-up values
 
 `init` bits (ports and signals) set the planes in `createState`; the flip-flops' and latches'
-last-seen clocks start from them, so `reg div = 0` makes no edge at power-on. A module gets an
-`init` hook that evaluates once at t = 0, so a power-up value is driven from the start (after
-`delay`). Bits without `init` start `X`; `init` on a bit logic drives is overwritten by it (as
-Yosys).
+last-seen clocks start from them, so `reg div = 0` makes no edge at power-on. No `init` hook is
+needed: the kernel evaluates every part once at t = 0, so a power-up value is driven from the
+start (after `delay`). Bits without `init` start `X`; `init` on a bit logic drives is
+overwritten by it (as Yosys).
 
 ### Combinational loops
 
@@ -264,7 +264,7 @@ bytes and checking each one received.
   `$eqx` `$nex`, `$bmux` `$demux` `$bwmux`; tests against `BigInt` and per `X` rule.
 - [x] 5. Converter: accept the cells, signedness and widths; refusals and warnings updated;
   tests on the fixtures.
-- [ ] 6. Power-up values: planes from `init`, the `init` hook; tests (`reg q = 1`, a counter from
+- [x] 6. Power-up values: planes from `init` (no hook needed); tests (`reg q = 1`, a counter from
   5, an output register).
 - [ ] 7. Rounds and races (Q1): internal clocks by last-seen values, asynchronous controls from
   logic, the new flip-flops and latches (`$dffsr` `$dffsre` `$aldff` `$aldffe` `$sr`
@@ -352,14 +352,20 @@ bytes and checking each one received.
   messages — synthesis cells (`$alu`, `$lut`, `$fsm`, …) ask for the command, formal cells say a
   simulation can't run them, others "not supported" (no more "yet (HDL-9)"); signedness kept
   where Yosys gives it, tested on `signed_ops`.
+- 2026-11-10 — task 6: `init` bits load into the planes in `createState`; the kernel's forced
+  evaluation at t = 0 drives them after `delay` (the planned `init` hook wasn't needed). The
+  analysis's `init` warning is gone (circuit.md's `hdl-warning` too). Test on `inits.v`,
+  mutation-checked.
 
 ## Handoff
 
-- **State:** tasks 1–5 done: every combinational cell of the scope runs, any width and
+- **State:** tasks 1–6 done: every combinational cell of the scope runs, any width and
   signedness. `PENDING` (analyze.ts) still refuses `$dffsr` `$dffsre` `$aldff` `$aldffe`
   `$dlatchsr` `$sr` (task 7).
-- **Next step:** task 6 — power-up values: planes from `init` in `createState`, an `init` hook
-  evaluating once at t = 0, the analysis's `init` warning gone (`init.v`'s comment and test).
+- **Next step:** task 7 — rounds and races (Design, "Sequencing"): internal clocks by last-seen
+  values (starting from the power-up planes), asynchronous controls from logic, the six
+  flip-flop/latch flavours out of `PENDING`, the pin race (`setup-violation`) and the internal
+  race (`race-violation`), the bound; fixtures `clocks`, `races`, `ff_flavours`, `by_name`.
 - **Watch out:** Yosys's `sim -r` takes no `-clock` with a witness file (the clocks are in it).
 - **Verify with:** `pnpm check`; `pnpm bench tests/bench/hdl.bench.ts` against main (a
   worktree with `node_modules` symlinked, `./node_modules/.bin/vitest bench --run …` there).

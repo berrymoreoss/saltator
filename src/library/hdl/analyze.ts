@@ -3,8 +3,8 @@
  * bit (a pin, a cell), the order of its combinational cells, its flip-flops, the pins each cell
  * depends on (HDL-8: a floating pin is reported where it is used), and what it can't run — a bit
  * driven twice, two inout ports joined, a clock or an asynchronous reset made inside the module,
- * a combinational loop — or runs differently from a Verilog simulator (an inferred latch, an
- * `init` value). Spec: docs/components.md#verilog-modules-hdl.
+ * a combinational loop — or runs differently from a Verilog simulator (an inferred latch).
+ * Spec: docs/components.md#verilog-modules-hdl.
  */
 import {
   HDL_CELLS,
@@ -195,15 +195,6 @@ export function analyzeHdlModule(module: HdlModule): HdlAnalysis {
       `a combinational loop through ${outputName(module, outputOf(named))} — not supported yet (HDL-9)`,
       cells[named]!.src,
     );
-  }
-
-  for (const signal of [...module.ports, ...module.signals]) {
-    if (signal.init?.some((bit) => bit !== 'x')) {
-      warning(
-        `${signal.name} has an initial value, not simulated yet (HDL-9): it starts unknown`,
-        signal.src,
-      );
-    }
   }
 
   // The cones, in evaluation order so a driver's is ready before its readers'.

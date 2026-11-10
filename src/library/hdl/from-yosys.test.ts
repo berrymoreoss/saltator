@@ -144,14 +144,12 @@ describe('fromYosys: modules it runs', () => {
     expect(module?.signals[0]?.bits).toEqual(module?.ports.find((p) => p.name === 'st')?.bits);
   });
 
-  it('warns about latches, initial values, $display and outputs nothing drives', () => {
+  it('warns about latches, $display and outputs nothing drives; keeps initial values', () => {
     expect(lines('latches')).toEqual([
       'warning latches.v:10.3-10.54: a latch is inferred for r',
       'warning latches.v:9.3-9.27: a latch is inferred for q',
     ]);
-    expect(lines('init')).toEqual([
-      'warning init.v:2.36-2.37: q has an initial value, not simulated yet (HDL-9): it starts unknown',
-    ]);
+    expect(lines('init')).toEqual([]);
     expect(convert('init').module?.ports[1]?.init).toEqual(['1']);
     expect(lines('display')).toEqual([
       'warning display.v:5.5-5.25: $display and $write are not shown (yet): ignored',

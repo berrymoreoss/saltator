@@ -97,6 +97,9 @@ interface Program {
   /** The pin that reads each plane index (−1 for others), for clocks. */
   readonly pinOfBit: Int32Array;
   readonly nextSize: number;
+  /** Bits with a power-up value (`init`, HDL-9) and their values, 0 or 1. */
+  readonly initBits: Int32Array;
+  readonly initValues: Uint8Array;
 }
 
 const PORT_WORDS = { in: 'input', out: 'output', inout: 'inout' } as const;
@@ -255,6 +258,17 @@ function compile(module: HdlModule, analysis: HdlAnalysis): Program {
     return ff;
   });
   const resets = flipFlops.filter((ff) => ff.arst >= 0);
+  // Power-up values, as an FPGA's bitstream loads its flip-flops; `x` bits start unknown.
+  const initBits: number[] = [];
+  const initValues: number[] = [];
+  for (const named of [...module.ports, ...module.signals]) {
+    for (const [i, value] of (named.init ?? []).entries()) {
+      const bit = named.bits[i];
+      if (typeof bit !== 'number' || value === 'x') continue;
+      initBits.push(bit);
+      initValues.push(value === '1' ? 1 : 0);
+    }
+  }
   return {
     bitCount,
     readPins: Int32Array.from(readPins),
@@ -272,6 +286,8 @@ function compile(module: HdlModule, analysis: HdlAnalysis): Program {
     latches,
     pinOfBit,
     nextSize: offset,
+    initBits: Int32Array.from(initBits),
+    initValues: Uint8Array.from(initValues),
   };
 }
 
@@ -324,8 +340,14 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
   const { drivePins, driveKinds, driveBits, driveEnables, driveCones, latches, pinOfBit } = program;
   return {
     createState(): HdlState {
+      const planes = newPlanes(bitCount);
+      const { initBits, initValues } = program;
+      for (let i = 0; i < initBits.length; i++) {
+        planes.unk[initBits[i]!] = 0;
+        planes.val[initBits[i]!] = initValues[i]!;
+      }
       return {
-        ...newPlanes(bitCount),
+        ...planes,
         next: new Uint8Array(program.nextSize),
         edges: new Uint8Array(flipFlops.length),
         floating: new Uint8Array(readPins.length),

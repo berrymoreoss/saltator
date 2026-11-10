@@ -426,6 +426,28 @@ describe('signed and wide words (HDL-9)', () => {
   });
 });
 
+describe('power-up values (HDL-9)', () => {
+  it('start each register at its init and drive it from t = 0; without one it is unknown', () => {
+    const bench = new Bench(part('inits'));
+    bench.run(us(1));
+    bench.expect({ q: 1 });
+    expect(read(bench, 'count', 0, 4)).toBe('0101');
+    expect(read(bench, 'o', 0, 8)).toBe('10100101');
+    expect(read(bench, 'none', 0, 4)).toBe('XXXX');
+    // Driven by the forced evaluation at t = 0, after the module's delay.
+    const fresh = new Bench(part('inits'));
+    fresh.run(ns(14));
+    expect(fresh.get('q')).toBe(Level.X);
+    fresh.run(ns(2));
+    expect(fresh.get('q')).toBe(Level.L1);
+    tick(bench);
+    bench.expect({ q: 0 });
+    expect(read(bench, 'count', 0, 4)).toBe('0110');
+    expect(read(bench, 'o', 0, 8)).toBe('01001011');
+    expect(read(bench, 'none', 0, 4)).toBe('XXXX');
+  });
+});
+
 describe('clock edges', () => {
   it('load every flip-flop from the values before the edge (a shift chain)', () => {
     // q1 <= d; q2 <= q1, on one clock.
