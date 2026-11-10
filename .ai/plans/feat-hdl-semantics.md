@@ -4,7 +4,7 @@
 | ---------- | ---------------------------------------------------------------------------------------------------------- |
 | Branch     | `feat/hdl-semantics`                                                                                       |
 | Roadmap    | HDL-9 — All of synthesizable Verilog, track [Programmable logic](../../docs/roadmap/programmable-logic.md) |
-| Status     | in-progress                                                                                                |
+| Status     | done                                                                                                       |
 | Depends on | — (builds on HDL-1 `feat/hdl-modules` and HDL-8 `feat/hdl-bus`)                                            |
 | Created    | 2026-11-10                                                                                                 |
 
@@ -441,18 +441,18 @@ bytes and checking each one received.
   alternatives), the track's HDL-9 section as built, lessons (Yosys's `sim` quirks, one large
   `evaluate`, differential coverage). Acceptance criteria verified: check 3416, build, e2e 96,
   `pnpm test:circuits` 27 of 27.
+- 2026-11-11 — finished: HDL-9 done (the rest of synthesizable Verilog runs, races are `X`, the
+  interpreter held to Yosys's `sim` by differential tests, the Verilog UART example); HDL-3 is
+  the track's next item. Merged to main with the user's approval.
 
 ## Handoff
 
-- **State:** every task done and every acceptance criterion verified (2026-11-11); waiting for
-  the user's approval to finish (merge).
-- **Next step:** the finish-branch workflow — with the user's approval: plan status `done`, the
-  track's HDL-9 `done` and the next item `next`, merge to main (`--no-ff`).
-- **Watch out:** Yosys's `sim -r` takes no `-clock` with a witness file (the clocks are in it).
-  `evaluate` must stay a few small phase functions: one large function cost the decoder 5–8 %.
-  A test needing known flip-flops at power-on with a pin-made clock needs a reset (an edge from
-  `X` is uncertain, as for pins). A new design in `differential/` must be race-free and must not
-  make an asynchronous control from its own flip-flop (Yosys's `sim` hangs; the script's timeout
-  says which).
-- **Verify with:** `pnpm check`; `pnpm bench tests/bench/hdl.bench.ts` against main (a
-  worktree with `node_modules` symlinked, `./node_modules/.bin/vitest bench --run …` there).
+- **State:** merged; nothing pending.
+- **Follow-ups:** none new. Where they belong already: a device's own power-up rules → HDL-5;
+  `$print`/`$check` as log lines → the "Messages and assertions" idea; gate-level cells → the
+  "Gate-level netlists" idea; speed of wide words (bit-by-bit plane reads) → HDL-10.
+- **Watch out:** `evaluate` must stay small phase functions (one large one cost 5–8 %); a design
+  added to `src/library/hdl/differential/` must be race-free and must not make an asynchronous
+  control from its own flip-flop (Yosys's `sim` hangs; the script's timeout names it).
+- **Verify with:** `pnpm check`; `pnpm hdl:differential` (system Yosys) regenerates the
+  reference without a diff.
