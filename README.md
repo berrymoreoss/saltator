@@ -2,6 +2,11 @@
 
 **A digital logic simulator for the browser. Test before fab.**
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/screenshot-dark.png">
+  <img alt="Saltator running the Two-Digit Counter example: two counter subcircuits drive a pair of 7-segment displays reading 47, and the Waveforms panel shows the clock, reset, carry and both digits counting" src="docs/images/screenshot-light.png">
+</picture>
+
 Design a circuit from real chips, run it with datasheet propagation delays, watch every wire,
 look inside ROM and RAM, and verify it with test benches before you build it on a breadboard.
 

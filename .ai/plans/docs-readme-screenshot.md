@@ -50,8 +50,8 @@ waveforms.
 
 ## Tasks
 
-- [ ] 1. Take both screenshots into `docs/images/`; look at them.
-- [ ] 2. README: the `<picture>` under the tagline, with alt text.
+- [x] 1. Take both screenshots into `docs/images/`; look at them.
+- [x] 2. README: the `<picture>` under the tagline, with alt text.
 - [ ] 3. Verify: `pnpm check`; the README renders the picture on GitHub (after the push).
 
 ## Acceptance criteria
