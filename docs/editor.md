@@ -85,9 +85,10 @@ A desktop CAD-style window (`Workbench`), dense like KiCad or Altium: 12 px UI t
   Properties; over empty canvas — a **Place** submenu ([Placing parts](#placing-parts)), Paste,
   Select All, Zoom to Fit. A right click while drawing a wire, floating a paste or placing parts
   cancels that instead.
-- **Dialogs**: Help ▸ Keyboard Shortcuts (generated from the command registry), About, the
-  example gallery, "Save changes?" and file problems ([Files](#files)). Escape or a click
-  outside closes them (for "Save changes?" that is Cancel).
+- **Dialogs**: Help ▸ Keyboard Shortcuts (generated from the command registry), About (what
+  Saltator is, how to start, and the version: the commit it was built from,
+  [ADR-0034](adr/0034-commit-version.md)), the example gallery, "Save changes?" and file problems
+  ([Files](#files)). Escape or a click outside closes them (for "Save changes?" that is Cancel).
 - **Document name** at the right end of the menu bar and in the browser tab's title
   (`adder — Saltator`), with `•` while there are unsaved changes.
 

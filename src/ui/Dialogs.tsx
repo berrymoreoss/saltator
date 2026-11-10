@@ -1,5 +1,8 @@
 import { X } from 'lucide-react';
 import { type ReactNode, useEffect, useRef } from 'react';
+// Round-1 pixel art, 32×32 (playground/art, not in git); swapped when the icon is picked.
+import saltatorIcon from './assets/saltator-chip.png';
+import { BUILD, describeVersion, ORG_URL, REPO_URL } from './build-info';
 import type { CommandRegistry } from './commands';
 import type { FileProblem, UnsavedChoice } from './document-controller';
 import { APP_NAME } from './document-session';
@@ -150,17 +153,62 @@ export function ShortcutsDialog({
 }
 
 export function AboutDialog({ onClose }: { readonly onClose: () => void }) {
+  const version = describeVersion(BUILD, import.meta.env.DEV);
   return (
     <Dialog title={`About ${APP_NAME}`} onClose={onClose} testId="about-dialog">
-      <p className="about-title">{APP_NAME}</p>
+      <div className="about-head">
+        <img className="about-icon" src={saltatorIcon} alt="" width={64} height={64} />
+        <div>
+          <p className="about-title">{APP_NAME}</p>
+          <p className="about-tagline">
+            A digital logic simulator for the browser. <em>Test before fab.</em>
+          </p>
+        </div>
+      </div>
       <p>
-        An event-driven digital logic simulator for designing and verifying computers built from
-        real chips — <em>test before fab</em>.
+        Build circuits from real chips — 74HC logic, ROM and RAM, the 6502 CPU, displays, your own
+        Verilog modules — and run them with the delays from their datasheets. Watch every wire, look
+        inside memory, step and rewind, and check the design with test benches before you build it
+        on a breadboard.
       </p>
-      <p className="muted">
-        4-state logic with drive strengths, datasheet timing, 74HC parts, memories and CPUs as the
-        roadmap grows.
+      <p>Everything runs in your browser: your circuits stay on your computer.</p>
+      <p>
+        New here? Open <strong>File ▸ New from Example…</strong> Press <kbd>?</kbd> for keyboard
+        shortcuts.
       </p>
+      <div className="about-meta muted">
+        <p data-testid="about-version">
+          Version{' '}
+          {version.url ? (
+            <a className="link mono" href={version.url} target="_blank" rel="noreferrer">
+              {version.label}
+            </a>
+          ) : (
+            version.label
+          )}
+          {version.notes.map((note) => ` · ${note}`).join('')}
+        </p>
+        <p>
+          <a className="link" href={REPO_URL} target="_blank" rel="noreferrer">
+            Source on GitHub
+          </a>
+          {' · '}
+          <a
+            className="link"
+            href={`${REPO_URL}/blob/main/LICENSE`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            MIT License
+          </a>
+        </p>
+        <p>
+          Part of{' '}
+          <a className="link" href={ORG_URL} target="_blank" rel="noreferrer">
+            Berrymore Open Source
+          </a>
+        </p>
+      </div>
     </Dialog>
   );
 }

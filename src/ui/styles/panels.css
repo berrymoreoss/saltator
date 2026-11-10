@@ -694,6 +694,37 @@ select.prop-input {
   font-weight: 600;
 }
 
+.about-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 4px 0 14px;
+}
+
+/* Pixel art at a whole multiple of its 32 px: crisp squares, no smoothing. */
+.about-icon {
+  flex: none;
+  image-rendering: pixelated;
+}
+
+.about-head p {
+  margin: 0;
+}
+
+.about-head .about-title {
+  margin-bottom: 2px;
+}
+
+.about-meta {
+  margin-top: 16px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.about-meta p {
+  margin: 2px 0;
+}
+
 .shortcut-columns {
   columns: 2 260px;
   column-gap: 24px;

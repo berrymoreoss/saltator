@@ -537,3 +537,8 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
   signed numbers, and a broken quotient sign passed. Mutation-check a differential test too, and
   add targeted designs for what the generator can't reach. Generated names also bite: `if` is a
   keyword, and port `o1`'s bit 10 is port `o11`'s bit 0 (`o110`).
+- 2026-11-11 (chore/about-version) — Checking a build in a browser on a fixed port: a dev server
+  left running there answers every path, the `/saltator/` subpath included (SPA fallback), and
+  a backgrounded `vite preview --strictPort` dies quietly, so the check looks at the wrong build
+  without an error. Free the port first (`lsof -i :PORT`), and confirm which build answered (About
+  says `· dev` on the dev server).
