@@ -112,14 +112,18 @@ circuit written in Verilog, so its signals are named as the nets inside a subcir
 (Q2): Verilog's `[3:0]` and `[2]` with the signal's own indices, `..` accepted too, shown as
 Verilog.
 
-- New target kind `inner`: `{ part: 'A1/U1', signal: index, name, bits: number[] }`, the bits
-  least significant first. Looked up in a scope whose part has a `signals` view, **after** what
-  resolves today (pins, port nets, buses), so no existing reference changes meaning; names with
-  `.` and `[` handled before the pin and cell rules give up.
-- `ProbeTarget`'s bits become sources: a net id, or a part's inner bit. `signal()` and `probe()`
-  return them; groups of 1-bit inner references work as for nets.
-- Errors that help: `A1 has no signal stat (state, shift, left, tick)`, `state is [1:0]: no bit
-  5`, `A1 has errors: its signals can't be read` (a module that doesn't compile has no part).
+- New target kind `inner`: `{ part: 'A1/U1', type, signal: index, name: 'A1/state', lsb, width,
+  bits: number[] }`, the bits least significant first. Looked up in a module's scope (its one
+  part `U1` of type `hdl/…`, `Scope.module`) **after** what resolves today (pins, port nets,
+  buses, parts), so no existing reference changes meaning (`#resolveIn` wraps `#resolveNamed`).
+- `ProbeTarget` is `{ bits, keys, vector }`: `bits` a net id, an `InnerBit` (`{ part, signal,
+  bit }`) or `undefined`; `keys` each bit's reference (`D0`, `A1/state[0]`), the channels'
+  identity — the analyzer and the debugger used to compute them from the text (`bitKeys`).
+  `channelSource(sim, bit)`, `signalBitLevel(sim, bit)`, `sameSignalBit` map bits for any
+  simulator (the replica too).
+- Errors: `no part, net or signal named hold in A1 (signals: and_y, held, u1.word)`,
+  `A1/u1.word is u1.word[6:4]: no bit 3`, `… in A1: it keeps no named signals`; a module with
+  errors has no part, so nothing resolves inside it.
 - `renameReference` already follows `A1/…`; a probe whose signal is gone after a Compile shows
   unresolved, as a probe on a removed net does.
 
@@ -129,15 +133,16 @@ Values inside a module change inside `evaluate`, written many times per call (lo
 the recorder keeps one level per instant anyway. So inner channels are **sampled at the end of
 an instant** (`onInstant`), not reported per change:
 
-- `Recorder.attach(sim, sources)` takes per channel a net index **or a sampler** (component index
-  - view + signal + bit); sampled channels are kept by `attachChannel`, `removeChannel` and
-    `#links`. At each instant's end the recorder samples them (only those — a handful of byte
-    reads) and appends a change as for a net.
-- Order: `Recorder.sample()` is idempotent per instant and the `Trigger` calls it first, so a
-  breakpoint never reads a stale inner level whatever the listener order.
-- Rewind: `restore` writes into the same planes, the recorder's `seek` already truncates; the
-  sampler reads the state live. Replicas (Reverse Continue): the debugger builds samplers on the
-  replica's own components, as it maps nets there.
+- `Recorder.attach(sim, sources)` takes per channel a `ChannelSource`: a net index **or an
+  `InnerBit`** (plain data); the recorder keeps the live channels' sources (`#sources`, which
+  replaced `#links()`), reads inner bits through `innerReader` (the state looked up by part id on
+  every read: a restore that changes a state's shape replaces it) and subscribes to `onInstant`
+  only while it has any.
+- Order: `Recorder.sample()` (reading again at one instant changes nothing) and the `Trigger`
+  calls it first, so a breakpoint never reads a stale inner level whatever the listener order.
+- Rewind: `restore` writes into the same planes, the recorder's `seek` already truncates.
+  Replicas (Reverse Continue): the debugger maps the same bits on the replica (`channelSource`).
+- Core: `Simulator.definitionOf(id)` (inspection: the part's views).
 - Cost: nothing without inner channels (kernel unchanged); measured with them.
 
 Timing, documented: an inner register changes at its clock edge's instant; the module's pins
@@ -157,14 +162,16 @@ analyzer on an internal test point.
 - `referenceSuggestions` (Waveforms, Debug) and `scriptReferences` (bench editor) offer the inner
   signals of the module instances placed in the open circuit (`A1/state`), and bare names while a
   module itself is open.
-- The module's view (Q3): a **Signals** section — name, width, source line, the open
-  instance's live value while simulating — with **Probe** and **Watch** on each row.
+- The module's view (Q3): a **Signals** section — name, range, source line on hover, the open
+  instance's live value while simulating (`signalRows`) — with **Probe** (`Editor.toggleProbe`)
+  and **Watch** (`Editor.watch`, a new `watched` request that shows the Debug tab) on each row.
+- Step Clock refuses a signal inside a module (nothing queued on it for `stopBefore`).
 
 ### ADR
 
-ADR-0035 "Inside parts: named inner signals, a view on the definition, sampled at instants":
-the view, the reference spelling, sampling vs. per-change notification vs. inner signals made
-nets, the timing consequence.
+ADR-0035 "Inner signals: a view on the part, named like nets inside a subcircuit, sampled at
+instants" (written): the view, the reference spelling, sampling vs. per-change notification vs.
+inner signals made nets, the timing consequence.
 
 Rejected (for the ADR):
 
@@ -191,7 +198,7 @@ Rejected (for the ADR):
 - [x] 8. Module view: the Signals section (Q3).
 - [x] 9. Proof (Q4): examples, `tests/scenarios/verilog-inspection.test.ts`,
   `tests/e2e/hdl.spec.ts`, a benchmark of inner channels.
-- [ ] 10. Docs: ADR-0035, circuit.md (references), simulation.md (recorder), components.md (the
+- [x] 10. Docs: ADR-0035, circuit.md (references), simulation.md (recorder), components.md (the
   view), editor.md (module view, suggestions), glossary; the roadmap's HDL-4 "Built"; lessons.
 
 ## Acceptance criteria
@@ -226,13 +233,26 @@ Rejected (for the ADR):
 
 - 2026-11-11 — plan drafted; HDL-3 moved to the end of the track (the user's choice).
 - 2026-11-11 — Q1–Q4 answered (all as proposed); started.
+- 2026-11-11 — tasks 1–10 done, a commit each, `pnpm check` green after every one: the view
+  (core + library), the resolver, the recorder, waveforms, debugger, benches, suggestions, the
+  module view's Signals, the examples (UART probes and a bench through both modules' registers,
+  the traffic light's `state` column), the e2e test, the benchmark, the docs. Benchmark
+  (`pnpm bench tests/bench/hdl.bench.ts`, Apple M3 Pro): synthetic 1 024 cells 12.3k
+  evaluations/s (≈ 6.1k cycles/s, HDL-1's baseline unchanged), with 16 inner bits recorded
+  12.0k (≈ 2 %); decoder 2.0M, counter 2.5M, wide words 75.7k, internal clocks 632k evaluations/s.
+  Looked at in the browser (dev server, Playwright screenshots): the UART's probes, the
+  transmitter's Signals in A1 with live values and the Probe/Watch icons.
 
 ## Handoff
 
-- **State:** plan approved, started; no code yet.
-- **Next step:** task 1 (core `SignalsDef`, the module part implements it).
-- **Watch out:** the resolver's `.` is the pin separator and flattened names contain `.`; the
-  `CELLS` regex grabs `X[…]` when X is a part; `Trigger` re-subscribes on attach (listener
-  order); replicas need their own samplers.
-- **Verify with:** `pnpm check`, `pnpm test:circuits`, `pnpm e2e`, the UART example in the
-  browser.
+- **State:** every task done and committed on `feat/hdl-inspection` (local only: the user asked
+  for no push). Plan status `in-progress`, the track's HDL-4 `in-progress` with its Built
+  section written.
+- **Next step:** the finish-branch workflow — verify the acceptance criteria one by one (most are
+  covered by tests: `src/editor/analyzer.test.ts`, `debugger.test.ts`,
+  `tests/scenarios/verilog-inspection.test.ts`, `tests/e2e/hdl.spec.ts`), `pnpm build`, the full
+  `pnpm e2e`, then ask the user before merging.
+- **Watch out:** resolvers need `design.registry` to see modules' parts (lessons); the
+  UART's board bench timings assume its 100 Hz clock rising at 5 ms, 15 ms, ….
+- **Verify with:** `pnpm check`, `pnpm test:circuits`, `pnpm e2e tests/e2e/hdl.spec.ts`,
+  `pnpm bench tests/bench/hdl.bench.ts`.

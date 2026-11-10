@@ -542,3 +542,12 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
   a backgrounded `vite preview --strictPort` dies quietly, so the check looks at the wrong build
   without an error. Free the port first (`lsof -i :PORT`), and confirm which build answered (About
   says `· dev` on the dev server).
+- 2026-11-11 (HDL-4) — A `Resolver` built with the library's registry can't see a document's
+  Verilog modules: their parts (`hdl/<id>`) and views live in the design's `DocumentRegistry`.
+  The examples' probe check passed for every net and failed only once a probe named a register
+  inside a module. Build resolvers (and anything that looks up a part's views) with
+  `design.registry`, as the editor (`editor.registry`) and the benches do.
+- 2026-11-11 (HDL-4) — Anything a recorder samples at `onInstant` races the triggers listening at
+  the same instant: listeners run in subscription order, and `Trigger.attach` re-subscribes after
+  every carry-over. The trigger asks its recorder to sample first (idempotent per instant) rather
+  than relying on who subscribed earlier.

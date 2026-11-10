@@ -39,6 +39,7 @@ the alternatives we rejected. Format: [ADR-0001](0001-record-architecture-decisi
 | [0032](0032-saltator.md)                          | Saltator: the product name, `.saltator.json` documents, fresh browser storage                   | accepted |
 | [0033](0033-pages-demo.md)                        | A live demo on GitHub Pages, deployed by hand from `main`                                       | accepted |
 | [0034](0034-commit-version.md)                    | The commit is the version: its hash and date in About, read from git at build time              | accepted |
+| [0035](0035-inner-signals.md)                     | Inner signals: a view on the part, named like nets inside a subcircuit, sampled at instants     | accepted |
 
 New ADR: copy [template.md](template.md) to `NNNN-short-title.md` (next free number), fill it in,
 add a row here. Branches of different tracks can take the same number at the same time: the one

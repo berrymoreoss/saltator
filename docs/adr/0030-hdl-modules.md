@@ -5,7 +5,8 @@
 - **Roadmap item:** HDL-1 (feat/hdl-modules); proposed in docs/programmable-logic-track, amended
   when HDL-1 started (Yosys outside the app), accepted in HDL-1 after its benchmark; amended in
   HDL-8 (feat/hdl-bus: tri-states, `inout` ports, floating pins) and HDL-9 (feat/hdl-semantics:
-  the rest of synthesizable Verilog, races `X`)
+  the rest of synthesizable Verilog, races `X`); its signals inside: [ADR-0035](0035-inner-signals.md)
+  (HDL-4)
 
 ## Context
 

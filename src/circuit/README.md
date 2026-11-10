@@ -13,7 +13,8 @@ Modules: `document.ts` (types), `schema.ts` + `migrations.ts` (loading), `serial
 `compile.ts` + `checks.ts` (netlist, net names, design checks), `resolve.ts` (references such
 as `U5`, `U5.A0`, `CLK`, `D[0..7]` to the compiled parts and nets; the memories, R12b; what a
 probe shows and how to probe an unnamed net, R13; memory cells `U5[1F]` and
-`renameReference`, R14),
+`renameReference`, R14; signals inside Verilog modules `A1/state`, a probe bit's recorder source
+and level, HDL-4),
 `builder.ts` (code-first documents), `subcircuit.ts` (the document registry: a generated
 `sub/<id>` definition per circuit, pins from its ports, R11a; a Verilog module's part from the
 library's `hdlPart`, HDL-1), `verilog.ts` (Verilog modules: their ports, compiled to one part

@@ -22,7 +22,9 @@ the LCD branch), `memory`
 (ROM images as sparse hex runs, `MemoryDef`/`MemoryView`, the `poke` debug write, R12a; access
 stamps and address pins, R12b), `image-files` (`.bin` and Intel HEX read, written and placed
 into a memory, R12b), `random` (`SeededRandom`, `hashString`: reproducible randomness, R12a),
-`recorder` (`Recorder`: probed nets' levels over time, bounded, R13), `trigger` (`Trigger`:
+`recorder` (`Recorder`: probed nets' levels over time, bounded, R13; bits inside parts sampled
+at instants, HDL-4), `inner-signals` (`SignalsDef`, a part's named signals as its definition's
+`signals` view, `InnerBit`, `innerReader`, HDL-4), `trigger` (`Trigger`:
 conditions on recorded channels that fire at an instant, R13; `repeat` for breakpoints, R14),
 `vcd` (`writeVcd`, R13); the simulator's `requestBreak` and `onInstant` (R13) and the run
 option `stopBefore` (a lookahead to a net's next change, R14); `diagnosticSeverity` and

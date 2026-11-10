@@ -513,7 +513,7 @@ them) and return the same circuit when nothing changes.
 app writes them, turned into the parts and nets of a compiled design (or of one compiled
 circuit). The memory inspector, probes (R13), watches and breakpoints (R14) and test benches
 ([test benches](#test-benches), R15a) find what they show through it; R11a added instance
-paths in this one place.
+paths in this one place, HDL-4 the signals inside Verilog modules.
 
 ```ts
 const resolver = new Resolver(compileDesign(document, registry), registry); // or a CompileResult
@@ -524,12 +524,14 @@ resolver.resolve('D[0..7]'); // { kind: 'bus', bus: 'D[0..7]', members: ['D0', �
 resolver.resolve('U5[10..1F]'); // { kind: 'cells', part: 'U5', type, memory, from: 16, to: 31 }
 resolver.resolve('U9'); // 'no part or net named U9'
 resolver.memories(); // the parts with `memory`, in designator order (U2 before U10)
-resolver.signal('D[0..7]'); // { nets: ['D0', …, 'D7'], vector: true } — what a probe shows
-resolver.probe({ name: 'PC', members: ['U3.Q0', 'U3.Q1'] }); // a group: { nets, vector: true }
+resolver.signal('D[0..7]'); // { bits: ['D0', …, 'D7'], keys: ['D0', …, 'D7'], vector: true }
+resolver.probe({ name: 'PC', members: ['U3.Q0', 'U3.Q1'] }); // a group: { bits, keys, vector: true }
 resolver.netReference('U1.Y'); // how to probe a net: its name, else a (driving) pin on it
 resolver.resolve('A1/U3.Q0'); // { kind: 'pin', part: 'A1/U3', pin: 'Q0', net: 'BUS0' } — inside A1
 resolver.resolve('A1/CLK'); // a net by a name it has inside A1: { kind: 'net', net: 'A1/CLK' }
 resolver.resolve('A1.CLK'); // instance A1's pin: the net it is on, { kind: 'net', net: 'CLOCK' }
+resolver.resolve('A1/state'); // a Verilog module's signal (HDL-4): { kind: 'inner', part: 'A1/U1', … }
+resolver.signal('A1/count[3:0]'); // { bits: [{ part: 'A1/U1', signal: 2, bit: 0 }, …], keys: ['A1/count[0]', …] }
 ```
 
 - A target carries **netlist ids** (component id, net ids); the simulator maps them to indices
@@ -561,13 +563,33 @@ resolver.resolve('A1.CLK'); // instance A1's pin: the net it is on, { kind: 'net
   paths through a renamed instance (`A1/U3.Q0` → `A3/U3.Q0`), and with `scopes` — the instance
   paths of the circuit the part was renamed in — the part in every instance (`A1/U1.Q`,
   `A2/U1.Q`).
-- **Probes** (R13): `signal(reference)` gives the nets a net, pin or bus reference shows (a part
+- **Probes** (R13): `signal(reference)` gives the bits a net, pin, bus or module signal reference shows (a part
   is refused: "U5 is a part: probe one of its pins"), `probe(probe)` also groups, whose members
   must each be one signal ("D[0..7] is a bus: a group's members are single signals"; a failing
   member is named: "U9.Y: no part U9"). `netReference(net)` is how the editor stores a probe
   on a wire: the net's name, else a pin on it — a driving one (`out`, `tristate`, `bidir`)
   first. `renameReference(ref, from, to)` rewrites a signal reference after a part rename: its
   pins only (`U5.A0` → `U7.A0`; a net or a bus may be called like a designator).
+- **Signals inside Verilog modules** (HDL-4, [ADR-0035](adr/0035-inner-signals.md)): in a
+  module's circuit — its one part `U1` of type `hdl/<id>` — a reference that names no pin, net,
+  bus or part names one of the module's signals (the IR's named signals, `ComponentDefinition.signals`):
+  `state` in the module's own scope (its own benches), `A1/state` from the circuit that places it,
+  `S1/A1/state` through a subcircuit, `A1/u_core.count` for a flattened submodule's register (its
+  `.` is part of the name). Nothing that resolves to a pin or a net changes meaning (`A1.q` is
+  the pin, after the module's delay; `A1/q0` the port's net inside). A slice by the signal's own
+  indices, Verilog's way or the app's — `count[3:0]`, `count[3..0]`, `count[2]`, low bit first
+  either way round — or the reason (`A1/u1.word is u1.word[6:4]: no bit 3`); a wrong name lists
+  what there is (`no part, net or signal named hold in A1 (signals: and_y, held, u1.word)`). The
+  target is `{ kind: 'inner', part, type, signal, name, lsb, width, bits }`: the flat part, the
+  index into its `signals.list`, the bits chosen. A module with errors has no part and resolves
+  nothing inside.
+- **Signal bits** (`ProbeTarget`): `signal` and `probe` give `bits`, bit 0 first, each a net id,
+  a bit inside a part (`InnerBit`: `{ part, signal, bit }`) or `undefined` (a bus member no net
+  is named after), and `keys`, each bit's own reference (a bus's members `D0`…, a group's, a
+  module signal's `A1/state[0]`…) — what a recorder channel keeps as its identity across
+  compiles, so a slice and the whole signal share their bits' channels. `channelSource(sim,
+  bit)` gives a bit's recorder source in a simulator (a net's index, or the `InnerBit`),
+  `signalBitLevel(sim, bit)` its level now, `sameSignalBit(a, b)` compares two.
 - `compareDesignators` orders designators as people count them (`U2` before `U10`).
 
 ## Test benches
@@ -626,7 +648,7 @@ bench('holds while disabled, without a carry', (b) => {
 | `b.wait(time)`                        | Time passes, inputs held (`us(10)` or `'10us'`)                                                                                                                          |
 | `b.row(inputs, outputs, note?)`       | One step: inputs at its start (`'C'` pulses, `'-'` leaves one as it is), outputs checked at its end (`'-'`: not checked)                                                 |
 | `` b.table`…` ``                      | Rows of a text table, each one `b.row` ([below](#tables))                                                                                                                |
-| `b.expect({ ref: value, … }, note?)`  | Check now: signals (net, pin, bus, instance path) and memory cells (`U5[1F]`, a range takes an array)                                                                    |
+| `b.expect({ ref: value, … }, note?)`  | Check now: signals (net, pin, bus, instance path, a Verilog module's signal `A1/state`) and memory cells (`U5[1F]`, a range takes an array)                              |
 | `b.get(ref)`                          | A value now: a number when every bit is known (a BigInt beyond 2⁵³), else as a report writes it (`'X'`, `'Z'`, `'0xX5'`); an array for a range of cells                  |
 | `b.memory(ref, address, bytes)`       | Bytes into a memory: an array or hex text (`'2A 55 FF'`); `b.loadIntelHex(ref, text)` loads a file's text                                                                |
 | `b.setStep(time)`, `b.step`, `b.now`  | The step a row or a pulse takes (default `us(1)`); the simulated time                                                                                                    |
@@ -636,7 +658,12 @@ bench('holds while disabled, without a carry', (b) => {
   test driver (core's `testDriver`, released until set, so an input never set floats), and the
   interactive parts anywhere in the design (`SW1`, `A1/SW1`), operated by their symbol kind as
   the Interact tool does: `switch`, `button`, `dip-switch`, `clock` (manual only). Anything
-  else is refused with the reason.
+  else is refused with the reason — a signal inside a Verilog module too ("A1/state is inside a
+  module: read it, or drive a pin of the module").
+- **Outputs** (what `expect`, `get` and a row's outputs read): the circuit's ports, then any
+  signal or memory cells the [resolver](#resolver) names — signals inside Verilog modules
+  included (HDL-4: `A1/rip`, `A1/rip[1:0]`, `state` in a module's own benches), read from the
+  part's state at the call, reported as buses are (`A1/rip is 0x5, expected 0x6`).
 - **Values**: numbers or BigInts within the width, `0`/`1`, `'X'`, `'Z'`, or text: decimal,
   `0x2A`, `$2A`, `0b101` (`_` between digits), hex and binary digits `X` or `Z`. Expected, `'X'`
   (whole or a digit) is **don't care**, as in data sheets and Digital; `'unknown'` expects every

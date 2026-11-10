@@ -470,14 +470,14 @@ sim.restore(copy.snapshot());
 
 ## Recorder
 
-`Recorder` (`src/core/recorder.ts`, R13) keeps the levels of chosen nets over simulated time —
-the data behind the waveform view ([editor.md](editor.md#waveforms)) and the debugger's
-breakpoints (R14):
+`Recorder` (`src/core/recorder.ts`, R13) keeps the levels of chosen nets — and bits inside parts
+(HDL-4, [below](#inner-signals)) — over simulated time, the data behind the waveform view
+([editor.md](editor.md#waveforms)) and the debugger's breakpoints (R14):
 
 ```ts
 const recorder = new Recorder({ budget: 4_000_000 }); // changes kept across every channel
 const clk = recorder.addChannel();
-recorder.attach(sim, new Map([[clk, sim.netIndex('CLK')]])); // channel → net index
+recorder.attach(sim, new Map([[clk, sim.netIndex('CLK')]])); // channel → net index or InnerBit
 sim.runUntil(ms(1));
 recorder.level(clk, us(500)); // Level at that instant (undefined where there is no data)
 recorder.nextChange(clk, us(500)); // time of the next edge
@@ -505,6 +505,15 @@ recorder.nextChange(clk, us(500)); // time of the next edge
 - **Cost**: no listener without channels; with them, one call per changed net that looks the net
   up in an `Int32Array`. Ring oscillator benchmark: 13.7M events/s, 13.2M recording 16 of its
   1001 nets, 8.7M recording all of them (R13).
+- **Bits inside parts** (HDL-4): a channel's source (`ChannelSource`) is a net's index or an
+  `InnerBit` (`{ part, signal, bit }`: a bit of a part's named signal, [below](#inner-signals)).
+  Such a bit changes inside its part's evaluation, not on a net, so it is **sampled at the end of
+  each instant** (`onInstant`; `sample()`, which reading again at one instant leaves as it is) —
+  the same one level per instant a net's channel keeps. The recorder listens for instants only
+  while it has such channels; a `Trigger` samples first, whatever the order of the listeners. A
+  bit a simulator doesn't have (a recompiled module that lost the signal) gets no data. The
+  1 024-cell module of `tests/bench/hdl.bench.ts` with 16 bits inside recorded: 12.0k against
+  12.3k evaluations/s.
 - **Across a rewind** (R14b): `seek(t, present)` after the attached simulator was restored to
   `t` keeps the record after `t` — the future a run from `t` repeats, up to `present` (the
   caller's: after a restore `now` no longer says how far it reached). While the run is behind
@@ -514,6 +523,31 @@ recorder.nextChange(clk, us(500)); // time of the next edge
   channel added meanwhile records as usual; past the present recording goes on; a trim never
   reaches past `now`. `cut(t)` drops every change after `t` when the run leaves its recorded
   future.
+
+## Inner signals
+
+HDL-4 ([ADR-0035](adr/0035-inner-signals.md), `src/core/inner-signals.ts`): a part may show named
+signals inside it — a Verilog module's registers and wires by their source names — through a view
+on its definition, as memories (`memory`) and CPUs (`cpu`) show their contents:
+
+```ts
+definition.signals = {
+  list: [{ name: 'state', lsb: 0, width: 2, src: 'traffic.v:11.13-11.18' }],
+  level: (state, signal, bit) => Level.L1, // an instance's bit now, from its state; no copy
+};
+sim.definitionOf('A1/U1')?.signals; // the view of a part the simulator runs
+innerReader(sim, { part: 'A1/U1', signal: 0, bit: 1 })?.(); // one bit's level now
+```
+
+- Not nets: nothing is driven or scheduled, the kernel doesn't know them. The recorder samples
+  them at the end of each instant (its [bits inside parts](#recorder)); watches and test benches
+  read them when asked.
+- Their timing is the part's: a Verilog module's register changes at its clock edge's instant,
+  inside its evaluation, and its pins follow after the module's delay — the waveforms show both,
+  as a logic analyzer on a board's test point would.
+- The registry checks a view: names given and unique, widths of 1 or more, integer `lsb`.
+- Step Clock can't step by one: it stops before an edge the kernel has queued on a net
+  ([ADR-0020](adr/0020-debugger.md)), and a signal inside a part has nothing queued.
 
 ## Triggers
 
@@ -539,7 +573,8 @@ trigger.attach(sim); // armed; attach the new simulator after a carry-over
 ```
 
 - Evaluated in `onInstant`, only at instants where one of its channels changed, from the
-  recorder's levels: a glitch inside one instant (collapsed by the recorder) never fires it.
+  recorder's levels: a glitch inside one instant (collapsed by the recorder) never fires it. It
+  has the recorder sample its bits inside parts first (HDL-4).
 - Fires **once** (single shot) and disarms: at the edge while the other terms hold, or —
   without an edge term — when the pattern **becomes** true (one already true when armed waits
   until it has been false). With `{ repeat: true }` (R14's breakpoints) it fires at every such

@@ -115,10 +115,24 @@ HDL-1's benchmark unchanged; wide words ≈ 73 k evaluations a second, internal 
 
 ## HDL-4 · Inside a module — `feat/hdl-inspection`
 
-Signals and registers inside a module instance, by their source names (`state`, `count[3:0]`,
-kept through synthesis): probes on them in the waveforms ([ADR-0019](../adr/0019-waveforms.md)),
-watches and breakpoint conditions ([ADR-0020](../adr/0020-debugger.md)), reads from test
-benches — debugging a state machine without bringing its state out to pins.
+**Built** ([plan](../../.ai/plans/feat-hdl-inspection.md),
+[ADR-0035](../adr/0035-inner-signals.md)): a module's named signals — its registers and wires by
+their source names, a flattened submodule's `u_core.count` too — are references like nets inside
+a subcircuit: `A1/state`, `S1/A1/state`, `state` in the module's own benches, slices by their own
+indices (`count[3:0]`, `count[3..0]`, `count[2]`); nothing that named a pin or a net changes
+meaning. The part shows them through a view on its definition (`ComponentDefinition.signals`, read
+from the planes, generic for R17b's registers); a recorder channel may show a bit inside a part,
+sampled at the end of each instant, so probes in the waveforms, their triggers, breakpoints
+(Reverse Continue included), watches, VCD and test benches (`get`, `expect`, rows; never `set`)
+take them unchanged. A register changes at its clock edge in the waveforms, the module's pins its
+delay later. Every reference box and the bench editor suggest them; the module's view lists them
+with the open instance's values, Probe and Watch (Q3). Specs:
+[circuit.md](../circuit.md#resolver), [simulation.md](../simulation.md#inner-signals),
+[components.md](../components.md#verilog-modules-hdl), [editor.md](../editor.md#verilog-modules).
+Proof (Q4): the Verilog UART opens with its shift registers in the waveforms and a board bench
+follows a frame through both modules' registers; the traffic light's benches check its `state`;
+`tests/scenarios/verilog-inspection.test.ts`, `tests/e2e/hdl.spec.ts`; recording 16 bits inside
+the 1 024-cell benchmark module costs ≈ 2 % (HDL-1's baseline unchanged).
 
 ## HDL-6 · Memories in modules — `feat/hdl-memories`
 
