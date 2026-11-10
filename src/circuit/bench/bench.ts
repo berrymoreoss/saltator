@@ -697,7 +697,7 @@ export class CircuitBench {
     if (typeof signal === 'string') throw new BenchError(`${ref}: ${signal}`);
     return {
       kind: 'nets',
-      nets: signal.nets.map((id) => (id === undefined ? undefined : sim.netIndex(id))),
+      nets: signal.bits.map((id) => (typeof id === 'string' ? sim.netIndex(id) : undefined)),
     };
   }
 

@@ -732,8 +732,8 @@ export class Analyzer {
       const bits = keys.map((key, i) => {
         used.add(key);
         if (typeof target !== 'string') {
-          const net = target.nets[i];
-          if (net !== undefined) nets.set(key, net);
+          const net = target.bits[i];
+          if (typeof net === 'string') nets.set(key, net);
         }
         let channel = this.#bits.get(key);
         if (channel === undefined) {

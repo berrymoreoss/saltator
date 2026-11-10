@@ -83,7 +83,7 @@ An instance is one flat part (`A1/U1`, type `hdl/<circuit id>`); every IR bit's 
 in its state's `val`/`unk` planes — a flip-flop's or latch's state is its `Q` bits, there is no
 separate store. A signal's value is `bits.map(b => tri(val, unk, planeIndex(b, bitCount)))`.
 
-**Core: `ComponentDefinition.signals?: SignalsView`** (new, like `memory`, `cpu`):
+**Core: `ComponentDefinition.signals?: SignalsDef`** (new, like `memory`, `cpu`):
 
 ```ts
 /** A named signal inside a part (HDL-4): a register or wire of a module's source. */
@@ -93,7 +93,7 @@ interface InnerSignal {
   readonly width: number;
   readonly src?: string;
 }
-interface SignalsView {
+interface SignalsDef {
   readonly list: readonly InnerSignal[];
   /** Bit `bit` (0 = least significant) of signal `index`, in a state of this part, now. */
   level(state: unknown, index: number, bit: number): Level;
@@ -176,10 +176,10 @@ Rejected (for the ADR):
 
 ## Tasks
 
-- [x] 1. Core: `SignalsView` on `ComponentDefinition` (registry check); the module part
+- [x] 1. Core: `SignalsDef` on `ComponentDefinition` (registry check); the module part
   implements it. Tests: `uart_tx`'s `shift`/`left`/`tick` through a send, aliases of a port,
   constant bits, `X` before power-up values.
-- [ ] 2. Resolver: the `inner` target, sources in `ProbeTarget`, names with `.`, slices (Q2),
+- [x] 2. Resolver: the `inner` target, sources in `ProbeTarget`, names with `.`, slices (Q2),
   errors, paths through subcircuits, the module's own scope. Tests in `resolve.test.ts`.
 - [ ] 3. Recorder: sampled channels (`attach`, `attachChannel`, `removeChannel`, `#links`),
   `sample()` per instant, the trigger sampling first. Tests: one level per instant, a trigger on
@@ -230,7 +230,7 @@ Rejected (for the ADR):
 ## Handoff
 
 - **State:** plan approved, started; no code yet.
-- **Next step:** task 1 (core `SignalsView`, the module part implements it).
+- **Next step:** task 1 (core `SignalsDef`, the module part implements it).
 - **Watch out:** the resolver's `.` is the pin separator and flattened names contain `.`; the
   `CELLS` regex grabs `X[…]` when X is a part; `Trigger` re-subscribes on attach (listener
   order); replicas need their own samplers.

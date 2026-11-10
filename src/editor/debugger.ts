@@ -958,8 +958,8 @@ export class Debugger {
       const keys = one === undefined ? members : isBusName(one) ? busMembers(one) : [one];
       const channels = keys.map((key, i) => {
         used.add(key);
-        const net = target.nets[i];
-        if (net !== undefined) nets.set(key, net);
+        const net = target.bits[i];
+        if (typeof net === 'string') nets.set(key, net);
         let channel = this.#bits.get(key);
         if (channel === undefined) {
           channel = this.#recorder.addChannel();
@@ -1117,8 +1117,8 @@ export class Debugger {
     const { vector } = target;
     const sim = this.#sim;
     if (!sim) return { value: '', vector };
-    const levels = target.nets.map((net) => {
-      const index = net === undefined ? undefined : this.#editor.simulation.netOf(net);
+    const levels = target.bits.map((net) => {
+      const index = typeof net === 'string' ? this.#editor.simulation.netOf(net) : undefined;
       return index === undefined ? Level.Z : (sim.levels[index] as Level);
     });
     if (!vector) return { value: levelText(levels[0] ?? Level.Z), vector };
@@ -1151,8 +1151,13 @@ export class Debugger {
     if (members.length !== 1) return 'The step clock is one signal.';
     const target = resolver.signal(members[0]!);
     if (typeof target === 'string') return target;
-    if (target.vector || target.nets[0] === undefined) return `${signal} is a bus, not a clock.`;
-    return { net: target.nets[0] };
+    const [bit] = target.bits;
+    if (target.vector || bit === undefined) return `${signal} is a bus, not a clock.`;
+    // Step Clock stops before an edge the kernel has queued on a net (ADR-0020); a signal inside
+    // a module changes inside its part's evaluation, with nothing queued to look ahead at.
+    if (typeof bit !== 'string')
+      return `${signal} is inside a module: step by the clock on its pin.`;
+    return { net: bit };
   }
 }
 

@@ -21,8 +21,8 @@ function load() {
     const target = resolver.signal(`${path}/A1/Q[0..3]`);
     if (typeof target === 'string') throw new Error(target);
     let value = 0;
-    for (const [i, id] of target.nets.entries()) {
-      const level = sim.level(id!);
+    for (const [i, id] of target.bits.entries()) {
+      const level = sim.level(id as string);
       if (level !== Level.L0 && level !== Level.L1) return 'X';
       if (level === Level.L1) value |= 1 << i;
     }

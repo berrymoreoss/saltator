@@ -120,7 +120,7 @@ describe('the examples’ probes', () => {
       const resolver = new Resolver(compileDesign(document, registry), registry);
       for (const probe of circuit.probes) {
         expect(resolver.probe(probe), `${id}: ${JSON.stringify(probe)}`).toMatchObject({
-          nets: expect.any(Array),
+          bits: expect.any(Array),
         });
       }
       if (circuit.probes.length > 0) probed.push(id);

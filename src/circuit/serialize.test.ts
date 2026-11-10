@@ -133,7 +133,10 @@ describe('serializeDocument: Verilog modules', () => {
     expect(saved).toContain(
       '            { "type": "$and", "src": "gate.v:4.10-4.15", "ports": { "A": [1], "B": [2], "Y": [5] }, "params": {} },',
     );
-    expect(saved).toContain('          "signals": [],');
+    expect(saved).toContain(
+      '            { "name": "and_y", "lsb": 0, "bits": [5], "src": "gate.v:3.8-3.13" },',
+    );
+    expect(saved).toContain('            { "name": "u1.word", "lsb": 4, "bits": [3, 4, "1"] }');
     expect(saved).toContain(`      "id": "new",
       "name": "New",
       "verilog": {}
