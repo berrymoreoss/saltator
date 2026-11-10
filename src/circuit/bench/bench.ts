@@ -6,6 +6,7 @@
  * the simulation's. Spec: docs/circuit.md#test-benches.
  */
 import {
+  type ChannelSource,
   type ComponentRegistry,
   type Diagnostic,
   type DiagnosticInput,
@@ -14,6 +15,7 @@ import {
   formatImage,
   formatTime,
   type ImageFile,
+  innerReader,
   Level,
   type MemoryDef,
   type Netlist,
@@ -34,7 +36,7 @@ import {
 import { portBits } from '../checks';
 import { compileDesign, type Design } from '../design';
 import type { CircuitDocument } from '../document';
-import { parseAddress, Resolver } from '../resolve';
+import { channelSource, parseAddress, Resolver } from '../resolve';
 import { circuitPorts } from '../subcircuit';
 import { parseTable, type Table } from './table';
 import {
@@ -119,9 +121,9 @@ type Input =
   | { readonly kind: 'dip-switch'; readonly part: string; readonly count: number }
   | { readonly kind: 'clock'; readonly part: string; readonly manual: boolean };
 
-/** Something a bench reads. */
+/** Something a bench reads: nets by index or bits inside parts (HDL-4), or memory cells. */
 type Output =
-  | { readonly kind: 'nets'; readonly nets: readonly (number | undefined)[] }
+  | { readonly kind: 'nets'; readonly nets: readonly (ChannelSource | undefined)[] }
   | {
       readonly kind: 'cells';
       readonly part: string;
@@ -604,7 +606,13 @@ export class CircuitBench {
   #levels(output: Output): Level[][] {
     if (output.kind === 'cells') return this.#cells(output);
     const sim = this.#simulator();
-    return [output.nets.map((net) => (net === undefined ? Level.Z : (sim.level(net) as Level)))];
+    return [
+      output.nets.map((net) => {
+        if (net === undefined) return Level.Z;
+        if (typeof net === 'number') return sim.level(net) as Level;
+        return innerReader(sim, net)?.() ?? Level.X;
+      }),
+    ];
   }
 
   #cells(output: Extract<Output, { kind: 'cells' }>): Level[][] {
@@ -641,6 +649,9 @@ export class CircuitBench {
     if (driven) return { kind: 'port', drivers: driven };
     const target = this.#resolver.resolve(ref);
     if (typeof target === 'string') throw new BenchError(`${ref}: ${target}`);
+    if (target.kind === 'inner') {
+      throw new BenchError(`${ref} is inside a module: read it, or drive a pin of the module`);
+    }
     const notInput = `${ref} is not an input: drive an input port, a switch, a button or a manual clock`;
     if (target.kind !== 'part') throw new BenchError(notInput);
     const component = this.#netlist.components.find((c) => c.id === target.part);
@@ -695,10 +706,7 @@ export class CircuitBench {
     }
     const signal = this.#resolver.signal(ref);
     if (typeof signal === 'string') throw new BenchError(`${ref}: ${signal}`);
-    return {
-      kind: 'nets',
-      nets: signal.nets.map((id) => (id === undefined ? undefined : sim.netIndex(id))),
-    };
+    return { kind: 'nets', nets: signal.bits.map((bit) => channelSource(sim, bit)) };
   }
 
   /**

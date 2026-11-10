@@ -1,10 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import { CircuitBuilder, compileCircuit } from '../circuit';
+import {
+  type Circuit,
+  CircuitBuilder,
+  type CircuitDocument,
+  compileCircuit,
+  compileDesign,
+  documentRegistry,
+  emptyVerilogCircuit,
+  SCHEMA_VERSION,
+} from '../circuit';
 import { ms, ns, us } from '../core';
 import type { AnalyzerChannel, WaveView } from '../editor';
-import { createDefaultRegistry } from '../library';
+import { createDefaultRegistry, fromYosys } from '../library';
+import { YOSYS_FIXTURES } from '../library/hdl/fixtures';
 import {
   cursorReadout,
+  moduleSignalReferences,
   referenceSuggestions,
   rowAt,
   rowKey,
@@ -109,7 +120,34 @@ describe('referenceSuggestions', () => {
     expect(referenceSuggestions(compiled, '')).toEqual(['CLK']);
     expect(referenceSuggestions(compiled, 'c')).toEqual(['CLK']);
     expect(referenceSuggestions(compiled, 'u')).toEqual(['U2.A', 'U2.Y', 'U10.A', 'U10.Y']);
-    expect(referenceSuggestions(compiled, 'u', 2)).toHaveLength(2);
+    expect(referenceSuggestions(compiled, 'u', [], 2)).toHaveLength(2);
     expect(referenceSuggestions(compiled, 'zz')).toEqual([]);
+  });
+
+  it('offers the signals inside the Verilog modules a circuit places, and a module its own', () => {
+    const registry = createDefaultRegistry();
+    const { module } = fromYosys(YOSYS_FIXTURES.clocks);
+    const clocks: Circuit = { ...emptyVerilogCircuit('clocks', 'Clocks'), verilog: { module } };
+    const draft: CircuitDocument = { schemaVersion: SCHEMA_VERSION, circuits: [clocks] };
+    const docRegistry = documentRegistry(draft, registry);
+    const main = new CircuitBuilder(docRegistry)
+      .add('A2', 'sub/clocks', { at: [0, 0] })
+      .add('A1', 'sub/clocks', { at: [0, 30] })
+      .build();
+    const design = compileDesign({ ...draft, circuits: [main, clocks] }, registry);
+    const inner = moduleSignalReferences(main, design.registry);
+    expect(inner.slice(0, 3)).toEqual([
+      { ref: 'A1/div', detail: 'signal in A1' },
+      { ref: 'A1/rip', detail: 'signal [3:0] in A1' },
+      { ref: 'A1/ten', detail: 'signal in A1' },
+    ]);
+    expect(inner).toHaveLength(6);
+    expect(moduleSignalReferences(clocks, design.registry).map((s) => s.ref)).toEqual([
+      'div',
+      'rip',
+      'ten',
+    ]);
+    const compiled = design.circuits.get('main')!;
+    expect(referenceSuggestions(compiled, 'a1/r', inner)).toEqual(['A1/rip']);
   });
 });

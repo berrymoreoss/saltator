@@ -180,6 +180,9 @@ describe('vcdName and vcdIdentifier', () => {
   it('makes names VCD readers take as one reference', () => {
     expect(vcdName('CLK')).toBe('CLK');
     expect(vcdName('~{RD}')).toBe('RD_n');
+    // A module's signal and its Verilog slice (HDL-4): the range is the vector's.
+    expect(vcdName('A1/count[3:0]')).toBe('A1_count');
+    expect(vcdName('A1/u_core.state')).toBe('A1_u_core_state');
     expect(vcdName('~{CE}1')).toBe('CE_n1');
     expect(vcdName('D[0..7]')).toBe('D');
     expect(vcdName('U1.Q0')).toBe('U1_Q0');

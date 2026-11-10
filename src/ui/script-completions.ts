@@ -5,6 +5,7 @@
  */
 import { type Circuit, type CompileResult, circuitPorts } from '../circuit';
 import type { ComponentRegistry } from '../core';
+import { moduleSignalReferences } from './waveforms-view';
 
 /** One completion: what is written, what kind of thing it is, a line about it. */
 export interface ScriptCompletion {
@@ -60,7 +61,8 @@ export const SCRIPT_GLOBALS: readonly ScriptCompletion[] = [
 
 /**
  * The references a bench of `circuit` can name: its ports (the inputs it drives, the outputs it
- * checks), named nets and buses, parts and their pins, names first.
+ * checks), named nets and buses, signals inside its Verilog modules (HDL-4: `A1/state`, or its
+ * own), parts and their pins, names first. `registry` is the design's (it knows the modules).
  */
 export function scriptReferences(
   circuit: Circuit,
@@ -91,6 +93,9 @@ export function scriptReferences(
     add({ label: range, type: 'variable', detail: `bus ${name}` });
   for (const net of compiled?.nets ?? []) {
     for (const name of net.names) add({ label: name, type: 'variable', detail: 'net' });
+  }
+  for (const { ref, detail } of moduleSignalReferences(circuit, registry)) {
+    add({ label: ref, type: 'variable', detail });
   }
   const parts = [...circuit.components].sort((a, b) =>
     a.id.localeCompare(b.id, 'en', { numeric: true }),

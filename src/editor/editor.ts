@@ -152,6 +152,13 @@ export type EditorRequest =
       readonly ref: string;
       readonly problem?: string;
       readonly seq: number;
+    }
+  /** A watch was added from outside the Debug tab (a module's Signals, HDL-4): show it. */
+  | {
+      readonly kind: 'watched';
+      readonly ref: string;
+      readonly problem?: string;
+      readonly seq: number;
     };
 
 export interface EditorSettings {
@@ -314,7 +321,8 @@ interface Floating {
 type RequestInput =
   | { readonly kind: 'context-menu'; readonly client: Point; readonly hit?: Hit }
   | { readonly kind: 'edit-properties' }
-  | { readonly kind: 'probed'; readonly ref: string; readonly problem?: string };
+  | { readonly kind: 'probed'; readonly ref: string; readonly problem?: string }
+  | { readonly kind: 'watched'; readonly ref: string; readonly problem?: string };
 
 interface Preview {
   readonly circuit: Circuit;
@@ -1899,6 +1907,12 @@ export class Editor {
     const result = this.analyzer.toggleProbe(ref);
     const problem = result === 'added' || result === 'removed' ? undefined : result;
     this.#request({ kind: 'probed', ref, ...(problem !== undefined && { problem }) });
+  }
+
+  /** Adds `ref` to the debugger's watches; asks the UI to show the Debug tab. */
+  watch(ref: string): void {
+    const problem = this.debug.addWatch(ref);
+    this.#request({ kind: 'watched', ref, ...(problem !== undefined && { problem }) });
   }
 
   #hitAt(screen: Point): Hit | undefined {

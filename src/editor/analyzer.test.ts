@@ -1,7 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { addComponents, type Circuit, CircuitBuilder, type Probe } from '../circuit';
+import {
+  addComponents,
+  type Circuit,
+  CircuitBuilder,
+  type CircuitDocument,
+  documentRegistry,
+  emptyVerilogCircuit,
+  type Probe,
+  SCHEMA_VERSION,
+} from '../circuit';
 import { Level, ns, us } from '../core';
-import { createDefaultRegistry } from '../library';
+import { createDefaultRegistry, fromYosys } from '../library';
+import { YOSYS_FIXTURES } from '../library/hdl/fixtures';
 import { type AnalyzerChannel, formatValue, probeKey, probeLabel } from './analyzer';
 import { Editor } from './editor';
 import { FakeClock } from './fake-clock';
@@ -20,7 +30,9 @@ function clocks(probes: readonly Probe[] = []): Circuit {
 
 const COUNT: Probe = { name: 'CNT', members: ['X1.Y', 'X2.Y'] };
 
-function setup(circuit = clocks([{ ref: 'X1.Y' }, { ref: 'X2.Y' }, COUNT])) {
+function setup(
+  circuit: Circuit | CircuitDocument = clocks([{ ref: 'X1.Y' }, { ref: 'X2.Y' }, COUNT]),
+) {
   const clock = new FakeClock();
   const editor = new Editor(registry, circuit, {}, { simulation: { clock } });
   const { analyzer, simulation } = editor;
@@ -466,5 +478,80 @@ describe('Analyzer: going to a time from the ruler', () => {
     for (let i = 0; s.simulation.state === 'running' && i < 100; i++) s.clock.frame(16);
     expect(s.simulation.simulator!.now).toBe(us(3.5));
     expect(s.simulation.status.get().reason).toBe('Run To 3.5 µs');
+  });
+});
+
+describe('Analyzer: signals inside a Verilog module (HDL-4)', () => {
+  /**
+   * The `clocks` fixture as A1, clocked by X1 at 1 MHz (rising at 0.5 µs, 1.5 µs, …): inside, `div`
+   * toggles on each rising edge from 0, and the ripple counter `rip[3:0]` counts them.
+   */
+  function withModule(probes: readonly Probe[]) {
+    const { module } = fromYosys(YOSYS_FIXTURES.clocks);
+    const verilog: Circuit = { ...emptyVerilogCircuit('clocks', 'Clocks'), verilog: { module } };
+    const draft: CircuitDocument = { schemaVersion: SCHEMA_VERSION, circuits: [verilog] };
+    const b = new CircuitBuilder(documentRegistry(draft, registry))
+      .add('X1', 'io/clock', { at: [0, 0], props: { frequency: 1e6 } })
+      .add('A1', 'sub/clocks', { at: [20, 0] })
+      .connect('X1.Y', 'A1.clk');
+    for (const probe of probes) b.probe(probe);
+    return setup({ schemaVersion: SCHEMA_VERSION, circuits: [b.build(), verilog] });
+  }
+
+  it('makes channels of signals, slices and groups inside it, a bit each', () => {
+    const { editor } = withModule([
+      { ref: 'A1/div' },
+      { ref: 'A1/rip' },
+      { ref: 'A1/rip[1:0]', name: 'low' },
+      { name: 'G', members: ['A1/div', 'A1/rip[3]'] },
+      { ref: 'A1/nope' },
+    ]);
+    const channels = editor.analyzer.channels.get();
+    expect(channels.map((c) => [c.label, c.vector, c.bitLabels, c.problem])).toEqual([
+      ['A1/div', false, ['A1/div'], undefined],
+      ['A1/rip', true, ['A1/rip[0]', 'A1/rip[1]', 'A1/rip[2]', 'A1/rip[3]'], undefined],
+      ['low', true, ['A1/rip[0]', 'A1/rip[1]'], undefined],
+      ['G', true, ['A1/div', 'A1/rip[3]'], undefined],
+      [
+        'A1/nope',
+        false,
+        ['A1/nope'],
+        'no part, net or signal named nope in A1 (signals: div, rip, ten)',
+      ],
+    ]);
+    // One bit, one channel: the slice and the group share the whole signal's.
+    expect(channel(editor, 'low').bits).toEqual(channel(editor, 'A1/rip').bits.slice(0, 2));
+    expect(channel(editor, 'G').bits[0]).toBe(channel(editor, 'A1/div').bits[0]);
+  });
+
+  it('records them at the clock edge, the module’s pins its delay later', () => {
+    const s = withModule([{ ref: 'A1/div' }, { ref: 'A1/rip' }, { ref: 'A1.ripple[3..0]' }]);
+    runTo(s, us(3));
+    const { recorder } = s.analyzer;
+    const div = channel(s.editor, 'A1/div').bits[0]!;
+    const changesOf = (c: number) =>
+      Array.from({ length: recorder.changeCount(c) }, (_, i) => recorder.changeTime(c, i));
+    expect(changesOf(div)).toEqual([0, us(0.5), us(1.5), us(2.5)]);
+    const rip0 = channel(s.editor, 'A1/rip').bits[0]!;
+    const pin0 = channel(s.editor, 'A1.ripple[3..0]').bits[0]!;
+    expect(changesOf(rip0)).toEqual([0, us(0.5), us(1.5), us(2.5)]);
+    // The pin: X until its power-up value is driven, then each count 15 ns after the edge.
+    expect(changesOf(pin0)).toEqual([0, ...[0, us(0.5), us(1.5), us(2.5)].map((t) => t + ns(15))]);
+    expect(recorder.level(div, us(2))).toBe(Level.L0);
+    expect(recorder.level(div, us(2.6))).toBe(Level.L1);
+  });
+
+  it('triggers on a value inside, where it changes', () => {
+    const s = withModule([{ ref: 'A1/rip' }]);
+    s.analyzer.zoom(1);
+    expect(
+      s.analyzer.arm({ terms: [{ probe: 'A1/rip', kind: 'equal', value: '3' }], position: 0.5 }),
+    ).toBeUndefined();
+    s.simulation.setSpeed(MAX_SPEED);
+    s.clock.cost = 1;
+    s.simulation.run();
+    s.clock.frames(3);
+    // rip counts 1, 2, 3 at 0.5, 1.5, 2.5 µs.
+    expect(s.analyzer.trigger.get()).toMatchObject({ status: 'triggered', time: us(2.5) });
   });
 });

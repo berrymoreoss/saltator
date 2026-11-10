@@ -28,13 +28,14 @@ export interface VcdOptions {
 
 /**
  * A name VCD readers take as one reference: KiCad overlines `~{RD}` become `RD_n`, a bus's index
- * range `[0..7]` goes (the vector's `[7:0]` says it), anything else but letters, digits, `_`
+ * range `[0..7]` or a module signal's slice `[3:0]` goes (the vector's `[7:0]` says it), anything
+ * else but letters, digits, `_`
  * and `$` becomes `_` (a `.` too: readers take it for a scope, `U1.Q0` → `U1_Q0`).
  */
 export function vcdName(name: string): string {
   const plain = name
     .replace(/~\{([^}]*)\}/g, '$1_n')
-    .replace(/\[\d+\.\.\d+\]$/, '')
+    .replace(/\[\d+(?:\.\.|:)\d+\]$/, '')
     .replace(/[^A-Za-z0-9_$]/g, '_');
   return plain === '' ? '_' : /^[0-9$]/.test(plain) ? `_${plain}` : plain;
 }

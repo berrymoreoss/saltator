@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { emptyCircuit, emptyDocument, emptyVerilogCircuit } from '../circuit';
-import { fromYosys } from '../library';
+import {
+  type Circuit,
+  CircuitBuilder,
+  type CircuitDocument,
+  compileDesign,
+  documentRegistry,
+  emptyCircuit,
+  emptyDocument,
+  emptyVerilogCircuit,
+  SCHEMA_VERSION,
+} from '../circuit';
+import { Simulator, us } from '../core';
+import { createDefaultRegistry, fromYosys } from '../library';
 import { YOSYS_FIXTURES } from '../library/hdl/fixtures';
 import {
   compileJson,
@@ -9,6 +20,7 @@ import {
   moduleCommand,
   moduleSummary,
   placements,
+  signalRows,
 } from './module-view';
 
 const decoder = fromYosys(YOSYS_FIXTURES.decoder).module!;
@@ -88,5 +100,44 @@ describe('placements and messages', () => {
     ]);
     drafts.clear();
     expect([drafts.text('dec'), drafts.messages('dec')]).toEqual(['', undefined]);
+  });
+});
+
+describe('signalRows (HDL-4)', () => {
+  const registry = createDefaultRegistry();
+  const { module } = fromYosys(YOSYS_FIXTURES.clocks);
+  const clocks: Circuit = { ...emptyVerilogCircuit('clocks', 'Clocks'), verilog: { module } };
+  const draft: CircuitDocument = { schemaVersion: SCHEMA_VERSION, circuits: [clocks] };
+  const main = new CircuitBuilder(documentRegistry(draft, registry))
+    .add('X1', 'io/clock', { at: [0, 0], props: { frequency: 1e6 } })
+    .add('A1', 'sub/clocks', { at: [20, 0] })
+    .connect('X1.Y', 'A1.clk')
+    .build();
+  const design = compileDesign({ ...draft, circuits: [main, clocks] }, registry);
+  const view = design.registry.get('hdl/clocks')?.signals;
+
+  it('lists the signals with their ranges and sources, named for the open instance', () => {
+    const rows = signalRows(view, 'A1', undefined);
+    expect(rows.map((r) => [r.name, r.range, r.ref, r.value])).toEqual([
+      ['div', '', 'A1/div', undefined],
+      ['rip', '[3:0]', 'A1/rip', undefined],
+      ['ten', '', 'A1/ten', undefined],
+    ]);
+    expect(rows[0]!.src).toMatch(/^clocks\.v:\d+/);
+    expect(signalRows(view, '', undefined)[1]!.ref).toBe('rip');
+    expect(signalRows(view, undefined, undefined)[1]!.ref).toBeUndefined();
+    expect(signalRows(undefined, 'A1', undefined)).toEqual([]);
+  });
+
+  it("reads the open instance's values while simulating", () => {
+    const sim = new Simulator(design.netlist, design.registry);
+    sim.runUntil(us(2.6)); // three rising edges: div 1, rip 3
+    expect(signalRows(view, 'A1', sim).map((r) => r.value)).toEqual(['1', '0x3', '0']);
+    // An instance the simulator doesn't run: no values.
+    expect(signalRows(view, 'A9', sim).map((r) => r.value)).toEqual([
+      undefined,
+      undefined,
+      undefined,
+    ]);
   });
 });

@@ -332,16 +332,35 @@ export function testHdlPart(type: string, name: string, module: HdlModule): HdlP
     .flatMap((port) => hdlPortPins(port))
     .map((pin, i): PinDef => ({ name: pin, dir: dirs[i]! }));
   const at = (pin: string) => pins.findIndex((p) => p.name === pin);
-  const definition = defineComponent<{ delay: number }, undefined>({
+  // The state: a level per signal bit — the inputs as read, `y` as computed, the rest `X` — so
+  // the module's named signals (HDL-4) read something.
+  const inputs = module.ports
+    .filter((p) => p.dir === 'in')
+    .flatMap((p) => hdlPortPins(p).map((pin, i) => [pin, p.bits[i]] as const));
+  const yBit = module.ports.find((p) => p.name === 'y')?.bits[0];
+  const definition = defineComponent<{ delay: number }, Level[]>({
     type,
     name,
     title: `Test module ${module.top}`,
     pins,
     props: [hdlDelayProp],
+    signals: {
+      list: module.signals.map((s) => ({ name: s.name, lsb: s.lsb, width: s.bits.length })),
+      level: (state, signal, bit) => {
+        const b = module.signals[signal]!.bits[bit]!;
+        if (typeof b === 'number') return state[b] ?? Level.X;
+        return b === '0' ? Level.L0 : b === '1' ? Level.L1 : Level.X;
+      },
+    },
     create: ({ delay }) => ({
+      createState: () => Array.from({ length: module.bitCount }, () => Level.X),
       evaluate: (ctx) => {
-        if (at('y') >= 0)
-          ctx.drive(at('y'), strong(and(ctx.read(at('a')), ctx.read(at('b')))), delay);
+        for (const [pin, b] of inputs) if (typeof b === 'number') ctx.state[b] = ctx.read(at(pin));
+        if (at('y') >= 0) {
+          const y = and(ctx.read(at('a')), ctx.read(at('b')));
+          if (typeof yBit === 'number') ctx.state[yBit] = y;
+          ctx.drive(at('y'), strong(y), delay);
+        }
         for (const bit of ['0', '1']) {
           if (at(`e${bit}`) >= 0) ctx.drive(at(`e${bit}`), strong(ctx.read(at(`d${bit}`))), delay);
         }
@@ -353,7 +372,8 @@ export function testHdlPart(type: string, name: string, module: HdlModule): HdlP
 
 /**
  * A small compiled Verilog module (HDL-1) for circuit tests: `y = a & b`, `q <= y` on `clk`,
- * a 2-bit bus `d[1:0]` passed to `e[1:0]`. Inputs clk, a, b, d[1:0]; outputs y, q, e[1:0].
+ * a 2-bit bus `d[1:0]` passed to `e[1:0]`. Inputs clk, a, b, d[1:0]; outputs y, q, e[1:0];
+ * named signals `and_y`, `held` and `u1.word[6:4]` (HDL-4).
  */
 export const testModule: HdlModule = {
   format: 1,
@@ -369,7 +389,12 @@ export const testModule: HdlModule = {
     { name: 'q', dir: 'out', lsb: 0, bits: [6] },
     { name: 'e', dir: 'out', lsb: 0, bits: [3, 4] },
   ],
-  signals: [],
+  // `and_y` is y inside, `held` the register, `u1.word` a flattened submodule's `[6:4]`.
+  signals: [
+    { name: 'and_y', lsb: 0, bits: [5], src: 'gate.v:3.8-3.13' },
+    { name: 'held', lsb: 0, bits: [6] },
+    { name: 'u1.word', lsb: 4, bits: [3, 4, '1'] },
+  ],
   cells: [
     { type: '$and', src: 'gate.v:4.10-4.15', ports: { A: [1], B: [2], Y: [5] }, params: {} },
     {

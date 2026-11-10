@@ -506,6 +506,12 @@ export class Simulator {
     return net < 0 ? Level.Z : (this.levels[net] as Level);
   }
 
+  /** The definition a component runs (for inspection: its views); undefined if unknown. */
+  definitionOf(component: string): AnyComponentDefinition | undefined {
+    const index = this.componentIndexById.get(component);
+    return index === undefined ? undefined : this.netlist.components[index]!.definition;
+  }
+
   /** The state object of a component instance (for inspection and tests; do not mutate). */
   stateOf(component: string): unknown {
     return this.states[this.componentIndex(component)];

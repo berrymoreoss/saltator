@@ -152,11 +152,15 @@ export {
   type RawDocument,
 } from './migrations';
 export {
+  channelSource,
   compareDesignators,
   type MemoryPart,
   type ProbeTarget,
   parseAddress,
   Resolver,
+  type SignalBit,
+  sameSignalBit,
+  signalBitLevel,
   type Target,
 } from './resolve';
 export { DocumentError, type LoadOptions, loadDocument, parseDocument } from './schema';

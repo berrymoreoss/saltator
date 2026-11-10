@@ -1842,3 +1842,12 @@ kbd {
   font-family: var(--font-mono);
   font-size: var(--text-small);
 }
+
+.module-table .module-value {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.module-actions {
+  white-space: nowrap;
+}

@@ -150,6 +150,11 @@ it. Assemblers and EEPROM programmers read and write it, as the Memory tab does.
 **Inertial delay** — a delay model in which input pulses shorter than the element's delay do not
 reach the output.
 
+**Inner signal** — a named signal inside a part: a Verilog module's register or wire by its source
+name (`state`, `u_core.count`), read through the part's `signals` view without bringing it out to
+a pin (HDL-4, ADR-0035). Named like a net inside a subcircuit (`A1/state`, a slice
+`A1/count[3:0]`); probed, watched, broken on and read by benches, never driven.
+
 **IR (of a Verilog module)** — what the app keeps of a Verilog module: Yosys's JSON netlist
 turned into plain data — ports, cells (`$and`, `$add`, `$adffe`, …) with their bits and source
 locations — that the interpreter runs as a part (HDL-1, `HdlModule`). Made by Compile, saved in
@@ -236,8 +241,9 @@ goes into the board (a TL866, Ben Eater's Arduino programmer): it erases the chi
 file's bytes, and shows the file's range and checksum. The Memory tab's Load dialog plays its
 part.
 
-**Probe** — a signal shown in the Waveforms tab: a net, pin or bus named by a resolver
-reference (`CLK`, `U1.Y`, `D[0..7]`), or a group of single signals read as one value; saved in
+**Probe** — a signal shown in the Waveforms tab: a net, pin, bus or inner signal
+named by a resolver reference (`CLK`, `U1.Y`, `D[0..7]`, `A1/state`), or a group of single
+signals read as one value; saved in
 the circuit (R13). The Probe tool (`P`) adds one with a click. Not to be confused with the logic
 probe part (`io/probe`, `TP`), which shows a level on the canvas.
 
@@ -246,7 +252,8 @@ memory, single-cycle stepping). The W65C02S also drives it LOW itself during `WA
 a pull-up, not a tie to VCC.
 
 **Recorder** — what keeps the probed nets' levels over simulated time for the waveforms (core
-`Recorder`, R13): one level per instant, the oldest changes dropped past a budget.
+`Recorder`, R13): one level per instant, the oldest changes dropped past a budget; bits inside
+parts (inner signals) sampled at the end of each instant.
 
 **Reset vector** — the address a 6502 starts at after RESB: read from `$FFFC` (low byte) and
 `$FFFD` (high byte), with VPB LOW; IRQ/BRK use `$FFFE`, NMI `$FFFA`.

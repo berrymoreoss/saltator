@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { defineComponent } from './component';
 import { and, Drive, Level, levelChar, not, strong } from './logic';
 import { NetlistBuilder } from './netlist';
-import { NO_DATA, Recorder } from './recorder';
+import { type ChannelSource, NO_DATA, Recorder } from './recorder';
 import { Registry } from './registry';
 import { Simulator } from './simulator';
 import { Trace } from './testing';
@@ -587,5 +587,120 @@ describe('Trigger across a rewind', () => {
     rise.resync(sim.now);
     sim.runUntil(ns(12));
     expect(fired).toEqual([ns(10), ns(10)]);
+  });
+});
+
+describe('Recorder: bits inside parts (HDL-4)', () => {
+  /** Counts rising edges of CLK in a 2-bit register `count`; Q0 follows its bit 0 after 5 ns. */
+  const counter = defineComponent<Record<string, never>, { count: number; clk: number }>({
+    type: 'test/counter',
+    name: 'CNT',
+    title: 'Counter',
+    pins: [
+      { name: 'CLK', dir: 'in' },
+      { name: 'Q0', dir: 'out' },
+    ],
+    signals: {
+      list: [{ name: 'count', lsb: 0, width: 2 }],
+      level: (state, _signal, bit) => ((state.count >> bit) & 1) as Level,
+    },
+    create: () => ({
+      createState: () => ({ count: 0, clk: Level.X }),
+      evaluate(ctx) {
+        const clk = ctx.read(0);
+        if (ctx.state.clk === Level.L0 && clk === Level.L1) {
+          ctx.state.count = (ctx.state.count + 1) & 3;
+          ctx.drive(1, strong((ctx.state.count & 1) as Level), ns(5));
+        }
+        ctx.state.clk = clk;
+      },
+    }),
+  });
+  const counted = new Registry([clock, source, counter]);
+  const setup = () => {
+    const netlist = circuit((b) =>
+      b.add('U1', 'test/counter').connect('C.Y', 'U1.CLK').net('Q0', 'U1.Q0'),
+    );
+    const sim = new Simulator(netlist, counted);
+    const recorder = new Recorder();
+    const bit0 = recorder.addChannel();
+    const bit1 = recorder.addChannel();
+    const q0 = recorder.addChannel();
+    const sources = new Map<number, ChannelSource>([
+      [bit0, { part: 'U1', signal: 0, bit: 0 }],
+      [bit1, { part: 'U1', signal: 0, bit: 1 }],
+      [q0, sim.netIndex('Q0')],
+    ]);
+    return { sim, recorder, bit0, bit1, q0, sources };
+  };
+
+  it('samples a bit inside a part at the end of each instant: at the edge, before its pin', () => {
+    const { sim, recorder, bit0, bit1, q0, sources } = setup();
+    recorder.attach(sim, sources);
+    sim.runUntil(ns(55));
+    // The clock rises at 10, 30, 50 ns; the register counts then, its pin 5 ns later.
+    expect(changes(recorder, bit0)).toBe('0:0 10:1 30:0 50:1');
+    expect(changes(recorder, bit1)).toBe('0:0 30:1');
+    expect(changes(recorder, q0)).toBe('0:X 15:1 35:0 55:1');
+  });
+
+  it('starts a bit added while running at that instant; reading it again changes nothing', () => {
+    const { sim, recorder, bit1, sources } = setup();
+    recorder.attach(sim, new Map([...sources].filter(([c]) => c !== bit1)));
+    sim.runUntil(ns(35));
+    recorder.attachChannel(bit1, { part: 'U1', signal: 0, bit: 1 });
+    recorder.sample();
+    recorder.sample();
+    sim.runUntil(ns(95));
+    expect(changes(recorder, bit1)).toBe('34.999:1 70:0');
+  });
+
+  it('gives no data where the part has no such bit, also after a carry-over', () => {
+    const { sim, recorder, bit0, bit1, sources } = setup();
+    recorder.attach(sim, new Map([...sources, [bit1, { part: 'U1', signal: 0, bit: 2 }]]));
+    sim.runUntil(ns(15));
+    expect(changes(recorder, bit1)).toBe('');
+    recorder.attach(sim, new Map([[bit0, { part: 'U9', signal: 0, bit: 0 }]]));
+    sim.runUntil(ns(35));
+    expect(changes(recorder, bit0)).toBe('0:0 10:1 15:-');
+  });
+
+  it('feeds a trigger armed before it, at the instant the bit changes', async () => {
+    const { Trigger } = await import('./trigger');
+    const { sim, recorder, bit0, bit1, sources } = setup();
+    const fired: number[] = [];
+    const trigger = new Trigger(
+      recorder,
+      [
+        { kind: 'level', channel: bit0, level: Level.L1 },
+        { kind: 'level', channel: bit1, level: Level.L1 },
+      ],
+      (t) => fired.push(t),
+      { repeat: true },
+    );
+    trigger.attach(sim); // its listener runs before the recorder's
+    recorder.attach(sim, sources);
+    sim.runUntil(ns(200));
+    expect(fired).toEqual([ns(50), ns(130)]);
+  });
+
+  it('confirms the record of a bit inside a part when a rewound run repeats it', () => {
+    const { sim, recorder, bit0, bit1, sources } = setup();
+    recorder.attach(sim, sources);
+    sim.runUntil(ns(25));
+    const snap = sim.snapshot();
+    sim.runUntil(ns(100));
+    const before = [changes(recorder, bit0), changes(recorder, bit1)];
+    const size = recorder.size;
+    sim.restore(snap);
+    recorder.seek(sim.now, ns(100));
+    expect(recorder.lastChange(bit0)).toBe(ns(10));
+    sim.runUntil(ns(60));
+    expect(recorder.lastChange(bit0)).toBe(ns(50));
+    sim.runUntil(ns(100));
+    expect([changes(recorder, bit0), changes(recorder, bit1)]).toEqual(before);
+    expect(recorder.size).toBe(size);
+    sim.runUntil(ns(115));
+    expect(changes(recorder, bit0)).toBe(`${before[0]} 110:0`);
   });
 });

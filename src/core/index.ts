@@ -98,6 +98,13 @@ export {
   writeIntelHex,
 } from './image-files';
 export {
+  type InnerBit,
+  type InnerSignal,
+  innerReader,
+  type SignalsDef,
+  signalsProblems,
+} from './inner-signals';
+export {
   and,
   DRIVES,
   Drive,
@@ -158,7 +165,7 @@ export {
   sameNetlistStructure,
 } from './netlist';
 export { hashString, SeededRandom } from './random';
-export { NO_DATA, Recorder, type RecorderOptions } from './recorder';
+export { type ChannelSource, NO_DATA, Recorder, type RecorderOptions } from './recorder';
 export { type ComponentRegistry, familyOf, Registry, type RegistryOptions } from './registry';
 export {
   type CarriedComponent,

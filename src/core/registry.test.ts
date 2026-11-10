@@ -7,6 +7,8 @@ import {
   type PinDef,
 } from './component';
 import type { CpuDef } from './cpu';
+import type { SignalsDef } from './inner-signals';
+import { Level } from './logic';
 import { createAccessStamps } from './memory';
 import { familyOf, Registry } from './registry';
 import type { SymbolDef } from './symbol';
@@ -210,6 +212,35 @@ describe('Registry', () => {
     ])('rejects a malformed CPU (%#)', (bad, message) => {
       expect(() => new Registry([part('cpu/bad', { pins, cpu: { ...cpu, ...bad } })])).toThrow(
         `cpu/bad: ${message}`,
+      );
+    });
+  });
+
+  describe('inner signals (HDL-4)', () => {
+    const signals = (list: SignalsDef['list']): SignalsDef => ({ list, level: () => Level.X });
+
+    it('accepts named signals', () => {
+      const ok = signals([
+        { name: 'state', lsb: 0, width: 2 },
+        { name: 'u_core.count', lsb: 4, width: 4, src: 'core.v:3' },
+      ]);
+      expect(new Registry([part('hdl/ok', { signals: ok })]).has('hdl/ok')).toBe(true);
+    });
+
+    it.each<[SignalsDef['list'], string]>([
+      [[{ name: '', lsb: 0, width: 1 }], 'an inner signal has no name'],
+      [
+        [
+          { name: 'q', lsb: 0, width: 1 },
+          { name: 'q', lsb: 0, width: 2 },
+        ],
+        'inner signal q twice',
+      ],
+      [[{ name: 'q', lsb: 0, width: 0 }], 'inner signal q: width 0'],
+      [[{ name: 'q', lsb: 0.5, width: 1 }], 'inner signal q: lsb 0.5'],
+    ])('rejects malformed ones (%#)', (list, message) => {
+      expect(() => new Registry([part('hdl/bad', { signals: signals(list) })])).toThrow(
+        `hdl/bad: ${message}`,
       );
     });
   });

@@ -7,7 +7,7 @@ import { CONDITIONS, isValueCondition } from './condition-terms';
 import { Dialog } from './Dialogs';
 import { type DraftTerm, draftOf, toDebugTerm } from './debug-view';
 import { useStore } from './hooks';
-import { referenceSuggestions } from './waveforms-view';
+import { moduleSignalReferences, referenceSuggestions } from './waveforms-view';
 
 /** What the breakpoint dialog edits: a breakpoint, or a new one on `signal`. */
 export interface BreakpointDialogRequest {
@@ -193,7 +193,8 @@ function ClockBox(props: {
   const { editor, value, placeholder, onNotice } = props;
   const [text, setText] = useState(value);
   useEffect(() => setText(value), [value]);
-  const { scene } = useStore(editor.state);
+  const { scene, circuit, design } = useStore(editor.state);
+  const inner = moduleSignalReferences(circuit, design.registry);
   const commit = () => {
     if (text.trim() === value) return;
     const problem = editor.debug.setClock(text.trim() === '' ? undefined : text);
@@ -216,7 +217,7 @@ function ClockBox(props: {
         }}
       />
       <datalist id="debug-clock-suggestions">
-        {referenceSuggestions(scene.compiled, text).map((s) => (
+        {referenceSuggestions(scene.compiled, text, inner).map((s) => (
           <option key={s} value={s} />
         ))}
       </datalist>
@@ -349,7 +350,8 @@ function BreakpointRow(props: {
 function Watches({ editor, onNotice }: { editor: Editor; onNotice: (text?: string) => void }) {
   const { debug } = editor;
   const views = useStore(debug.watches);
-  const { scene } = useStore(editor.state);
+  const { scene, circuit, design } = useStore(editor.state);
+  const inner = moduleSignalReferences(circuit, design.registry);
   const [text, setText] = useState('');
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -371,7 +373,7 @@ function Watches({ editor, onNotice }: { editor: Editor; onNotice: (text?: strin
             onChange={(e) => setText(e.target.value)}
           />
           <datalist id="debug-watch-suggestions">
-            {referenceSuggestions(scene.compiled, text).map((s) => (
+            {referenceSuggestions(scene.compiled, text, inner).map((s) => (
               <option key={s} value={s} />
             ))}
           </datalist>
@@ -476,7 +478,8 @@ export function BreakpointDialog({
   onClose: () => void;
 }) {
   const { debug } = editor;
-  const { scene } = useStore(editor.state);
+  const { scene, circuit, design } = useStore(editor.state);
+  const inner = moduleSignalReferences(circuit, design.registry);
   const existing: Breakpoint | undefined = debug.setup
     .get()
     .breakpoints.find((b) => b.id === request.id);
@@ -514,7 +517,7 @@ export function BreakpointDialog({
         start to hold). A signal is a net, a pin, a bus, or single signals bit 0 first.
       </p>
       <datalist id="breakpoint-suggestions">
-        {referenceSuggestions(scene.compiled, terms.at(-1)?.signal ?? '').map((s) => (
+        {referenceSuggestions(scene.compiled, terms.at(-1)?.signal ?? '', inner).map((s) => (
           <option key={s} value={s} />
         ))}
       </datalist>

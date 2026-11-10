@@ -1,11 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { compileCircuit } from './compile';
 import { compileDesign } from './design';
-import { type Circuit, type ComponentInstance, SCHEMA_VERSION, type Wire } from './document';
+import {
+  type Circuit,
+  type CircuitDocument,
+  type ComponentInstance,
+  emptyVerilogCircuit,
+  SCHEMA_VERSION,
+  type Wire,
+} from './document';
 import { partLayout, placementOf, placePins } from './layout';
 import { compareDesignators, parseAddress, Resolver } from './resolve';
 import { documentRegistry } from './subcircuit';
-import { testRegistry } from './test-parts';
+import { testModule, testRegistry } from './test-parts';
 
 const registry = testRegistry();
 
@@ -90,14 +97,23 @@ describe('Resolver', () => {
   });
 
   it('resolves what a probe shows: a net, a pin, a bus, a group of single signals', () => {
-    expect(resolver.signal('CLK')).toEqual({ nets: ['CLK'], vector: false });
-    expect(resolver.signal('U1.B')).toEqual({ nets: ['U1.B'], vector: false });
-    expect(resolver.signal('D[0..1]')).toEqual({ nets: ['D0', 'D1'], vector: true });
+    expect(resolver.signal('CLK')).toEqual({ bits: ['CLK'], keys: ['CLK'], vector: false });
+    expect(resolver.signal('U1.B')).toEqual({ bits: ['U1.B'], keys: ['U1.B'], vector: false });
+    expect(resolver.signal(' D[0..1]')).toEqual({
+      bits: ['D0', 'D1'],
+      keys: ['D0', 'D1'],
+      vector: true,
+    });
     expect(resolver.signal('U1')).toBe('U1 is a part: probe one of its pins');
     expect(resolver.signal('U9.A')).toBe('no part U9');
-    expect(resolver.probe({ ref: 'TICK', name: 'tick' })).toEqual({ nets: ['CLK'], vector: false });
+    expect(resolver.probe({ ref: 'TICK', name: 'tick' })).toEqual({
+      bits: ['CLK'],
+      keys: ['TICK'],
+      vector: false,
+    });
     expect(resolver.probe({ name: 'G', members: ['D0', 'U1.Y', 'CLK'] })).toEqual({
-      nets: ['D0', 'D1', 'CLK'],
+      bits: ['D0', 'D1', 'CLK'],
+      keys: ['D0', 'U1.Y', 'CLK'],
       vector: true,
     });
     expect(resolver.probe({ name: 'G', members: ['CLK', 'U9.Y'] })).toBe('U9.Y: no part U9');
@@ -314,6 +330,127 @@ describe('Resolver over a design', () => {
     // An open instance pin's net: the pin.
     expect(r.netReference('A2.B1')).toBeUndefined();
     expect(r.netReference(design.netOf('A1', 'OUT')!)).toBe('LINK');
-    expect(r.signal('A1/U1.Y')).toEqual({ nets: ['LINK'], vector: false });
+    expect(r.signal('A1/U1.Y')).toEqual({ bits: ['LINK'], keys: ['A1/U1.Y'], vector: false });
+  });
+});
+
+describe('Resolver: signals inside Verilog modules (HDL-4)', () => {
+  // `gate` (testModule) keeps `and_y`, `held` and `u1.word[6:4]`; the top places it as A1 and,
+  // through the subcircuit S1, as S1/B1.
+  const gate: Circuit = { ...emptyVerilogCircuit('gate', 'Gate'), verilog: { module: testModule } };
+  const shell = (id: string, components: ComponentInstance[]): Circuit => ({
+    id,
+    name: id,
+    components,
+    wires: [],
+    probes: [],
+    testScript: [],
+  });
+  const document: CircuitDocument = {
+    schemaVersion: SCHEMA_VERSION,
+    circuits: [
+      shell('main', [part('A1', 'sub/gate', 0, 0), part('S1', 'sub/holder', 0, 40)]),
+      shell('holder', [part('B1', 'sub/gate', 0, 0)]),
+      gate,
+    ],
+  };
+  const design = compileDesign(document, registry);
+  const r = new Resolver(design, design.registry);
+  const inner = (part: string, signal: number, bits: number[]) =>
+    bits.map((bit) => ({ part, signal, bit }));
+
+  it('resolves a named signal inside an instance by path, as a net inside a subcircuit', () => {
+    expect(r.resolve('A1/and_y')).toEqual({
+      kind: 'inner',
+      part: 'A1/U1',
+      type: 'hdl/gate',
+      signal: 0,
+      name: 'A1/and_y',
+      lsb: 0,
+      width: 1,
+      bits: [0],
+    });
+    expect(r.signal('A1/held')).toEqual({
+      bits: inner('A1/U1', 1, [0]),
+      keys: ['A1/held'],
+      vector: false,
+    });
+    expect(r.signal('S1/B1/and_y')).toEqual({
+      bits: inner('S1/B1/U1', 0, [0]),
+      keys: ['S1/B1/and_y'],
+      vector: false,
+    });
+  });
+
+  it("keeps a flattened submodule's dots, and reads a vector as a value bit by bit", () => {
+    expect(r.signal('A1/u1.word')).toEqual({
+      bits: inner('A1/U1', 2, [0, 1, 2]),
+      keys: ['A1/u1.word[4]', 'A1/u1.word[5]', 'A1/u1.word[6]'],
+      vector: true,
+    });
+  });
+
+  it("slices by the signal's own indices, Verilog's way or the app's, low bit first", () => {
+    const low = { bits: inner('A1/U1', 2, [0, 1]), keys: ['A1/u1.word[4]', 'A1/u1.word[5]'] };
+    expect(r.signal('A1/u1.word[5:4]')).toEqual({ ...low, vector: true });
+    expect(r.signal('A1/u1.word[4..5]')).toEqual({ ...low, vector: true });
+    expect(r.signal('A1/u1.word[ 5 : 4 ]')).toEqual({ ...low, vector: true });
+    expect(r.signal('A1/u1.word[6]')).toEqual({
+      bits: inner('A1/U1', 2, [2]),
+      keys: ['A1/u1.word[6]'],
+      vector: false,
+    });
+    expect(r.signal('A1/u1.word[3:0]')).toBe('A1/u1.word is u1.word[6:4]: no bit 3');
+    expect(r.signal('A1/held[1]')).toBe('A1/held is held, one bit: no bit 1');
+  });
+
+  it('says which signals there are when a name is wrong', () => {
+    expect(r.signal('A1/hold')).toBe(
+      'no part, net or signal named hold in A1 (signals: and_y, held, u1.word)',
+    );
+    expect(r.signal('A9/held')).toBe('no instance A9');
+  });
+
+  it('leaves what names a pin or a net as it was', () => {
+    // The module's part, its pins, and its port nets inside the instance.
+    expect(r.resolve('A1/U1')).toEqual({ kind: 'part', part: 'A1/U1', type: 'hdl/gate' });
+    expect(r.signal('A1/U1.y')).toEqual({
+      bits: [design.netOf('A1', 'y')],
+      keys: ['A1/U1.y'],
+      vector: false,
+    });
+    expect(r.signal('A1.y')).toEqual({
+      bits: [design.netOf('A1', 'y')],
+      keys: ['A1.y'],
+      vector: false,
+    });
+    expect(r.signal('A1/d[1..0]')).toMatchObject({
+      bits: [design.netOf('A1', 'd0'), design.netOf('A1', 'd1')],
+    });
+  });
+
+  it("names a module's signals without a path in its own scope (its own benches)", () => {
+    const own = compileDesign(document, registry, { top: 'gate' });
+    const alone = new Resolver(own, own.registry);
+    expect(alone.signal('held')).toEqual({
+      bits: inner('U1', 1, [0]),
+      keys: ['held'],
+      vector: false,
+    });
+    expect(alone.signal('hold')).toBe(
+      'no part, net or signal named hold in this module (signals: and_y, held, u1.word)',
+    );
+  });
+
+  it('finds no signals in a module that has none, nor in a plain circuit', () => {
+    const bare = { ...gate, verilog: { module: { ...testModule, signals: [] } } };
+    const plain = compileDesign(
+      { ...document, circuits: [document.circuits[0]!, document.circuits[1]!, bare] },
+      registry,
+    );
+    expect(new Resolver(plain, plain.registry).signal('A1/held')).toBe(
+      'no part, net or signal named held in A1: it keeps no named signals',
+    );
+    expect(r.signal('S1/held')).toBe('no part or net named S1/held');
   });
 });

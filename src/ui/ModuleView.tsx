@@ -1,4 +1,13 @@
-import { CircleAlert, CircleCheck, Copy, FileUp, Play, TriangleAlert } from 'lucide-react';
+import {
+  Activity,
+  CircleAlert,
+  CircleCheck,
+  Copy,
+  Eye,
+  FileUp,
+  Play,
+  TriangleAlert,
+} from 'lucide-react';
 import { useRef, useState } from 'react';
 import type { HdlMessage } from '../core';
 import type { Editor } from '../editor';
@@ -10,6 +19,7 @@ import {
   moduleCommand,
   moduleSummary,
   placements,
+  signalRows,
 } from './module-view';
 
 /** One line of the view's messages: a converter message, an issue's text, or Compile's success. */
@@ -36,7 +46,9 @@ export function ModuleView({
   readonly editor: Editor;
   readonly drafts: ModuleDrafts;
 }) {
-  const { circuit, document, design } = useStore(editor.state);
+  const { circuit, document, design, path } = useStore(editor.state);
+  // Live values of the open instance's signals: redrawn as the simulation runs.
+  useStore(editor.simulation.ticks);
   const id = circuit.id;
   const [text, setText] = useState(() => drafts.text(id));
   const [compiled, setCompiled] = useState(() => drafts.messages(id));
@@ -86,6 +98,11 @@ export function ModuleView({
           .map((issue) => ({ severity: issue.severity, text: issue.message }));
   const summary = module && moduleSummary(module);
   const placed = placements(document, id);
+  const signals = signalRows(
+    design.registry.get(`hdl/${id}`)?.signals,
+    path,
+    editor.simulation.simulator,
+  );
 
   return (
     <div className="module-view" data-testid="module-view">
@@ -177,6 +194,48 @@ export function ModuleView({
                   ))}
                 </tbody>
               </table>
+              <h3>Signals{path ? ` in ${path}` : ''}</h3>
+              {signals.length === 0 ? (
+                <p className="muted">None kept: Yosys left no named signals but the ports.</p>
+              ) : (
+                <table className="module-table" data-testid="module-signals">
+                  <tbody>
+                    {signals.map((signal) => (
+                      <tr key={signal.name} data-signal={signal.name}>
+                        <td className="module-cell mono" title={signal.src}>
+                          {signal.name}
+                          {signal.range && <span className="muted"> {signal.range}</span>}
+                        </td>
+                        <td className="module-cell mono module-value">{signal.value ?? ''}</td>
+                        <td className="module-actions">
+                          {signal.ref !== undefined && (
+                            <>
+                              <button
+                                type="button"
+                                className="icon-button"
+                                title={`Probe ${signal.ref} in the waveforms`}
+                                aria-label={`Probe ${signal.name}`}
+                                onClick={() => editor.toggleProbe(signal.ref!)}
+                              >
+                                <Activity size={13} />
+                              </button>
+                              <button
+                                type="button"
+                                className="icon-button"
+                                title={`Watch ${signal.ref} in the debugger`}
+                                aria-label={`Watch ${signal.name}`}
+                                onClick={() => editor.watch(signal.ref!)}
+                              >
+                                <Eye size={13} />
+                              </button>
+                            </>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
               <h3>Cells ({summary.cellCount})</h3>
               <table className="module-table">
                 <tbody>

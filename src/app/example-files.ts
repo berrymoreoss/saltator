@@ -142,7 +142,7 @@ export const EXAMPLE_FILES: readonly ExampleFile[] = [
     id: 'verilog-uart',
     title: 'Verilog UART',
     description:
-      'A UART transmitter and receiver in Verilog, 8N1 at 8 clocks a bit: set a byte on the DIP switch, press SEND, watch LINE blink and the byte arrive on the LED bar.',
+      'A UART transmitter and receiver in Verilog, 8N1 at 8 clocks a bit: set a byte on the DIP switch, press SEND, watch LINE blink and the byte arrive on the LED bar; the Waveforms tab shows the shift registers inside the modules.',
   },
 ];
 

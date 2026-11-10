@@ -8,12 +8,14 @@
  */
 import { describe, type TestContext, test } from 'vitest';
 import {
+  type ChannelSource,
   Drive,
   type HdlBit,
   type HdlCell,
   type HdlModule,
   NetlistBuilder,
   ns,
+  Recorder,
   Registry,
   Simulator,
   strong,
@@ -74,7 +76,8 @@ function synthetic(lanes: number): HdlModule {
       { name: 'k', dir: 'in', lsb: 0, bits: [1, 2, 3, 4, 5, 6, 7, 8] },
       { name: 'q', dir: 'out', lsb: 0, bits: q[0]! },
     ],
-    signals: [],
+    // Each lane's register by name (HDL-4: what probes inside a module record).
+    signals: q.map((bits, i) => ({ name: `q${i}`, lsb: 0, bits })),
     cells,
   };
 }
@@ -150,6 +153,42 @@ describe('Verilog modules', () => {
     };
     cycle();
     await measure(bench, 'synthetic 1 024 cells', sim, combinational(module), cycle);
+  });
+
+  test('synthetic module, 16 bits inside it recorded (HDL-4): one clock cycle', async ({
+    bench,
+  }) => {
+    const module = synthetic(256);
+    const sim = simulate(module);
+    // Two lanes' registers, as two 8-bit probes on M/q0 and M/q1 would record them.
+    const recorder = new Recorder();
+    const sources = new Map<number, ChannelSource>();
+    for (let signal = 0; signal < 2; signal++) {
+      for (let bit = 0; bit < 8; bit++)
+        sources.set(recorder.addChannel(), { part: 'M', signal, bit });
+    }
+    recorder.attach(sim, sources);
+    for (let i = 0; i < 8; i++) sim.action(`D_k${i}`, strong(i % 3 === 0 ? 1 : 0));
+    sim.action('D_clk', strong(0));
+    sim.settle();
+    const cycle = () => {
+      sim.action('D_clk', strong(1));
+      sim.settle();
+      sim.action('D_clk', strong(0));
+      sim.settle();
+      if (recorder.size > 1_000_000) {
+        recorder.clear();
+        recorder.attach(sim, sources);
+      }
+    };
+    cycle();
+    await measure(
+      bench,
+      'synthetic 1 024 cells, 16 inner bits recorded',
+      sim,
+      combinational(module),
+      cycle,
+    );
   });
 
   test('wide words (64-bit counter, 32 × 32 multiplier, 72-bit sum, compare, shift): a clock cycle with new operands', async ({

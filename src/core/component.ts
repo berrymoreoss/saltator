@@ -5,6 +5,7 @@
 import type { CpuDef } from './cpu';
 import type { ComponentDiagnostic } from './diagnostics';
 import type { FunctionTable } from './function-table';
+import type { SignalsDef } from './inner-signals';
 import type { Drive, Level } from './logic';
 import { IMAGE_HINT, type MemoryDef, readImage } from './memory';
 import type { SymbolDef } from './symbol';
@@ -256,6 +257,11 @@ export interface ComponentDefinition<
    * watches and test benches.
    */
   readonly cpu?: CpuDef<State>;
+  /**
+   * The part has named signals inside (a Verilog module's registers and wires, HDL-4): their
+   * names and a view of an instance's levels, for probes, watches, breakpoints and test benches.
+   */
+  readonly signals?: SignalsDef<State>;
   /**
    * The part's look changes as simulated time passes, without an event (an LCD's blinking
    * cursor): the length in ps of one look of an instance in `state`, or undefined while it stays

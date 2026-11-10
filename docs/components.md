@@ -1272,8 +1272,9 @@ moment": harmless here, where only buffers on the ports are left.
 
 **The IR** (`HdlModule`, format 1): the top's name, Yosys's `creator`, `bitCount` signal bits
 numbered from 0, the ports in declaration order (`name`, `dir` — `in`, `out`, `inout` —, `lsb` —
-the Verilog index of bit 0 —, `bits` least significant first, `init`, `src`), named signals (for
-HDL-4) and the cells: each its Yosys type, its first source location (`decoder.v:12.3-12.20`),
+the Verilog index of bit 0 —, `bits` least significant first, `init`, `src`), named signals
+(Yosys's netnames that aren't ports or hidden, kept while all their bits are: what probes,
+watches and benches read inside the module, HDL-4) and the cells: each its Yosys type, its first source location (`decoder.v:12.3-12.20`),
 its ports' bits (a signal bit or the constants `'0'`, `'1'`, `'x'`) and parameters (polarities
 0/1, the operands' signedness `A_SIGNED`/`B_SIGNED` — kept only where 1, absent meaning
 unsigned —, reset values as bits). An output's or inout's bits may also be `'z'`: never driven.
@@ -1324,8 +1325,11 @@ type `hdl/<circuit id>`, a pin per port bit (`addr12`…`addr15` for `addr[15:12
 port by its name) in declaration order — an input's `in`, an inout's `bidir`, an output's
 `tristate` where a `$tribuf` drives it or it is `z`, else `out` (core's `hdlPinDirs`) —, one
 property `delay` (`hdlDelayProp`, default 15 ns, an ATF22V10C-15's tPD) for every output, taking
-and releasing the bus too until HDL-2's per-path timing. No definition while the module has
-errors.
+and releasing the bus too until HDL-2's per-path timing, and a **`signals` view** (HDL-4,
+[ADR-0035](adr/0035-inner-signals.md)): the IR's named signals (`state`, a flattened submodule's
+`u_core.count`), each bit read from the planes — a register's or latch's state is its `Q` bits —
+so probes, watches, breakpoints and test benches name them (`A1/state`,
+[circuit.md](circuit.md#resolver)). No definition while the module has errors.
 
 **The interpreter** (`module-part.ts`; cells compiled once per definition in `cells.ts`, the
 word cells in `word-cells.ts` on numbers up to 32 bits and on 32-bit limbs beyond, `words.ts`):

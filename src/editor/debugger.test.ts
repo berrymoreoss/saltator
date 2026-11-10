@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { addComponents, type Circuit, CircuitBuilder } from '../circuit';
+import {
+  addComponents,
+  type Circuit,
+  CircuitBuilder,
+  type CircuitDocument,
+  documentRegistry,
+  emptyVerilogCircuit,
+  SCHEMA_VERSION,
+} from '../circuit';
 import { Level, ns, us } from '../core';
-import { createDefaultRegistry } from '../library';
+import { createDefaultRegistry, fromYosys } from '../library';
+import { YOSYS_FIXTURES } from '../library/hdl/fixtures';
 import {
   cellsReference,
   EMPTY_DEBUG_SETUP,
@@ -30,7 +39,7 @@ function circuit(): Circuit {
     .build();
 }
 
-function setup(c = circuit()) {
+function setup(c: Circuit | CircuitDocument = circuit()) {
   const clock = new FakeClock();
   const editor = new Editor(registry, c, {}, { simulation: { clock } });
   const { debug, simulation } = editor;
@@ -756,5 +765,70 @@ describe('edgeSearch', () => {
     older.run();
     stop();
     expect(search.target()).toBe(25); // before the edge at 40, not the one at 10
+  });
+});
+
+describe('Debugger: signals inside a Verilog module (HDL-4)', () => {
+  /**
+   * The `clocks` fixture as A1, clocked by X1 at 1 MHz (rising at 0.5 µs, 1.5 µs, …): inside, `div`
+   * toggles on each rising edge from 0 (rises at 0.5 µs, 2.5 µs, …), `rip[3:0]` counts the edges.
+   */
+  function withModule(): CircuitDocument {
+    const { module } = fromYosys(YOSYS_FIXTURES.clocks);
+    const verilog: Circuit = { ...emptyVerilogCircuit('clocks', 'Clocks'), verilog: { module } };
+    const draft: CircuitDocument = { schemaVersion: SCHEMA_VERSION, circuits: [verilog] };
+    const main = new CircuitBuilder(documentRegistry(draft, registry))
+      .add('X1', 'io/clock', { at: [0, 0], props: { frequency: 1e6 } })
+      .add('A1', 'sub/clocks', { at: [20, 0] })
+      .connect('X1.Y', 'A1.clk')
+      .build();
+    return { schemaVersion: SCHEMA_VERSION, circuits: [main, verilog] };
+  }
+
+  it('pauses where a register inside holds a value, or one of its bits rises', () => {
+    const s = setup(withModule());
+    s.debug.addBreakpoint([{ signal: 'A1/rip', kind: 'equal', value: '3' }]);
+    expect(untilPaused(s)).toBe(us(2.5));
+    expect(s.simulation.status.get().reason).toBe('Breakpoint 1: A1/rip = 3');
+    s.debug.addBreakpoint([{ signal: 'A1/div', kind: 'rise' }]);
+    expect(untilPaused(s)).toBe(us(4.5));
+    expect(s.debug.breakpoints.get().map((b) => b.problem)).toEqual([undefined, undefined]);
+    expect(s.debug.addBreakpoint([{ signal: 'A1/rip', kind: 'rise' }])).toBe(
+      'A1/rip is a value: an edge or level needs one signal',
+    );
+  });
+
+  it('Reverse Continue finds the earlier hit inside, in a replay', () => {
+    const s = setup(withModule());
+    s.debug.addBreakpoint([{ signal: 'A1/rip[1:0]', kind: 'equal', value: '2' }]);
+    // rip counts 1, 2, 3, … at 0.5, 1.5, 2.5 µs: its low bits are 2 at 1.5 µs and 5.5 µs.
+    expect(untilPaused(s)).toBe(us(1.5));
+    expect(untilPaused(s)).toBe(us(5.5));
+    expect(s.debug.reverseContinue()).toBeUndefined();
+    expect(s.simulation.simulator!.now).toBe(us(1.5));
+  });
+
+  it('watches a register inside, marked when it changed since the last stop', () => {
+    const s = setup(withModule());
+    expect(s.debug.addWatch('A1/rip')).toBeUndefined();
+    expect(s.debug.addWatch('A1/div')).toBeUndefined();
+    expect(s.debug.addWatch('A1/rip[3:2]')).toBeUndefined();
+    expect(s.debug.addWatch('A1/nope')).toBe(
+      'no part, net or signal named nope in A1 (signals: div, rip, ten)',
+    );
+    const marks = () => s.debug.watches.get().map((w) => `${w.value}${w.changed ? '*' : ''}`);
+    s.debug.runToTime(us(1));
+    expect(marks()).toEqual(['0x1', '1', '0x0']);
+    s.debug.runToTime(us(2));
+    expect(marks()).toEqual(['0x2*', '0*', '0x0']);
+    s.debug.runToTime(us(4.6));
+    expect(marks()).toEqual(['0x5*', '1*', '0x1*']);
+  });
+
+  it('refuses a signal inside a module as the step clock', () => {
+    const s = setup(withModule());
+    expect(s.debug.setClock('A1/div')).toBe(
+      'A1/div is inside a module: step by the clock on its pin.',
+    );
   });
 });
