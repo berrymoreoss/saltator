@@ -237,6 +237,17 @@ overwritten by it (as Yosys).
   multiply-accumulate, every flip-flop flavour with resets and loads made by logic, the UART)
   get a clock in their witness. They are free of races (Q1): where Yosys's `sim` picks a winner
   of a race, the interpreter gives `X` on purpose — those cases are unit tests.
+- Where Yosys's `sim` and the interpreter differ on purpose (found building them, 2026-11-11),
+  the generator and the designs stay out of it and unit tests cover it:
+  - an asynchronous control made from the flip-flop's own output (a counter clearing itself at
+    10) loops `sim` forever (the script gives `sim` a timeout);
+  - `$aldff` while ALOAD is active: `sim` loads AD a step late; the interpreter follows AD, as
+    the set/clear logic Yosys maps `$aldff` to does on a board;
+  - `===` with an `x` operand (a zero divisor, a select out of range): `sim` compares it
+    literally, the interpreter doesn't know (Q1); the generator has no `===`;
+  - `$pow` of mixed signedness: `sim` reads it unsigned, Verilog and `simlib.v` give the exponent
+    its own sign (the interpreter); the generator casts both operands alike. Yosys's `synth`
+    leaves `$pow` unmapped anyway: the converter warns that a board can't build it.
 - Committed: the IR of each module (not Yosys's JSON: smaller, the converter is tested
   elsewhere), its input vectors and Yosys's outputs. `differential.test.ts` runs each module
   through the core test bench and compares every output bit per step: equal, `x` included (a
@@ -275,7 +286,7 @@ bytes and checking each one received.
   flavour; snapshots), each race test mutation-checked.
 - [x] 8. Loops: components, fixed points, `X` and `oscillation`, the warning; tests (an SR latch
   of NANDs, a ring of inverters, a latch feeding itself).
-- [ ] 9. Differential tests: the script, the designs, the committed vectors,
+- [x] 9. Differential tests: the script, the designs, the committed vectors,
   `differential.test.ts`; mutation-checked (a wrong cell fails it).
 - [ ] 10. Example (Q2): the UART sources, `pnpm hdl:examples`, its benches in the app and
   headless (`pnpm test:circuits`); looked at in the browser.
@@ -386,21 +397,29 @@ bytes and checking each one received.
   Tests on `loops.v` (an SR latch of NANDs from X, set, hold, reset; a ring that settles while
   disabled, oscillates when enabled); four mutations caught. Benchmark unchanged (decoder
   1.92 M/s, synthetic 12.6k).
+- 2026-11-11 — task 9: `scripts/hdl-differential.ts` (`pnpm hdl:differential`; `AGENTS.md`):
+  8 seeded random modules (12 outputs each, half all-signed — Verilog signs an operation only when
+  every operand is), the designs in `src/library/hdl/differential/` (`counters`, `dividers`,
+  `flavours`, `fsm`, `signed_math`) and `examples/verilog/*.v`; witness → `sim -r` → VCD;
+  `src/library/hdl/differential.ts` (379 KB, 16 designs, 114 k output bits, 7.5 k of them x);
+  `differential.test.ts` compares every bit Yosys knows and expects no diagnostics. All agree,
+  `dividers` (internal clocks, ripple) included. Four differences found and kept out on purpose
+  (Design, "Differential tests"); the converter now warns on `$pow`. Mutation-checked: the
+  quotient's sign survived until `signed_math.v` was added; the "both operands signed" rule
+  can't be seen from Verilog (Yosys always sets both flags alike) — a unit test.
 
 ## Handoff
 
-- **State:** tasks 1–8 done: everything HDL-9 runs is built — every cell of the scope at any
-  width and signedness, power-up values, internal clocks and asynchronous controls, races `X`
-  and reported, combinational loops. Left: the proof (differential tests, the UART example),
-  benchmark notes, docs.
-- **Next step:** task 9 — differential tests: `scripts/hdl-differential.ts`
-  (`pnpm hdl:differential`, system Yosys): seeded random expressions over every word cell, and
-  small sequential designs in `src/library/hdl/differential/*.v`; Yosys's `sim -r` replays a
-  witness (`.yw`, JSON) and writes a VCD; commit the IR, vectors and Yosys's outputs;
-  `differential.test.ts` compares every bit.
+- **State:** tasks 1–9 done: everything HDL-9 runs is built and agrees with Yosys's `sim` (the
+  differential tests). Left: the UART example, benchmark notes, docs.
+- **Next step:** task 10 — the UART example (Q2): `examples/verilog/uart_tx.v`, `uart_rx.v`,
+  a loop with switches, a button and LEDs in `scripts/hdl-examples.ts`, benches; `pnpm
+  hdl:differential` again (it picks up `examples/verilog/*.v`); look at it in the browser.
 - **Watch out:** Yosys's `sim -r` takes no `-clock` with a witness file (the clocks are in it).
   `evaluate` must stay a few small phase functions: one large function cost the decoder 5–8 %.
   A test needing known flip-flops at power-on with a pin-made clock needs a reset (an edge from
-  `X` is uncertain, as for pins).
+  `X` is uncertain, as for pins). A new design in `differential/` must be race-free and must not
+  make an asynchronous control from its own flip-flop (Yosys's `sim` hangs; the script's timeout
+  says which).
 - **Verify with:** `pnpm check`; `pnpm bench tests/bench/hdl.bench.ts` against main (a
   worktree with `node_modules` symlinked, `./node_modules/.bin/vitest bench --run …` there).

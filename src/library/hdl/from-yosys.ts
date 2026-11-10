@@ -348,6 +348,13 @@ export function fromYosys(json: unknown): YosysConversion {
       );
       continue;
     }
+    if (type === '$pow') {
+      // Yosys's synth leaves $pow unmapped (only 2 ** n becomes logic, a shift): test before fab.
+      warning(
+        "a ** b (a power not of 2): Yosys's synth makes no logic of it — it runs here, but a board's flow can't build it",
+        src,
+      );
+    }
     if (readsZ) {
       warning(
         'a constant z is read here, which reads X: an inout assigned z reads X inside the module, not its pin (leave it unassigned to read the pin)',

@@ -130,6 +130,12 @@ describe('fromYosys: modules it runs', () => {
     expect(shiftx.every((c) => !('A_SIGNED' in c.params))).toBe(true);
   });
 
+  it("warns that a power not of 2 can't be built on a board", () => {
+    expect(lines('arith')).toEqual([
+      "warning arith.v:10.16-10.22: a ** b (a power not of 2): Yosys's synth makes no logic of it — it runs here, but a board's flow can't build it",
+    ]);
+  });
+
   it('keeps signedness where Yosys gives it, also on the cells unsigned code makes signed', () => {
     const { module } = convert('signed_ops');
     const signedness = (type: string) =>
