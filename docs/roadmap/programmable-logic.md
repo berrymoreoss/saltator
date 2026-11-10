@@ -21,18 +21,18 @@ sound controllers drive (a VGA monitor — the "Video output" track idea; the bu
 
 ## Items
 
-| ID     | Branch                | Title                           | Needs | Status  |
-| ------ | --------------------- | ------------------------------- | ----- | ------- |
-| HDL-1  | `feat/hdl-modules`    | Verilog modules in the document | —     | done    |
-| HDL-8  | `feat/hdl-bus`        | Modules on a bus                | —     | done    |
-| HDL-9  | `feat/hdl-semantics`  | All of synthesizable Verilog    | —     | done    |
-| HDL-3  | `feat/hdl-recompile`  | Recompiling a running module    | —     | next    |
-| HDL-4  | `feat/hdl-inspection` | Inside a module                 | —     | planned |
-| HDL-6  | `feat/hdl-memories`   | Memories in modules             | —     | planned |
-| HDL-7  | `example/picorv32`    | PicoRV32 soft core              | —     | planned |
-| HDL-10 | `feat/hdl-fast`       | Fast evaluation                 | —     | planned |
-| HDL-2  | `feat/hdl-library`    | Library parts in Verilog        | —     | planned |
-| HDL-5  | `feat/pld-devices`    | Programmable devices            | —     | planned |
+| ID     | Branch                | Title                           | Needs | Status      |
+| ------ | --------------------- | ------------------------------- | ----- | ----------- |
+| HDL-1  | `feat/hdl-modules`    | Verilog modules in the document | —     | done        |
+| HDL-8  | `feat/hdl-bus`        | Modules on a bus                | —     | done        |
+| HDL-9  | `feat/hdl-semantics`  | All of synthesizable Verilog    | —     | done        |
+| HDL-4  | `feat/hdl-inspection` | Inside a module                 | —     | in-progress |
+| HDL-6  | `feat/hdl-memories`   | Memories in modules             | —     | planned     |
+| HDL-7  | `example/picorv32`    | PicoRV32 soft core              | —     | planned     |
+| HDL-10 | `feat/hdl-fast`       | Fast evaluation                 | —     | planned     |
+| HDL-2  | `feat/hdl-library`    | Library parts in Verilog        | —     | planned     |
+| HDL-5  | `feat/pld-devices`    | Programmable devices            | —     | planned     |
+| HDL-3  | `feat/hdl-recompile`  | Recompiling a running module    | —     | planned     |
 
 ## HDL-1 · Verilog modules in the document — `feat/hdl-modules`
 
@@ -113,20 +113,6 @@ its own flip-flop, which loops `sim`) unit tests cover it. The example Verilog U
 with a DIP switch, a SEND button and an LED bar), its benches passing headless and in the app.
 HDL-1's benchmark unchanged; wide words ≈ 73 k evaluations a second, internal clocks ≈ 0.64 M.
 
-## HDL-3 · Recompiling a running module — `feat/hdl-recompile`
-
-_Re-scoped on 2026-11-09 ([plan](../../.ai/plans/docs-hdl-roadmap.md)): its first part went to
-HDL-1. Re-scoped again with HDL-1's start ([plan](../../.ai/plans/feat-hdl-modules.md), Q5):
-with Yosys on the user's computer, several files, `` `include `` and `` `define ``, the top
-module and SystemVerilog (`read_verilog -sv`) are the user's command line, not the app's; a
-project's files never enter the document; parameters per instance would need Yosys in the app
-(an idea now). What is left is this item._
-
-A Compile while the simulation runs carries the module's state over instead of restarting it:
-flip-flops and latches matched by their signal names (`state`, `count`), kept where the name and
-width stay, power-on `X` where they are new; the rest of the circuit runs on as before. Iterating
-on a state machine then doesn't lose where it was.
-
 ## HDL-4 · Inside a module — `feat/hdl-inspection`
 
 Signals and registers inside a module instance, by their source names (`state`, `count[3:0]`,
@@ -190,6 +176,22 @@ computers — then a small FPGA (iCE40, 3.3 V). A device's design is a module of
 a pin assignment, exported for the device's tools (a `.pcf` for nextpnr); its timing is the
 device's pin to pin timing by speed grade (`tPD`, `tCO`, `tSU`, `tH`), not the module's
 `specify`; the module's ports must fit the device's pins.
+
+## HDL-3 · Recompiling a running module — `feat/hdl-recompile`
+
+_Re-scoped on 2026-11-09 ([plan](../../.ai/plans/docs-hdl-roadmap.md)): its first part went to
+HDL-1. Re-scoped again with HDL-1's start ([plan](../../.ai/plans/feat-hdl-modules.md), Q5):
+with Yosys on the user's computer, several files, `` `include `` and `` `define ``, the top
+module and SystemVerilog (`read_verilog -sv`) are the user's command line, not the app's; a
+project's files never enter the document; parameters per instance would need Yosys in the app
+(an idea now). What is left is this item. Moved to the end of the track on 2026-11-11, when
+HDL-4 started ([plan](../../.ai/plans/feat-hdl-inspection.md)): the user's choice; a restart
+on Compile is enough until then._
+
+A Compile while the simulation runs carries the module's state over instead of restarting it:
+flip-flops and latches matched by their signal names (`state`, `count`), kept where the name and
+width stay, power-on `X` where they are new; the rest of the circuit runs on as before. Iterating
+on a state machine then doesn't lose where it was.
 
 ## Ideas
 
