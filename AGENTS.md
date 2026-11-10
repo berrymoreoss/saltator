@@ -44,6 +44,7 @@ pnpm hdl:fixtures     # Verilog fixtures for the converter's tests (needs yosys 
 pnpm hdl:examples     # the Verilog examples from examples/verilog/*.v (needs yosys on PATH)
 pnpm lint:fix         # format + autofix with Biome
 pnpm build            # typecheck + production build
+gh workflow run Pages # deploy main to the live demo (by hand, only when the user asks)
 ```
 
 pnpm 12 has no `-s` flag; use `pnpm <script>`.
@@ -101,6 +102,9 @@ Each `src/*` folder has a README with its rules.
   queue`, `test(library): …`, `docs(plan): …`. Small, focused, each one green.
 - CI (`.github/workflows/ci.yml`) runs only on demand (`gh workflow run CI`); the local
   `pnpm check`, `pnpm build` and `pnpm e2e` are the gate.
+- The live demo (`https://berrymoreoss.github.io/saltator/`) is deployed by hand from `main`
+  (`.github/workflows/pages.yml`, [ADR-0033](docs/adr/0033-pages-demo.md)): a merge doesn't
+  publish it, and agents deploy only when the user asks.
 - Merging to `main`: only with the user's approval, merge commit (`--no-ff` / `gh pr merge
   --merge`). See [.ai/workflows/finish-branch.md](.ai/workflows/finish-branch.md).
 

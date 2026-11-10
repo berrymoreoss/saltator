@@ -65,4 +65,6 @@ merge**. Then:
 ## 6. Report
 
 Tell the user it's merged and where the tracks stand now (`pnpm roadmap`), and that they can
-`/clear` and run `/start-branch` for the next item of any track.
+`/clear` and run `/start-branch` for the next item of any track. The live demo doesn't update by
+itself: if the change is worth showing, offer to deploy it (`gh workflow run Pages` on `main`,
+only on the user's go-ahead; [ADR-0033](../../docs/adr/0033-pages-demo.md)).

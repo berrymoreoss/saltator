@@ -2,6 +2,8 @@
 
 **A digital logic simulator for the browser. Test before fab.**
 
+[Try it in your browser →](https://berrymoreoss.github.io/saltator/)
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/screenshot-dark.png">
   <img alt="Saltator running the Two-Digit Counter example: two counter subcircuits drive a pair of 7-segment displays reading 47, and the Waveforms panel shows the clock, reset, carry and both digits counting" src="docs/images/screenshot-light.png">
