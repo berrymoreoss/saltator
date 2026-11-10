@@ -6,6 +6,7 @@
  * Spec: docs/editor.md#waveforms.
  */
 import {
+  channelSource,
   type Design,
   type GroupProbe,
   isGroupProbe,
@@ -15,11 +16,14 @@ import {
   Resolver,
   renameInProbes,
   replaceCircuit,
+  type SignalBit,
   type SignalProbe,
+  sameSignalBit,
 } from '../circuit';
 import {
   busMembers,
   busValueText,
+  type ChannelSource,
   conditionProblems,
   formatTime,
   isBusName,
@@ -187,7 +191,8 @@ export class Analyzer {
   /** Recorder channel by bit reference. */
   #bits = new Map<string, number>();
   /** Net id by bit reference, for the scene's netlist. */
-  #nets = new Map<string, string>();
+  /** What each bit (by its key) shows in the design: a net, or a bit inside a part. */
+  #sources = new Map<string, SignalBit>();
   #core: Trigger | undefined;
   /** The post-trigger end this analyzer asked the host to pause at. */
   #pause: Time | undefined;
@@ -692,17 +697,13 @@ export class Analyzer {
   }
 
   #attach(sim: Simulator): void {
-    const nets = new Map<number, number>();
+    const sources = new Map<number, ChannelSource>();
     for (const [key, channel] of this.#bits) {
-      const net = this.#nets.get(key);
-      if (net === undefined) continue;
-      try {
-        nets.set(channel, sim.netIndex(net));
-      } catch {
-        // The simulator runs another netlist than the scene (a broken part left out).
-      }
+      // Nothing where the simulator runs another netlist than the scene (a broken part left out).
+      const source = channelSource(sim, this.#sources.get(key));
+      if (source !== undefined) sources.set(channel, source);
     }
-    this.recorder.attach(sim, nets);
+    this.recorder.attach(sim, sources);
   }
 
   /** Channels for the top's probes; true when anything a recording depends on changed. */
@@ -725,15 +726,15 @@ export class Analyzer {
     }
     const resolver = new Resolver(design, this.#editor.registry);
     const used = new Set<string>();
-    const nets = new Map<string, string>();
+    const sources = new Map<string, SignalBit>();
     const channels = probes.map((probe, index): AnalyzerChannel => {
-      const keys = bitKeys(probe);
       const target: ProbeTarget | string = resolver.probe(probe);
+      const keys = typeof target === 'string' ? bitKeys(probe) : target.keys;
       const bits = keys.map((key, i) => {
         used.add(key);
         if (typeof target !== 'string') {
-          const net = target.bits[i];
-          if (typeof net === 'string') nets.set(key, net);
+          const bit = target.bits[i];
+          if (bit !== undefined) sources.set(key, bit);
         }
         let channel = this.#bits.get(key);
         if (channel === undefined) {
@@ -761,8 +762,9 @@ export class Analyzer {
       this.#bits.delete(key);
     }
     const sameNets =
-      nets.size === this.#nets.size && [...nets].every(([k, n]) => this.#nets.get(k) === n);
-    this.#nets = nets;
+      sources.size === this.#sources.size &&
+      [...sources].every(([k, bit]) => sameSignalBit(this.#sources.get(k), bit));
+    this.#sources = sources;
     this.channels.set(channels);
     return !sameNets || renames !== undefined;
   }

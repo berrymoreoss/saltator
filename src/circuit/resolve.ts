@@ -7,12 +7,16 @@
 import {
   type AnyComponentDefinition,
   busMembers,
+  type ChannelSource,
   type ComponentRegistry,
   type InnerBit,
+  innerReader,
   isBusName,
+  Level,
   type MemoryDef,
   type NetlistComponent,
   type SignalsDef,
+  type Simulator,
 } from '../core';
 import type { CircuitNet } from './checks';
 import type { CompileResult } from './compile';
@@ -80,6 +84,35 @@ export function parseAddress(text: string, words: number): number | string {
  * bus member no net is named after (it reads `Z`).
  */
 export type SignalBit = string | InnerBit | undefined;
+
+/** Whether two probe bits are the same net or the same bit inside the same part. */
+export function sameSignalBit(a: SignalBit, b: SignalBit): boolean {
+  if (typeof a !== 'object' || typeof b !== 'object') return a === b;
+  return a.part === b.part && a.signal === b.signal && a.bit === b.bit;
+}
+
+/**
+ * A probe bit as a recorder channel's source in `sim`: a net's index, or the bit inside its part;
+ * undefined where `sim` has no such net or part (it runs another netlist than the design).
+ */
+export function channelSource(sim: Simulator, bit: SignalBit): ChannelSource | undefined {
+  if (bit === undefined) return undefined;
+  if (typeof bit !== 'string') return innerReader(sim, bit) ? bit : undefined;
+  try {
+    return sim.netIndex(bit);
+  } catch {
+    return undefined;
+  }
+}
+
+/** A probe bit's level in `sim` now: `Z` for a member no net is named after, `X` for a bit lost. */
+export function signalBitLevel(sim: Simulator, bit: SignalBit): Level {
+  const source = channelSource(sim, bit);
+  if (source === undefined) return bit === undefined ? Level.Z : Level.X;
+  return typeof source === 'number'
+    ? (sim.levels[source] as Level)
+    : (innerReader(sim, source)?.() ?? Level.X);
+}
 
 /** What a probe shows: nets or bits inside parts, bit 0 first. */
 export interface ProbeTarget {
