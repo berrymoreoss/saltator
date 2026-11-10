@@ -5,6 +5,7 @@ import addressDecoder from '../../examples/verilog-address-decoder.saltator.json
 import counterTrafficLight from '../../examples/verilog-counter-traffic-light.saltator.json' with {
   type: 'json',
 };
+import uart from '../../examples/verilog-uart.saltator.json' with { type: 'json' };
 import { YOSYS_FIXTURES } from '../../src/library/hdl/fixtures';
 import {
   clickAt,
@@ -172,5 +173,47 @@ test('a module on a bus: an inout port, its bench, placed as a bus pin', async (
   await clickAt(page, grid([0, 0]));
   await expect(summary(page)).toHaveText('A1 · Module 2');
   await expect(properties(page)).toContainText('d[7..0]');
+  expect(errors).toEqual([]);
+});
+
+// HDL-4: inside a module — its registers in the waveforms, its Signals with live values, a watch.
+test('Verilog UART: the registers inside its modules, probed, listed and watched', async ({
+  page,
+}) => {
+  const errors = watchErrors(page);
+  await openExample(page, 'verilog-uart', 'Verilog UART', uart);
+  const waves = page.getByTestId('waves-panel');
+  await page.getByRole('tab', { name: /Waveforms/ }).click();
+  await expect(waves.getByTestId('waves-row').locator('.waves-name')).toHaveText([
+    'SEND',
+    'LINE',
+    'A1/shift',
+    'A1/left',
+    'A2/at',
+    'A2/shift',
+    'VALID',
+  ]);
+  await page.keyboard.press('F5');
+  await expect(page.getByTestId('sim-status')).toHaveText(/Running · /);
+  // Idle: the transmitter's shift register all ones, as the line.
+  const shift = waves.getByTestId('waves-row').filter({ hasText: 'A1/shift' });
+  await expect(shift.getByTestId('waves-value')).toHaveText('1111111111');
+
+  // The transmitter's view lists its signals with the running instance's values.
+  await page
+    .getByTestId('circuits')
+    .getByRole('button', { name: /UART Transmitter/ })
+    .click();
+  const signals = page.getByTestId('module-signals');
+  await expect(signals.locator('tr')).toHaveCount(4);
+  await expect(page.getByTestId('module-summary')).toContainText('Signals in A1');
+  await expect(signals.locator('tr[data-signal="shift"] .module-value')).toHaveText('0x3FF');
+  await expect(signals.locator('tr[data-signal="left"] .module-value')).toHaveText('0x0');
+
+  // Watch from the list: the Debug tab shows it; Probe adds it to the waveforms.
+  await signals.getByRole('button', { name: 'Watch left' }).click();
+  await expect(page.getByTestId('debug-panel').getByTestId('watch')).toContainText('A1/left');
+  await signals.getByRole('button', { name: 'Probe tick' }).click();
+  await expect(waves.getByTestId('waves-row').locator('.waves-name').last()).toHaveText('A1/tick');
   expect(errors).toEqual([]);
 });

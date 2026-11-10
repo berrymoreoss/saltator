@@ -189,7 +189,7 @@ Rejected (for the ADR):
 - [x] 6. Benches: inner outputs for `get`/`expect`/`row`, drives refused; `pnpm test:circuits`.
 - [x] 7. Suggestions: Waveforms/Debug boxes and the bench editor.
 - [x] 8. Module view: the Signals section (Q3).
-- [ ] 9. Proof (Q4): examples, `tests/scenarios/verilog-inspection.test.ts`,
+- [x] 9. Proof (Q4): examples, `tests/scenarios/verilog-inspection.test.ts`,
   `tests/e2e/hdl.spec.ts`, a benchmark of inner channels.
 - [ ] 10. Docs: ADR-0035, circuit.md (references), simulation.md (recorder), components.md (the
   view), editor.md (module view, suggestions), glossary; the roadmap's HDL-4 "Built"; lessons.
