@@ -68,7 +68,7 @@ export interface HdlSignal {
   readonly name: string;
   readonly lsb: number;
   readonly bits: readonly HdlBit[];
-  /** Its power-up value (`reg q = 1`), least significant first; not simulated until HDL-9. */
+  /** Its power-up value (`reg q = 1`), least significant first: the bits start at it (HDL-9). */
   readonly init?: readonly HdlBit[];
   readonly src?: string;
 }

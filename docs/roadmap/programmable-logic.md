@@ -89,17 +89,29 @@ bench fighting it, two modules and a 74HC244 on one bus give `contention`
 
 ## HDL-9 · All of synthesizable Verilog — `feat/hdl-semantics`
 
-Every cell `proc` and `opt` leave in a netlist, so a design from elsewhere runs as written: the
-rest of the arithmetic (`$mul`, `$div`, `$mod`, `$divfloor`, `$modfloor`, `$pow`), signed
-operands, `$shift`/`$shiftx`, `$bmux`/`$demux`/`$bwmux`, `$eqx`/`$nex`, every flip-flop and latch
-flavour (`$dffsr`, `$aldff`, `$sr`, `$dlatchsr`, …); values wider than 32 bits in multi-word bit
-planes (a 64-bit counter, a 32 × 32 multiplier); flip-flops clocked from inside the module (a
-clock divider, a derived clock — combinational and sequential steps repeated within one
-`evaluate` until nothing changes); combinational loops iterated to a fixed point, `X` and a
-diagnostic if they don't settle; power-up values from `init` (`reg q = 0`, as an FPGA loads its
-flip-flops), `X` without one. Proof: differential tests — random expressions and small designs
-run by the interpreter and by Yosys's own `sim`/`eval` on the same netlist, compared where no `X`
-is involved; a UART transmitter and receiver as an example.
+**Built** ([plan](../../.ai/plans/feat-hdl-semantics.md), [ADR-0030](../adr/0030-hdl-modules.md)
+amended): every cell `proc` and `opt` leave runs, so a design from elsewhere runs as written —
+`$mul`, `$div`, `$mod`, `$divfloor`, `$modfloor`, `$pow`, `$eqx`/`$nex`, `$bmux`/`$demux`/`$bwmux`,
+`$dffsr`, `$dffsre`, `$aldff`, `$aldffe`, `$sr`, `$dlatchsr` (schema v8), signed operands as
+Yosys's cell library reads them (ordinary code makes signed cells: `d[sel] = 1'b1`, `2 ** n`),
+any width (numbers up to 32 bits, 32-bit limbs beyond: a 64-bit counter, a 32 × 32 multiplier).
+Power-up values from `init` (`reg q = 0`, as an FPGA loads its flip-flops), `X` without one.
+Clocks and asynchronous resets, sets, clears and loads made by logic run in rounds within one
+`evaluate` (a divider, a ripple chain, a gated clock, a counter clearing itself); combinational
+loops run until they settle (an SR latch of NANDs), `X` and an `oscillation` where they don't.
+Races are `X` and reported (Q1, "as close to a real board as possible"): a data pin changing with
+its clock (`setup-violation`), a clock made by logic whose data changed in the same instant
+(`race-violation`: a gated clock sampling its source clock's register, a divided clock sampling
+the faster domain); `===` is `==` (a board has no `x` to compare). The converter warns that a
+`$pow` can't be built on a board (Yosys's `synth` leaves it unmapped). Specs:
+[components.md](../components.md#verilog-modules-hdl), [circuit.md](../circuit.md). Proof:
+differential tests against Yosys's own `sim` — `pnpm hdl:differential` drives seeded random
+expressions over every word cell, sequential designs and the Verilog examples with seeded vectors,
+`differential.test.ts` checks the ≈ 115 k output bits Yosys knows; where `sim` differs on purpose
+(`===` of an `x`, `$aldff`'s load a step late, a power of mixed signedness, a control made from
+its own flip-flop, which loops `sim`) unit tests cover it. The example Verilog UART (Q2: a loop
+with a DIP switch, a SEND button and an LED bar), its benches passing headless and in the app.
+HDL-1's benchmark unchanged; wide words ≈ 73 k evaluations a second, internal clocks ≈ 0.64 M.
 
 ## HDL-3 · Recompiling a running module — `feat/hdl-recompile`
 

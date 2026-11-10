@@ -4,7 +4,8 @@
 - **Date:** 2026-11-08
 - **Roadmap item:** HDL-1 (feat/hdl-modules); proposed in docs/programmable-logic-track, amended
   when HDL-1 started (Yosys outside the app), accepted in HDL-1 after its benchmark; amended in
-  HDL-8 (feat/hdl-bus: tri-states, `inout` ports, floating pins)
+  HDL-8 (feat/hdl-bus: tri-states, `inout` ports, floating pins) and HDL-9 (feat/hdl-semantics:
+  the rest of synthesizable Verilog, races `X`)
 
 ## Context
 
@@ -71,6 +72,28 @@ carry-over across recompiles, diagnostics, test benches, determinism, and the pu
   between bus cycles in every 6502 system: noise on correct designs), and never reporting an
   inout (a register latching a floating bus would pass silently).
 
+- **All of synthesizable Verilog** (HDL-9): every cell `proc` and `opt` leave, signed and of any
+  width (numbers up to 32 bits, 32-bit limbs beyond), as Yosys's cell library (`simlib.v`)
+  defines them; power-up values from `init`; combinational loops run until they settle (`X` and
+  an `oscillation` where they don't); clocks and asynchronous controls made by logic run in
+  rounds inside one `evaluate`. The interpreter is held to Yosys's own `sim` by differential
+  tests (seeded vectors, committed outputs), except where it differs on purpose.
+- **Races are `X`** (HDL-9, its Q1: "test before fab — as close to a real board as possible"). A
+  module has no delays inside, so where a board's result depends on which of two simultaneous
+  changes wins, no order is the board's: the bits the race decides load `X`, and the module says
+  why. A data pin changing in the same delta as its pin clock is a `setup-violation` (the
+  library's chips report the same input so). A flip-flop on a clock made by logic (a gated
+  `clk & en`, a divider, a ripple stage) whose data changed in the same evaluation — one instant
+  — is a `race-violation` ("use a clock enable"): a gated clock sampling a register of its own
+  source clock, a divided clock sampling the faster domain, a clock glitching twice. Where the
+  data didn't change at the edge's instant, the result is the one every synchronous design
+  relies on (clock-to-output longer than hold on one clock net): a shift chain, a divider's own
+  counter, a ripple chain are certain. `===` follows the same principle: a board has no `x` to
+  compare, so it is `==`. Rejected: Verilog's order for every clock (a gated clock silently loads
+  the old values, a derived clock the new ones — hazards that pass unseen), and HDL-1's "sampled
+  before the delta" kept without a check (a same-delta data change silently loads the old value,
+  where a board has a setup violation).
+
 ## Consequences
 
 - A part made from Verilog is an ordinary part: waveforms, debugger, rewind, test benches and
@@ -91,7 +114,9 @@ carry-over across recompiles, diagnostics, test benches, determinism, and the pu
   10 M combinational cells a second — a 1 000-cell module clocks at ≈ 6 kHz per second of wall
   time, enough for decoders, counters and state machines.
 - `X` is pessimistic by design, so results can differ from a Verilog simulator where the source
-  relies on Verilog's optimistic `X` (an `always @(posedge clk)` firing on `X → 1`).
+  relies on Verilog's optimistic `X` (an `always @(posedge clk)` firing on `X → 1`), compares
+  `x` literally (`===`), or races (a gated or derived clock sampling its source domain): a
+  Verilog simulator picks a winner, the module loads `X` and reports the race (HDL-9).
 - Testbench Verilog (`initial` stimulus, `$display`, delays) is not supported: test benches are
   the simulator's own ([ADR-0025](0025-test-benches.md)).
 - The converter depends on Yosys's JSON format and cell library: it is tested on fixtures made

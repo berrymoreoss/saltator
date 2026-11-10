@@ -292,28 +292,39 @@ bytes and checking each one received.
   headless (`pnpm test:circuits`); looked at in the browser.
 - [x] 11. Benchmark: HDL-1's numbers for its module (one round), and the new costs (a 64-bit
   counter, a 32 × 32 multiplier, a divider chain) recorded.
-- [ ] 12. Docs: components.md (cells, signedness, widths, rounds, loops, power-up), circuit.md
+- [x] 12. Docs: components.md (cells, signedness, widths, rounds, loops, power-up), circuit.md
   (schema v8), ADR-0030 amended (Q1), the track's HDL-9 section as built, roadmap, lessons.
 
 ## Acceptance criteria
 
-- [ ] `pnpm check` and `pnpm build` are green; `pnpm e2e` passes.
-- [ ] Every cell of the scope runs, signed and unsigned, at widths 1 to 80 bits; the
-  differential tests agree with Yosys's `sim` on every output bit of every step.
-- [ ] `d[sel] = 1'b1`, `2 ** n`, a 64-bit counter and a 32 × 32 multiplier compile and run
-  (HDL-1 refused them).
-- [ ] A clock divider, a ripple counter and a shift chain on a derived clock count as Yosys's
+- [x] `pnpm check` and `pnpm build` are green; `pnpm e2e` passes — check 3416 tests, build green,
+  e2e 96 passed (2026-11-11).
+- [x] Every cell of the scope runs, signed and unsigned, at widths 1 to 80 bits; the
+  differential tests agree with Yosys's `sim` on every output bit of every step —
+  `cells.test.ts` (BigInt, 1–128 bits), `differential.test.ts` (18 designs, ≈ 115 k bits; the
+  four deliberate differences kept out and unit-tested, Design).
+- [x] `d[sel] = 1'b1`, `2 ** n`, a 64-bit counter and a 32 × 32 multiplier compile and run
+  (HDL-1 refused them) — `signed_ops`, `arith`, `wide_ops` convert (`from-yosys.test.ts`) and
+  run (`module-part.test.ts`, the benchmark, the differential `counters`).
+- [x] A clock divider, a ripple counter and a shift chain on a derived clock count as Yosys's
   `sim` does; a reset made by logic clears its register; `$dffsr`, `$aldff` and the other
-  flavours follow Yosys's cell library.
-- [ ] Races load `X` and are reported, never a silent winner: a data pin changing in the same
+  flavours follow Yosys's cell library — differential `dividers`, `flavours`;
+  `module-part.test.ts` (`clocks`, `ff_flavours`, `by_name`; `$aldff` follows AD while
+  loading, as the set/clear logic Yosys maps it to).
+- [x] Races load `X` and are reported, never a silent winner: a data pin changing in the same
   delta as its clock (`setup-violation`), a gated clock sampling a register of its source clock
   and a derived clock sampling the faster domain at the same edge (`race-violation`); a bench
-  over such a design fails with the message.
-- [ ] An SR latch of NANDs sets, resets and holds; a ring of inverters gives `X` and an
-  `oscillation` diagnostic without stopping the simulation.
-- [ ] `reg q = 1` is 1 at power-on and driven from t = 0; without `init` it is `X`.
-- [ ] The UART example's benches pass in the app and headless.
-- [ ] HDL-1's and HDL-8's examples, benches and benchmark unchanged (within noise).
+  over such a design fails with the message — `module-part.test.ts` (`races`, mutation-checked);
+  both kinds end in `-violation`, errors to `diagnosticSeverity`, which fail a bench.
+- [x] An SR latch of NANDs sets, resets and holds; a ring of inverters gives `X` and an
+  `oscillation` diagnostic without stopping the simulation — `module-part.test.ts` (`loops`).
+- [x] `reg q = 1` is 1 at power-on and driven from t = 0; without `init` it is `X` —
+  `module-part.test.ts` (`inits`: X before 15 ns, 1 after).
+- [x] The UART example's benches pass in the app and headless — `pnpm test:circuits` (6 of 6),
+  the Tests tab's Run All ✓ 6 (dev server, Playwright, no console errors).
+- [x] HDL-1's and HDL-8's examples, benches and benchmark unchanged (within noise) — the
+  examples differ only in `schemaVersion`, `pnpm test:circuits` 27 of 27, the benchmark in
+  task 11 (decoder 1.96 M/s, counter 2.43 M, synthetic 11.8 k, I/O port 0.99 M).
 
 ## Open questions
 
@@ -422,15 +433,21 @@ bytes and checking each one received.
   words 73 k evaluations/s (0.4 M cells/s: most of it the 64 pins driven a cycle and 72-bit words
   read bit by bit from the planes — HDL-10's 32-bit fast path), internal clocks 640 k (5.1 M
   cells/s).
+- 2026-11-11 — task 12: components.md (cells, signedness, the converter's refusals and `$pow`
+  warning, the analysis's loops and cones, the interpreter's power-up, races, settle, rounds,
+  floating rule, `X` rules, speed, differential tests), circuit.md (schema v8, `hdl-warning`),
+  simulation.md (the module's diagnostic kinds), architecture.md, `src/library/README.md`,
+  ADR-0030 amended (all of synthesizable Verilog; races are `X`, with the rejected
+  alternatives), the track's HDL-9 section as built, lessons (Yosys's `sim` quirks, one large
+  `evaluate`, differential coverage). Acceptance criteria verified: check 3416, build, e2e 96,
+  `pnpm test:circuits` 27 of 27.
 
 ## Handoff
 
-- **State:** tasks 1–11 done: everything HDL-9 runs is built, agrees with Yosys's `sim`, the
-  UART example runs, the benchmark is recorded. Left: docs (task 12), e2e before finishing.
-- **Next step:** task 12 — docs: components.md (cells, signedness, widths, rounds and races,
-  loops, power-up, the differential tests, speed), circuit.md (done for schema v8 and
-  `hdl-warning`), simulation.md (the `race-violation` kind, if kinds are listed), ADR-0030
-  amended (Q1), the track's HDL-9 section as built + status, roadmap, lessons; then `pnpm e2e`.
+- **State:** every task done and every acceptance criterion verified (2026-11-11); waiting for
+  the user's approval to finish (merge).
+- **Next step:** the finish-branch workflow — with the user's approval: plan status `done`, the
+  track's HDL-9 `done` and the next item `next`, merge to main (`--no-ff`).
 - **Watch out:** Yosys's `sim -r` takes no `-clock` with a witness file (the clocks are in it).
   `evaluate` must stay a few small phase functions: one large function cost the decoder 5–8 %.
   A test needing known flip-flops at power-on with a pin-made clock needs a reset (an edge from
