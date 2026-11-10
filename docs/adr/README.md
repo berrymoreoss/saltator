@@ -37,6 +37,7 @@ the alternatives we rejected. Format: [ADR-0001](0001-record-architecture-decisi
 | [0030](0030-hdl-modules.md)                       | HDL modules: Yosys synthesizes outside the app, an interpreter runs its netlist as parts        | accepted |
 | [0031](0031-tft-modules.md)                       | TFT modules: the ST7789 at command level, the frame memory as the only picture, the veil        | accepted |
 | [0032](0032-saltator.md)                          | Saltator: the product name, `.saltator.json` documents, fresh browser storage                   | accepted |
+| [0033](0033-pages-demo.md)                        | A live demo on GitHub Pages, deployed by hand from `main`                                       | accepted |
 
 New ADR: copy [template.md](template.md) to `NNNN-short-title.md` (next free number), fill it in,
 add a row here. Branches of different tracks can take the same number at the same time: the one
