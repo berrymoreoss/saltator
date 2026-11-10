@@ -117,7 +117,9 @@ describe('the examples’ probes', () => {
       // The top circuit's probes, resolved against the design (paths into instances, R11a).
       const document = exampleDocument(id);
       const circuit = document.circuits[0]!;
-      const resolver = new Resolver(compileDesign(document, registry), registry);
+      // The design's registry knows its Verilog modules' parts (their signals, HDL-4).
+      const design = compileDesign(document, registry);
+      const resolver = new Resolver(design, design.registry);
       for (const probe of circuit.probes) {
         expect(resolver.probe(probe), `${id}: ${JSON.stringify(probe)}`).toMatchObject({
           bits: expect.any(Array),
@@ -133,6 +135,7 @@ describe('the examples’ probes', () => {
       'lcd-hello-world',
       'tft-color-bars',
       'two-digit-counter',
+      'verilog-uart',
     ]);
   });
 });

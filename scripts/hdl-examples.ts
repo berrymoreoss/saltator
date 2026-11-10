@@ -210,22 +210,23 @@ bench('starts unknown until reset', (b) => {
 });
 `;
 
-const TRAFFIC_BENCHES = `// The state machine alone: reset to red, then one step per clock while tick is HIGH.
+const TRAFFIC_BENCHES = `// The state machine alone: reset to red, then one step per clock while tick is HIGH. The
+// state register is read inside the module (RED 0, GREEN 1, YELLOW 2), as the lights show it.
 bench('steps red, green, yellow, red on ticks', (b) => {
-  b.row({ rst: 1, tick: 0, clk: 'C' }, { red: 1, yellow: 0, green: 0 });
+  b.row({ rst: 1, tick: 0, clk: 'C' }, { red: 1, yellow: 0, green: 0, state: 0 });
   b.set({ rst: 0 });
   b.table\`
-    tick clk | red yellow green
-    1    C   | 0   0      1
-    0    C   | 0   0      1      # no tick: stays
-    1    C   | 0   1      0
-    1    C   | 1   0      0
-    1    C   | 0   0      1
+    tick clk | red yellow green state
+    1    C   | 0   0      1     1
+    0    C   | 0   0      1     1      # no tick: stays
+    1    C   | 0   1      0     2
+    1    C   | 1   0      0     0
+    1    C   | 0   0      1     1
   \`;
 });
 
 bench('is unknown until reset', (b) => {
-  b.row({ rst: 0, tick: 1, clk: 'C' }, { red: 'X', green: 'X' });
+  b.row({ rst: 0, tick: 1, clk: 'C' }, { red: 'X', green: 'X', state: 'X' });
 });
 `;
 
@@ -374,6 +375,20 @@ bench('sends the byte on the switches; the receiver shows it', (b) => {
   b.expect({ 'R[7..0]': 0xc3, VALID: 1, ERR: 0 });
 });
 
+bench('inside the modules: the frame in the shift register, the bits left to send', (b) => {
+  b.set({ SW2: 0x5a });
+  b.wait(ms(50));
+  b.expect({ 'A1/shift': 0x3ff, 'A1/left': 0 }, 'idle: the line held at 1');
+  b.press('BTN1'); // the clock rises at 55 ms: the transmitter loads the frame
+  b.wait(ms(15));
+  b.expect({ 'A1/shift': 0x2b4, 'A1/left': 10 }, 'stop bit, 0x5A, start bit');
+  b.release('BTN1');
+  b.wait(ms(320)); // four bits out (80 ms each), the receiver in the middle of the byte
+  b.expect({ 'A1/left': 6, 'A2/at': 5, 'A2/shift[7:5]': 0b010 });
+  b.wait(ms(700));
+  b.expect({ 'A1/left': 0, 'A2/shift': 0x5a, 'R[7..0]': 0x5a });
+});
+
 bench('RST stops a byte on its way', (b) => {
   b.set({ SW2: 0xff });
   b.press('BTN1');
@@ -390,6 +405,18 @@ function uart(): CircuitDocument {
   const rx = moduleCircuit('uart-rx', 'UART Receiver', 'uart_rx.v', UART_RX_BENCHES);
   return document(
     (b) => {
+      // HDL-4: the waveforms show the registers inside the modules next to the line.
+      for (const probe of [
+        { ref: 'SEND' },
+        { ref: 'LINE' },
+        { ref: 'A1/shift', radix: 'bin' as const },
+        { ref: 'A1/left', radix: 'dec' as const },
+        { ref: 'A2/at', radix: 'dec' as const },
+        { ref: 'A2/shift' },
+        { ref: 'VALID' },
+      ]) {
+        b.probe(probe);
+      }
       b.add('X1', 'io/clock', { at: [0, 0], label: 'CLK', props: { frequency: 100 } });
       b.label('NL1', 'CLK', 'X1.Y', 4);
       b.switch('SW1', 'RST', [0, 5]);
