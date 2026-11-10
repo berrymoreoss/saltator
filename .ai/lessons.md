@@ -519,3 +519,7 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
 - 2026-11-10 (chore/rename-saltator) — The agent's shell is zsh, which doesn't word-split an
   unquoted `$FILES`: `sed -i '' … $FILES` got one long "file name" and changed nothing. Pipe
   file lists through `xargs` (or `${=FILES}`).
+- 2026-11-10 (chore/pre-public) — The rename's leftover check grepped `src/` and docs, and missed
+  `public/favicon.svg`, whose `<title>Logic</title>` survived the merge. Static assets (`public/`,
+  `index.html`, SVG titles) carry the product name too: sweep the whole tracked tree
+  (`git grep`), not the source folders.
