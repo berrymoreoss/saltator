@@ -33,17 +33,13 @@ import { analyzeHdlModule, type HdlAnalysis, PIN } from './analyze';
 import {
   active,
   asyncReset,
-  type CellStep,
   compileFlipFlop,
   compileStep,
   type FlipFlop,
   load,
-  newPlanes,
   nextState,
-  planeIndex,
-  TX,
-  tri,
 } from './cells';
+import { type CellStep, newPlanes, planeIndex, TX, tri } from './planes';
 
 type HdlProps = { delay: number };
 

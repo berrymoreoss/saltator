@@ -60,26 +60,9 @@ const PENDING: ReadonlySet<string> = new Set([
   '$sr',
 ]);
 
-/** The widest word operand the interpreter takes yet (until HDL-9's words of any width). */
-const WORD = 32;
-
 /** What the interpreter can't run of a cell yet (HDL-9 lifts these), or undefined. */
 function pendingProblem(cell: HdlModule['cells'][number]): string | undefined {
-  const spec: HdlCellSpec = HDL_CELLS[cell.type];
-  if (PENDING.has(cell.type)) return `${cell.type} cells are not supported yet (HDL-9)`;
-  // Shifts by a signed amount (a variable part-select) ran in HDL-1; nothing else signed did.
-  const shift = cell.type === '$shift' || cell.type === '$shiftx';
-  const signed = spec.signedness.filter((name) => !(shift && name === 'B_SIGNED'));
-  if (signed.some((name) => cell.params[name] === 1)) {
-    return 'signed operands — not supported yet (HDL-9)';
-  }
-  if (spec.word) {
-    const widest = Math.max(...Object.values(cell.ports).map((bits) => bits.length));
-    if (widest > WORD) {
-      return `a ${widest}-bit ${cell.type} — operands up to ${WORD} bits for now (HDL-9)`;
-    }
-  }
-  return undefined;
+  return PENDING.has(cell.type) ? `${cell.type} cells are not supported yet (HDL-9)` : undefined;
 }
 
 /** The name of the port or signal a bit belongs to (`q`, `state[1]`), for messages. */

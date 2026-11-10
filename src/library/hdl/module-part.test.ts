@@ -381,6 +381,36 @@ describe('variable selects (shifts)', () => {
   });
 });
 
+describe('signed and wide words (HDL-9)', () => {
+  it('compares signed operands', () => {
+    const bench = new Bench(part('signed'));
+    // −2 < 3, 3 < −2 is false, −8 < 7.
+    for (const [a, b, lt] of [
+      [0b1110, 0b0011, 1],
+      [0b0011, 0b1110, 0],
+      [0b1000, 0b0111, 1],
+    ] as const) {
+      bench.set({ ...word('a', 0, 4, a), ...word('b', 0, 4, b) });
+      bench.run(us(1));
+      bench.expect({ lt });
+    }
+  });
+
+  it('adds 33-bit words', () => {
+    const bench = new Bench(part('wide'));
+    const bits = (value: bigint) =>
+      Object.fromEntries(
+        Array.from({ length: 33 }, (_, i) => [`a${i}`, Number((value >> BigInt(i)) & 1n) as 0 | 1]),
+      );
+    bench.set(bits(2n ** 32n - 1n));
+    bench.run(us(1));
+    expect(read(bench, 'y', 0, 33)).toBe(`1${'0'.repeat(32)}`);
+    bench.set(bits(2n ** 33n - 1n));
+    bench.run(us(1));
+    expect(read(bench, 'y', 0, 33)).toBe('0'.repeat(33));
+  });
+});
+
 describe('clock edges', () => {
   it('load every flip-flop from the values before the edge (a shift chain)', () => {
     // q1 <= d; q2 <= q1, on one clock.

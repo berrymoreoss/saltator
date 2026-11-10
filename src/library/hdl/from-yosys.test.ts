@@ -28,11 +28,13 @@ const ACCEPTED = [
   'open_drain',
   'ops',
   'shifts',
+  'signed',
   'traffic',
   'tri_internal',
   'tri_merged',
   'tri_register',
   'tristate',
+  'wide',
   'wires',
 ];
 
@@ -211,8 +213,6 @@ describe('fromYosys: what it refuses', () => {
       'error rom.v:4.13-9.10: a case statement became a ROM: make the JSON with the command (proc -norom)',
     ],
     ['loop', 'error loop.v:4.14-4.22: a combinational loop through y — not supported yet (HDL-9)'],
-    ['signed', 'error signed.v:3.15-3.20: signed operands — not supported yet (HDL-9)'],
-    ['wide', 'error wide.v:3.14-3.19: a 33-bit $add — operands up to 32 bits for now (HDL-9)'],
     [
       'no_tribuf',
       'error no_tribuf.v:4.14-4.27: a tri-state left a multiplexer with z inputs: make the JSON with the command (tribuf -logic)',

@@ -257,7 +257,7 @@ bytes and checking each one received.
   hdl:fixtures`; HDL-1's and HDL-8's fixtures unchanged otherwise.
 - [x] 2. Core IR: the new cells and kinds, optional `A_SIGNED`/`B_SIGNED`, no word limit; shape
   check and its tests; schema v8 with a no-op migration, round trip.
-- [ ] 3. Words of any width in `cells.ts`: scratch words, sign extension, `$add` `$sub` `$neg`,
+- [x] 3. Words of any width in `cells.ts`: scratch words, sign extension, `$add` `$sub` `$neg`,
   comparisons, shifts ported to any width and signedness; tests against `BigInt` on seeded
   values, with `X`.
 - [ ] 4. New combinational cells: `$mul`, `$div` `$mod` `$divfloor` `$modfloor`, `$pow`,
@@ -333,13 +333,24 @@ bytes and checking each one received.
   re-saved. The analysis now refuses what the interpreter can't run yet (`PENDING` cells, signed
   operands other than a shift's amount, words over 32 bits) — moved from the converter, so
   `hdlPart` is guarded too; each later task shrinks it.
+- 2026-11-10 — task 3: `words.ts` (32-bit limbs: add, sub, negate, mul on 16-bit digits,
+  restoring division; no allocation), `planes.ts` (the planes' primitives, `extend` by sign,
+  `signedOperands` — both flags for two operands, as `simlib.v`), `word-cells.ts` (`$add` `$sub`
+  `$neg`, comparisons, shifts at any width and signedness; ≤ 32 bits on numbers as before). Shifts
+  per `simlib.v`: A extended to max(A, Y) by its signedness, `$shiftx` from A as is. The analysis
+  no longer refuses signed operands or wide words (only `PENDING` cells); `signed.v` and `wide.v`
+  run. Tests against BigInt, mutation-checked (a surviving mutation — an unknown bit 0 in wide
+  arithmetic — got its test). Benchmark unchanged: synthetic 12.0k evaluations/s on the branch,
+  11.7–13.2k on main in three runs (noise); decoder 1.85 M/s, counter 2.5 M/s, I/O port 0.96 M/s.
 
 ## Handoff
 
-- **State:** tasks 1–2 done (fixtures; the IR holds every cell, signedness, any width; schema
-  v8). The analysis's `PENDING`/`pendingProblem` (analyze.ts) refuses what isn't built yet.
-- **Next step:** task 3 — words of any width in `cells.ts` (scratch words, sign extension,
-  `$add` `$sub` `$neg`, comparisons, shifts at any width and signedness), tests against `BigInt`;
-  then drop the width and signedness refusals for those cells.
+- **State:** tasks 1–3 done (fixtures; IR with every cell, signedness, any width, schema v8;
+  word cells of any width and signedness in `word-cells.ts` on `words.ts` limbs). The analysis's
+  `PENDING` (analyze.ts) refuses the cells not built yet.
+- **Next step:** task 4 — `$mul`, `$div` `$mod` `$divfloor` `$modfloor`, `$pow`, `$eqx` `$nex`
+  (pessimistic, as `$eq`), `$bmux` `$demux` `$bwmux` in `word-cells.ts`/`cells.ts`; tests against
+  BigInt; remove them from `PENDING`.
 - **Watch out:** Yosys's `sim -r` takes no `-clock` with a witness file (the clocks are in it).
-- **Verify with:** `pnpm check`.
+- **Verify with:** `pnpm check`; `pnpm bench tests/bench/hdl.bench.ts` against main (a
+  worktree with `node_modules` symlinked, `./node_modules/.bin/vitest bench --run …` there).

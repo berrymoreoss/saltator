@@ -9,82 +9,21 @@
  * Spec: docs/components.md#verilog-modules-hdl.
  */
 import { HDL_CELLS, type HdlBit, type HdlCell, type HdlCellSpec } from '../../core';
-
-/** A bit's planes as one value: 0, 1, or `X` (2). */
-export const TX = 2;
-
-/** A combinational cell or a latch: computes its outputs in the planes from its inputs there. */
-export type CellStep = (val: Uint8Array, unk: Uint8Array) => void;
-
-/** The plane index of a bit: signal bits as numbered, the constants 0, 1, x after them. */
-export function planeIndex(bit: HdlBit, bitCount: number): number {
-  return typeof bit === 'number' ? bit : bitCount + (bit === '0' ? 0 : bit === '1' ? 1 : 2);
-}
-
-/** Planes for `bitCount` bits, every signal bit unknown, the constants set. */
-export function newPlanes(bitCount: number): { val: Uint8Array; unk: Uint8Array } {
-  const val = new Uint8Array(bitCount + 3);
-  const unk = new Uint8Array(bitCount + 3).fill(1, 0, bitCount);
-  val[bitCount + 1] = 1;
-  unk[bitCount + 2] = 1;
-  return { val, unk };
-}
-
-/** A bit of the planes as one value: 0, 1, or `X`. */
-export const tri = (val: Uint8Array, unk: Uint8Array, b: number) => (unk[b] ? TX : val[b]!);
-
-function put(val: Uint8Array, unk: Uint8Array, b: number, t: number): void {
-  unk[b] = t === TX ? 1 : 0;
-  val[b] = t === 1 ? 1 : 0;
-}
-
-/** One of two outcomes: the value if they agree, else `X`. */
-export const merge = (a: number, b: number) => (a === b ? a : TX);
-
-/** What a control at `c` picks: `yes` when 1, `no` when 0, both merged when unknown. */
-export const pick = (c: number, yes: number, no: number) =>
-  c === 1 ? yes : c === 0 ? no : merge(yes, no);
-
-// A word read from the planes: its value (unknown bits 0) and its unknown bits. Module-level
-// registers, so reading a word allocates nothing; valid until the next `gather`.
-let wv = 0;
-let wu = 0;
-
-function gather(val: Uint8Array, unk: Uint8Array, idx: Int32Array): void {
-  let v = 0;
-  let u = 0;
-  for (let i = 0; i < idx.length; i++) {
-    const b = idx[i]!;
-    if (unk[b]) u |= 1 << i;
-    else if (val[b]) v |= 1 << i;
-  }
-  wv = v >>> 0;
-  wu = u >>> 0;
-}
-
-function scatter(val: Uint8Array, unk: Uint8Array, idx: Int32Array, v: number, u: number): void {
-  for (let i = 0; i < idx.length; i++) {
-    const b = idx[i]!;
-    const x = (u >>> i) & 1;
-    unk[b] = x;
-    val[b] = x ? 0 : (v >>> i) & 1;
-  }
-}
-
-/** Every bit `X`, or every bit the constant 0. */
-function fill(val: Uint8Array, unk: Uint8Array, idx: Int32Array, t: number): void {
-  for (let i = 0; i < idx.length; i++) put(val, unk, idx[i]!, t);
-}
-
-/** Bits 0…width−1 set. */
-const maskOf = (width: number) => (width >= 32 ? 0xffffffff : 2 ** width - 1);
-
-/** A word's bits as plane indices, zero-extended (the constant 0) or cut to `width`. */
-function extend(idx: Int32Array, width: number, zero: number): Int32Array {
-  const out = new Int32Array(width).fill(zero);
-  out.set(idx.subarray(0, Math.min(width, idx.length)));
-  return out;
-}
+import {
+  type CellStep,
+  extend,
+  fill,
+  indices,
+  merge,
+  pick,
+  planeIndex,
+  put,
+  putBool,
+  signedOperands,
+  TX,
+  tri,
+} from './planes';
+import { compileWordStep } from './word-cells';
 
 /** Whether any of the bits is 1 (1), none can be (0), or it depends on unknown ones (`X`). */
 function anyOne(val: Uint8Array, unk: Uint8Array, idx: Int32Array): number {
@@ -113,31 +52,21 @@ const and3 = (a: number, b: number) => (a === 0 || b === 0 ? 0 : a === TX || b =
 const or3 = (a: number, b: number) => (a === 1 || b === 1 ? 1 : a === TX || b === TX ? TX : 0);
 const xor3 = (a: number, b: number) => (a === TX || b === TX ? TX : a ^ b);
 
-/** Writes a one-bit result into bit 0 of Y and zeros above it. */
-function putBool(val: Uint8Array, unk: Uint8Array, y: Int32Array, t: number): void {
-  put(val, unk, y[0]!, t);
-  for (let i = 1; i < y.length; i++) put(val, unk, y[i]!, 0);
-}
-
-/** The cell's port bits as plane indices. */
-function indices(cell: HdlCell, port: string, bitCount: number): Int32Array {
-  return Int32Array.from(cell.ports[port] ?? [], (bit) => planeIndex(bit, bitCount));
-}
-
 /** Compiles a combinational cell or a latch into its step. */
 export function compileStep(cell: HdlCell, bitCount: number): CellStep {
+  const word = compileWordStep(cell, bitCount);
+  if (word) return word;
   const spec: HdlCellSpec = HDL_CELLS[cell.type];
   const zero = bitCount;
   const a = indices(cell, 'A', bitCount);
   const b = indices(cell, 'B', bitCount);
   const y = indices(cell, spec.output, bitCount);
   const width = y.length;
-  const mask = maskOf(width);
 
   switch (cell.type) {
     case '$not':
     case '$pos': {
-      const ax = extend(a, width, zero);
+      const ax = extend(a, width, zero, signedOperands(cell, 1));
       const invert = cell.type === '$not';
       return (val, unk) => {
         for (let i = 0; i < width; i++) {
@@ -150,8 +79,9 @@ export function compileStep(cell: HdlCell, bitCount: number): CellStep {
     case '$or':
     case '$xor':
     case '$xnor': {
-      const ax = extend(a, width, zero);
-      const bx = extend(b, width, zero);
+      const signed = signedOperands(cell, 2);
+      const ax = extend(a, width, zero, signed);
+      const bx = extend(b, width, zero, signed);
       const op =
         cell.type === '$and'
           ? and3
@@ -193,90 +123,6 @@ export function compileStep(cell: HdlCell, bitCount: number): CellStep {
       return (val, unk) => putBool(val, unk, y, and3(anyOne(val, unk, a), anyOne(val, unk, b)));
     case '$logic_or':
       return (val, unk) => putBool(val, unk, y, or3(anyOne(val, unk, a), anyOne(val, unk, b)));
-    case '$add':
-    case '$sub':
-    case '$neg': {
-      const op = cell.type;
-      return (val, unk) => {
-        gather(val, unk, a);
-        const av = wv;
-        const au = wu;
-        let bv = 0;
-        let bu = 0;
-        if (op !== '$neg') {
-          gather(val, unk, b);
-          bv = wv;
-          bu = wu;
-        }
-        const r = (op === '$add' ? av + bv : op === '$sub' ? av - bv : -av) >>> 0;
-        // A sum's bit depends on the bits at and below it: unknown from the lowest unknown bit up.
-        const u = ((au | bu) & mask) >>> 0;
-        const x = u === 0 ? 0 : (mask & ~((u & -u) - 1)) >>> 0;
-        scatter(val, unk, y, r & mask, x);
-      };
-    }
-    case '$eq':
-    case '$ne': {
-      const equal = cell.type === '$eq' ? 1 : 0;
-      return (val, unk) => {
-        gather(val, unk, a);
-        const av = wv;
-        const au = wu;
-        gather(val, unk, b);
-        const known = ~(au | wu);
-        const t = ((av ^ wv) & known) !== 0 ? 1 - equal : (au | wu) !== 0 ? TX : equal;
-        putBool(val, unk, y, t);
-      };
-    }
-    case '$lt':
-    case '$le':
-    case '$gt':
-    case '$ge': {
-      const op = cell.type;
-      return (val, unk) => {
-        gather(val, unk, a);
-        const aMin = wv;
-        const aMax = (wv | wu) >>> 0;
-        gather(val, unk, b);
-        const bMin = wv;
-        const bMax = (wv | wu) >>> 0;
-        // Sure when every value the unknown bits allow gives the same answer.
-        let t: number;
-        if (op === '$lt') t = aMax < bMin ? 1 : aMin >= bMax ? 0 : TX;
-        else if (op === '$le') t = aMax <= bMin ? 1 : aMin > bMax ? 0 : TX;
-        else if (op === '$gt') t = aMin > bMax ? 1 : aMax <= bMin ? 0 : TX;
-        else t = aMin >= bMax ? 1 : aMax < bMin ? 0 : TX;
-        putBool(val, unk, y, t);
-      };
-    }
-    case '$shl':
-    case '$sshl':
-    case '$shr':
-    case '$sshr':
-    case '$shift':
-    case '$shiftx': {
-      const left = cell.type === '$shl' || cell.type === '$sshl';
-      const fillX = cell.type === '$shiftx';
-      const signed = cell.params.B_SIGNED === 1 && b.length > 0;
-      const bWidth = b.length;
-      return (val, unk) => {
-        gather(val, unk, b);
-        if (wu !== 0) {
-          fill(val, unk, y, TX);
-          return;
-        }
-        let amount = wv;
-        if (signed && (amount >>> (bWidth - 1)) & 1) amount -= 2 ** bWidth;
-        for (let i = 0; i < width; i++) {
-          const from = left ? i - amount : i + amount;
-          if (from >= 0 && from < a.length) {
-            const src = a[from]!;
-            unk[y[i]!] = unk[src]!;
-            val[y[i]!] = val[src]!;
-          } else put(val, unk, y[i]!, fillX ? TX : 0);
-        }
-      };
-    }
     case '$mux': {
       const s = indices(cell, 'S', bitCount)[0]!;
       return (val, unk) => {
