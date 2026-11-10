@@ -1,5 +1,5 @@
 import { expect, type Page, test } from '@playwright/test';
-import { openApp } from './support';
+import { menu, openApp } from './support';
 
 /** Collects console errors and page errors for the whole test. */
 function watchErrors(page: Page): string[] {
@@ -172,6 +172,22 @@ test('the shortcuts dialog opens with ? and closes with Escape', async ({ page }
   const dialog = page.getByTestId('shortcuts-dialog');
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText('Zoom to Fit');
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+});
+
+test('About names the build: the commit it was built from, linked to GitHub', async ({ page }) => {
+  await openApp(page);
+  await menu(page, 'Help', 'About Saltator');
+  const dialog = page.getByTestId('about-dialog');
+  await expect(dialog).toContainText('Test before fab');
+  // vite build in the e2e web server reads HEAD; uncommitted changes add -dirty.
+  const version = dialog.getByTestId('about-version');
+  await expect(version).toHaveText(/^Version [0-9a-f]{7}(-dirty)? · \d{4}-\d{2}-\d{2}$/);
+  await expect(version.getByRole('link')).toHaveAttribute(
+    'href',
+    /^https:\/\/github\.com\/berrymoreoss\/saltator\/commit\/[0-9a-f]{40}$/,
+  );
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
 });
