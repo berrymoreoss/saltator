@@ -3,9 +3,17 @@ import { javascript } from '@codemirror/lang-javascript';
 import { ensureSyntaxTree } from '@codemirror/language';
 import { EditorState, Text } from '@codemirror/state';
 import { describe, expect, it } from 'vitest';
-import { compileCircuit } from '../circuit';
+import {
+  type Circuit,
+  type CircuitDocument,
+  compileCircuit,
+  compileDesign,
+  emptyVerilogCircuit,
+  SCHEMA_VERSION,
+} from '../circuit';
 import { registerCircuit } from '../editor/test-documents';
-import { createDefaultRegistry } from '../library';
+import { createDefaultRegistry, fromYosys } from '../library';
+import { YOSYS_FIXTURES } from '../library/hdl/fixtures';
 import { scriptReferences } from './script-completions';
 import { marksToDiagnostics, scriptCompletionSource, textChange } from './script-editor';
 
@@ -75,6 +83,19 @@ describe('scriptReferences', () => {
     });
     expect(refs.some((r) => r.label === 'P1' || r.label === 'NL0')).toBe(false); // net parts
     expect(new Set(refs.map((r) => r.label)).size).toBe(refs.length);
+  });
+
+  it("lists a module's own signals in its benches (HDL-4)", () => {
+    const { module } = fromYosys(YOSYS_FIXTURES.traffic);
+    const traffic: Circuit = { ...emptyVerilogCircuit('traffic', 'T'), verilog: { module } };
+    const document: CircuitDocument = { schemaVersion: SCHEMA_VERSION, circuits: [traffic] };
+    const design = compileDesign(document, registry);
+    const refs = scriptReferences(traffic, design.circuits.get('traffic'), design.registry);
+    expect(refs.find((r) => r.label === 'state')).toEqual({
+      label: 'state',
+      type: 'variable',
+      detail: 'signal [1:0]',
+    });
   });
 });
 

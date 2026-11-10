@@ -4,8 +4,8 @@
  * docs/editor.md#waveforms-tab.
  */
 
-import type { CompileResult } from '../circuit';
-import { formatTime } from '../core';
+import type { Circuit, CompileResult } from '../circuit';
+import { type ComponentRegistry, formatTime } from '../core';
 import { type AnalyzerChannel, WAVE_ROW_HEIGHT, type WaveRow, type WaveView } from '../editor';
 import { formatSi } from './prop-input';
 
@@ -115,15 +115,55 @@ export function waveKey(key: string, shift: boolean): WaveKey | undefined {
 /** Zoom factor of a wheel step: 2× per 500 px of scroll, smooth for touchpads. */
 export const wheelFactor = (deltaY: number) => 2 ** (-deltaY / 500);
 
+/** A named signal inside a Verilog module, as a reference can name it (HDL-4). */
+export interface ModuleSignalReference {
+  /** `A1/state` for an instance placed in the circuit, `state` in the module's own circuit. */
+  readonly ref: string;
+  /** `signal [1:0] in A1`, `signal` (one bit, inside the module itself). */
+  readonly detail: string;
+}
+
 /**
- * References the Add signal box offers for `text`: named nets, buses and part pins that start
- * with it (case-insensitive), names first, at most `limit`.
+ * The named signals a reference in `circuit` can name: those of the Verilog modules it places
+ * (`A1/state`, by instance), or its own when it is a module — the module parts' views in the
+ * design's `registry` (`hdl/<circuit id>`).
  */
-export function referenceSuggestions(compiled: CompileResult, text: string, limit = 12): string[] {
+export function moduleSignalReferences(
+  circuit: Circuit,
+  registry: ComponentRegistry,
+): ModuleSignalReference[] {
+  const out: ModuleSignalReference[] = [];
+  const add = (circuitId: string, prefix: string, where: string) => {
+    for (const { name, lsb, width } of registry.get(`hdl/${circuitId}`)?.signals?.list ?? []) {
+      const range = width === 1 ? '' : ` [${lsb + width - 1}:${lsb}]`;
+      out.push({ ref: `${prefix}${name}`, detail: `signal${range}${where}` });
+    }
+  };
+  if (circuit.verilog) add(circuit.id, '', '');
+  const instances = circuit.components
+    .filter((c) => c.type.startsWith('sub/'))
+    .sort((a, b) => a.id.localeCompare(b.id, 'en', { numeric: true }));
+  for (const part of instances)
+    add(part.type.slice('sub/'.length), `${part.id}/`, ` in ${part.id}`);
+  return out;
+}
+
+/**
+ * References the Add signal box offers for `text`: named nets, buses, signals inside modules
+ * (`inner`, from `moduleSignalReferences`) and part pins that start with it (case-insensitive),
+ * names first, at most `limit`.
+ */
+export function referenceSuggestions(
+  compiled: CompileResult,
+  text: string,
+  inner: readonly ModuleSignalReference[] = [],
+  limit = 12,
+): string[] {
   const prefix = text.trim().toLowerCase();
   const names = new Set<string>();
   for (const bus of compiled.buses) for (const name of bus.names) names.add(name);
   for (const net of compiled.nets) for (const name of net.names) names.add(name);
+  for (const signal of inner) names.add(signal.ref);
   const pins: string[] = [];
   if (prefix !== '') {
     for (const net of compiled.nets)

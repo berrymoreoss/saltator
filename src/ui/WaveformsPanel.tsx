@@ -37,6 +37,7 @@ import { useStore } from './hooks';
 import { formatSpan, type VcdRange, vcdFile, vcdSpan } from './vcd-export';
 import {
   cursorReadout,
+  moduleSignalReferences,
   referenceSuggestions,
   rowAt,
   rowKey,
@@ -270,8 +271,12 @@ export function WavesBadge({ editor }: { readonly editor: Editor }) {
 /** The Add signal box: a reference with completion. */
 function AddSignal({ editor, onNotice }: { editor: Editor; onNotice: (text?: string) => void }) {
   const [text, setText] = useState('');
-  const { scene } = useStore(editor.state);
-  const suggestions = referenceSuggestions(scene.compiled, text);
+  const { scene, circuit, design } = useStore(editor.state);
+  const suggestions = referenceSuggestions(
+    scene.compiled,
+    text,
+    moduleSignalReferences(circuit, design.registry),
+  );
   const submit = (e: FormEvent) => {
     e.preventDefault();
     const ref = text.trim();
