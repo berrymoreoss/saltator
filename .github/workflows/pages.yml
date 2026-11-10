@@ -1,0 +1,51 @@
+name: Pages
+
+# The live demo, deployed by hand only (Run workflow in Actions, or `gh workflow run Pages`): the
+# author decides when `main` goes live. Only the build runs here; the tests are the local gate
+# before a merge (ADR-0033).
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time; a deploy in progress is never cancelled halfway.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy main only
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Pages deploys main only; this run is on ${GITHUB_REF_NAME}."
+          exit 1
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - id: pages
+        uses: actions/configure-pages@v6
+      # The site lives under the repo's subpath (/saltator/); a custom domain would make it /.
+      - run: pnpm build --base=${{ steps.pages.outputs.base_path }}/
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

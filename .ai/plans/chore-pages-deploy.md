@@ -65,9 +65,9 @@ without installing anything.
 
 ## Tasks
 
-- [ ] 1. The subpath works: a local `--base /saltator/` build served under `/saltator/`; smoke it
+- [x] 1. The subpath works: a local `--base /saltator/` build served under `/saltator/`; smoke it
   in a browser (no 404s or console errors; favicon; the gallery; `?example=`; Run; Tests).
-- [ ] 2. `pages.yml` (Q1–Q2); enable Pages with the Actions source (`gh api … /pages`).
+- [x] 2. `pages.yml` (Q1–Q2); enable Pages with the Actions source (`gh api … /pages`).
 - [ ] 3. Docs: ADR-0033 + index; AGENTS.md (Commands: the deploy); README (the demo link);
   `docs/architecture.md` if it covers the build.
 - [ ] 4. Verify: `pnpm check`, `pnpm build`; after the merge, the first deploy from `main` (the
