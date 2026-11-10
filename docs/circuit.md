@@ -360,8 +360,8 @@ duplicated and deleted like a drawn one.
   not into instances.
 - **Issues** of the module's circuit: `hdl-not-compiled` (a warning: no IR yet, nothing to
   place), and the part's messages — `hdl-error` (the IR can't run: the part is left out) and
-  `hdl-warning` (an inferred latch) — with the source location in front of the
-  message and in `src`.
+  `hdl-warning` (an inferred latch, a combinational loop) — with the source location in front of
+  the message and in `src`.
 - `CompileCache` compiles a module again when its part changes; `sameCircuit` compares IRs by
   value, so compiling the same JSON again is no edit.
 
@@ -429,7 +429,7 @@ at?, src? }` — enough to locate the issue on the canvas (`src`: in a Verilog m
 | `bus-port-width`       | warning  | a bus port on a bus of another width, or on an unnamed bus; the bits that exist connect ([Flattening](#flattening))                                                                                         |
 | `hdl-not-compiled`     | warning  | a Verilog module without its IR yet ([Verilog modules](#verilog-modules))                                                                                                                                   |
 | `hdl-error`            | error    | a Verilog module's IR the interpreter can't run (a loop, a clock made inside it, …); the module's part is left out                                                                                          |
-| `hdl-warning`          | warning  | what a Verilog module runs differently from a Verilog simulator: an inferred latch                                                                                                                          |
+| `hdl-warning`          | warning  | what a Verilog module runs differently from a Verilog simulator: an inferred latch, a loop                                                                                                                  |
 
 An `out` pin with a pull resistor (`weak` pin) or with tri-state outputs is legal; conflicts
 between drivers that can actually disagree at run time are the kernel's `contention` diagnostic.

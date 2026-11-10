@@ -112,6 +112,9 @@ interface Program {
   readonly roundLimit: number;
   /** The names of the part's pins, for messages. */
   readonly pinNames: readonly string[];
+  /** Per combinational loop, a signal on it, and whether it failed to settle (scratch). */
+  readonly loopNames: readonly string[];
+  readonly loopFailed: Uint8Array;
   readonly latches: readonly Latch[];
   /** The pin that reads each plane index (−1 for others), for clocks. */
   readonly pinOfBit: Int32Array;
@@ -142,6 +145,54 @@ export function hdlPins(module: HdlModule): PinDef[] {
       }),
     );
   });
+}
+
+/**
+ * A combinational loop's cells as one step (HDL-9): run over and over from the planes' values
+ * until no output bit of the loop changes — an SR latch of NANDs holds, sets and resets; one that
+ * starts `X` stays `X`. Past twice its cells and two passes it oscillates (a ring of inverters):
+ * the bits still changing become `X` and it goes on until that settles; `failed[slot]` says so.
+ */
+function loopStep(
+  steps: readonly CellStep[],
+  outputs: Int32Array,
+  failed: Uint8Array,
+  slot: number,
+): CellStep {
+  const limit = 2 * steps.length + 2;
+  const val0 = new Uint8Array(outputs.length);
+  const unk0 = new Uint8Array(outputs.length);
+  /** One pass over the loop; says whether an output bit changed. */
+  const pass = (val: Uint8Array, unk: Uint8Array): boolean => {
+    for (let i = 0; i < outputs.length; i++) {
+      val0[i] = val[outputs[i]!]!;
+      unk0[i] = unk[outputs[i]!]!;
+    }
+    for (let k = 0; k < steps.length; k++) steps[k]!(val, unk);
+    let changed = false;
+    for (let i = 0; i < outputs.length && !changed; i++) {
+      changed = val[outputs[i]!] !== val0[i] || unk[outputs[i]!] !== unk0[i];
+    }
+    return changed;
+  };
+  /** Makes `X` every output bit the last pass changed. */
+  const unknownWhereChanged = (val: Uint8Array, unk: Uint8Array) => {
+    for (let i = 0; i < outputs.length; i++) {
+      const b = outputs[i]!;
+      if (val[b] === val0[i] && unk[b] === unk0[i]) continue;
+      val[b] = 0;
+      unk[b] = 1;
+    }
+  };
+  return (val, unk) => {
+    for (let p = 0; p < limit; p++) if (!pass(val, unk)) return;
+    failed[slot] = 1;
+    for (let p = 0; p < limit; p++) {
+      unknownWhereChanged(val, unk);
+      if (!pass(val, unk)) return;
+    }
+    unknownWhereChanged(val, unk);
+  };
 }
 
 function compile(module: HdlModule, analysis: HdlAnalysis): Program {
@@ -243,23 +294,42 @@ function compile(module: HdlModule, analysis: HdlAnalysis): Program {
     }
   }
 
-  // Steps in order; a buffer writes only the bits it is the plane driver of (not an inout's).
+  // Steps in order; a buffer writes only the bits it is the plane driver of (not an inout's). A
+  // loop's cells make one step, run until they settle (HDL-9).
   const steps: CellStep[] = [];
   const latches: Latch[] = [];
+  const loopOf = new Int32Array(cells.length).fill(-1);
+  for (const [l, members] of analysis.loops.entries()) for (const m of members) loopOf[m] = l;
+  const loopNames: string[] = [];
+  const loopFailed = new Uint8Array(analysis.loops.length);
+  let loopSteps: CellStep[] = [];
   for (const index of analysis.order) {
     const cell = cells[index]!;
+    const l = loopOf[index]!;
+    const into = l >= 0 ? loopSteps : steps;
     if (cell.type === '$tribuf') {
       const keep = cell.ports.Y!.flatMap((bit, i) => (driver[bit as number] === index ? [i] : []));
-      if (keep.length === 0) continue;
-      const ports = {
-        A: keep.map((i) => cell.ports.A![i]!),
-        EN: cell.ports.EN!,
-        Y: keep.map((i) => cell.ports.Y![i]!),
-      };
-      steps.push(compileStep({ ...cell, ports }, bitCount));
-      continue;
+      if (keep.length > 0) {
+        const ports = {
+          A: keep.map((i) => cell.ports.A![i]!),
+          EN: cell.ports.EN!,
+          Y: keep.map((i) => cell.ports.Y![i]!),
+        };
+        into.push(compileStep({ ...cell, ports }, bitCount));
+      }
+    } else into.push(compileStep(cell, bitCount));
+    const members = l >= 0 ? analysis.loops[l]! : undefined;
+    if (members && index === members[members.length - 1]) {
+      // The loop's last cell: its steps become one, iterated.
+      const outputs = members.flatMap((m) =>
+        cells[m]!.ports[HDL_CELLS[cells[m]!.type].output]!.map((bit) => planeIndex(bit, bitCount)),
+      );
+      steps.push(loopStep(loopSteps, Int32Array.from(outputs), loopFailed, l));
+      loopNames.push(
+        outputName(module, cells[members[0]!]!.ports[HDL_CELLS[cells[members[0]!]!.type].output]!),
+      );
+      loopSteps = [];
     }
-    steps.push(compileStep(cell, bitCount));
     if (HDL_CELLS[cell.type].kind === 'latch' && cell.ports.EN) {
       latches.push({
         en: planeIndex(cell.ports.EN![0]!, bitCount),
@@ -322,6 +392,8 @@ function compile(module: HdlModule, analysis: HdlAnalysis): Program {
     asyncCones: analysis.asyncCones.map(toReadPins),
     roundLimit: 2 * internal.length + 4,
     pinNames: hdlPins(module).map((pin) => pin.name),
+    loopNames,
+    loopFailed,
     latches,
     pinOfBit,
     nextSize: offset,
@@ -448,16 +520,23 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
     }
   };
   const { steps } = program;
+  const { loopNames, loopFailed } = program;
   const settle = (ctx: EvalContext<HdlState>) => {
     if (asyncFlops.length === 0) {
       const { val, unk } = ctx.state;
       for (let k = 0; k < steps.length; k++) steps[k]!(val, unk);
-      return;
-    }
-    if (settlePlanes(program, ctx.state.val, ctx.state.unk)) {
+    } else if (settlePlanes(program, ctx.state.val, ctx.state.unk)) {
       ctx.report({
         kind: 'oscillation',
         message: 'asynchronous controls made by logic keep changing their flip-flops',
+      });
+    }
+    for (let l = 0; l < loopFailed.length; l++) {
+      if (!loopFailed[l]) continue;
+      loopFailed[l] = 0;
+      ctx.report({
+        kind: 'oscillation',
+        message: `the combinational loop through ${loopNames[l]} doesn't settle: X`,
       });
     }
   };
@@ -645,6 +724,7 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
       // The logic settles from the power-up values (the pins unknown), so a clock made from an
       // initialized register (`~div`) is known before anything happens.
       settlePlanes(program, planes.val, planes.unk);
+      program.loopFailed.fill(0);
       return {
         ...planes,
         next: new Uint8Array(program.nextSize),

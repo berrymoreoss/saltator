@@ -31,6 +31,8 @@ const ACCEPTED = [
   'inits',
   'io_port',
   'latches',
+  'loop',
+  'loops',
   'open_drain',
   'ops',
   'races',
@@ -235,7 +237,6 @@ describe('fromYosys: what it refuses', () => {
       'rom',
       'error rom.v:4.13-9.10: a case statement became a ROM: make the JSON with the command (proc -norom)',
     ],
-    ['loop', 'error loop.v:4.14-4.22: a combinational loop through y — not supported yet (HDL-9)'],
     [
       'no_tribuf',
       'error no_tribuf.v:4.14-4.27: a tri-state left a multiplexer with z inputs: make the JSON with the command (tribuf -logic)',

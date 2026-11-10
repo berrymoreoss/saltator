@@ -606,6 +606,46 @@ describe('clocks made inside the module (HDL-9)', () => {
   });
 });
 
+describe('combinational loops (HDL-9)', () => {
+  it('an SR latch of two NANDs starts unknown, sets, holds and resets', () => {
+    const bench = new Bench(part('loops'));
+    bench.set({ s_n: 1, r_n: 1, en: 0 });
+    bench.run(us(1));
+    bench.expect({ q: 'X', q_n: 'X' });
+    const steps: [0 | 1, 0 | 1, string][] = [
+      [0, 1, '10'],
+      [1, 1, '10'],
+      [1, 0, '01'],
+      [1, 1, '01'],
+      [0, 1, '10'],
+    ];
+    for (const [s_n, r_n, q] of steps) {
+      bench.set({ s_n, r_n });
+      bench.run(us(1));
+      expect(`${levelChar(bench.get('q'))}${levelChar(bench.get('q_n'))}`, `${s_n}${r_n}`).toBe(q);
+    }
+    bench.expectNoDiagnostics();
+  });
+
+  it("a loop that doesn't settle goes X and reports an oscillation; the simulation goes on", () => {
+    const bench = new Bench(part('loops'));
+    bench.set({ s_n: 1, r_n: 1, en: 0 });
+    bench.run(us(1));
+    bench.expect({ ring: 1 });
+    bench.expectNoDiagnostics();
+    bench.set({ en: 1 });
+    bench.run(us(1));
+    bench.expect({ ring: 'X' });
+    const oscillation = bench.diagnostics.find((d) => d.kind === 'oscillation');
+    expect(oscillation?.message).toMatch(/^the combinational loop through r\d doesn't settle: X$/);
+    // The rest of the module runs on: the latch still sets.
+    bench.set({ s_n: 0 });
+    bench.run(us(1));
+    bench.expect({ q: 1, q_n: 0 });
+    expect(bench.sim.halted).toBe(false);
+  });
+});
+
 describe('flip-flop and latch flavours of HDL-9 (ff_flavours, by_name)', () => {
   it('$dffsr and $dffsre: clear wins over set, both asynchronous; the edge loads D', () => {
     const bench = new Bench(part('ff_flavours'));

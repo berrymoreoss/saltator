@@ -1,4 +1,4 @@
-// A combinational loop: refused until HDL-9.
+// A combinational loop: refused by HDL-1, iterated until it settles since HDL-9.
 module loop (input a, output y);
   wire b;
   assign y = ~(a & b);

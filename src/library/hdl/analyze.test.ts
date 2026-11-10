@@ -60,15 +60,35 @@ describe('analyzeHdlModule', () => {
     ]);
   });
 
-  it('reports a combinational loop by a named signal on it', () => {
-    const { messages } = analyzeHdlModule(base([and(1, 5, 3, 'a.v:3'), not(3, 5, 'a.v:4')]));
+  it('finds combinational loops, warns by a named signal on each, keeps them together', () => {
+    // y3 = a1 & w5 and w5 = ~y3: a loop; w4 = ~a2: none; bit 6 = a1 & bit 6: a cell reading itself.
+    const self: HdlCell = {
+      type: '$and',
+      src: 'a.v:7',
+      ports: { A: [1], B: [6], Y: [6] },
+      params: {},
+    };
+    const { messages, order, loops, cones } = analyzeHdlModule(
+      base([and(1, 5, 3, 'a.v:3'), not(3, 5, 'a.v:4'), not(2, 4), self]),
+    );
     expect(messages).toEqual([
       {
-        severity: 'error',
-        message: 'a combinational loop through y — not supported yet (HDL-9)',
+        severity: 'warning',
+        message: "a combinational loop through y: iterated until it settles, X where it doesn't",
         src: 'a.v:3',
       },
+      {
+        severity: 'warning',
+        message:
+          "a combinational loop through bit 6: iterated until it settles, X where it doesn't",
+        src: 'a.v:7',
+      },
     ]);
+    expect(order).toEqual([0, 1, 2, 3]);
+    expect(loops).toEqual([[0, 1], [3]]);
+    // Each cell of a loop has the cone of the whole loop.
+    expect(cones[0]).toEqual([1]);
+    expect(cones[1]).toEqual([1]);
   });
 
   it('accepts a loop through a flip-flop and a clock tied to a constant', () => {

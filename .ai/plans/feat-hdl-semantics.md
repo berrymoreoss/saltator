@@ -273,7 +273,7 @@ bytes and checking each one received.
   a ripple counter, a shift chain on a derived clock — all certain; a gated clock and a divider
   sampling the fast domain — `X` and reported; a same-delta data change; a reset by logic; every
   flavour; snapshots), each race test mutation-checked.
-- [ ] 8. Loops: components, fixed points, `X` and `oscillation`, the warning; tests (an SR latch
+- [x] 8. Loops: components, fixed points, `X` and `oscillation`, the warning; tests (an SR latch
   of NANDs, a ring of inverters, a latch feeding itself).
 - [ ] 9. Differential tests: the script, the designs, the committed vectors,
   `differential.test.ts`; mutation-checked (a wrong cell fails it).
@@ -376,15 +376,28 @@ bytes and checking each one received.
   runs each): decoder 1.91–1.97 M/s (main 1.77–1.90), I/O port 0.99 M (main 0.93–0.96), counter
   2.39–2.47 M (main 2.48–2.52), synthetic 11.1–11.5k (main 11.5–12.1k) — within noise; before
   the split the decoder was 5–8 % slower (one large `evaluate`).
+- 2026-11-11 — task 8: the analysis finds strongly connected components (iterative Tarjan, a
+  soft core's netlist is deep) and keeps Kahn's order over them (ties by the smallest cell, so
+  loop-free modules run in the same order as before); `HdlAnalysis.loops`, a warning per loop
+  (`hdl-warning`, circuit.md), each loop cell with the whole loop's cone. The interpreter runs a
+  loop as one step (`loopStep`): passes until no output bit changes, at most 2 × cells + 2; past
+  that the changing bits go `X` and passes go on until that settles, and `settle` reports
+  `oscillation` ("the combinational loop through r3 doesn't settle: X"); the simulation goes on.
+  Tests on `loops.v` (an SR latch of NANDs from X, set, hold, reset; a ring that settles while
+  disabled, oscillates when enabled); four mutations caught. Benchmark unchanged (decoder
+  1.92 M/s, synthetic 12.6k).
 
 ## Handoff
 
-- **State:** tasks 1–7 done: every cell of the scope runs, any width and signedness, power-up
-  values, internal clocks and asynchronous controls, races `X` and reported. Only loops are
-  still refused (task 8).
-- **Next step:** task 8 — combinational loops: SCCs (Tarjan) in the analysis instead of the
-  loop error (a warning), groups iterated to a fixed point in `settle`, `X` and `oscillation`
-  where they don't settle; `loops.v`, `loop.v` (its comment and refusal test).
+- **State:** tasks 1–8 done: everything HDL-9 runs is built — every cell of the scope at any
+  width and signedness, power-up values, internal clocks and asynchronous controls, races `X`
+  and reported, combinational loops. Left: the proof (differential tests, the UART example),
+  benchmark notes, docs.
+- **Next step:** task 9 — differential tests: `scripts/hdl-differential.ts`
+  (`pnpm hdl:differential`, system Yosys): seeded random expressions over every word cell, and
+  small sequential designs in `src/library/hdl/differential/*.v`; Yosys's `sim -r` replays a
+  witness (`.yw`, JSON) and writes a VCD; commit the IR, vectors and Yosys's outputs;
+  `differential.test.ts` compares every bit.
 - **Watch out:** Yosys's `sim -r` takes no `-clock` with a witness file (the clocks are in it).
   `evaluate` must stay a few small phase functions: one large function cost the decoder 5–8 %.
   A test needing known flip-flops at power-on with a pin-made clock needs a reset (an edge from

@@ -1,9 +1,10 @@
 /**
  * What the interpreter needs to know about a module before it runs it (HDL-1): who drives each
  * bit (a pin, a cell), the order of its combinational cells, its flip-flops, the pins each cell
- * depends on (HDL-8: a floating pin is reported where it is used), and what it can't run — a bit
- * driven twice, two inout ports joined, a combinational loop — or runs differently from a Verilog
- * simulator (an inferred latch). Clocks and asynchronous controls may come from anywhere (HDL-9).
+ * depends on (HDL-8: a floating pin is reported where it is used), its combinational loops
+ * (HDL-9), and what it can't run — a bit driven twice, two inout ports joined — or runs
+ * differently from a Verilog simulator (an inferred latch, a loop). Clocks and asynchronous
+ * controls may come from anywhere (HDL-9).
  * Spec: docs/components.md#verilog-modules-hdl.
  */
 import {
@@ -21,8 +22,13 @@ export interface HdlAnalysis {
    * the pin, not the bit: the module reads that bit back from the pin.
    */
   readonly driver: Int32Array;
-  /** The combinational cells (latches among them) in evaluation order: each after those it reads. */
+  /**
+   * The combinational cells (latches among them) in evaluation order: each after those it reads,
+   * the cells of a loop together.
+   */
   readonly order: readonly number[];
+  /** The combinational loops (HDL-9), each its cells in `order`'s order, in the order they run. */
+  readonly loops: readonly (readonly number[])[];
   /** The flip-flops, in cell order. */
   readonly flipFlops: readonly number[];
   /**
@@ -137,10 +143,9 @@ export function analyzeHdlModule(module: HdlModule): HdlAnalysis {
     flipFlops.push(index);
   }
 
-  // Kahn's algorithm over the combinational cells, in cell order where the order is free.
+  // Who reads each combinational cell's outputs, among the combinational cells.
   const isCombinational = new Uint8Array(cells.length);
   for (const index of combinational) isCombinational[index] = 1;
-  const waiting = new Int32Array(cells.length);
   const readers: number[][] = cells.map(() => []);
   for (const index of combinational) {
     const cell = cells[index]!;
@@ -154,26 +159,49 @@ export function analyzeHdlModule(module: HdlModule): HdlAnalysis {
       }
     }
     for (const from of sources) readers[from]!.push(index);
-    waiting[index] = sources.size;
   }
-  const order: number[] = [];
-  let ready = combinational.filter((index) => waiting[index] === 0);
-  while (ready.length > 0) {
-    const next: number[] = [];
-    for (const index of ready) {
-      order.push(index);
-      for (const reader of readers[index]!) if (--waiting[reader]! === 0) next.push(reader);
+
+  // Loops are the strongly connected components (HDL-9): their cells are evaluated together
+  // until they settle. The rest keep Kahn's order over the components, in cell order where the
+  // order is free, so a module without loops is evaluated as before.
+  const components = stronglyConnected(combinational, readers, cells.length);
+  const component = new Int32Array(cells.length).fill(-1);
+  for (const [c, members] of components.entries()) for (const m of members) component[m] = c;
+  const waiting = new Int32Array(components.length);
+  const next: Set<number>[] = components.map(() => new Set());
+  for (const index of combinational) {
+    for (const reader of readers[index]!) {
+      const from = component[index]!;
+      const to = component[reader]!;
+      if (from !== to && !next[from]!.has(to)) {
+        next[from]!.add(to);
+        waiting[to]!++;
+      }
     }
-    ready = next.sort((a, b) => a - b);
   }
-  if (order.length < combinational.length) {
+  const first = (c: number) => components[c]![0]!;
+  const order: number[] = [];
+  const loops: number[][] = [];
+  let ready = components.flatMap((_, c) => (waiting[c] === 0 ? [c] : []));
+  ready.sort((a, b) => first(a) - first(b));
+  while (ready.length > 0) {
+    const following: number[] = [];
+    for (const c of ready) {
+      const members = components[c]!;
+      order.push(...members);
+      if (members.length > 1 || readers[members[0]!]!.includes(members[0]!)) loops.push(members);
+      for (const to of next[c]!) if (--waiting[to]! === 0) following.push(to);
+    }
+    ready = following.sort((a, b) => first(a) - first(b));
+  }
+  const outputOf = (index: number) => cells[index]!.ports[HDL_CELLS[cells[index]!.type].output]!;
+  for (const members of loops) {
     // Name the loop by a signal on it, if one of its cells drives a named one.
-    const stuck = combinational.filter((index) => waiting[index]! > 0);
-    const outputOf = (index: number) => cells[index]!.ports[HDL_CELLS[cells[index]!.type].output]!;
     const named =
-      stuck.find((index) => !outputName(module, outputOf(index)).startsWith('bit ')) ?? stuck[0]!;
-    error(
-      `a combinational loop through ${outputName(module, outputOf(named))} — not supported yet (HDL-9)`,
+      members.find((index) => !outputName(module, outputOf(index)).startsWith('bit ')) ??
+      members[0]!;
+    warning(
+      `a combinational loop through ${outputName(module, outputOf(named))}: iterated until it settles, X where it doesn't`,
       cells[named]!.src,
     );
   }
@@ -192,7 +220,30 @@ export function analyzeHdlModule(module: HdlModule): HdlAnalysis {
     }
     return [...cone].sort((a, b) => a - b);
   };
+  const inLoop = new Int32Array(cells.length).fill(-1);
+  for (const [l, members] of loops.entries()) for (const m of members) inLoop[m] = l;
   for (const index of [...order, ...flipFlops]) {
+    const l = inLoop[index]!;
+    if (l >= 0) {
+      // A loop's cells depend on each other: each has the cone of the whole loop.
+      if (index !== loops[l]![0]) continue;
+      const members = loops[l]!;
+      const cone = new Set<number>();
+      for (const m of members) {
+        for (const port of HDL_CELLS[cells[m]!.type].inputs) {
+          for (const bit of cells[m]!.ports[port]!) {
+            if (typeof bit !== 'number') continue;
+            const from = driver[bit]!;
+            if (from === PIN) cone.add(bit);
+            else if (from >= 0 && isCombinational[from] && inLoop[from] !== l)
+              for (const b of cones[from]!) cone.add(b);
+          }
+        }
+      }
+      const sorted = [...cone].sort((a, b) => a - b);
+      for (const m of members) cones[m] = sorted;
+      continue;
+    }
     const cell = cells[index]!;
     cones[index] = coneOf(cell, HDL_CELLS[cell.type].inputs);
   }
@@ -203,6 +254,7 @@ export function analyzeHdlModule(module: HdlModule): HdlAnalysis {
   return {
     driver,
     order,
+    loops,
     flipFlops,
     cones,
     dataCones,
@@ -214,4 +266,58 @@ export function analyzeHdlModule(module: HdlModule): HdlAnalysis {
 /** Whether `bit` is an input port's. */
 function isInputBit(module: HdlModule, bit: number): boolean {
   return module.ports.some((port) => port.dir === 'in' && port.bits.includes(bit));
+}
+
+/**
+ * The strongly connected components of the graph `readers` (an edge from a cell to each cell
+ * reading it) over `nodes`, by Tarjan's algorithm without recursion (a soft core's netlist is
+ * deep). Each component's cells in ascending order.
+ */
+function stronglyConnected(
+  nodes: readonly number[],
+  readers: readonly (readonly number[])[],
+  size: number,
+): number[][] {
+  const index = new Int32Array(size).fill(-1);
+  const low = new Int32Array(size);
+  const onStack = new Uint8Array(size);
+  const stack: number[] = [];
+  const components: number[][] = [];
+  let counter = 0;
+  for (const root of nodes) {
+    if (index[root]! >= 0) continue;
+    // Each frame: a node and the position of the next reader to visit.
+    const work: [number, number][] = [[root, 0]];
+    index[root] = low[root] = counter++;
+    stack.push(root);
+    onStack[root] = 1;
+    while (work.length > 0) {
+      const frame = work[work.length - 1]!;
+      const v = frame[0];
+      const out = readers[v]!;
+      if (frame[1] < out.length) {
+        const w = out[frame[1]++]!;
+        if (index[w]! < 0) {
+          index[w] = low[w] = counter++;
+          stack.push(w);
+          onStack[w] = 1;
+          work.push([w, 0]);
+        } else if (onStack[w]) low[v] = Math.min(low[v]!, index[w]!);
+        continue;
+      }
+      work.pop();
+      const parent = work[work.length - 1];
+      if (parent) low[parent[0]] = Math.min(low[parent[0]]!, low[v]!);
+      if (low[v] !== index[v]) continue;
+      const members: number[] = [];
+      let w: number;
+      do {
+        w = stack.pop()!;
+        onStack[w] = 0;
+        members.push(w);
+      } while (w !== v);
+      components.push(members.sort((a, b) => a - b));
+    }
+  }
+  return components;
 }
