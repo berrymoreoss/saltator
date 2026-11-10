@@ -186,7 +186,7 @@ Rejected (for the ADR):
   an inner channel, rewind.
 - [x] 4. Waveforms (`analyzer.ts`): probes on inner signals, the trigger on them, VCD.
 - [x] 5. Debugger: breakpoints on inner signals (incl. Reverse Continue's replica), watches.
-- [ ] 6. Benches: inner outputs for `get`/`expect`/`row`, drives refused; `pnpm test:circuits`.
+- [x] 6. Benches: inner outputs for `get`/`expect`/`row`, drives refused; `pnpm test:circuits`.
 - [ ] 7. Suggestions: Waveforms/Debug boxes and the bench editor.
 - [ ] 8. Module view: the Signals section (Q3).
 - [ ] 9. Proof (Q4): examples, `tests/scenarios/verilog-inspection.test.ts`,
