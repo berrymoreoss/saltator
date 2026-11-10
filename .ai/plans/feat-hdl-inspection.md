@@ -176,7 +176,7 @@ Rejected (for the ADR):
 
 ## Tasks
 
-- [ ] 1. Core: `SignalsView` on `ComponentDefinition` (registry check); the module part
+- [x] 1. Core: `SignalsView` on `ComponentDefinition` (registry check); the module part
   implements it. Tests: `uart_tx`'s `shift`/`left`/`tick` through a send, aliases of a port,
   constant bits, `X` before power-up values.
 - [ ] 2. Resolver: the `inner` target, sources in `ProbeTarget`, names with `.`, slices (Q2),

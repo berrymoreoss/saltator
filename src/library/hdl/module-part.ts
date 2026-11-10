@@ -25,6 +25,7 @@ import {
   hdlPortPins,
   Level,
   type PinDef,
+  type SignalsDef,
   strong,
   toInput,
 } from '../../core';
@@ -421,9 +422,29 @@ export function hdlPart(type: string, name: string, module: HdlModule): HdlPartR
     keywords: ['verilog', 'module', module.top],
     pins: hdlPins(module),
     props: [hdlDelayProp],
+    signals: innerSignals(module),
     create: (props) => behavior(program, props.delay),
   });
   return { definition, messages: analysis.messages };
+}
+
+/**
+ * The module's named signals as the part shows them (HDL-4): each bit read from the planes,
+ * where a register's or latch's state is its `Q` bits — 0, 1 and `X` are `Level`'s numbers.
+ */
+function innerSignals(module: HdlModule): SignalsDef<HdlState> {
+  const named = module.signals.filter((s) => s.bits.length > 0);
+  const list = named.map((s) => ({
+    name: s.name,
+    lsb: s.lsb,
+    width: s.bits.length,
+    ...(s.src !== undefined && { src: s.src }),
+  }));
+  const planes = named.map((s) => Int32Array.from(s.bits, (b) => planeIndex(b, module.bitCount)));
+  return {
+    list,
+    level: (state, signal, bit) => tri(state.val, state.unk, planes[signal]![bit]!) as Level,
+  };
 }
 
 /** Whether a flip-flop's next state (`nextState`) has an unknown bit. */

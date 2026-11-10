@@ -98,6 +98,13 @@ export {
   writeIntelHex,
 } from './image-files';
 export {
+  type InnerBit,
+  type InnerSignal,
+  innerReader,
+  type SignalsDef,
+  signalsProblems,
+} from './inner-signals';
+export {
   and,
   DRIVES,
   Drive,

@@ -9,6 +9,7 @@ import {
 import { cpuProblems } from './cpu';
 import { validateFunctionTable } from './function-table';
 import type { HdlModule, HdlPartResult } from './hdl-module';
+import { signalsProblems } from './inner-signals';
 import { symbolOf, validateSymbol } from './symbol';
 
 /**
@@ -77,6 +78,10 @@ export class Registry implements ComponentRegistry {
       validateMemory(definition, pins);
       if (definition.cpu) {
         const problems = cpuProblems(definition.cpu, pins);
+        if (problems.length > 0) throw new Error(`${type}: ${problems.join('; ')}`);
+      }
+      if (definition.signals) {
+        const problems = signalsProblems(definition.signals);
         if (problems.length > 0) throw new Error(`${type}: ${problems.join('; ')}`);
       }
       this.byType.set(type, definition);

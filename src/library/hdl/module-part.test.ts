@@ -3,6 +3,7 @@ import {
   type AnyComponentDefinition,
   HDL_DEFAULT_DELAY,
   type HdlModule,
+  innerReader,
   Level,
   levelChar,
   ns,
@@ -1032,5 +1033,106 @@ describe('tri-states and inout ports (HDL-8)', () => {
     bench.sim.restore(snapshot);
     expect(run()).toEqual(first);
     expect(first.slice(0, 2)).toEqual(['01011010', 'ZZZZZZZZ']);
+  });
+});
+
+describe('inner signals (HDL-4)', () => {
+  /** An inner signal's bits now, most significant first (`'01'`), through the part's view. */
+  function inner(bench: Bench, name: string): string {
+    const view = bench.sim.definitionOf('DUT')?.signals;
+    const index = view?.list.findIndex((s) => s.name === name) ?? -1;
+    if (!view || index < 0) throw new Error(`no inner signal ${name}`);
+    const state = bench.sim.stateOf('DUT');
+    const { width } = view.list[index]!;
+    return Array.from({ length: width }, (_, bit) => levelChar(view.level(state, index, bit)))
+      .reverse()
+      .join('');
+  }
+
+  it('lists the named signals that are not ports, with their indices and sources', () => {
+    const view = part('traffic').signals;
+    expect(view?.list).toEqual([
+      { name: 'state', lsb: 0, width: 2, src: expect.stringMatching(/^traffic\.v:\d+/) },
+    ]);
+    expect(part('clocks').signals?.list.map((s) => `${s.name}:${s.width}`)).toEqual([
+      'div:1',
+      'rip:4',
+      'ten:1',
+    ]);
+    // A flattened submodule's names keep their dots.
+    expect(part('flattened').signals?.list.map((s) => s.name)).toEqual(['u1.a', 'u2.y']);
+  });
+
+  it("reads a state machine's register as it steps, X until reset", () => {
+    const bench = new Bench(part('traffic'));
+    bench.set({ clk: 0, rst_n: 1, tick: 1 });
+    tick(bench);
+    expect(inner(bench, 'state')).toBe('XX');
+    bench.set({ rst_n: 0 });
+    tick(bench);
+    expect(inner(bench, 'state')).toBe('00');
+    bench.set({ rst_n: 1 });
+    const seen: string[] = [];
+    for (let i = 0; i < 4; i++) {
+      tick(bench);
+      seen.push(inner(bench, 'state'));
+    }
+    expect(seen).toEqual(['01', '10', '00', '01']);
+  });
+
+  it('changes at the clock edge, before the pins that follow it after the delay', () => {
+    const bench = new Bench(part('traffic'));
+    bench.set({ clk: 0, rst_n: 0, tick: 0 });
+    tick(bench);
+    bench.set({ rst_n: 1, tick: 1, clk: 0 });
+    bench.run(us(1));
+    bench.set({ clk: 1 });
+    bench.run(ns(1));
+    expect(inner(bench, 'state')).toBe('01');
+    expect(read(bench, 'st', 0, 2)).toBe('00');
+    bench.run(HDL_DEFAULT_DELAY);
+    expect(read(bench, 'st', 0, 2)).toBe('01');
+  });
+
+  it('reads power-up values, a ripple chain, and bits shared with a port', () => {
+    const bench = new Bench(part('clocks'));
+    bench.set({ clk: 0, d0: 0, d1: 0, d2: 0, d3: 0 });
+    bench.settle();
+    expect(inner(bench, 'div')).toBe('0');
+    expect(inner(bench, 'rip')).toBe('0000');
+    for (let i = 0; i < 3; i++) tick(bench);
+    expect(inner(bench, 'div')).toBe('1');
+    expect(inner(bench, 'rip')).toBe('0011');
+    expect(read(bench, 'ripple', 0, 4)).toBe('0011');
+    const twice = new Bench(part('flattened'));
+    twice.set({ a: 1 });
+    twice.settle();
+    expect(inner(twice, 'u1.a')).toBe('1');
+  });
+
+  it('reads one bit through innerReader, and nothing for a bit or part that is not there', () => {
+    const bench = new Bench(part('traffic'));
+    bench.set({ clk: 0, rst_n: 0, tick: 0 });
+    tick(bench);
+    bench.set({ rst_n: 1, tick: 1 });
+    tick(bench);
+    expect(innerReader(bench.sim, { part: 'DUT', signal: 0, bit: 0 })?.()).toBe(Level.L1);
+    expect(innerReader(bench.sim, { part: 'DUT', signal: 0, bit: 1 })?.()).toBe(Level.L0);
+    expect(innerReader(bench.sim, { part: 'DUT', signal: 0, bit: 2 })).toBeUndefined();
+    expect(innerReader(bench.sim, { part: 'DUT', signal: 1, bit: 0 })).toBeUndefined();
+    expect(innerReader(bench.sim, { part: 'U9', signal: 0, bit: 0 })).toBeUndefined();
+  });
+
+  it('reads the same values after a snapshot is restored', () => {
+    const bench = new Bench(part('traffic'));
+    bench.set({ clk: 0, rst_n: 0, tick: 0 });
+    tick(bench);
+    bench.set({ rst_n: 1, tick: 1 });
+    const snapshot = bench.sim.snapshot();
+    tick(bench);
+    tick(bench);
+    expect(inner(bench, 'state')).toBe('10');
+    bench.sim.restore(snapshot);
+    expect(inner(bench, 'state')).toBe('00');
   });
 });
