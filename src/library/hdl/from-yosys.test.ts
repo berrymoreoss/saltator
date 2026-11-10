@@ -17,17 +17,23 @@ const lines = (name: string) =>
 
 const ACCEPTED = [
   'arith',
+  'by_name',
+  'clock',
+  'clocks',
   'counter',
   'decoder',
   'display',
+  'ff_flavours',
   'flattened',
   'init',
   'inout',
   'inout_shapes',
+  'inits',
   'io_port',
   'latches',
   'open_drain',
   'ops',
+  'races',
   'shifts',
   'signed',
   'signed_ops',
@@ -249,10 +255,6 @@ describe('fromYosys: what it refuses', () => {
     [
       'gates',
       'error -: a gate-level netlist ($_ANDNOT_): make the JSON with the command — without synth or techmap',
-    ],
-    [
-      'clock',
-      'error clock.v:4.3-4.31: the clock of q is made inside the module — not supported yet (HDL-9)',
     ],
   ])('%s', (name, message) => {
     const result = convert(name);

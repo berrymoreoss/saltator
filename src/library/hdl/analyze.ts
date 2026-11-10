@@ -2,8 +2,8 @@
  * What the interpreter needs to know about a module before it runs it (HDL-1): who drives each
  * bit (a pin, a cell), the order of its combinational cells, its flip-flops, the pins each cell
  * depends on (HDL-8: a floating pin is reported where it is used), and what it can't run — a bit
- * driven twice, two inout ports joined, a clock or an asynchronous reset made inside the module,
- * a combinational loop — or runs differently from a Verilog simulator (an inferred latch).
+ * driven twice, two inout ports joined, a combinational loop — or runs differently from a Verilog
+ * simulator (an inferred latch). Clocks and asynchronous controls may come from anywhere (HDL-9).
  * Spec: docs/components.md#verilog-modules-hdl.
  */
 import {
@@ -30,29 +30,26 @@ export interface HdlAnalysis {
    * first: the floating pins its value can come from.
    */
   readonly cones: readonly (readonly number[])[];
+  /**
+   * Per flip-flop (in `flipFlops` order), the bits read from pins that what its edges sample — D,
+   * EN, SRST — depends on: a race where one changes with the clock (HDL-9).
+   */
+  readonly dataCones: readonly (readonly number[])[];
+  /** Per flip-flop, the bits read from pins its asynchronous controls (and `AD`) depend on. */
+  readonly asyncCones: readonly (readonly number[])[];
   /** Errors (it can't run) first, then warnings. */
   readonly messages: readonly HdlMessage[];
 }
+
+/** A flip-flop's ports an edge samples. */
+const SAMPLED = ['D', 'EN', 'SRST'];
+/** A flip-flop's asynchronous (level-sensitive) ports. */
+const ASYNC = ['ARST', 'SET', 'CLR', 'ALOAD', 'AD'];
 
 /** A bit read from a pin (`HdlAnalysis.driver`). */
 export const PIN = -1;
 /** A bit nothing drives (`HdlAnalysis.driver`). */
 export const NO_DRIVER = -2;
-
-/** Cells the IR holds that the interpreter doesn't run yet (removed as HDL-9 builds them). */
-const PENDING: ReadonlySet<string> = new Set([
-  '$dffsr',
-  '$dffsre',
-  '$aldff',
-  '$aldffe',
-  '$dlatchsr',
-  '$sr',
-]);
-
-/** What the interpreter can't run of a cell yet (HDL-9 lifts these), or undefined. */
-function pendingProblem(cell: HdlModule['cells'][number]): string | undefined {
-  return PENDING.has(cell.type) ? `${cell.type} cells are not supported yet (HDL-9)` : undefined;
-}
 
 /** The name of the port or signal a bit belongs to (`q`, `state[1]`), for messages. */
 export function bitName(module: HdlModule, bit: HdlBit): string {
@@ -65,7 +62,7 @@ export function bitName(module: HdlModule, bit: HdlBit): string {
 }
 
 /** The name of the port or signal a cell output drives: `q`, `state` (by its first bit). */
-function outputName(module: HdlModule, bits: readonly HdlBit[]): string {
+export function outputName(module: HdlModule, bits: readonly HdlBit[]): string {
   const first = bits[0];
   if (first === undefined) return '?';
   for (const named of [...module.ports, ...module.signals]) {
@@ -96,10 +93,6 @@ export function analyzeHdlModule(module: HdlModule): HdlAnalysis {
     for (const bit of port.bits) if (typeof bit === 'number') inoutOf.set(bit, port.name);
   }
   const { cells } = module;
-  for (const cell of cells) {
-    const problem = pendingProblem(cell);
-    if (problem) error(problem, cell.src || undefined);
-  }
   for (const [index, cell] of cells.entries()) {
     const spec: HdlCellSpec = HDL_CELLS[cell.type];
     for (const bit of cell.ports[spec.output]!) {
@@ -142,18 +135,6 @@ export function analyzeHdlModule(module: HdlModule): HdlAnalysis {
       continue;
     }
     flipFlops.push(index);
-    const q = outputName(module, cell.ports.Q!);
-    const fromInput = (port: string) => {
-      const bit = cell.ports[port]?.[0];
-      return bit === undefined || typeof bit !== 'number' || driver[bit] === PIN;
-    };
-    if (!fromInput('CLK'))
-      error(`the clock of ${q} is made inside the module — not supported yet (HDL-9)`, cell.src);
-    if (!fromInput('ARST'))
-      error(
-        `the asynchronous reset of ${q} is made inside the module — not supported yet (HDL-9)`,
-        cell.src,
-      );
   }
 
   // Kahn's algorithm over the combinational cells, in cell order where the order is free.
@@ -199,22 +180,35 @@ export function analyzeHdlModule(module: HdlModule): HdlAnalysis {
 
   // The cones, in evaluation order so a driver's is ready before its readers'.
   const cones: (readonly number[])[] = cells.map(() => []);
-  for (const index of [...order, ...flipFlops]) {
-    const cell = cells[index]!;
-    const spec: HdlCellSpec = HDL_CELLS[cell.type];
+  const coneOf = (cell: HdlModule['cells'][number], ports: readonly string[]): number[] => {
     const cone = new Set<number>();
-    for (const port of spec.inputs) {
-      for (const bit of cell.ports[port]!) {
+    for (const port of ports) {
+      for (const bit of cell.ports[port] ?? []) {
         if (typeof bit !== 'number') continue;
         const from = driver[bit]!;
         if (from === PIN) cone.add(bit);
         else if (from >= 0 && isCombinational[from]) for (const b of cones[from]!) cone.add(b);
       }
     }
-    cones[index] = [...cone].sort((a, b) => a - b);
+    return [...cone].sort((a, b) => a - b);
+  };
+  for (const index of [...order, ...flipFlops]) {
+    const cell = cells[index]!;
+    cones[index] = coneOf(cell, HDL_CELLS[cell.type].inputs);
   }
+  // A flip-flop's data — what an edge samples — and its asynchronous controls, apart.
+  const dataCones = flipFlops.map((index) => coneOf(cells[index]!, SAMPLED));
+  const asyncCones = flipFlops.map((index) => coneOf(cells[index]!, ASYNC));
 
-  return { driver, order, flipFlops, cones, messages: [...errors, ...warnings] };
+  return {
+    driver,
+    order,
+    flipFlops,
+    cones,
+    dataCones,
+    asyncCones,
+    messages: [...errors, ...warnings],
+  };
 }
 
 /** Whether `bit` is an input port's. */

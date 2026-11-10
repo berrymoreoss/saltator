@@ -261,6 +261,28 @@ export function compileStep(cell: HdlCell, bitCount: number): CellStep {
         }
       };
     }
+    case '$dlatchsr':
+    case '$sr': {
+      // Per bit: CLR wins, then SET, then (a latch's) D while enabled; held otherwise.
+      const latch = cell.type === '$dlatchsr';
+      const en = latch ? indices(cell, 'EN', bitCount)[0]! : 0;
+      const enPolarity = latch ? (cell.params.EN_POLARITY as number) : 0;
+      const d = latch ? indices(cell, 'D', bitCount) : y;
+      const set = indices(cell, 'SET', bitCount);
+      const clr = indices(cell, 'CLR', bitCount);
+      const setPolarity = cell.params.SET_POLARITY as number;
+      const clrPolarity = cell.params.CLR_POLARITY as number;
+      return (val, unk) => {
+        const e = latch ? active(tri(val, unk, en), enPolarity) : 0;
+        for (let i = 0; i < width; i++) {
+          const q = tri(val, unk, y[i]!);
+          const held = pick(e, tri(val, unk, d[i]!), q);
+          const c = active(tri(val, unk, clr[i]!), clrPolarity);
+          const st = active(tri(val, unk, set[i]!), setPolarity);
+          put(val, unk, y[i]!, pick(c, 0, pick(st, 1, held)));
+        }
+      };
+    }
     case '$tribuf': {
       // Inside the module a released net reads X; the pin it drives is the part's business.
       const en = indices(cell, 'EN', bitCount)[0]!;
@@ -294,6 +316,15 @@ export interface FlipFlop {
   readonly arst: number;
   readonly arstPolarity: number;
   readonly arstValue: Int32Array;
+  /** Per bit, asynchronous set and clear (`$dffsr`, `$dffsre`); empty where it has none. */
+  readonly set: Int32Array;
+  readonly setPolarity: number;
+  readonly clr: Int32Array;
+  readonly clrPolarity: number;
+  /** An asynchronous load of `ad` (`$aldff`, `$aldffe`); −1 where it has none. */
+  readonly aload: number;
+  readonly aloadPolarity: number;
+  readonly ad: Int32Array;
   /** Where its next state sits in the instance's `next` array. */
   readonly offset: number;
 }
@@ -320,6 +351,13 @@ export function compileFlipFlop(cell: HdlCell, bitCount: number, offset: number)
     arst: one('ARST'),
     arstPolarity: polarity('ARST_POLARITY'),
     arstValue: values('ARST_VALUE'),
+    set: indices(cell, 'SET', bitCount),
+    setPolarity: polarity('SET_POLARITY'),
+    clr: indices(cell, 'CLR', bitCount),
+    clrPolarity: polarity('CLR_POLARITY'),
+    aload: one('ALOAD'),
+    aloadPolarity: polarity('ALOAD_POLARITY'),
+    ad: indices(cell, 'AD', bitCount),
     offset,
   };
 }
@@ -354,12 +392,34 @@ export function load(ff: FlipFlop, val: Uint8Array, unk: Uint8Array, next: Uint8
   for (let i = 0; i < ff.q.length; i++) put(val, unk, ff.q[i]!, next[ff.offset + i]!);
 }
 
-/** An asynchronous reset, level-sensitive: the reset value while active, merged while unknown. */
-export function asyncReset(ff: FlipFlop, val: Uint8Array, unk: Uint8Array): void {
-  if (ff.arst < 0) return;
-  const r = active(tri(val, unk, ff.arst), ff.arstPolarity);
-  if (r === 0) return;
+/** Whether a flip-flop has an asynchronous control: reset, set and clear, or load. */
+export const hasAsync = (ff: FlipFlop): boolean =>
+  ff.arst >= 0 || ff.set.length > 0 || ff.aload >= 0;
+
+/**
+ * A flip-flop's asynchronous controls, level-sensitive: while active, the reset value, the loaded
+ * `AD`, or per bit clear (which wins) and set; merged while unknown. Says whether a bit changed.
+ */
+export function applyAsync(ff: FlipFlop, val: Uint8Array, unk: Uint8Array): boolean {
+  const r = ff.arst < 0 ? 0 : active(tri(val, unk, ff.arst), ff.arstPolarity);
+  const l = ff.aload < 0 ? 0 : active(tri(val, unk, ff.aload), ff.aloadPolarity);
+  const bits = ff.set.length > 0;
+  if (r === 0 && l === 0 && !bits) return false;
+  let changed = false;
   for (let i = 0; i < ff.q.length; i++) {
-    put(val, unk, ff.q[i]!, pick(r, tri(val, unk, ff.arstValue[i]!), tri(val, unk, ff.q[i]!)));
+    const q = tri(val, unk, ff.q[i]!);
+    let t = q;
+    if (l !== 0) t = pick(l, tri(val, unk, ff.ad[i]!), t);
+    if (r !== 0) t = pick(r, tri(val, unk, ff.arstValue[i]!), t);
+    if (bits) {
+      const c = active(tri(val, unk, ff.clr[i]!), ff.clrPolarity);
+      const st = active(tri(val, unk, ff.set[i]!), ff.setPolarity);
+      t = pick(c, 0, pick(st, 1, t));
+    }
+    if (t !== q) {
+      put(val, unk, ff.q[i]!, t);
+      changed = true;
+    }
   }
+  return changed;
 }

@@ -75,18 +75,19 @@ describe('analyzeHdlModule', () => {
     expect(analyzeHdlModule(base([dff(0, 3, 4), not(4, 3), dff('0', 1, 5)])).messages).toEqual([]);
   });
 
-  it('reports clocks and asynchronous resets made inside the module', () => {
+  it('takes clocks and asynchronous resets made inside the module (HDL-9), cones apart', () => {
     const adff: HdlCell = {
       type: '$adff',
       src: 'a.v:9',
       ports: { CLK: [0], ARST: [4], D: [1], Q: [5] },
       params: { CLK_POLARITY: 1, ARST_POLARITY: 1, ARST_VALUE: ['0'] },
     };
-    const { messages } = analyzeHdlModule(base([and(0, 1, 4), dff(4, 2, 3, 'a.v:8'), adff]));
-    expect(messages.map((m) => m.message)).toEqual([
-      'the clock of y is made inside the module — not supported yet (HDL-9)',
-      'the asynchronous reset of w is made inside the module — not supported yet (HDL-9)',
-    ]);
+    const analysis = analyzeHdlModule(base([and(0, 1, 4), dff(4, 2, 3, 'a.v:8'), adff]));
+    expect(analysis.messages).toEqual([]);
+    expect(analysis.flipFlops).toEqual([1, 2]);
+    // What an edge samples (D) apart from the asynchronous controls (ARST, from a and b).
+    expect(analysis.dataCones).toEqual([[2], [1]]);
+    expect(analysis.asyncCones).toEqual([[], [0, 1]]);
   });
 
   it('runs latches as combinational cells, enabled from logic, with a warning', () => {

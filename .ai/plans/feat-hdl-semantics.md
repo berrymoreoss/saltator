@@ -266,7 +266,7 @@ bytes and checking each one received.
   tests on the fixtures.
 - [x] 6. Power-up values: planes from `init` (no hook needed); tests (`reg q = 1`, a counter from
   5, an output register).
-- [ ] 7. Rounds and races (Q1): internal clocks by last-seen values, asynchronous controls from
+- [x] 7. Rounds and races (Q1): internal clocks by last-seen values, asynchronous controls from
   logic, the new flip-flops and latches (`$dffsr` `$dffsre` `$aldff` `$aldffe` `$sr`
   `$dlatchsr`), the bound and its diagnostic; a pin race (`setup-violation`) and an internal
   race (`race-violation`) loading `X`; analysis without the refusals; cones; tests (a divider,
@@ -356,16 +356,38 @@ bytes and checking each one received.
   evaluation at t = 0 drives them after `delay` (the planned `init` hook wasn't needed). The
   analysis's `init` warning is gone (circuit.md's `hdl-warning` too). Test on `inits.v`,
   mutation-checked.
+- 2026-11-11 — task 7: rounds and races in `module-part.ts`, the evaluation split into phases
+  (`pinEdges`, `readInputs`, `settle`, `resolveRaces`, `internalRounds`, `reportFloating`,
+  `driveOutputs`), each run only where the module needs it. Pin edges as HDL-1 (from the planes
+  before the delta, loaded before the pins are read) unless a pin of the flip-flop's data cone
+  (D, EN, SRST — `HdlAnalysis.dataCones`) changed in the same delta: then all pin flip-flops
+  wait, the racing ones are recomputed after the pins settle and merged (`setup-violation`).
+  Internal clocks by last-seen values (`HdlState.seen`, from the power-up planes, which now
+  settle in `createState` so `~div` is known at t = 0); a certain internal edge merges its next
+  state with the one from the evaluation's start (`race-violation`, "use a clock enable"); a
+  second edge of one flip-flop in one evaluation is named a glitching clock. Asynchronous
+  controls (ARST, SET/CLR, ALOAD/AD: `applyAsync`) apply after the logic, again while they
+  change something. `$dffsr` `$dffsre` `$aldff` `$aldffe` `$sr` `$dlatchsr` run; the analysis
+  refuses nothing of HDL-9 (`PENDING` gone). Found while testing: an endless self-clocking
+  loop is cut by the race rule (a flip-flop clocked twice in an instant) before the round
+  limit; the limit stays as a safety net. Tests on `clocks`, `races`, `ff_flavours`, `by_name`
+  and hand-made IR; six mutations caught (one — the power-up settle — only after a test for a
+  clock made from an initialized register was added). Benchmark, alternating with main (three
+  runs each): decoder 1.91–1.97 M/s (main 1.77–1.90), I/O port 0.99 M (main 0.93–0.96), counter
+  2.39–2.47 M (main 2.48–2.52), synthetic 11.1–11.5k (main 11.5–12.1k) — within noise; before
+  the split the decoder was 5–8 % slower (one large `evaluate`).
 
 ## Handoff
 
-- **State:** tasks 1–6 done: every combinational cell of the scope runs, any width and
-  signedness. `PENDING` (analyze.ts) still refuses `$dffsr` `$dffsre` `$aldff` `$aldffe`
-  `$dlatchsr` `$sr` (task 7).
-- **Next step:** task 7 — rounds and races (Design, "Sequencing"): internal clocks by last-seen
-  values (starting from the power-up planes), asynchronous controls from logic, the six
-  flip-flop/latch flavours out of `PENDING`, the pin race (`setup-violation`) and the internal
-  race (`race-violation`), the bound; fixtures `clocks`, `races`, `ff_flavours`, `by_name`.
+- **State:** tasks 1–7 done: every cell of the scope runs, any width and signedness, power-up
+  values, internal clocks and asynchronous controls, races `X` and reported. Only loops are
+  still refused (task 8).
+- **Next step:** task 8 — combinational loops: SCCs (Tarjan) in the analysis instead of the
+  loop error (a warning), groups iterated to a fixed point in `settle`, `X` and `oscillation`
+  where they don't settle; `loops.v`, `loop.v` (its comment and refusal test).
 - **Watch out:** Yosys's `sim -r` takes no `-clock` with a witness file (the clocks are in it).
+  `evaluate` must stay a few small phase functions: one large function cost the decoder 5–8 %.
+  A test needing known flip-flops at power-on with a pin-made clock needs a reset (an edge from
+  `X` is uncertain, as for pins).
 - **Verify with:** `pnpm check`; `pnpm bench tests/bench/hdl.bench.ts` against main (a
   worktree with `node_modules` symlinked, `./node_modules/.bin/vitest bench --run …` there).
