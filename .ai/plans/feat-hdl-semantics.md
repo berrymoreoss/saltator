@@ -101,7 +101,10 @@ Read before starting:
 - An SR latch from two NANDs, and `y = a ? ~y : y`, stay loops; `check` warns ("found logic
   loop"), the JSON is written.
 - `case` into a constant table stays `$pmux` + `$eq` (with `-norom`); `$bmux`/`$demux` never
-  appear.
+  appear. A cell instantiated by name needs `read_verilog -icells` (without it `$bmux` is a
+  black box `\$bmux` whose outputs nothing drives): `by_name.v` overrides the command so.
+- `opt` folds `~~x`: a "ring of three inverters" (`loops.v`) becomes one loop
+  `r3 = ~(r3 & en)` — still oscillating while `en` is 1.
 - Yosys's own evaluation: division by zero is all `x`; `-7 / 2 = -3`, `-7 % 2 = -1`
   (truncation, as Verilog); any `x` operand of `$mul`/`$div` makes all of `Y` `x`.
 - `sim -r stim.yw -vcd out.vcd` replays a Yosys witness file (JSON: input bits per step, the
@@ -249,7 +252,7 @@ bytes and checking each one received.
 
 ## Tasks
 
-- [ ] 1. Probe fixtures (`src/library/hdl/fixtures/`): arithmetic, signed, wide, every
+- [x] 1. Probe fixtures (`src/library/hdl/fixtures/`): arithmetic, signed, wide, every
   flip-flop flavour, internal clocks, loops, `init`, cells instantiated by name; `pnpm
   hdl:fixtures`; HDL-1's and HDL-8's fixtures unchanged otherwise.
 - [ ] 2. Core IR: the new cells and kinds, optional `A_SIGNED`/`B_SIGNED`, no word limit; shape
@@ -321,10 +324,14 @@ bytes and checking each one received.
 - 2026-11-10 — Q1 answered with a principle (closest to a real board): races load `X` and are
   reported; `$eqx`/`$nex` pessimistic. Q2 as proposed.
 - 2026-11-10 — plan approved; branch started.
+- 2026-11-10 — task 1: probe fixtures `arith`, `signed_ops`, `wide_ops`, `ff_flavours`, `clocks`,
+  `races`, `loops`, `inits`, `by_name` (`-icells`); the old fixtures unchanged (`hdl:fixtures`
+  now normalizes the pointer in a `$display` cell's name, which changed on every run).
 
 ## Handoff
 
-- **State:** plan approved (2026-11-10), branch started; no code yet.
-- **Next step:** task 1 — probe fixtures for the new constructs, `pnpm hdl:fixtures`.
+- **State:** task 1 done (probe fixtures); no production code yet.
+- **Next step:** task 2 — the IR in core: new cells and kinds, optional `A_SIGNED`/`B_SIGNED`,
+  no word limit, shape check, schema v8.
 - **Watch out:** Yosys's `sim -r` takes no `-clock` with a witness file (the clocks are in it).
 - **Verify with:** `pnpm check`.

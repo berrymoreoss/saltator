@@ -33,7 +33,10 @@ for (const file of readdirSync(DIR)
   }
   const parsed = JSON.parse(run.json) as { creator?: string };
   creator = parsed.creator ?? creator;
-  entries.push(`  ${quote(file.replace(/\.v$/, ''))}: ${quote(JSON.stringify(parsed))},`);
+  // Yosys names a `$display` cell after a pointer (`$display$0x776d044168:5$2`): a new name on
+  // every run, which would make every regeneration a diff.
+  const text = JSON.stringify(parsed).replace(/\$0x[0-9a-f]+:/g, '$$0x0:');
+  entries.push(`  ${quote(file.replace(/\.v$/, ''))}: ${quote(text)},`);
   console.log(`${file}${run.log === '' ? '' : `\n  ${run.log.replaceAll('\n', '\n  ')}`}`);
 }
 
