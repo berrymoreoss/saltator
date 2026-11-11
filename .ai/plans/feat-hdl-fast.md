@@ -4,7 +4,7 @@
 | ---------- | ---------------------------------------------------------------------------------------------- |
 | Branch     | `feat/hdl-fast`                                                                                |
 | Roadmap    | HDL-10 — Fast evaluation, track [Programmable logic](../../docs/roadmap/programmable-logic.md) |
-| Status     | in-progress                                                                                    |
+| Status     | done                                                                                           |
 | Depends on | HDL-1, HDL-8, HDL-9, HDL-4, HDL-6 (the IR and the interpreter), HDL-7 (the target's benchmark) |
 | Created    | 2026-11-11                                                                                     |
 
@@ -286,14 +286,13 @@ branch goes on and ends with what it reaches (Q3), the rest a track idea with th
   speed, tests), architecture.md, the `src/library` README, the track (HDL-10 built, the idea
   "Faster still"), lessons (V8's function size, benchmarks under activity, a filter matching
   nothing, unused bits in words, two ways to measure); the hostile-IR test through `hdlPart`.
+- 2026-11-12 — finished: `main` hadn't moved; acceptance verified (`pnpm check` 3 985 tests,
+  `pnpm build`, `pnpm e2e` 100, 34 example benches); HDL-10 `done`, HDL-2 `next`. Summary: the
+  IR compiled to JavaScript over 32-bit words with activity, only integers from a document in
+  the source; PicoRV32 ≈ 23× (≈ 240 k cycles/s headless, ≈ 200 k in Chromium; the 1 M target
+  missed, recorded per Q3), the example at 100 kHz in real time; the old interpreter removed.
 
 ## Handoff
 
-- **State:** every task done; acceptance verified; waiting for the user's review before
-  `finish-branch` (not pushed: the user asked to look first).
-- **Next step:** the user reviews; then `.ai/workflows/finish-branch.md` (merge `main` in,
-  checks, the track's status `done`, plan `done`, PR, merge with approval).
-- **Watch out:** comparing against the old interpreter now needs `main` (a worktree: call
-  `node_modules/.bin/vitest bench` directly there, `.ai/lessons.md` HDL-8).
-- **Watch out:** benchmark against `main` alternately in one sitting; native imports only.
-- **Verify with:** `pnpm check`; `pnpm bench tests/bench/hdl.bench.ts`.
+- Merged; nothing pending. Follow-ups: the track idea "Faster still" (HDL-10's profile, task 8);
+  `fix/run-loop-chunks` stays drafted, less urgent (≈ 40 frames a second at Max with PicoRV32).
