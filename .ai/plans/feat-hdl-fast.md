@@ -154,7 +154,7 @@ branch goes on and ends with what it reaches (Q3), the rest a track idea with th
 
 ## Tasks
 
-- [ ] 1. Layout: slots for every bit (`layout.ts`), operands as runs, words read and written by
+- [x] 1. Layout: slots for every bit (`layout.ts`), operands as runs, words read and written by
   runs; tests on fixtures (every bit has one slot, runs reproduce the bits).
 - [ ] 2. Code generator for combinational cells (`codegen.ts`): bitwise, reductions, logic,
   `$mux`, `$pmux`, comparisons, `$add`/`$sub`/`$neg`/`$mul` up to 32 bits, shifts, `$tribuf`,
