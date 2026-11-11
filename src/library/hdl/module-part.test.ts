@@ -1140,3 +1140,75 @@ describe('inner signals (HDL-4)', () => {
     expect(inner(bench, 'state')).toBe('00');
   });
 });
+
+describe('pin-to-pin delays from specify (HDL-2)', () => {
+  /** The bench settled with `values`. */
+  const settled = (name: string, values: BenchValues) => {
+    const bench = new Bench(part(name));
+    bench.set(values);
+    bench.run(us(1));
+    return bench;
+  };
+
+  it('drives an output with the delay of the path that changed, rise or fall', () => {
+    const b = settled('spec_paths', { a: 1, b: 1, s0: 0, s1: 0, clk: 0, d: 0, en: 0 });
+    expect(b.measure({ a: 0 }, 'y')).toBe(ns(9)); // y rises: (a => y)'s rise
+    expect(b.measure({ a: 1 }, 'y')).toBe(ns(8)); // and falls
+    expect(b.measure({ b: 0 }, 'y')).toBe(ns(9.5)); // (b => y) = (9.5, 10)
+    expect(b.measure({ b: 1 }, 'y')).toBe(ns(10));
+    // Both at once: the output settles after its slowest cause.
+    expect(b.measure({ a: 0, b: 0 }, 'y')).toBe(ns(9.5));
+  });
+
+  it('takes parallel paths bit by bit and full paths from every bit', () => {
+    const b = settled('spec_paths', { a: 0, b: 0, s0: 0, s1: 0, clk: 0, d: 0, en: 0 });
+    expect(b.measure({ s0: 1 }, 'p0')).toBe(ns(5));
+    b.set({ s0: 0 });
+    b.run(us(1));
+    // f = s + 1: s0 carries into f1, a path only (s *> f) has.
+    expect(b.measure({ s0: 1 }, 'f1')).toBe(ns(7));
+  });
+
+  it('times an edge-sensitive path from its edge only', () => {
+    const b = settled('spec_paths', { a: 0, b: 0, s0: 0, s1: 0, clk: 0, d: 1, en: 0 });
+    expect(b.measure({ clk: 1 }, 'q')).toBe(ns(17)); // rising q: 17
+    b.set({ clk: 0, d: 0 });
+    b.run(us(1));
+    expect(b.measure({ clk: 1 }, 'q')).toBe(ns(18)); // falling q: 18
+  });
+
+  it('takes a conditional path while its condition holds', () => {
+    const b = settled('spec_paths', { a: 0, b: 0, s0: 0, s1: 0, clk: 0, d: 0, en: 1 });
+    expect(b.measure({ a: 1 }, 'g')).toBe(ns(12)); // if (en) (a => g) = 12
+    expect(b.measure({ en: 0 }, 'g')).toBe(ns(11)); // (en => g) = 11
+    expect(b.measure({ en: 1 }, 'g')).toBe(ns(11));
+  });
+
+  it("enables and releases a 3-state output with the enable's two conditional paths", () => {
+    const b = settled('spec_tristate', { clk: 0, oen: 0, d0: 1, d1: 0, d2: 1, d3: 0 });
+    expect(b.measure({ clk: 1 }, 'q0')).toBe(ns(17));
+    expect(b.measure({ oen: 1 }, 'q0')).toBe(ns(14)); // if (oen): released after tdis
+    expect(b.get('q0')).toBe(Level.Z);
+    expect(b.measure({ oen: 0 }, 'q0')).toBe(ns(16)); // if (!oen): driven again after ten
+    expect(b.get('q0')).toBe(Level.L1);
+  });
+
+  it("times a chip's sections by their submodule's paths; an output no path reaches by the delay", () => {
+    const b = settled('spec_flattened', { a0: 1, a1: 1, b0: 1, b1: 1, c: 0 });
+    expect(b.measure({ a1: 0 }, 'y1')).toBe(ns(9));
+    expect(b.measure({ c: 1 }, 'z')).toBe(HDL_DEFAULT_DELAY); // its inner paths were dropped
+    const fast = new Bench(part('spec_flattened'), { delay: ns(4) });
+    fast.set({ a0: 1, a1: 1, b0: 1, b1: 1, c: 0 });
+    fast.run(us(1));
+    expect(fast.measure({ c: 1 }, 'z')).toBe(ns(4));
+    expect(fast.measure({ b0: 0 }, 'y0')).toBe(ns(9));
+  });
+
+  it('times asynchronous controls by their paths', () => {
+    const b = settled('spec_checks', { cp: 0, d: 0, sdn: 1, rdn: 1 });
+    expect(b.measure({ sdn: 0 }, 'q')).toBe(ns(18));
+    b.set({ sdn: 1 });
+    b.run(us(1));
+    expect(b.measure({ rdn: 0 }, 'q')).toBe(ns(19));
+  });
+});

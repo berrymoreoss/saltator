@@ -22,6 +22,7 @@ import {
   type HdlBit,
   type HdlModule,
   type HdlPartResult,
+  type HdlPortBit,
   hdlCellOutput,
   hdlDelayProp,
   hdlModuleProblems,
@@ -65,6 +66,7 @@ import {
   type WordWritePort,
   writesUnknown,
 } from './memory-cells';
+import { compilePathDelays, DRIVE_Z, type ModulePathDelays } from './path-delays';
 import { TX } from './planes';
 import { compileSettle, markAll, markWord, type Settle } from './settle';
 import { int } from './source';
@@ -225,6 +227,17 @@ interface Program {
   readonly writeDataSeesClock: Uint8Array;
   /** Per write port, what it writes, for messages: `memory buffer`. */
   readonly writeNames: readonly string[];
+  /** The driving pins' delays by the module's `specify` paths (HDL-2); none without paths. */
+  readonly pathDelays: ModulePathDelays | undefined;
+}
+
+/**
+ * Where a library part puts a module's pins (HDL-2): its own pin list (a data sheet's, with
+ * numbers, descriptions and power pins) and, per module pin (`hdlPins` order), its index there.
+ */
+export interface HdlPinMap {
+  readonly pins: readonly PinDef[];
+  readonly at: readonly number[];
 }
 
 const PORT_WORDS = { in: 'input', out: 'output', inout: 'inout' } as const;
@@ -250,10 +263,12 @@ export function hdlPins(module: HdlModule): PinDef[] {
   });
 }
 
-function compile(module: HdlModule, analysis: HdlAnalysis): Program {
+function compile(module: HdlModule, analysis: HdlAnalysis, map?: HdlPinMap): Program {
   const { bitCount, cells } = module;
   const { driver, cones } = analysis;
   const layout = layoutModule(module, analysis);
+  /** A module pin's index among the part's pins. */
+  const partPin = (pin: number) => (map ? map.at[pin]! : pin);
 
   // The pins read into the words: the inputs, then the inouts' bits no logic drives (an inout
   // sharing an input's bit drives it instead).
@@ -275,13 +290,13 @@ function compile(module: HdlModule, analysis: HdlAnalysis): Program {
   };
   for (const [p, port] of module.ports.entries()) {
     if (port.dir !== 'in') continue;
-    for (const [i, bit] of port.bits.entries()) read(firstPin[p]! + i, bit as number);
+    for (const [i, bit] of port.bits.entries()) read(partPin(firstPin[p]! + i), bit as number);
   }
   for (const [p, port] of module.ports.entries()) {
     if (port.dir !== 'inout') continue;
     for (const [i, bit] of port.bits.entries()) {
       if (typeof bit === 'number' && driver[bit] === PIN && readPos[bit]! < 0) {
-        read(firstPin[p]! + i, bit);
+        read(partPin(firstPin[p]! + i), bit);
       }
     }
   }
@@ -318,8 +333,12 @@ function compile(module: HdlModule, analysis: HdlAnalysis): Program {
   const driveBits: HdlBit[] = [];
   const driveEnables: HdlBit[] = [];
   const driveCones: Int32Array[] = [];
+  /** Per driving pin, its port's bit there: what `specify` paths name (HDL-2). */
+  const drivePortBits: HdlPortBit[] = [];
+  let portBit: HdlPortBit = 'z';
   const drives = (pin: number, kind: number, bit: HdlBit, enable: HdlBit, cone: Int32Array) => {
     drivePins.push(pin);
+    drivePortBits.push(portBit);
     driveKinds.push(kind);
     driveBits.push(bit);
     driveEnables.push(enable);
@@ -332,7 +351,8 @@ function compile(module: HdlModule, analysis: HdlAnalysis): Program {
   for (const [p, port] of module.ports.entries()) {
     if (port.dir === 'in') continue;
     for (const [i, bit] of port.bits.entries()) {
-      const pin = firstPin[p]! + i;
+      const pin = partPin(firstPin[p]! + i);
+      portBit = bit;
       if (bit === 'z') continue; // never driven: tristate and bidir pins start released
       if (typeof bit !== 'number') {
         drives(pin, STRONG, bit, '0', new Int32Array(0));
@@ -350,6 +370,24 @@ function compile(module: HdlModule, analysis: HdlAnalysis): Program {
       }
     }
   }
+
+  // Pin-to-pin delays (HDL-2): a path starts where its bit enters by an input's or inout's pin.
+  const entering = new Map<number, number[]>();
+  for (const [p, port] of module.ports.entries()) {
+    if (port.dir === 'out') continue;
+    for (const [i, bit] of port.bits.entries()) {
+      if (typeof bit !== 'number') continue;
+      const list = entering.get(bit) ?? [];
+      list.push(partPin(firstPin[p]! + i));
+      entering.set(bit, list);
+    }
+  }
+  const pathDelays = compilePathDelays(
+    module.specify?.paths ?? [],
+    layout,
+    drivePortBits,
+    (bit) => entering.get(bit) ?? [],
+  );
 
   // The memories (HDL-6): read ports as steps of the settle, write ports on edges.
   const memories = module.memories.map(compileMemory);
@@ -527,7 +565,7 @@ function compile(module: HdlModule, analysis: HdlAnalysis): Program {
         : undefined,
     asyncCones: analysis.asyncCones.map(toReadPins),
     roundLimit: 2 * (internal.length + writeInternal.length) + 4,
-    pinNames: hdlPins(module).map((pin) => pin.name),
+    pinNames: (map ? map.pins : hdlPins(module)).map((pin) => pin.name),
     loopNames,
     latches,
     initBits: Int32Array.from(initBits),
@@ -538,6 +576,7 @@ function compile(module: HdlModule, analysis: HdlAnalysis): Program {
     writes,
     writeClocks: places(layout, writeClockBits),
     writeClockPins,
+    pathDelays,
     writeInternal,
     writeCones: analysis.writePorts.map((index) => toReadPins(cones[index]!)),
     writeDataCones,
@@ -1100,20 +1139,29 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
     }
   };
 
-  /** Drives every output with the delay; one driven `X` reports the floating pins behind it. */
+  /**
+   * Drives every output with the delay — its `specify` paths' where it has some (HDL-2); one
+   * driven `X` reports the floating pins behind it.
+   */
   const { word: bitWord, pos: bitPos } = driveBits;
   const { word: enableWord, pos: enablePos } = driveEnables;
+  const { pathDelays } = program;
   const driveOutputs = (ctx: EvalContext<HdlState>, floats: number) => {
     const { v, u, floating } = ctx.state;
     for (let i = 0; i < drivePins.length; i++) {
       let drive: Drive;
+      let level: number;
       const t = levelAt(v, u, bitWord[i]!, bitPos[i]!);
-      if (driveKinds[i] === STRONG) drive = DRIVES[t]!;
-      else {
+      if (driveKinds[i] === STRONG) {
+        drive = DRIVES[t]!;
+        level = t;
+      } else {
         const e = levelAt(v, u, enableWord[i]!, enablePos[i]!);
         drive = e === 0 ? Drive.Z : e === 1 ? DRIVES[t]! : Drive.STRONG_X;
+        level = e === 0 ? DRIVE_Z : e === 1 ? t : TX;
       }
-      ctx.drive(drivePins[i]!, drive, delay);
+      const after = pathDelays ? pathDelays.delay(ctx, v, u, i, level, delay) : delay;
+      ctx.drive(drivePins[i]!, drive, after);
       if (floats > 0 && drive === Drive.STRONG_X)
         reportCone(ctx, driveCones[i]!, floating, readPins);
     }

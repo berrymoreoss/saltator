@@ -205,7 +205,7 @@ checks included, and a benchmark compares the Verilog 74HC00 with the hand-writt
 - [x] 2. IR: `specify` paths and checks in core, shape check, schema v10, round trip.
 - [x] 3. Converter: `$specify2/3`, `$specrule` → IR; units, decimals, idioms; warnings and
   refusals with source locations; fixture tests.
-- [ ] 4. Module part: pin list and port map from outside; per-bit path delays; the `delay` prop
+- [x] 4. Module part: pin list and port map from outside; per-bit path delays; the `delay` prop
   only where an output has no path; unit tests (each path kind, rise/fall, enable/disable,
   forced evaluation, carry-over unchanged).
 - [ ] 5. Timing checks in the module part: declaration from the IR, arming by conditions,
@@ -277,13 +277,15 @@ checks included, and a benchmark compares the Verilog 74HC00 with the hand-writt
   `fromYosys`; paths not between the top's pins and unchecked rules dropped with warnings. Found:
   Yosys keeps only the typical value of a lone triple `(6:7:8)` (min = typ = max = 7), while
   `(r, f)` with triples keeps all three — library sources write `(t:t:max, t:t:max)` (lesson).
+- 2026-11-12 — task 4: `path-delays.ts` (per driving pin, flat arrays; longest among the paths
+  whose source changed, edge and condition respected; fallback longest; the `delay` prop where no
+  path reaches); `compile` takes an `HdlPinMap` (library pins). Modules without `specify`: as before.
 
 ## Handoff
 
-- **State:** tasks 1–3 done (command, fixtures, IR v10, converter); modules with `specify` convert
-  but still run with the one `delay`.
-- **Next step:** task 4 — per-bit path delays in `module-part.ts` (pin list and port map from
-  outside too).
+- **State:** tasks 1–4 done; modules with `specify` time their outputs by their paths; checks
+  not run yet.
+- **Next step:** task 5 — timing checks in the module part (`TimingChecks`, effects).
 - **Watch out:** Yosys drops `$width`, `$period`, 3/6-value delays, `specparam`, `ifnone`, source
   lists — the conventions above work around them; try a construct on the real Yosys first.
 - **Verify with:** `pnpm check`; `pnpm hdl:fixtures` and `pnpm hdl:library` need `yosys`.
