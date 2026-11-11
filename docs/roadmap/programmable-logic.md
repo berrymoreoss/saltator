@@ -175,9 +175,14 @@ Speed for cores and video: only the cells downstream of what changed are evaluat
 time where no bit is `X`, and the IR is compiled once per module — to JavaScript functions or to
 WebAssembly, decided in its plan with the test bench sandbox
 ([ADR-0026](../adr/0026-test-bench-sandbox.md)) in mind, since a document's module is code from a
-shared file. The target is set from HDL-7's measurement: PicoRV32 running real programs, and a
-video controller's pixel clock within reach. Proof: HDL-7's example and benchmark, the same
-results at the target speed.
+shared file. **Target** (set by HDL-7's measurement, [its plan](../../.ai/plans/example-picorv32.md)
+Q4): PicoRV32 at **1 M cycles a second** headless (`pnpm bench`, the Verilog PicoRV32 example's
+module; ≈ 10.6 k on 2026-11-11, so ≈ 94×) — a 1 MHz core in real time — with HDL-1's benchmarks
+no slower. Where the time goes today (a profile of the example's board): ≈ 45 % in `$mux` and
+`$pmux` cells evaluated bit by bit over 32-bit words, ≈ 14 % gathering the operands of word
+cells, ≈ 18 % in flip-flop edges, ≈ 2 % in the kernel; every evaluation runs all ≈ 520
+combinational cells, the falling clock edge's too, where nothing changes. Proof: HDL-7's example
+and benchmark, the same results at the target speed.
 
 ## HDL-2 · Library parts in Verilog — `feat/hdl-library`
 

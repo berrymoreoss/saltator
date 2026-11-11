@@ -149,7 +149,7 @@ Small, ordered, each committable with its tests (`pnpm check` green).
   output, no diagnostics).
 - [x] 3. The example: its generator in `scripts/hdl-examples.ts` (board, module, benches, probes),
   `EXAMPLE_FILES`; `pnpm test:circuits` passes; the board scenario test.
-- [ ] 4. Speed: the benchmark (example configuration, full fixture), a profile, the numbers in
+- [x] 4. Speed: the benchmark (example configuration, full fixture), a profile, the numbers in
   this plan; HDL-10's target in the track (Q4).
 - [ ] 5. Browser: an e2e test (open, RESET, the output changes; Memory tab: RAM and register
   file); looked at in screenshots; the speed at Max written down.
@@ -206,11 +206,22 @@ Small, ordered, each committable with its tests (`pnpm check` green).
   `tests/scenarios/verilog-picorv32.test.ts`: the RAM holds `firmware.hex`; `add` → `sub` in
   the image fails the benches. The example's benches add ≈ 2.4 s of tests to `pnpm check`
   (≈ 1.7 s of wall time).
+- 2026-11-11 — task 4: `tests/bench/hdl.bench.ts` gains the example's module (a clock cycle,
+  n = 255) and its board as the app runs it (10 ms = 100 cycles of the 10 kHz clock), both read
+  from the example file and printing cycles/s: **≈ 10.6 k cycles/s** each (the board's 4
+  evaluations a cycle are the clock's two and the module's two). HDL-1's numbers unchanged
+  (decoder 1.88 M evaluations/s, synthetic 11.4 k). The full configuration (barrel, counters,
+  C, MUL, DIV, IRQ: 1 180 cells) runs at about half the example's speed (the scratch harness:
+  6.9 k against 13.1 k); not committed as a fixture (its JSON ≈ 1 MB) — the example is what
+  HDL-10 is held to. Profile (`node --cpu-prof`, the board, 30 k cycles): `$mux` 33 %, `$pmux`
+  12 % (bit by bit), word cells' `gather` 14 %, flip-flop edges (`nextState`, `pinEdges`,
+  `clockEdge`, `loadEdges`) 18 %, other logic cells 8 %, memories 2 %, the kernel 2 %; `settle`
+  runs every cell on both clock edges. HDL-10's target written into the track (Q4).
 
 ## Handoff
 
-- **State:** tasks 1–3 done; the example runs headless and its benches pass.
-- **Next step:** task 4 (benchmark, profile, HDL-10's target).
+- **State:** tasks 1–4 done; the example runs headless, its benches pass, the speed is measured.
+- **Next step:** task 5 (the example in the browser: e2e, screenshots, speed at Max).
 - **Watch out:** `hierarchy -auto-top` picks `picorv32_wb`; gate the wrapper's writes with
   `resetn` (power-up `X`). The experiment's files are in the session scratchpad, not the repo.
 - **Verify with:** `pnpm check`; `pnpm hdl:examples` (Yosys), `pnpm riscv:firmware` (LLVM).
