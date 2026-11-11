@@ -251,12 +251,30 @@ branch goes on and ends with what it reaches (Q3), the rest a track idea with th
   every step; 1.9 s. Mutations caught: a pin's change not marking (55 fail), races off (24), the
   floating rule's loads off (19), a write not marking its memory's reads (7), internal races off
   (1). The removal of the old interpreter waits for task 8 (7b).
+- 2026-11-12 — task 8 (first round): `generated()` in `source.ts`, the one `new Function`, names
+  each function (`hdl/settle-3.js`) for profiles; pins read a word at a time; the floating count
+  kept in state; the constants a word of their own (a bit read without a branch). The synthetic
+  benchmark's lanes get `init` values (all `X` before: nothing changed, nothing measured). Against
+  the old interpreter in one sitting (`tests/bench/hdl-reference.bench.ts`, untracked): decoder
+  2 140–2 200 k vs 1 880–2 000 k, counter 2 980–3 530 k vs 2 470–2 540 k, synthetic 1 450–1 620 k
+  vs 11.1–11.7 k, wide words 74–81 k vs 73–75 k, internal clocks 1 140–1 350 k vs 615–640 k,
+  register file 776–806 k vs 737–768 k, RAM 4K × 32 398–408 k vs 398–407 k, I/O port 952–961 k
+  vs 973–977 k (−2 %; measured directly the same, 5.39–5.44 vs 5.40–5.42 µs a cycle: the
+  kernel's reads and drives are ≈ 80 % of it), PicoRV32 232–247 k cycles/s (direct: 280–294 k).
+  PicoRV32's profile: ≈ 145 of its 456 steps run a cycle (≈ 7 ns each); the settle ≈ 35 %, the
+  edge's phases (`pinEdges`: the 5 write ports sampled bit by bit) ≈ 17 %, next states and loads
+  of all 116 flip-flops ≈ 11 %, pins ≈ 9 %, `clockEdge` 3 %, memory stores 4 %. Further speed
+  (a 2-state path, activity for flip-flops, write samples by limbs) → a track idea (Q3).
 
 ## Handoff
 
-- **State:** tasks 1–6 done: the part runs on words (generated cells, settle with activity,
-  flip-flops, memories); every test green; the old interpreter in `reference-part.ts`.
-- **Next step:** task 8 (benchmarks, profile, tuning; the synthetic benchmark needs a reset),
-  then 7b (remove `reference-part.ts`).
+- **State:** tasks 1–7 and a first round of 8 done: the part runs on words; every test green;
+  PicoRV32 ≈ 240 k cycles/s (×23); the old interpreter still in `reference-part.ts`.
+- **Next step:** 7b — remove `reference-part.ts`, `tests/scenarios/verilog-engine.test.ts`,
+  the byte-plane flip-flop functions in `cells.ts` (their model moves into
+  `flip-flops.test.ts`) and the plane memory ports in `memory-cells.ts`; keep `compileStep`
+  (the adapter's and generated code's reference); then task 9 (app), task 10 (docs).
+- **Watch out:** `tests/bench/hdl-reference.bench.ts` is an untracked copy of the bench on the
+  old part, for alternate measurements; delete it with 7b.
 - **Watch out:** benchmark against `main` alternately in one sitting; native imports only.
 - **Verify with:** `pnpm check`; `pnpm bench tests/bench/hdl.bench.ts`.
