@@ -395,3 +395,137 @@ describe('hdlModuleProblems', () => {
     ]);
   });
 });
+
+describe('hdlModuleProblems: specify (HDL-2)', () => {
+  const ns = (typ: number, max = typ) => ({ min: typ, typ, max });
+  const timed: HdlModule = {
+    ...sample,
+    specify: {
+      paths: [
+        { from: [1, 2], to: [3], full: true, rise: ns(9000, 23000), fall: ns(8000), src: 's.v:9' },
+        {
+          from: [0],
+          to: [4, 5],
+          full: true,
+          edge: 'rise',
+          rise: ns(17000),
+          fall: ns(17000),
+          src: '',
+        },
+        { from: [1, 2], to: [4, 5], full: false, when: 0, rise: ns(5000), fall: ns(5000), src: '' },
+      ],
+      checks: [
+        {
+          kind: 'setup',
+          clock: { bits: [0], edge: 'rise', when: 1 },
+          data: { bits: [1, 2] },
+          limit: 15000,
+          src: '',
+        },
+        {
+          kind: 'hold',
+          clock: { bits: [0], edge: 'rise' },
+          data: { bits: [1] },
+          limit: 3000,
+          src: '',
+        },
+        {
+          kind: 'recovery',
+          clock: { bits: [0], edge: 'rise' },
+          data: { bits: [2], edge: 'rise' },
+          limit: 8000,
+          src: '',
+        },
+        {
+          kind: 'removal',
+          clock: { bits: [0], edge: 'rise' },
+          data: { bits: [2], edge: 'rise' },
+          limit: 2000,
+          src: '',
+        },
+        {
+          kind: 'width',
+          clock: { bits: [0], edge: 'rise', when: '1' },
+          data: { bits: [0], edge: 'fall' },
+          limit: 20000,
+          src: '',
+        },
+      ],
+    },
+  };
+
+  it('takes paths and checks between the ports, also after a round trip through JSON', () => {
+    expect(hdlModuleProblems(timed)).toEqual([]);
+    expect(hdlModuleProblems(JSON.parse(JSON.stringify(timed)))).toEqual([]);
+  });
+
+  it('reports the shape of paths: their bits, widths, edges, conditions and delays', () => {
+    const paths = [
+      { from: [3], to: [1], full: true, rise: ns(1), fall: ns(1), src: '' },
+      { from: [], to: ['0'], full: true, rise: ns(1), fall: ns(1), src: '' },
+      {
+        from: [1, 2],
+        to: [4],
+        full: false,
+        edge: 'up',
+        when: 'z',
+        rise: ns(1),
+        fall: ns(1),
+        src: '',
+      },
+      { from: [1], to: [3], full: 1, rise: { min: 1, typ: -1, max: 1.5 }, fall: 3, src: 7, why: 1 },
+    ];
+    expect(hdlModuleProblems({ ...timed, specify: { paths, checks: [] } }, 'm')).toEqual([
+      "m.specify.paths[0].from: bit 3 is no input or inout's",
+      "m.specify.paths[0].to: bit 1 is no output or inout's",
+      'm.specify.paths[1].from: expected at least one bit',
+      'm.specify.paths[1].to: expected signal bits, got "0"',
+      'm.specify.paths[2].to: expected as many bits as from (a parallel path)',
+      'm.specify.paths[2].edge: expected "rise" or "fall"',
+      'm.specify.paths[2].when: expected signal bits or "0", "1", "x", got "z"',
+      'm.specify.paths[3].why: unknown field',
+      'm.specify.paths[3].full: expected a boolean',
+      'm.specify.paths[3].rise.typ: expected a time in ps, an integer ≥ 0',
+      'm.specify.paths[3].rise.max: expected a time in ps, an integer ≥ 0',
+      'm.specify.paths[3].fall: expected { min, typ, max }',
+      'm.specify.paths[3].src: expected a string',
+    ]);
+  });
+
+  it('reports checks the simulator cannot measure', () => {
+    const event = (bits: unknown[], edge?: string) => ({ bits, ...(edge && { edge }) });
+    const checks = [
+      { kind: 'skew', clock: event([0], 'rise'), data: event([1]), limit: 1, src: '' },
+      { kind: 'setup', clock: event([0, 1]), data: event([4]), limit: -1, src: '' },
+      { kind: 'recovery', clock: event([0], 'rise'), data: event([1, 2]), limit: 1, src: '' },
+      {
+        kind: 'width',
+        clock: event([0], 'rise'),
+        data: { ...event([1], 'rise'), when: 1 },
+        limit: 1,
+        src: '',
+      },
+      { kind: 'hold', clock: 'cp', data: event([1]), limit: 1, src: '', extra: 0 },
+    ];
+    expect(hdlModuleProblems({ ...timed, specify: { paths: [], checks } }, 'm')).toEqual([
+      'm.specify.checks[0].kind: expected one of setup, hold, recovery, removal, width',
+      "m.specify.checks[1].data.bits: bit 4 is no input or inout's",
+      'm.specify.checks[1].limit: expected a time in ps, an integer ≥ 0',
+      'm.specify.checks[1].clock.bits: expected one bit',
+      'm.specify.checks[1].clock.edge: expected an edge',
+      'm.specify.checks[2].data.bits: expected one bit',
+      'm.specify.checks[2].data.edge: expected an edge',
+      "m.specify.checks[3].data.bits: expected the clock's bit (a pulse of one pin)",
+      "m.specify.checks[3].data.edge: expected the edge opposite the clock's",
+      'm.specify.checks[3].data.when: expected none (the pulse is armed at its start)',
+      'm.specify.checks[4].extra: unknown field',
+      'm.specify.checks[4].clock: expected { bits, edge?, when? }',
+    ]);
+    expect(hdlModuleProblems({ ...timed, specify: { paths: [] } }, 'm')).toEqual([
+      'm.specify.checks: expected an array',
+    ]);
+    expect(hdlModuleProblems({ ...timed, specify: [] }, 'm')).toEqual([
+      'm.specify: expected an object',
+    ]);
+  });
+});

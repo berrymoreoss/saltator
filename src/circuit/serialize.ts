@@ -43,7 +43,10 @@ export function serializeDocument(document: CircuitDocument): string {
   ].join('\n');
 }
 
-/** A Verilog module: `{}`, or its IR with a line per port, signal, memory and cell. */
+/**
+ * A Verilog module: `{}`, or its IR with a line per port, signal, memory and cell, and per path
+ * and check of its timing (HDL-2).
+ */
 function verilogJson(module: HdlModule | undefined): string {
   if (!module) return '{}';
   const indent = '          ';
@@ -57,6 +60,17 @@ function verilogJson(module: HdlModule | undefined): string {
     `"memories": ${list(module.memories, indent)}`,
     `"cells": ${list(module.cells, indent)}`,
   ];
+  if (module.specify) {
+    const inner = `${indent}  `;
+    fields.push(
+      [
+        '"specify": {',
+        `${inner}"paths": ${list(module.specify.paths, inner)},`,
+        `${inner}"checks": ${list(module.specify.checks, inner)}`,
+        `${indent}}`,
+      ].join('\n'),
+    );
+  }
   return [
     '{',
     '        "module": {',

@@ -9,6 +9,7 @@ import type { AnyComponentDefinition, PinDir, PropDef } from './component';
 import { readHdlMemoryInit } from './hdl-memory';
 import { BUS_NAME } from './net-names';
 import { ns } from './time';
+import type { Edge } from './timing-checks';
 
 /** The IR's format; a change gets a document migration. */
 export const HDL_FORMAT = 1;
@@ -141,6 +142,70 @@ export interface HdlModule {
   /** Its memories (HDL-6), which `$memrd` and `$memwr` cells name by index. */
   readonly memories: readonly HdlMemory[];
   readonly cells: readonly HdlCell[];
+  /** Its pin-to-pin timing, from a `specify` block (HDL-2); absent without one. */
+  readonly specify?: HdlSpecify;
+}
+
+/**
+ * A module's `specify` block (HDL-2): its pin-to-pin delays and its timing checks, as Yosys's
+ * `read_verilog -specify` reads them. Times are in picoseconds (the source's numbers are
+ * nanoseconds).
+ */
+export interface HdlSpecify {
+  readonly paths: readonly HdlPath[];
+  readonly checks: readonly HdlCheck[];
+}
+
+/** A delay at the three corners of a `min:typ:max` triple, in picoseconds. */
+export interface HdlDelay {
+  readonly min: number;
+  readonly typ: number;
+  readonly max: number;
+}
+
+/**
+ * A pin-to-pin delay: a change of a `from` bit reaches the `to` bits after `rise` (an output
+ * going to 1) or `fall` (to 0). Its bits are signal bits of the module's ports — inputs or
+ * inouts at `from`, outputs or inouts at `to`.
+ */
+export interface HdlPath {
+  readonly from: readonly number[];
+  readonly to: readonly number[];
+  /** `*>`: every `from` bit reaches every `to` bit; `=>` (false): bit n reaches bit n. */
+  readonly full: boolean;
+  /** An edge-sensitive path (`posedge CP => …`): only this edge of a `from` bit. */
+  readonly edge?: Edge;
+  /** A conditional path (`if (en) …`): the bit that enables it, read after the change. */
+  readonly when?: HdlBit;
+  readonly rise: HdlDelay;
+  readonly fall: HdlDelay;
+  readonly src: string;
+}
+
+/** What a timing check measures (HDL-2, ADR-0014). */
+export type HdlCheckKind = 'setup' | 'hold' | 'recovery' | 'removal' | 'width';
+
+/** One side of a timing check: bits, the edge that counts (any change without one), its arming. */
+export interface HdlCheckEvent {
+  readonly bits: readonly number[];
+  readonly edge?: Edge;
+  /** `&&&`: the bit that arms the check; absent, always armed. */
+  readonly when?: HdlBit;
+}
+
+/**
+ * A timing check, measured from `clock`'s edge: `data` may not change `limit` before it (`setup`)
+ * or after it (`hold`); a control's release (`data`, its edge) may not come `limit` before the
+ * edge (`recovery`) or after it (`removal`); for `width`, `clock` is the edge that starts a pulse
+ * and `data` the same pin's opposite edge, which may not come `limit` after it. `limit` is the
+ * data sheet's guaranteed minimum, in picoseconds.
+ */
+export interface HdlCheck {
+  readonly kind: HdlCheckKind;
+  readonly clock: HdlCheckEvent;
+  readonly data: HdlCheckEvent;
+  readonly limit: number;
+  readonly src: string;
 }
 
 /** How a cell type is evaluated. */
@@ -421,6 +486,12 @@ export function hdlPortProblem(port: Pick<HdlPort, 'name' | 'lsb' | 'bits'>): st
 
 type Obj = Record<string, unknown>;
 
+/** A shape problem at a path relative to what is checked (`ports.A`). */
+interface Problem {
+  readonly at: string;
+  readonly message: string;
+}
+
 const isObject = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v);
 const isIndex = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v >= 0;
 
@@ -437,7 +508,17 @@ export function hdlModuleProblems(value: unknown, path = 'module'): string[] {
     at(path, 'expected an object');
     return problems;
   }
-  const known = ['format', 'top', 'creator', 'bitCount', 'ports', 'signals', 'memories', 'cells'];
+  const known = [
+    'format',
+    'top',
+    'creator',
+    'bitCount',
+    'ports',
+    'signals',
+    'memories',
+    'cells',
+    'specify',
+  ];
   for (const key of Object.keys(value)) {
     if (!known.includes(key)) at(`${path}.${key}`, 'unknown field');
   }
@@ -486,6 +567,9 @@ export function hdlModuleProblems(value: unknown, path = 'module'): string[] {
 
   const pins = new Set<string>();
   const inputBits = new Set<number>();
+  /** The bits a `specify` path or check may start at (inputs, inouts) and end at (outputs, inouts). */
+  const sourceBits = new Set<number>();
+  const targetBits = new Set<number>();
   if (!Array.isArray(value.ports)) at(`${path}.ports`, 'expected an array');
   else {
     for (const [i, port] of (value.ports as unknown[]).entries()) {
@@ -533,6 +617,11 @@ export function hdlModuleProblems(value: unknown, path = 'module'): string[] {
           if (inputBits.has(bit)) at(`${where}.bits`, `bit ${bit} is another input's`);
           inputBits.add(bit);
         }
+      }
+      for (const bit of bits) {
+        if (!isIndex(bit)) continue;
+        if (port.dir !== 'out') sourceBits.add(bit);
+        if (port.dir !== 'in') targetBits.add(bit);
       }
     }
   }
@@ -628,6 +717,155 @@ export function hdlModuleProblems(value: unknown, path = 'module'): string[] {
       if (typeof memory === 'number' && spec.kind === 'memwr') writePorts[memory]!++;
     }
   }
+  if (value.specify !== undefined) {
+    const context = { bitsProblem, sourceBits, targetBits };
+    for (const problem of specifyProblems(value.specify, context)) {
+      at(`${path}.specify${problem.at === '' ? '' : `.${problem.at}`}`, problem.message);
+    }
+  }
+  return problems;
+}
+
+interface SpecifyContext {
+  readonly bitsProblem: (bits: unknown, allowed: 'signals' | 'constants') => string | undefined;
+  /** Bits of inputs and inouts: where paths and checks start. */
+  readonly sourceBits: ReadonlySet<number>;
+  /** Bits of outputs and inouts: where paths end. */
+  readonly targetBits: ReadonlySet<number>;
+}
+
+/** The problems of a module's `specify` (HDL-2), each at its path under `specify`. */
+function specifyProblems(value: unknown, context: SpecifyContext): Problem[] {
+  const problems: Problem[] = [];
+  const at = (where: string, message: string) => problems.push({ at: where, message });
+  if (!isObject(value)) {
+    at('', 'expected an object');
+    return problems;
+  }
+  for (const key of Object.keys(value)) {
+    if (key !== 'paths' && key !== 'checks') at(key, 'unknown field');
+  }
+  const { bitsProblem, sourceBits, targetBits } = context;
+  /** Signal bits, at least one, each a bit of the ports in `among` (`kind` names them). */
+  const portBits = (where: string, bits: unknown, among: ReadonlySet<number>, kind: string) => {
+    const problem = bitsProblem(bits, 'signals');
+    if (problem) at(where, problem);
+    else if ((bits as number[]).length === 0) at(where, 'expected at least one bit');
+    else {
+      const stray = (bits as number[]).find((bit) => !among.has(bit));
+      if (stray !== undefined) at(where, `bit ${stray} is no ${kind}'s`);
+    }
+  };
+  const edgeProblem = (where: string, edge: unknown) => {
+    if (edge !== undefined && edge !== 'rise' && edge !== 'fall')
+      at(where, 'expected "rise" or "fall"');
+  };
+  const whenProblem = (where: string, when: unknown) => {
+    if (when === undefined) return;
+    const problem = bitsProblem([when], 'constants');
+    if (problem) at(where, problem);
+  };
+  const time = (where: string, t: unknown) => {
+    if (!isIndex(t)) at(where, 'expected a time in ps, an integer ≥ 0');
+  };
+
+  if (!Array.isArray(value.paths)) at('paths', 'expected an array');
+  else {
+    for (const [i, path] of (value.paths as unknown[]).entries()) {
+      const where = `paths[${i}]`;
+      if (!isObject(path)) {
+        at(where, 'expected an object');
+        continue;
+      }
+      for (const key of Object.keys(path)) {
+        if (!['from', 'to', 'full', 'edge', 'when', 'rise', 'fall', 'src'].includes(key))
+          at(`${where}.${key}`, 'unknown field');
+      }
+      portBits(`${where}.from`, path.from, sourceBits, 'input or inout');
+      portBits(`${where}.to`, path.to, targetBits, 'output or inout');
+      if (typeof path.full !== 'boolean') at(`${where}.full`, 'expected a boolean');
+      else if (
+        !path.full &&
+        Array.isArray(path.from) &&
+        Array.isArray(path.to) &&
+        path.from.length !== path.to.length
+      )
+        at(`${where}.to`, 'expected as many bits as from (a parallel path)');
+      edgeProblem(`${where}.edge`, path.edge);
+      whenProblem(`${where}.when`, path.when);
+      for (const corner of ['rise', 'fall'] as const) {
+        const delay = path[corner];
+        if (!isObject(delay)) {
+          at(`${where}.${corner}`, 'expected { min, typ, max }');
+          continue;
+        }
+        for (const key of Object.keys(delay)) {
+          if (!['min', 'typ', 'max'].includes(key))
+            at(`${where}.${corner}.${key}`, 'unknown field');
+        }
+        for (const key of ['min', 'typ', 'max'] as const)
+          time(`${where}.${corner}.${key}`, delay[key]);
+      }
+      if (typeof path.src !== 'string') at(`${where}.src`, 'expected a string');
+    }
+  }
+
+  if (!Array.isArray(value.checks)) at('checks', 'expected an array');
+  else {
+    const kinds: readonly string[] = ['setup', 'hold', 'recovery', 'removal', 'width'];
+    for (const [i, check] of (value.checks as unknown[]).entries()) {
+      const where = `checks[${i}]`;
+      if (!isObject(check)) {
+        at(where, 'expected an object');
+        continue;
+      }
+      for (const key of Object.keys(check)) {
+        if (!['kind', 'clock', 'data', 'limit', 'src'].includes(key))
+          at(`${where}.${key}`, 'unknown field');
+      }
+      const kind = check.kind;
+      if (typeof kind !== 'string' || !kinds.includes(kind))
+        at(`${where}.kind`, `expected one of ${kinds.join(', ')}`);
+      const events: Obj[] = [];
+      for (const side of ['clock', 'data'] as const) {
+        const event = check[side];
+        if (!isObject(event)) {
+          at(`${where}.${side}`, 'expected { bits, edge?, when? }');
+          continue;
+        }
+        for (const key of Object.keys(event)) {
+          if (!['bits', 'edge', 'when'].includes(key))
+            at(`${where}.${side}.${key}`, 'unknown field');
+        }
+        portBits(`${where}.${side}.bits`, event.bits, sourceBits, 'input or inout');
+        edgeProblem(`${where}.${side}.edge`, event.edge);
+        whenProblem(`${where}.${side}.when`, event.when);
+        events.push(event);
+      }
+      time(`${where}.limit`, check.limit);
+      if (typeof check.src !== 'string') at(`${where}.src`, 'expected a string');
+      const [clock, data] = events;
+      if (!clock || !data || !kinds.includes(kind as string)) continue;
+      // What the simulator measures: one clock pin's edge; a control's release; one pin's pulse.
+      if (!Array.isArray(clock.bits) || clock.bits.length !== 1)
+        at(`${where}.clock.bits`, 'expected one bit');
+      if (clock.edge === undefined) at(`${where}.clock.edge`, 'expected an edge');
+      if (kind === 'recovery' || kind === 'removal' || kind === 'width') {
+        if (!Array.isArray(data.bits) || data.bits.length !== 1)
+          at(`${where}.data.bits`, 'expected one bit');
+        if (data.edge === undefined) at(`${where}.data.edge`, 'expected an edge');
+      }
+      if (kind === 'width') {
+        const same =
+          Array.isArray(clock.bits) && Array.isArray(data.bits) && clock.bits[0] === data.bits[0];
+        if (!same) at(`${where}.data.bits`, "expected the clock's bit (a pulse of one pin)");
+        if (clock.edge !== undefined && clock.edge === data.edge)
+          at(`${where}.data.edge`, "expected the edge opposite the clock's");
+        if (data.when !== undefined)
+          at(`${where}.data.when`, 'expected none (the pulse is armed at its start)');
+      }
+    }
+  }
   return problems;
 }
 
@@ -661,8 +899,8 @@ function cellShapeProblems(
   params: unknown,
   bitsProblem: (bits: unknown, allowed: 'signals' | 'constants') => string | undefined,
   port: PortContext | undefined,
-): { at: string; message: string }[] {
-  const problems: { at: string; message: string }[] = [];
+): Problem[] {
+  const problems: Problem[] = [];
   if (!isObject(ports)) return [{ at: 'ports', message: 'expected an object' }];
   const names = spec.output === undefined ? spec.inputs : [...spec.inputs, spec.output];
   for (const key of Object.keys(ports)) {
