@@ -136,11 +136,28 @@ the 1 024-cell benchmark module costs ≈ 2 % (HDL-1's baseline unchanged).
 
 ## HDL-6 · Memories in modules — `feat/hdl-memories`
 
-Yosys memories in the IR: register files and block RAMs, synchronous and asynchronous read
-ports, initial contents from `initial` blocks and `$readmemh` (a file in the document); an
-instance's memories in the memory inspector through the part's `memory` view
-([ADR-0018](../adr/0018-memory-inspector.md)). Proof: a FIFO, a register file, a character ROM
-loaded with `$readmemh`.
+**Built** ([plan](../../.ai/plans/feat-hdl-memories.md),
+[ADR-0036](../adr/0036-memories-in-modules.md)): Verilog arrays run as memories. The command
+gains `memory_collect`: each memory becomes one `$mem_v2`, its reads asynchronous (a registered
+read stays a flip-flop), its contents what Yosys read from `initial` and `$readmemh` — relative
+to the `.v`, so the document never holds the `.hex` (the item's "a file in the document" was
+moot). The IR (schema v9) gains `memories` (name, width, size, first address, contents as hex
+runs) and the cells `$memrd` and `$memwr` (an enable per bit, priority over earlier ports); the
+converter drops `proc`'s don't-cares on a write's address and data, and refuses what it can't
+run with the command to use. The interpreter keeps words in 32-bit limbs: reads in topological
+order (`X` outside the memory, an unknown address's words merged up to 8 bits), writes on edges
+in the flip-flops' two phases (pin and logic clocks, uncertain edges, unknown enables and
+addresses, races, a collision of ports without priority `X`), up to 256K words and 8 Mbit. The
+tools see a chip's memory (Q1–Q3): `MemoryDef` gains names, a first address, 32-bit words and
+power-up contents; `A1/rom`, `A1/rom[1F]` at Verilog addresses in hex; benches load words and
+Intel HEX (packed little-endian); the Memory tab shows a stopped module's memory read-only as
+Yosys left it (an FPGA's block RAM), a wider one as words or bytes; the module view lists its
+memories. Specs: [components.md](../components.md#verilog-modules-hdl),
+[circuit.md](../circuit.md#resolver), [editor.md](../editor.md#memory-inspector). Proof (Q4:
+tests only, no example): fixtures of every memory shape Yosys makes, differential tests against
+Yosys's `sim` (a register file, a FIFO, ROMs from `$readmemh`, byte lanes, two clocks; ≈ 128 k
+bits over 23 designs), `tests/scenarios/verilog-memories.test.ts`, `tests/e2e/hdl.spec.ts`;
+HDL-1's benchmark unchanged, a 4K × 32 RAM at ≈ 130 k cycles a second.
 
 ## HDL-7 · PicoRV32 soft core — `example/picorv32`
 
@@ -237,6 +254,13 @@ Not scheduled yet; promoting one gives it the next free id and a row in the tabl
   loaded only on demand, for those without Yosys on their computer — the `.v` in the document,
   edited in the app with Yosys's errors at their lines. Left out of HDL-1 on 2026-11-09 (its
   plan, Q5); the IR doesn't care who made it.
+- Memory images per instance, or a module's power-up contents edited in the app (HDL-6, Q1):
+  two character ROMs with different fonts from one module; today the contents are Yosys's,
+  changed by a new `.hex` and a Compile, and benches load programs at their setup.
+- Synchronous read ports in the IR (`memory_dff`'s merged read registers, with transparency
+  and collision masks), for JSON from flows that run `memory -nomap`; the command leaves the
+  register a flip-flop (HDL-6).
+- Memories wider than 32 bits in the Memory tab and pokes (they run; HDL-6 shows up to 32).
 - Gate-level netlists: the cells `synth` and `techmap` leave (`$_AND_`, `$_MUX_`, `$_DFF_P_`, …),
   so the JSON of a full synthesis runs too.
 - Parameters per instance: a module compiled for several parameter sets (`chparam` in the

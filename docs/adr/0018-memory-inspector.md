@@ -2,7 +2,10 @@
 
 - **Status:** accepted
 - **Date:** 2026-11-07
-- **Roadmap item:** R12b (feat/memory-inspector)
+- **Roadmap item:** R12b (feat/memory-inspector); extended in HDL-6 by
+  [ADR-0036](0036-memories-in-modules.md): a Verilog module's memories — several per part, words
+  up to 32 bits (shown as words or little-endian bytes), a first address, power-up contents shown
+  read-only while stopped, pokes by name
 
 ## Context
 

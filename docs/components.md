@@ -59,6 +59,7 @@ interface ComponentDefinition<Props, State> {
   schematicOnly?: boolean; // drawn and connected, never simulated: left out of the netlist
   nextProps?: (props: Props) => Props; // props of the next instance placed after this one
   memory?: MemoryDef<State>; // a memory's size and a view of its cells (inspectors, test benches)
+  memories?: MemoryDef<State>[]; // a Verilog module's named memories (HDL-6; ADR-0036)
   cpu?: CpuDef<State>; // a CPU's registers and a view of its state (R17a; docs/simulation.md)
   animation?: (state: State, props: Props) => Time | undefined; // look changes with time alone
 
@@ -884,10 +885,14 @@ Alliance Memory for the 62256.
   bit per unknown bit), moved by the carry-over.
 - **Debug write**: a RAM takes the action `{ type: 'poke', address, data: number[] }` at the
   current instant: the cells change at once, outputs reading them follow through the read path
-  (`X`, then the data after `tAA`). ROM contents change through the image (a document edit).
+  (`X`, then the data after `tAA`). ROM contents change through the image (a document edit). A
+  Verilog module's memory takes the same with its `memory` name (HDL-6; `pokeOf`).
 - **Inspection**: `memory: { words, width, volatile, addressPins, view(state) }` on the
   definition (the registry checks that `2 ** addressPins.length` is `words` and that they are
-  input pins); the view is the instance's cells (`data`, `unknown`) and their **access stamps**
+  input pins). A Verilog module lists named `memories` instead (HDL-6,
+  [ADR-0036](adr/0036-memories-in-modules.md)): words of up to 32 bits (`data` and `unknown` a
+  `Uint32Array`), a first address (`offset`), no address pins, and `powerUp` contents a stopped
+  inspector shows; `memoriesOf(definition)` gives either. The view is the instance's cells (`data`, `unknown`) and their **access stamps**
   (`readAt`, `writtenAt`: the simulated time each cell was last read and written, `-Infinity`
   never), read without copying. A read is stamped when the outputs drive a cell's data for one
   known address (merged unknown addresses stamp nothing); a write when a write of the circuit
@@ -1281,8 +1286,14 @@ watches and benches read inside the module, HDL-4) and the cells: each its Yosys
 its ports' bits (a signal bit or the constants `'0'`, `'1'`, `'x'`) and parameters (polarities
 0/1, the operands' signedness `A_SIGNED`/`B_SIGNED` — kept only where 1, absent meaning
 unsigned —, reset values as bits). An output's or inout's bits may also be `'z'`: never driven.
-`hdlModuleProblems` checks the shape (documents are loaded with it); widths come from the
-connections.
+**Memories** (HDL-6, [ADR-0036](adr/0036-memories-in-modules.md), schema v9): `name` (`buf`, a
+flattened submodule's `u_fifo.mem`), `width`, `size`, `offset` — the Verilog address of word 0
+(`m[16:25]`: 16) — and `init`, the power-up contents Yosys read from `initial` blocks and
+`$readmemh`: runs `ADDR:WORDS` in hex at Verilog addresses, each word as many digits as its width
+needs, `x` digits unknown (a digit with any unknown bit; `readHdlMemoryInit`,
+`formatHdlMemoryInit` in `src/core/hdl-memory.ts`); words no run gives start `X`. Their ports are
+cells naming the memory by index (`MEMORY`). `hdlModuleProblems` checks the shape (documents are
+loaded with it); widths come from the connections.
 
 **The cells** (`HDL_CELLS`): `$not` `$pos` `$neg`, the reductions (`$reduce_and`, `_or`,
 `_xor`, `_xnor`, `_bool`), `$logic_not` `$logic_and` `$logic_or`, `$and` `$or` `$xor` `$xnor`,
@@ -1292,11 +1303,24 @@ comparisons (`$eq` `$ne` `$eqx` `$nex` `$lt` `$le` `$gt` `$ge`), the shifts (`$s
 `$pmux`, and `$bmux` `$demux` `$bwmux`, which other front ends' RTLIL holds), the flip-flops
 `$dff` `$dffe` `$adff` `$adffe` `$sdff` `$sdffe` `$sdffce` `$dffsr` `$dffsre` (per-bit
 asynchronous `SET`/`CLR`) `$aldff` `$aldffe` (an asynchronous load of `AD`), the latches
-`$dlatch` `$adlatch` `$dlatchsr`, `$sr`, and the tri-state buffer `$tribuf` (HDL-8: `A`, `EN` →
-`Y`). Every width; signed operands as Yosys's cell library (`simlib.v`) reads them: an operand
+`$dlatch` `$adlatch` `$dlatchsr`, `$sr`, the tri-state buffer `$tribuf` (HDL-8: `A`, `EN` →
+`Y`), and a memory's ports (HDL-6): `$memrd` (`ADDR` → `DATA`, asynchronous) and `$memwr` (`CLK`
+with `CLK_POLARITY`, `EN` per bit, `ADDR`, `DATA`, no output; `PRIORITY`: a bit per earlier write
+port of its memory, set where this one wins on a bit both write at one edge). Every width; signed operands as Yosys's cell library (`simlib.v`) reads them: an operand
 extended by its sign bit, an operation of two operands signed only when both are (`$pow`: each
 on its own), a shift extending `A` to the wider of A and Y by its signedness (`$shiftx` selects
 from `A` as it is). HDL-1 ran unsigned operands up to 32 bits.
+
+**Memories** (HDL-6): the converter makes each `$mem_v2` a memory and a `$memrd` per read port
+and a `$memwr` per write port, in Yosys's order, `WR_PRIORITY_MASK` as each port's `PRIORITY`. A
+wide port's words come as ports of their own with constant low address bits, so they need
+nothing more. `proc` gives a write's address and data an `x` default where the process doesn't
+write (`we ? rd : x`): the converter takes a `$memwr`'s `ADDR` and `DATA` through such
+multiplexers (`proc`'s `$procmux$…` with one input all `x`) to the other input, so an unknown
+enable makes `X` only the word it addresses, as a board's RAM would. Arrays written without a
+clock (`always @*`) are latches already (Yosys's `mem2reg`), as are arrays read or written only at
+constant indices; a `case` table is logic (`proc -norom`) — made by plain `proc`, its ROM runs as
+a memory.
 
 **The converter** (`fromYosys`) refuses, with the reason and the source location: a memory whose
 ports are separate cells (`$memrd_v2`, `$memwr_v2`, `$meminit_v2`: it asks for the command's
@@ -1335,14 +1359,22 @@ and releasing the bus too until HDL-2's per-path timing, and a **`signals` view*
 [ADR-0035](adr/0035-inner-signals.md)): the IR's named signals (`state`, a flattened submodule's
 `u_core.count`), each bit read from the planes — a register's or latch's state is its `Q` bits —
 so probes, watches, breakpoints and test benches name them (`A1/state`,
-[circuit.md](circuit.md#resolver)). No definition while the module has errors.
+[circuit.md](circuit.md#resolver)), and a **`memories` view** (HDL-6): each memory up to 32 bits
+wide as a `MemoryDef` with its `name`, `words`, `width`, `offset`, `volatile` and `powerUp` (the
+IR's contents), its cells read in place from the instance's state, and pokes by name (a
+`PokeAction` with `memory`: known words written now, the logic settled and the outputs driven
+after their delay) — so the Memory tab, the debugger's watches and benches show and load them
+(`A1/rom`, `A1/rom[1F]`). Wider memories run but aren't shown. No definition while the module
+has errors.
 
 **The interpreter** (`module-part.ts`; cells compiled once per definition in `cells.ts`, the
 word cells in `word-cells.ts` on numbers up to 32 bits and on 32-bit limbs beyond, `words.ts`):
-state is two byte planes over the bits — value and unknown — plus the flip-flops' next states
-and the value each flip-flop last saw of its clock, plain data for snapshots, rewind and
-replicas. **Power-up**: the bits with an `init` (`reg q = 0`) start at it, as an FPGA's
-bitstream loads them — the rest `X` — and the logic settles from them, pins unknown, so a clock
+state is two byte planes over the bits — value and unknown — plus the flip-flops' next states,
+the value each flip-flop last saw of its clock, and each memory's words (`memory-cells.ts`,
+HDL-6: values and unknown bits in 32-bit limbs, ADR-0018's access stamps; up to 256K words and 8
+Mbit a memory), plain data for snapshots (unchanged pages shared), rewind and replicas. **Power-up**: the bits with an `init` (`reg q = 0`) start at it, as an FPGA's
+bitstream loads them — the rest `X` — memories hold their `init` contents, and the logic settles
+from them, pins unknown, so a clock
 made from an initialized register (`~div`) is known before anything happens; the kernel's
 evaluation at t = 0 drives them after `delay`. Each `evaluate` runs, in phases, only what the
 module needs (a decoder: steps 2, 3 and 6):
@@ -1355,7 +1387,10 @@ module needs (a decoder: steps 2, 3 and 6):
    same delta as its clock, no flip-flop loads yet; after step 3 its next state is computed again
    from the pins after the change and merged with the first — the bits that differ load `X` —
    and the module reports a `setup-violation` on that pin ("d0 changed at the clock edge of q"),
-   as the library's chips do for the same input.
+   as the library's chips do for the same input. A memory's **write port** (HDL-6) is
+   edge-triggered the same way: its edge samples `EN`, `ADDR` and `DATA` from before the delta
+   and stores with the flip-flops' loads, raced the same way ("wd0 changed at the clock edge of
+   memory regs's write: it writes X where that matters").
 2. The input pins and the inouts' pins read back are read into the planes (`Z` reads `X`).
 3. **Settle**: the combinational cells, the latches (`Q = EN ? D : Q`, merged while EN is
    unknown; `$dlatchsr` and `$sr` clear, then set, per bit) and the tri-state buffers run in
@@ -1368,6 +1403,11 @@ module needs (a decoder: steps 2, 3 and 6):
    asynchronous controls apply while active, from pins or from logic (reset to `ARST_VALUE`, load
    `AD`, per bit clear then set; merged while unknown), and the logic settles again while they
    change a flip-flop.
+   A memory's **read port** (HDL-6) is a step there too, after its address: the word at a known
+   address, `X` outside the memory (`m[16:25]` read at 3), and with unknown address bits the
+   words they could select merged — the bits they agree on known — up to 8 such bits, all `X`
+   beyond (the chips' rule). The contents are state, like a flip-flop's `Q`: a read port is in
+   no loop with its memory's writes.
 4. **Rounds** (HDL-9): every flip-flop clocked by logic (a divider, a ripple stage, a gated
    `clk & en`) compares its clock with the value it last saw; those with an edge compute their
    next states from the planes as they are, all load at once, the logic settles (step 3), and
@@ -1383,7 +1423,8 @@ module needs (a decoder: steps 2, 3 and 6):
    chain on one derived clock) is certain. A flip-flop clocked twice in one evaluation is a
    glitching clock: its second load races its first. An uncertain edge already merges and isn't
    checked. Past twice the internal flip-flops and four rounds, those still clocking go `X`
-   with an `oscillation`.
+   with an `oscillation`. Write ports on clocks made by logic take part in the rounds as
+   flip-flops do.
 5. With floating pins, the floating rule below.
 6. Every output bit is driven with `delay` (inertial: an unchanged output costs nothing, and a
    bit released and taken again within the delay never floats). A buffer's pin drives `A`
@@ -1392,10 +1433,21 @@ module needs (a decoder: steps 2, 3 and 6):
    start released. An inout drives what logic gives it (`assign w = a`) push-pull; another
    driver on its net is the kernel's `contention`, and the module then reads `X` back.
 
+**Writes** (HDL-6): a write stores the bits it enables at its address; ports of one memory store
+in Yosys's order. Where a write may happen — an uncertain clock edge, an unknown `EN` bit — or
+may hit several words — unknown address bits: every word they could select (any number) — each
+bit it could write becomes `X` where it differs from what it holds. A write outside the memory
+changes nothing (`simlib.v`). Two ports writing one bit at one edge: the one with priority (a
+later statement of one `always`) wins; without priority (two `always` blocks, two clocks) it is
+`X` where they differ — a dual-port RAM's collision; Yosys's `sim` takes the later port. A read
+port stamps the word it reads when it moves to another word or that word was written since —
+never for a mere re-run of the steps — and a write stamps the words it may have written.
+
 **Floating pins** (HDL-8): a module reads its pins with `ctx.level`, which reports nothing, and
 reports a floating one (`ctx.reportFloating`) only where its `X` is used, as the library's chips
 read their pins only where it matters: an output driven `X` (not released), a flip-flop loading
-an `X` at its edge (from the pins as they were before it), an open latch holding `X`, an
+an `X` at its edge (from the pins as they were before it), a memory write storing an `X`
+(HDL-6), an open latch holding `X`, an
 asynchronous control at `X` or loading `X` (HDL-9: reset, set, clear, load) — each checked
 against its cone, so an idle bus a module doesn't use reports
 nothing, a register still `X` from power-on names no pin, and a write that samples a floating
@@ -1425,7 +1477,10 @@ every cell on every evaluation; a 1 000-cell module clocks at ≈ 6 kHz per seco
 and loops nothing in a module without them). An I/O port written and read through its bus:
 ≈ 0.96 M evaluations a second. HDL-9's: a 64-bit counter with a 32 × 32 multiplier and 72-bit
 words, new operands every cycle, ≈ 73 k evaluations a second (words read bit by bit from the
-planes); a divider, a ripple chain and a reset by logic ≈ 0.64 M. HDL-10 makes it fast.
+planes); a divider, a ripple chain and a reset by logic ≈ 0.64 M. HDL-6's: a register file
+(8 × 8, a write and two reads a cycle) ≈ 0.74 M evaluations a second; a 4K × 32 RAM, a write
+and a read at new addresses every cycle, ≈ 0.40 M (≈ 130 k cycles a second); HDL-1's numbers
+unchanged. HDL-10 makes it fast.
 
 **Tests**: the converter on fixtures Yosys made of `src/library/hdl/fixtures/*.v` (`pnpm
 hdl:fixtures`, the system `yosys`; `pnpm check` never runs Yosys), every cell against
@@ -1439,11 +1494,15 @@ expressions over every word cell (half of the modules all signed), the sequentia
 `src/library/hdl/differential/*.v` and `examples/verilog/*.v`, drives each with seeded vectors
 in Yosys's own `sim` (a witness replayed, its VCD read back; a clock never changes with data) and
 commits the IR, the vectors and every output; `differential.test.ts` checks every output bit
-Yosys knows — about 115 k bits over 18 designs. Where `sim` differs on purpose they stay out,
+Yosys knows — about 128 k bits over 23 designs, memories among them (HDL-6: a register file, a
+FIFO, ROMs from `$readmemh`, `initial` loops and `m[16:25]`, byte lanes, two clocks and a divided
+one). Where `sim` differs on purpose they stay out,
 and unit tests cover them: `===` of an `x`, `$aldff` while ALOAD is active (`sim` loads AD a step
 late; the interpreter follows AD, as the set/clear logic Yosys maps it to does), a power of mixed
 signedness (`sim` reads it unsigned, Verilog and `simlib.v` don't), and an asynchronous control
-made from its own flip-flop (it loops `sim` forever). Across the layers
-`tests/scenarios/verilog-modules.test.ts` and `verilog-bus.test.ts` (an I/O port's bench, two
-modules and a 74HC244 on one bus), the examples' benches, the rewind property, and the browser
+made from its own flip-flop (it loops `sim` forever), and two write ports writing one bit at one
+edge (`sim` loops on it too; the designs keep their ports on different words). Across the layers
+`tests/scenarios/verilog-modules.test.ts`, `verilog-bus.test.ts` (an I/O port's bench, two
+modules and a 74HC244 on one bus) and `verilog-memories.test.ts` (memories loaded and checked by
+benches, a module's own and through an instance), the examples' benches, the rewind property, and the browser
 (`tests/e2e/hdl.spec.ts`).

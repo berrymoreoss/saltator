@@ -191,7 +191,7 @@ Small, ordered, each committable with its tests (`pnpm check` green).
   file and a `$readmemh` ROM with chips and benches around them), `tests/e2e/hdl.spec.ts` (a
   module from a fixture: Memory tab, edits, a bench), a memory benchmark in
   `tests/bench/hdl.bench.ts`.
-- [ ] 12. Docs: ADR-0036; ADR-0030 (command, memories), ADR-0018 (module memories);
+- [x] 12. Docs: ADR-0036; ADR-0030 (command, memories), ADR-0018 (module memories);
   components.md, circuit.md, editor.md; the track file (HDL-6 built, `$readmemh` wording);
   lessons.
 
@@ -294,17 +294,18 @@ Small, ordered, each committable with its tests (`pnpm check` green).
   baseline unchanged (decoder 1.95 M evaluations/s, synthetic 11.6 k); register file 740 k
   evaluations/s; a 4K × 32 RAM, a write and a read per cycle, 400 k evaluations/s (≈ 130 k
   cycles/s).
+- 2026-11-11 — task 12: ADR-0030 (the command, memories) and ADR-0018 (extended by ADR-0036)
+  amended; components.md (IR memories, cells, the converter's rules, the view, reads, writes,
+  speed, tests), circuit.md (resolver, benches), editor.md (Memory tab, files, Insert Image, the
+  module view), simulation.md; the track's HDL-6 section rewritten as built, three ideas added
+  (per-instance images, synchronous read ports, wider than 32 bits in the tab); lessons.
 
 ## Handoff
 
-- **State:** tasks 1–11 done and committed (IR + schema v9, converter + command, analysis,
-  interpreter in `memory-cells.ts`, differential). Modules with memories run headless; nothing
-  shows them yet (no view, references, benches or UI).
-- **Next step:** task 12 — docs: ADR-0030 (command, memories) and ADR-0018 (module memories)
-  amended; components.md (IR, memories, cells), circuit.md (references, benches), editor.md
-  (Memory tab, module view), simulation.md if it names memory semantics; the track file (HDL-6
-  built, `$readmemh` wording, ideas: per-instance images, sync read ports); lessons. Then the
-  finish-branch workflow (full `pnpm e2e`, `pnpm build`, `pnpm test:circuits`).
+- **State:** all twelve tasks done and committed; the acceptance criteria to verify in the
+  finish-branch workflow.
+- **Next step:** finish-branch: full `pnpm e2e`, `pnpm build`, `pnpm test:circuits`, tick the
+  acceptance criteria, status `done` (plan and track), ask the user to merge.
 - **Watch out:** `$readmemh` paths are relative to the `.v`; read stamps change only on a new
   word or a write since (`stampReads`); `pnpm check` and `pnpm e2e` one after the other; Yosys's
   `sim` loops on colliding write ports (lessons).

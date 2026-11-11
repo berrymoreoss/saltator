@@ -560,3 +560,9 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
   process doesn't write (`we ? rd : x`). With `-keepdc` they stay, so an unknown `we` made the
   address unknown and the whole memory `X` — not what a board does. Look at what Yosys feeds a
   cell's ports before reasoning about `X` from the source.
+- 2026-11-11 (HDL-6) — JavaScript's bitwise operators are 32-bit signed: `unk & 0xffffffff` is
+  `-1`, never equal to the mask `4294967295`, so an all-unknown 32-bit word read as known. With
+  32-bit limbs (`Uint32Array`) compare `(x & mask) >>> 0`, and build masks of bit 31 with
+  `>>> 0` or `2 ** 31`.
+- 2026-11-11 (HDL-6) — Biome formats Markdown too: a hand-edited table row of another width (a
+  status `in-progress` in a plan's or a track's table) fails `pnpm check` until `pnpm lint:fix`.
