@@ -198,6 +198,56 @@ describe('analyzeHdlModule: tri-states (HDL-8)', () => {
   });
 });
 
+describe('analyzeHdlModule: memories (HDL-6)', () => {
+  /** clk, a[1:0] in; y out; memory m (4 × 1): w = m[a] read; m[a] <= ~w on clk while a[0]. */
+  const memoryModule = (memory = { name: 'm', width: 1, size: 4, offset: 0 }): HdlModule => ({
+    ...base([
+      not(4, 5),
+      { type: '$memrd', src: 'r', ports: { ADDR: [1, 2], DATA: [4] }, params: { MEMORY: 0 } },
+      and(4, 1, 3),
+      {
+        type: '$memwr',
+        src: 'w',
+        ports: { CLK: [0], EN: [1], ADDR: [1, 2], DATA: [5] },
+        params: { MEMORY: 0, CLK_POLARITY: 1, PRIORITY: [] },
+      },
+    ]),
+    memories: [memory],
+  });
+
+  it('orders a read port after its address, a write port apart, like a flip-flop', () => {
+    const analysis = analyzeHdlModule(memoryModule());
+    expect(analysis.messages).toEqual([]);
+    // The read port drives w; the inverter and the and read it.
+    expect(analysis.driver[4]).toBe(1);
+    expect(analysis.order).toEqual([1, 0, 2]);
+    expect(analysis.flipFlops).toEqual([]);
+    expect(analysis.writePorts).toEqual([3]);
+    expect(analysis.loops).toEqual([]);
+  });
+
+  it('gives a read port the cone of its address, a write port what its edges sample', () => {
+    const analysis = analyzeHdlModule(memoryModule());
+    expect(analysis.cones[1]).toEqual([1, 2]);
+    // ~w comes from the memory, read at a: the pins of its address.
+    expect(analysis.cones[0]).toEqual([1, 2]);
+    expect(analysis.cones[3]).toEqual([0, 1, 2]);
+    expect(analysis.writeDataCones).toEqual([[1, 2]]);
+  });
+
+  it('refuses a memory larger than a module may hold', () => {
+    const big = { name: 'big', width: 64, size: 2 ** 18, offset: 0, src: 'b.v:2.1-2.4' };
+    expect(analyzeHdlModule(memoryModule(big)).messages).toEqual([
+      {
+        severity: 'error',
+        message:
+          "memory big (262144 × 64) is larger than a module's memory may be: 256K words, 8 Mbit",
+        src: 'b.v:2.1-2.4',
+      },
+    ]);
+  });
+});
+
 describe('bitName', () => {
   it('names a bit by its port or signal and index', () => {
     const module = base([]);

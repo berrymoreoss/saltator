@@ -172,7 +172,7 @@ Small, ordered, each committable with its tests (`pnpm check` green).
   priorities, `INIT`); refusals; the case-ROM error gone; fixtures (`pnpm hdl:fixtures`):
   register file, FIFO, ROM with `$readmemh`, byte enables, two write ports, offset, dual clock,
   reset loop, a JSON from `memory -nomap`.
-- [ ] 3. Analysis: drivers, order and cones of read ports; write ports with the flip-flops
+- [x] 3. Analysis: drivers, order and cones of read ports; write ports with the flip-flops
   (clocks, data cones, internal clocks, floating rule).
 - [ ] 4. Interpreter: memory state and power-up, `$memrd`, `$memwr` at pin and internal edges,
   `X` rules, races, collisions, stamps; unit tests per rule.
