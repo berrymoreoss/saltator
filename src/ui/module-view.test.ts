@@ -16,6 +16,7 @@ import { YOSYS_FIXTURES } from '../library/hdl/fixtures';
 import {
   compileJson,
   ModuleDrafts,
+  memoryRows,
   messageText,
   moduleCommand,
   moduleSummary,
@@ -100,6 +101,19 @@ describe('placements and messages', () => {
     ]);
     drafts.clear();
     expect([drafts.text('dec'), drafts.messages('dec')]).toEqual(['', undefined]);
+  });
+});
+
+describe('memoryRows (HDL-6)', () => {
+  it('lists the memories with their Verilog addresses and size, by reference in an instance', () => {
+    const { module } = fromYosys(YOSYS_FIXTURES.mem_offset);
+    const { definition } = createDefaultRegistry().hdlPart!('hdl/m', 'M', module!);
+    expect(memoryRows(definition!.memories, module!, 'A1')).toEqual([
+      { name: 'm', range: '[16:25]', size: '10 × 8', src: 'mem_offset.v:3.13-3.14', ref: 'A1/m' },
+    ]);
+    expect(memoryRows(definition!.memories, module!, '')[0]?.ref).toBe('m');
+    expect(memoryRows(definition!.memories, module!, undefined)[0]?.ref).toBeUndefined();
+    expect(memoryRows(undefined, module!, 'A1')).toEqual([]);
   });
 });
 

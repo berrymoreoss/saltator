@@ -188,7 +188,16 @@ export function Workbench({
         panels: { ...s.panels, bottom: { ...s.panels.bottom, visible: true } },
       }));
     }
-  }, [request, commands, settingsStore]);
+    // A module's memory picked in its view (HDL-6): the Memory tab shows it.
+    if (request?.kind === 'show-memory') {
+      ui.update((s) => ({ ...s, memoryPick: request.ref }));
+      settingsStore.update((s) => ({
+        ...s,
+        bottomTab: 'memory',
+        panels: { ...s.panels, bottom: { ...s.panels.bottom, visible: true } },
+      }));
+    }
+  }, [request, commands, settingsStore, ui]);
 
   // The Parts panel's parts: the library's and the document's circuits, except the circuits that
   // contain the open one (placing them would make it contain itself).

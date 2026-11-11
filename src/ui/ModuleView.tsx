@@ -5,6 +5,7 @@ import {
   Copy,
   Eye,
   FileUp,
+  MemoryStick,
   Play,
   TriangleAlert,
 } from 'lucide-react';
@@ -15,6 +16,7 @@ import { useStore } from './hooks';
 import {
   compileJson,
   type ModuleDrafts,
+  memoryRows,
   messageText,
   moduleCommand,
   moduleSummary,
@@ -103,6 +105,9 @@ export function ModuleView({
     path,
     editor.simulation.simulator,
   );
+  const memories = module
+    ? memoryRows(design.registry.get(`hdl/${id}`)?.memories, module, path)
+    : [];
 
   return (
     <div className="module-view" data-testid="module-view">
@@ -235,6 +240,37 @@ export function ModuleView({
                     ))}
                   </tbody>
                 </table>
+              )}
+              {memories.length > 0 && (
+                <>
+                  <h3>Memories{path ? ` in ${path}` : ''}</h3>
+                  <table className="module-table" data-testid="module-memories">
+                    <tbody>
+                      {memories.map((memory) => (
+                        <tr key={memory.name} data-memory={memory.name}>
+                          <td className="module-cell mono" title={memory.src}>
+                            {memory.name}
+                            <span className="muted"> {memory.range}</span>
+                          </td>
+                          <td className="module-cell mono muted">{memory.size}</td>
+                          <td className="module-actions">
+                            {memory.ref !== undefined && (
+                              <button
+                                type="button"
+                                className="icon-button"
+                                title={`Show ${memory.ref} in the Memory tab`}
+                                aria-label={`Show ${memory.name}`}
+                                onClick={() => editor.showMemory(memory.ref!)}
+                              >
+                                <MemoryStick size={13} />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </>
               )}
               <h3>Cells ({summary.cellCount})</h3>
               <table className="module-table">

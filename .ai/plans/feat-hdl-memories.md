@@ -186,7 +186,7 @@ Small, ordered, each committable with its tests (`pnpm check` green).
   words; `pnpm test:circuits`.
 - [x] 9. Memory tab: module memories in the picker, stopped view (Q1), pokes; wide words with the
   Words/Bytes switch, Load/Save packed little-endian (Q3).
-- [ ] 10. Module view: the Memories section.
+- [x] 10. Module view: the Memories section.
 - [ ] 11. Proof (Q4, tests only): `tests/scenarios/verilog-memories.test.ts` (a FIFO, a register
   file and a `$readmemh` ROM with chips and benches around them), `tests/e2e/hdl.spec.ts` (a
   module from a fixture: Memory tab, edits, a bench), a memory benchmark in
@@ -284,14 +284,18 @@ Small, ordered, each committable with its tests (`pnpm check` green).
   from the first one, no ASCII column for words); selecting a placed module picks its first
   memory; Insert Image lists a module's own memories and writes wide binaries as Intel HEX. Not
   yet looked at in the browser (with task 11's e2e).
+- 2026-11-11 — task 10: the module view lists its memories (Verilog range, size, source line)
+  with a button showing the open instance's in the Memory tab (`editor.showMemory`, a
+  `show-memory` request the workbench answers).
 
 ## Handoff
 
-- **State:** tasks 1–9 done and committed (IR + schema v9, converter + command, analysis,
+- **State:** tasks 1–10 done and committed (IR + schema v9, converter + command, analysis,
   interpreter in `memory-cells.ts`, differential). Modules with memories run headless; nothing
   shows them yet (no view, references, benches or UI).
-- **Next step:** task 10 — the module view's Memories section (beside Signals); then task 11:
-  e2e (look at the Memory tab in the browser), the benchmark.
+- **Next step:** task 11 — e2e in `tests/e2e/hdl.spec.ts` (a module with memories from a
+  fixture: Memory tab live, power-up view, Words/Bytes, a bench), look at it in the browser
+  (screenshots); the memory benchmark in `tests/bench/hdl.bench.ts`. Then task 12 (docs).
 - **Watch out:** `$readmemh` paths are relative to the `.v`; read stamps change only on a new
   word or a write since (`stampReads`); `pnpm check` and `pnpm e2e` one after the other; Yosys's
   `sim` loops on colliding write ports (lessons).
