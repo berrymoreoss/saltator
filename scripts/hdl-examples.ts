@@ -589,7 +589,7 @@ function picorv32(): CircuitDocument {
       b.label('NL3', 'RESETN', 'R1.Y', 4);
       // Switch k sets bit k - 1 of n, as the LED bar shows the result: LED k is bit k - 1.
       b.add('SW2', 'io/dip-switch', {
-        at: [0, 14],
+        at: [0, 18],
         label: 'N',
         props: { count: 8, contact: 'spdt' },
       });
@@ -610,7 +610,7 @@ function picorv32(): CircuitDocument {
         b.labelDown(`NL${21 + i}`, `OUT${i}`, `U2.D${i}`, 2);
       }
       b.add('D1', 'io/led-bar', {
-        at: [60, 14],
+        at: [60, 18],
         label: 'OUT',
         props: { count: 8, color: 'green' },
       });
@@ -618,9 +618,9 @@ function picorv32(): CircuitDocument {
       b.wire('D1.K1', 'D1.K8');
       b.add('G1', 'io/gnd', { at: [b.pin('D1.K8')[0] + 3, b.pin('D1.K8')[1] + 1] });
       b.connect('D1.K8', 'G1.Y');
-      b.add('D2', 'io/led', { at: [60, 28], label: 'TRAP', props: { color: 'red' } });
+      b.add('D2', 'io/led', { at: [60, 32], label: 'TRAP', props: { color: 'red' } });
       b.label('NL33', 'TRAP', 'D2.A', -4);
-      b.add('G2', 'io/gnd', { at: [b.pin('D2.K')[0] + 3, 29] });
+      b.add('G2', 'io/gnd', { at: [b.pin('D2.K')[0] + 3, 33] });
       b.connect('D2.K', 'G2.Y');
     },
     PICORV32_MAIN_BENCHES,

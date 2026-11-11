@@ -46,6 +46,10 @@ measurement: how fast a core runs against HDL-1's baseline — the target HDL-10
 - Flip-flops without `init` powering up at 0 "as an FPGA does" (a module option) → a track idea;
   the example's wrapper resets what it needs (see Design).
 - Changing the core's source: upstream as it is; the wrapper adapts.
+- The app's run loop at Max (found in task 5): kernel calls of 20 000 events between frame-budget
+  checks take ≈ 0.35 s with this core (≈ 3 frames a second), and the achieved rate is computed
+  over a wall time capped at 100 ms ("max 5 s/s" for ≈ 1.7) → a `fix/` branch after this one
+  (the user's choice, 2026-11-11).
 
 ## Context
 
@@ -151,7 +155,7 @@ Small, ordered, each committable with its tests (`pnpm check` green).
   `EXAMPLE_FILES`; `pnpm test:circuits` passes; the board scenario test.
 - [x] 4. Speed: the benchmark (example configuration, full fixture), a profile, the numbers in
   this plan; HDL-10's target in the track (Q4).
-- [ ] 5. Browser: an e2e test (open, RESET, the output changes; Memory tab: RAM and register
+- [x] 5. Browser: an e2e test (open, RESET, the output changes; Memory tab: RAM and register
   file); looked at in screenshots; the speed at Max written down.
 - [ ] 6. Docs: the track (HDL-7 built, HDL-10's target, ideas), components.md (examples, speed),
   ADR-0030 (scripts with a top), README's third-party note, lessons (auto-top, power-up `X`).
@@ -217,11 +221,21 @@ Small, ordered, each committable with its tests (`pnpm check` green).
   12 % (bit by bit), word cells' `gather` 14 %, flip-flop edges (`nextState`, `pinEdges`,
   `clockEdge`, `loadEdges`) 18 %, other logic cells 8 %, memories 2 %, the kernel 2 %; `settle`
   runs every cell on both clock edges. HDL-10's target written into the track (Q4).
+- 2026-11-11 — task 5: looked at in Chromium (a Playwright script against the dev server): the
+  board's layout fixed (the pull-up's label crowded the DIP switch, the LED bar's title the hex
+  digits' labels); the example keeps up with real time at 10 kHz (6.06 s simulated in ≈ 6 s);
+  the kernel alone in the browser ≈ 14–16 k cycles/s; at Max the app reaches ≈ 1.7 s/s
+  (≈ 17 k cycles/s) but frames come ≈ 3 a second and the status says "max 5 s/s" (see Out of
+  scope: a `fix/` branch). The Memory tab shows `A1/cpu.cpuregs` live (x0's word stays `X`:
+  PicoRV32 never writes it, it reads x0 as 0 by logic) and `A1/ram` as words and bytes. e2e
+  `Verilog PicoRV32` (watches on `OUT[7..0]` and `A1/cpu.cpuregs[2]`, the switches, the Memory
+  tab, Run All Tests ✓ 6). The example is ≈ 185 kB of the bundle's text (≈ 29 kB gzip of the
+  main chunk's 187 kB): examples are bundled eagerly.
 
 ## Handoff
 
-- **State:** tasks 1–4 done; the example runs headless, its benches pass, the speed is measured.
-- **Next step:** task 5 (the example in the browser: e2e, screenshots, speed at Max).
+- **State:** tasks 1–5 done; the example runs headless and in the browser, e2e passes.
+- **Next step:** task 6 (docs), then finish-branch; after the merge, a `fix/` branch for the run loop at Max (Out of scope).
 - **Watch out:** `hierarchy -auto-top` picks `picorv32_wb`; gate the wrapper's writes with
   `resetn` (power-up `X`). The experiment's files are in the session scratchpad, not the repo.
 - **Verify with:** `pnpm check`; `pnpm hdl:examples` (Yosys), `pnpm riscv:firmware` (LLVM).

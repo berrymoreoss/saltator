@@ -5,6 +5,7 @@ import addressDecoder from '../../examples/verilog-address-decoder.saltator.json
 import counterTrafficLight from '../../examples/verilog-counter-traffic-light.saltator.json' with {
   type: 'json',
 };
+import picorv32 from '../../examples/verilog-picorv32.saltator.json' with { type: 'json' };
 import uart from '../../examples/verilog-uart.saltator.json' with { type: 'json' };
 import { YOSYS_FIXTURES } from '../../src/library/hdl/fixtures';
 import {
@@ -273,5 +274,49 @@ test('a memory in a module: its power-up contents, words and bytes, edited live,
   await cell(3).click();
   await page.keyboard.type('CAFEF00D');
   await expect(cell(3)).toHaveText('CAFEF00D');
+  expect(errors).toEqual([]);
+});
+
+// HDL-7: a RISC-V core running a C program — the switches its input, its RAM and registers live.
+test('Verilog PicoRV32: the program answers the switches; RAM and registers in the Memory tab; benches', async ({
+  page,
+}) => {
+  const errors = watchErrors(page);
+  const at = await openExample(page, 'verilog-picorv32', 'Verilog PicoRV32', picorv32);
+  const debug = page.getByTestId('debug-panel');
+  await page.getByRole('tab', { name: /Debug/ }).click();
+  for (const ref of ['OUT[7..0]', 'A1/cpu.cpuregs[2]']) {
+    await debug.getByLabel('Watch to add').fill(ref);
+    await debug.getByRole('button', { name: 'Add', exact: true }).click();
+  }
+  const values = debug.getByTestId('watch-value');
+
+  // From power-up the core runs its program: n = 0 on the switches, F(0) = 0 on the port.
+  await page.keyboard.press('F5');
+  await expect(page.getByTestId('sim-status')).toHaveText(/Running · /);
+  await expect(values).toHaveText(['0x00', '0x00001000']);
+  // n = 10 (switches 2 and 4): F(10) = 55 = 0x37.
+  await clickAt(page, at.lever('SW2', 'S2'));
+  await clickAt(page, at.lever('SW2', 'S4'));
+  await expect(values.first()).toHaveText('0x37');
+
+  // The Memory tab: the register file live, the program in the RAM as words and as bytes.
+  await clickAt(page, at.center('A1'));
+  await page.getByRole('tab', { name: 'Memory' }).click();
+  const memory = page.getByTestId('memory-panel');
+  const cell = (address: number) => memory.locator(`.memory-cell[data-address="${address}"]`);
+  await expect(memory.getByLabel('Memory')).toHaveValue('A1/cpu.cpuregs');
+  await expect(cell(2)).toHaveText('00001000');
+  await memory.getByLabel('Memory').selectOption('A1/ram');
+  await expect(cell(0)).toHaveText('00001137');
+  await memory.getByLabel('Cells as').selectOption('bytes');
+  await expect(cell(0)).toHaveText('37');
+  await expect(cell(1)).toHaveText('11');
+  await page.keyboard.press('Shift+F5');
+
+  // The module's benches and the board's.
+  await page.getByRole('tab', { name: /^Tests/ }).click();
+  await menu(page, 'Test', 'Run All Tests');
+  await expect(page.getByRole('tab', { name: /^Tests/ })).toContainText('✓ 6', { timeout: 60_000 });
   expect(errors).toEqual([]);
 });
