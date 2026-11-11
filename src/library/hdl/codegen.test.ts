@@ -6,11 +6,14 @@ import {
   type HdlCellType,
   hdlCellOutput,
   SeededRandom,
+  us,
 } from '../../core';
+import { Bench } from '../../core/testing';
 import { analyzeHdlModule } from './analyze';
 import { compileStep } from './cells';
 import { compileCells, Generator, int, isNative } from './codegen';
 import { bitLevel, type Layout, layoutModule, limbsOf } from './layout';
+import { hdlPart } from './module-part';
 import { NO_MEMORIES, newPlanes } from './planes';
 import { sampleModules } from './sample-modules';
 
@@ -348,5 +351,30 @@ describe('integers only', () => {
       cellWords: Int32Array.of(1),
     };
     expect(() => new Generator([cell], layout).cell(0, '')).toThrow(/integers only/);
+  });
+});
+
+describe('a module whose text is code', () => {
+  it('compiles and runs, and none of its names, locations or memories run', () => {
+    const evil = "'); globalThis.pwned = 1; ('";
+    const g = globalThis as { pwned?: number };
+    delete g.pwned;
+    for (const [name, module] of sampleModules()) {
+      const hostile = {
+        ...module,
+        top: evil,
+        creator: evil,
+        ports: module.ports.map((p) => ({ ...p, src: evil })),
+        signals: module.signals.map((s) => ({ ...s, name: `${s.name}${evil}`, src: evil })),
+        memories: module.memories.map((m) => ({ ...m, name: `${m.name}${evil}`, src: evil })),
+        cells: module.cells.map((c) => ({ ...c, src: evil })),
+      };
+      const { definition, messages } = hdlPart('hdl/evil', evil, hostile);
+      expect(definition, `${name}: ${messages.map((m) => m.message).join('; ')}`).toBeDefined();
+      const bench = new Bench(definition!);
+      bench.settle();
+      bench.run(us(1));
+    }
+    expect(g.pwned).toBeUndefined();
   });
 });

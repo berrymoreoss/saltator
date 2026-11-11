@@ -141,10 +141,12 @@ W65C02S (R17a), is a pure cycle-level core — its bus cycles checked against Si
 behind a part that puts each cycle on the pins with the data sheet's timing; unknown bits flow
 through its registers, and a CPU whose next step depends on them is lost until reset
 ([ADR-0028](adr/0028-cpu-model.md)). Verilog modules (HDL-1) are parts made at run time: one
-interpreter in `src/library/hdl/` runs any module's IR — 4-state bit planes, combinational cells
-in topological order inside one `evaluate` (loops until they settle, clocks made by logic in
-rounds, HDL-9), flip-flops on strict edges, races `X`, one output delay
-([components.md](components.md#verilog-modules-hdl), [ADR-0030](adr/0030-hdl-modules.md)).
+interpreter in `src/library/hdl/` runs any module's IR — 4-state values in 32-bit words, the IR
+compiled once per module into JavaScript (HDL-10: only integers from the IR enter it), the
+combinational cells downstream of a change in topological order inside one `evaluate` (loops
+until they settle, clocks made by logic in rounds, HDL-9), flip-flops on strict edges, races `X`,
+one output delay ([components.md](components.md#verilog-modules-hdl),
+[ADR-0030](adr/0030-hdl-modules.md), [ADR-0037](adr/0037-hdl-generated-code.md)).
 
 ## Circuit model
 

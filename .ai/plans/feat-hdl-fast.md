@@ -171,25 +171,31 @@ branch goes on and ends with what it reaches (Q3), the rest a track idea with th
 - [x] 7b. The interpreter's leftovers removed (`reference-part.ts`, the byte-plane steps no
   longer used, their tests ported), after task 8 so the tuning stays checked by the oracle.
 - [x] 8. Benchmarks and profile to the target; HDL-1's numbers no slower; numbers into the plan.
-- [ ] 9. The app: the examples in the browser, PicoRV32 at Max measured; the example's clock
+- [x] 9. The app: the examples in the browser, PicoRV32 at Max measured; the example's clock
   (Q4); whether `fix/run-loop-chunks` is still needed.
-- [ ] 10. Docs: ADR-0037 (and ADR-0030 amended), components.md (speed, how modules run), the
+- [x] 10. Docs: ADR-0037 (and ADR-0030 amended), components.md (speed, how modules run), the
   `src/library` README, the track (HDL-10 built), lessons.
 
 ## Acceptance criteria
 
-- [ ] `pnpm check` and `pnpm build` are green; `pnpm e2e` passes.
-- [ ] `pnpm bench`: the PicoRV32 module at 1 M cycles a second (a clock cycle running its
+- [x] `pnpm check` and `pnpm build` are green; `pnpm e2e` passes (100).
+- [x] `pnpm bench`: the PicoRV32 module at 1 M cycles a second (a clock cycle running its
   program, n = 255) — or, short of it (Q3), the speed reached recorded in the track with its
   profile and the rest of the way an idea; its results unchanged (the example's benches pass,
-  headless and in the app).
-- [ ] HDL-1's benchmarks (decoder, counter, synthetic 1 024 cells) and the other HDL benchmarks
-  no slower than on `main`, measured alternately in one sitting.
-- [ ] Every existing HDL unit, scenario and differential test passes unchanged in what it
+  headless and in the app). — Short of it: ≈ 230–250 k (×23), recorded with the profile; the
+  idea "Faster still" in the track.
+- [x] HDL-1's benchmarks (decoder, counter, synthetic 1 024 cells) and the other HDL benchmarks
+  no slower than on `main`, measured alternately in one sitting. — Faster or the same; the I/O
+  port 2 % below in `vitest bench`, the same measured directly (task 8).
+- [x] Every existing HDL unit, scenario and differential test passes unchanged in what it
   asserts; the new differential test against the current interpreter passes on every fixture and
-  example module and fails under a mutation.
-- [ ] The hostile-IR test: no text from the IR reaches generated source.
-- [ ] Snapshots, rewind, carry-over, inner signals, the Memory tab and pokes work as before
+  example module and fails under a mutation. — 5 of 5 mutations; removed with the interpreter
+  (Q2). The example's board benches wait a tenth as long at 100 kHz (Q4).
+- [x] The hostile-IR test: no text from the IR reaches generated source. — `int` refuses
+  non-integers; a polarity of code is refused; every sample module with code in its names,
+  locations and memories compiles and runs without running it (caught when a mutation puts `src`
+  in the source).
+- [x] Snapshots, rewind, carry-over, inner signals, the Memory tab and pokes work as before
   (their tests and the e2e test).
 
 ## Open questions
@@ -270,13 +276,23 @@ branch goes on and ends with what it reaches (Q3), the rest a track idea with th
   flip-flops' bit-by-bit model moved from `cells.ts` into `flip-flops.test.ts` (the reference the
   generated code is held to). `cells.ts` keeps `compileStep`: the adapter's uncommon cells and
   the reference of `codegen.test.ts`. 3 984 tests, 34 example benches.
+- 2026-11-12 — task 9: `pnpm build`, `pnpm e2e` 100 passed. Chromium (the build, Playwright):
+  PicoRV32 at Max ≈ 20 s/s at 10 kHz (≈ 200 k cycles/s, HDL-7: ≈ 14–16 k), real time kept.
+  Q4: the example's clock raised to 100 kHz (`scripts/hdl-examples.ts`, `pnpm hdl:examples`:
+  only this example changed), its board's benches wait 5 and 10 ms; in Chromium real time holds
+  (5.08 s in 5.01 s), Max ≈ 1.75–2.0 s/s ≈ 40 frames a second (≈ 3 at HDL-7), the reported rate
+  right: `fix/run-loop-chunks` less urgent, kept as drafted. The board benchmark: 1 ms = 100
+  cycles. Task 10: ADR-0037 (and ADR-0030 amended), components.md (the interpreter, steps,
+  speed, tests), architecture.md, the `src/library` README, the track (HDL-10 built, the idea
+  "Faster still"), lessons (V8's function size, benchmarks under activity, a filter matching
+  nothing, unused bits in words, two ways to measure); the hostile-IR test through `hdlPart`.
 
 ## Handoff
 
-- **State:** tasks 1–8 and 7b done: the part runs on words, the old interpreter is gone; every
-  test green; PicoRV32 ≈ 240 k cycles/s (×23).
-- **Next step:** task 9 (the app: examples in the browser, PicoRV32 at Max, the example's clock
-  per Q4, whether `fix/run-loop-chunks` is still needed), then task 10 (docs).
+- **State:** every task done; acceptance verified; waiting for the user's review before
+  `finish-branch` (not pushed: the user asked to look first).
+- **Next step:** the user reviews; then `.ai/workflows/finish-branch.md` (merge `main` in,
+  checks, the track's status `done`, plan `done`, PR, merge with approval).
 - **Watch out:** comparing against the old interpreter now needs `main` (a worktree: call
   `node_modules/.bin/vitest bench` directly there, `.ai/lessons.md` HDL-8).
 - **Watch out:** benchmark against `main` alternately in one sitting; native imports only.

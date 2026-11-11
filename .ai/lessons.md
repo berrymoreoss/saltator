@@ -583,3 +583,25 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
   a loop step of PicoRV32's Fibonacci is 6 instructions ≈ 25 cycles, so a new input shows after
   the step in progress plus n steps; a harness that happened to read the input early (390
   cycles) hid that a bench needs ≈ 600.
+- 2026-11-12 (HDL-10) — V8 won't optimize a function past its bytecode limit (≈ 60 KB): code
+  generated for a whole core in one `new Function` would stay in the interpreter tiers. Split
+  generated code into functions of moderate size (the settle: ≈ 24 k characters each, behind a
+  dispatcher that calls one only when it has work), and name them (`//# sourceURL=hdl/…`) so a
+  CPU profile tells them apart instead of one "(anonymous)".
+- 2026-11-12 (HDL-10) — With activity a benchmark measures only what changes: the synthetic
+  1 024-cell module had no reset, stayed `X`, and "ran" at 1.8 M evaluations a second against
+  11 k — doing nothing. Give a benchmark's state known power-up values, and check that an
+  outlier does the work it claims (count the steps run) before believing it.
+- 2026-11-12 (HDL-10) — A test filter over a name that doesn't exist selects nothing and passes:
+  `kind === 'combinational'` matched no cell kind (they are `unary`, `binary`, `mux`, …), so the
+  generated code's fixture test checked only latches; a mutation caught by 1 test instead of 14
+  gave it away. Assert a filter's count (`expect(cells.length).toBeGreaterThan(…)`) or
+  mutation-check each part of a test.
+- 2026-11-12 (HDL-10) — Comparing whole words to see whether a bit changed needs the words'
+  unused bits kept 0 everywhere (power-up and every write masked): random test words with junk
+  in them made loads "change" and mark readers. Generate test data that respects the invariant
+  the code relies on (`usedBits`), and write that invariant down.
+- 2026-11-12 (HDL-10) — Measure a few-percent difference two ways: in `vitest bench` an I/O port
+  read 2–4 % slower than the old engine in every paired run, yet a plain Node loop of the same
+  cycle timed both the same (5.39–5.44 µs); the gap was inlining in the harness, and the profile
+  showed the kernel's reads and drives were 80 % of it anyway.
