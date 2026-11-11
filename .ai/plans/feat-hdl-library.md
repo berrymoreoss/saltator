@@ -227,7 +227,7 @@ checks included, and a benchmark compares the Verilog 74HC00 with the hand-writt
 - [x] 7. Verilog 74HC00 and its proof: the gate tests on both definitions.
 - [x] 8. Verilog 74HC74: the flip-flop tests on both, timing checks included.
 - [x] 9. Verilog 74HC574: the register and 3-state tests on both.
-- [ ] 10. Benchmark: Verilog vs hand-written 74HC00 chain; HDL-1's benchmarks unchanged.
+- [x] 10. Benchmark: Verilog vs hand-written 74HC00 chain; HDL-1's benchmarks unchanged.
 - [ ] 11. App: the command shown with `-specify`; the Part tab shows a module's paths and checks;
   the `delay` prop says it covers outputs without a path; e2e (a module with `specify` pasted
   in the browser). The Verilog chips in the dev palette (Q3), looked at in `pnpm dev`.
@@ -305,12 +305,18 @@ checks included, and a benchmark compares the Verilog 74HC00 with the hand-writt
   in `gates.test.ts`, `flip-flops.test.ts`, `registers.test.ts`): the Verilog 74HC00 (7 tests),
   74HC74 (15, every timing check and "set and reset released at once → X" included) and 74HC574
   (19, 3-state included) pass unchanged; expected delays come from the hand-written chip's table.
+- 2026-11-12 — task 10 (`pnpm bench`, Apple M3 Pro): 74HC00 chain ×1000 hand-written 5.63 M
+  events/s, Verilog 3.21 M (≈ 57 %); 74HC574 pipeline ×100 5.07 M vs 2.75 M (≈ 54 %, its checks
+  running); 74HC04 chain 6.63 M. HDL-1's benchmarks against `main`, alternately in one sitting:
+  the same within the noise (decoder 2.05–2.16 M vs 1.98–2.09 M evaluations/s, PicoRV32
+  210–226 k vs 226–227 k cycles/s).
 
 ## Handoff
 
-- **State:** tasks 1–9 done; the Verilog 74HC00/74/574 pass the hand-written chips' tests.
-- **Next step:** task 10 — benchmark (Verilog vs hand-written 74HC00 chain; HDL-1's
-  benchmarks unchanged), then task 11 (app), 12 (docs).
+- **State:** tasks 1–10 done; the Verilog 74HC00/74/574 pass the hand-written chips' tests and
+  run at ≈ 55 % of their speed.
+- **Next step:** task 11 — the app: the Part tab for modules with `specify`, the `delay` prop's
+  wording, e2e; the dev palette looked at in `pnpm dev`. Then task 12 (docs).
 - **Watch out:** Yosys drops `$width`, `$period`, 3/6-value delays, `specparam`, `ifnone`, source
   lists — the conventions above work around them; try a construct on the real Yosys first.
 - **Verify with:** `pnpm check`; `pnpm hdl:fixtures` and `pnpm hdl:library` need `yosys`.
