@@ -7,7 +7,8 @@
   HDL-8 (feat/hdl-bus: tri-states, `inout` ports, floating pins) and HDL-9 (feat/hdl-semantics:
   the rest of synthesizable Verilog, races `X`); its signals inside: [ADR-0035](0035-inner-signals.md)
   (HDL-4); its memories: [ADR-0036](0036-memories-in-modules.md) (HDL-6, the command gains
-  `memory_collect`)
+  `memory_collect`); amended in HDL-7 (example/picorv32: the top module named where
+  `-auto-top` would pick another)
 
 ## Context
 
@@ -26,7 +27,9 @@ carry-over across recompiles, diagnostics, test benches, determinism, and the pu
 
 - **Yosys is the front end, and it runs outside the app.** Yosys (ISC license) compiles
   Verilog on the user's computer, as their FPGA or CPLD flow does anyway, with a command the app
-  shows: `read_verilog` (`-specify` from HDL-2), `hierarchy -auto-top`, `proc`, `flatten`,
+  shows: `read_verilog` (`-specify` from HDL-2), `hierarchy -auto-top` (`-top <module>` where
+  the sources hold other modules nobody instantiates, as `picorv32.v` does: HDL-7), `proc`,
+  `flatten`,
   `tribuf -logic` (HDL-8: tri-states become `$tribuf` cells, one per net), `opt -keepdc`
   (don't-care bits are not optimized away, so `X` behaves as written), `memory_collect` (HDL-6:
   each memory one cell, [ADR-0036](0036-memories-in-modules.md)), `check`, `write_json`;

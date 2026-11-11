@@ -42,6 +42,7 @@ pnpm e2e              # browser tests (Playwright, Chromium; not part of check)
 pnpm bench            # benchmarks (tests/bench), on native imports for realistic numbers
 pnpm hdl:fixtures     # Verilog fixtures for the converter's tests (needs yosys on PATH; not in check)
 pnpm hdl:examples     # the Verilog examples from examples/verilog/*.v (needs yosys on PATH)
+pnpm riscv:firmware   # the PicoRV32 example's program (needs LLVM with RISC-V: brew install llvm lld)
 pnpm hdl:differential # the interpreter's reference vectors from Yosys's sim (needs yosys on PATH)
 pnpm lint:fix         # format + autofix with Biome
 pnpm build            # typecheck + production build

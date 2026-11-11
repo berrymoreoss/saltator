@@ -161,10 +161,26 @@ HDL-1's benchmark unchanged, a 4K × 32 RAM at ≈ 130 k cycles a second.
 
 ## HDL-7 · PicoRV32 soft core — `example/picorv32`
 
-PicoRV32 (ISC license, its upstream source) as a module in an example: the core with its memory,
-running a program that writes to an output port, verified by a test bench; the program built
-outside the app and kept as a hex image. Measures how fast a core of a few thousand cells runs
-against HDL-1's baseline — the target HDL-10 is held to.
+**Built** ([plan](../../.ai/plans/example-picorv32.md)): the example **Verilog PicoRV32** — a
+RISC-V core written by someone else, run as written. `examples/verilog/picorv32/` holds
+PicoRV32's `picorv32.v` unchanged (ISC, upstream commit `ef203c2b`) and a wrapper `soc.v`: the
+core (RV32I with the barrel shifter, Q2: 558 cells), 4 KB of RAM filled by `$readmemh`, an 8-bit
+input and output port, a power-on reset from `init` (as an FPGA starts); its memory and ports do
+nothing in reset, or the core's unknown `mem_valid` at the first edge would make the whole RAM
+`X` (Icarus's `if (x)` hides it). The program is C (Q3: n on the input, the n-th Fibonacci
+number on the output), built by `pnpm riscv:firmware` with LLVM for RV32I, its image
+(`firmware.hex`) and listing committed. The repo's Yosys scripts take several sources and a top
+(`hierarchy -top soc`: `-auto-top` picks one of `picorv32.v`'s bus adapters; ADR-0030 amended).
+The board (Q1): a 10 kHz clock, RESET, a DIP switch, an LED bar and two hex digits, TRAP; the
+waveforms show the core's PC and bus, the Memory tab its RAM (words or bytes) and its register
+file x0–x31 live. Benches: the module's (from power-up, reset, its RAM and `sp`, a program the
+bench loads ending in EBREAK) and the board's, headless and in the app;
+`tests/scenarios/verilog-picorv32.test.ts` (the RAM holds the image; `add` changed to `sub`
+fails them), `tests/e2e/hdl.spec.ts`. **Speed**: ≈ 10.6 k cycles a second headless, alone and
+on the board — HDL-1's baseline of ≈ 10 M cells a second, every cell on every evaluation; real
+time at 10 kHz in the app; the full core (1 180 cells) about half. HDL-10's target set from it
+(Q4). The app's run loop at Max chunks the kernel by
+20 000 events, ≈ 0.35 s with this core: a `fix/` branch after this one.
 
 ## HDL-10 · Fast evaluation — `feat/hdl-fast`
 
@@ -266,6 +282,14 @@ Not scheduled yet; promoting one gives it the next free id and a row in the tabl
   and collision masks), for JSON from flows that run `memory -nomap`; the command leaves the
   register a flip-flop (HDL-6).
 - Memories wider than 32 bits in the Memory tab and pokes (they run; HDL-6 shows up to 32).
+- A CPU view for soft cores: a RISC-V core's registers from its register file, its PC from a
+  signal, the RAM disassembled — what R17b gives the 6502 ([MOS 6502](mos6502.md)), for a
+  module (HDL-7 shows x0–x31 in the Memory tab).
+- Flip-flops powering up at 0 without an `init`, as an FPGA loads them: a module option (HDL-7's
+  wrapper resets what it needs; a design from an Icarus testbench may rely on `if (x)` being
+  false).
+- PicoRV32 in the differential tests: the core and its program against Yosys's `sim`, cycle by
+  cycle (HDL-7 checks the program's results).
 - Gate-level netlists: the cells `synth` and `techmap` leave (`$_AND_`, `$_MUX_`, `$_DFF_P_`, …),
   so the JSON of a full synthesis runs too.
 - Parameters per instance: a module compiled for several parameter sets (`chparam` in the

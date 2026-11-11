@@ -157,7 +157,7 @@ Small, ordered, each committable with its tests (`pnpm check` green).
   this plan; HDL-10's target in the track (Q4).
 - [x] 5. Browser: an e2e test (open, RESET, the output changes; Memory tab: RAM and register
   file); looked at in screenshots; the speed at Max written down.
-- [ ] 6. Docs: the track (HDL-7 built, HDL-10's target, ideas), components.md (examples, speed),
+- [x] 6. Docs: the track (HDL-7 built, HDL-10's target, ideas), components.md (examples, speed),
   ADR-0030 (scripts with a top), README's third-party note, lessons (auto-top, power-up `X`).
 
 ## Acceptance criteria
@@ -231,11 +231,16 @@ Small, ordered, each committable with its tests (`pnpm check` green).
   `Verilog PicoRV32` (watches on `OUT[7..0]` and `A1/cpu.cpuregs[2]`, the switches, the Memory
   tab, Run All Tests ✓ 6). The example is ≈ 185 kB of the bundle's text (≈ 29 kB gzip of the
   main chunk's 187 kB): examples are bundled eagerly.
+- 2026-11-11 — task 6: the track (HDL-7 as built, HDL-10's target, three ideas: a CPU view for
+  soft cores, flip-flops at 0 as an FPGA, PicoRV32 in the differential tests); components.md (the
+  top module, the speed, the tests), editor.md (the example), ADR-0030 (amended: the top),
+  README (third-party sources), AGENTS.md (`pnpm riscv:firmware`), lessons (auto-top, `if (x)`,
+  the run loop's chunks, bench margins from the listing).
 
 ## Handoff
 
-- **State:** tasks 1–5 done; the example runs headless and in the browser, e2e passes.
-- **Next step:** task 6 (docs), then finish-branch; after the merge, a `fix/` branch for the run loop at Max (Out of scope).
+- **State:** every task done; acceptance not yet verified (finish-branch).
+- **Next step:** `/finish-branch` (verify the acceptance criteria, merge with the user's approval); after the merge, a `fix/` branch for the run loop at Max (Out of scope).
 - **Watch out:** `hierarchy -auto-top` picks `picorv32_wb`; gate the wrapper's writes with
   `resetn` (power-up `X`). The experiment's files are in the session scratchpad, not the repo.
 - **Verify with:** `pnpm check`; `pnpm hdl:examples` (Yosys), `pnpm riscv:firmware` (LLVM).
