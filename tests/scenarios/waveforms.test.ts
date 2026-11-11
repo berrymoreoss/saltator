@@ -135,6 +135,7 @@ describe('the examples’ probes', () => {
       'lcd-hello-world',
       'tft-color-bars',
       'two-digit-counter',
+      'verilog-picorv32',
       'verilog-uart',
     ]);
   });
