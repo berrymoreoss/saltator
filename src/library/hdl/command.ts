@@ -6,11 +6,12 @@
 
 /**
  * The passes, in order: read the sources, pick the top module, turn processes into cells
- * (`-norom`: a `case` stays logic instead of becoming a ROM, which modules can't hold yet),
- * flatten the hierarchy, turn tri-states into `$tribuf` cells (HDL-8: `-logic` merges the
- * drivers of one net into one and makes those that reach no port logic), optimize without
- * dropping don't-care bits (`-keepdc`, so `X` behaves as written), report problems, write the
- * JSON netlist.
+ * (`-norom`: a `case` stays logic, as a GAL gets it, instead of becoming a ROM), flatten the
+ * hierarchy, turn tri-states into `$tribuf` cells (HDL-8: `-logic` merges the drivers of one net
+ * into one and makes those that reach no port logic), optimize without dropping don't-care bits
+ * (`-keepdc`, so `X` behaves as written), collect each memory's ports and contents into one cell
+ * (HDL-6: reads stay asynchronous, a registered read's register a flip-flop), report problems,
+ * write the JSON netlist.
  */
 export function yosysScript(sources: readonly string[], output: string): string {
   return [
@@ -20,6 +21,7 @@ export function yosysScript(sources: readonly string[], output: string): string 
     'flatten',
     'tribuf -logic',
     'opt -keepdc',
+    'memory_collect',
     'check',
     `write_json ${output}`,
   ].join('; ');

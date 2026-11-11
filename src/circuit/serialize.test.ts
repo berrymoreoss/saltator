@@ -5,7 +5,7 @@ import { serializeDocument } from './serialize';
 import { testModule } from './test-parts';
 
 const document: CircuitDocument = {
-  schemaVersion: 8,
+  schemaVersion: 9,
   circuits: [
     {
       id: 'main',
@@ -40,7 +40,7 @@ const document: CircuitDocument = {
 };
 
 const text = `{
-  "schemaVersion": 8,
+  "schemaVersion": 9,
   "circuits": [
     {
       "id": "main",
@@ -96,7 +96,7 @@ describe('serializeDocument', () => {
 
 describe('serializeDocument: Verilog modules', () => {
   const withModule: CircuitDocument = {
-    schemaVersion: 8,
+    schemaVersion: 9,
     circuits: [
       { id: 'main', name: 'Main', components: [], wires: [], probes: [], testScript: [] },
       {

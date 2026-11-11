@@ -6,7 +6,8 @@
   when HDL-1 started (Yosys outside the app), accepted in HDL-1 after its benchmark; amended in
   HDL-8 (feat/hdl-bus: tri-states, `inout` ports, floating pins) and HDL-9 (feat/hdl-semantics:
   the rest of synthesizable Verilog, races `X`); its signals inside: [ADR-0035](0035-inner-signals.md)
-  (HDL-4)
+  (HDL-4); its memories: [ADR-0036](0036-memories-in-modules.md) (HDL-6, the command gains
+  `memory_collect`)
 
 ## Context
 
@@ -27,7 +28,8 @@ carry-over across recompiles, diagnostics, test benches, determinism, and the pu
   Verilog on the user's computer, as their FPGA or CPLD flow does anyway, with a command the app
   shows: `read_verilog` (`-specify` from HDL-2), `hierarchy -auto-top`, `proc`, `flatten`,
   `tribuf -logic` (HDL-8: tri-states become `$tribuf` cells, one per net), `opt -keepdc`
-  (don't-care bits are not optimized away, so `X` behaves as written), `check`, `write_json`;
+  (don't-care bits are not optimized away, so `X` behaves as written), `memory_collect` (HDL-6:
+  each memory one cell, [ADR-0036](0036-memories-in-modules.md)), `check`, `write_json`;
   memories stay memory cells. The user pastes the JSON netlist into a module of
   the document or imports it from a file. The repo's scripts run the system `yosys` for the
   converter's fixtures, the examples and the library's modules; `pnpm check` never does. Only

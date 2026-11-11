@@ -54,6 +54,7 @@ import {
   type CircuitDocument,
   circuitUses,
   duplicateCircuit,
+  MODULE_PART,
   removeCircuit,
   setTopCircuit,
   subcircuitOf,
@@ -157,13 +158,12 @@ export function createCommands({
     setPanel('properties', true);
     ui.update((s) => ({ ...s, propertiesRequest: s.propertiesRequest + 1 }));
   };
-  /** The memory part selected alone on the canvas, if any. */
+  /** The memory of the part selected alone on the canvas, if any. */
   const selectedMemory = () => {
-    const { selection, circuit } = editor.state.get();
+    const { selection } = editor.state.get();
     if (selection.parts.size !== 1) return undefined;
     const [id] = selection.parts;
-    const part = circuit.components.find((c) => c.id === id);
-    return part && editor.registry.get(part.type)?.memory ? part.id : undefined;
+    return memoryOfPart(editor, id!);
   };
 
   return [
@@ -1241,3 +1241,15 @@ export const CIRCUIT_CONTEXT_MENU: readonly MenuEntry[] = [
   SEPARATOR,
   'circuit.setTop',
 ];
+
+/**
+ * The memory the Memory tab shows for part `id` of the open circuit: a memory chip itself, or
+ * the first memory of a Verilog module placed as `id` (`A1/rom`, HDL-6).
+ */
+export function memoryOfPart(editor: Editor, id: string): string | undefined {
+  const part = editor.state.get().circuit.components.find((c) => c.id === id);
+  if (!part) return undefined;
+  if (editor.registry.get(part.type)?.memory) return part.id;
+  const inside = `${part.id}/${MODULE_PART}`;
+  return editor.memory.memories().find((m) => m.part === inside)?.id;
+}

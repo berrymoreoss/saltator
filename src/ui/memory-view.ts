@@ -24,18 +24,28 @@ export function cellDigits(width: number): number {
 
 /**
  * Characters a row of `perRow` cells takes: the address and two spaces, each cell with a space,
- * an extra space between groups of 8, two spaces, the ASCII column.
+ * an extra space between groups of 8, two spaces and the ASCII column (cells of a byte or less).
  */
-function rowChars(perRow: number, digits: number, cell: number): number {
-  return digits + 2 + perRow * (cell + 1) + (perRow / 8 - 1) + 2 + perRow;
+function rowChars(perRow: number, digits: number, cell: number, ascii: boolean): number {
+  return digits + 2 + perRow * (cell + 1) + Math.max(0, perRow / 8 - 1) + (ascii ? 2 + perRow : 0);
 }
 
-/** 8, 16 or 32 cells per row: the most that fit in `width` px at `charWidth` px a character. */
-export function bytesPerRow(width: number, charWidth: number, digits: number, cell = 2): number {
-  for (const perRow of [32, 16]) {
-    if (rowChars(perRow, digits, cell) * charWidth <= width) return perRow;
+/**
+ * 8, 16 or 32 cells per row — down to 4 of wider words (HDL-6) — the most that fit in `width` px
+ * at `charWidth` px a character.
+ */
+export function bytesPerRow(
+  width: number,
+  charWidth: number,
+  digits: number,
+  cell = 2,
+  ascii = cell <= 2,
+): number {
+  for (const perRow of [32, 16, 8]) {
+    if (perRow === 8 && cell <= 2) break;
+    if (rowChars(perRow, digits, cell, ascii) * charWidth <= width) return perRow;
   }
-  return 8;
+  return cell <= 2 ? 8 : 4;
 }
 
 /** A cell's digits, `X` for a nibble with an unknown bit: `3C`, `X5`, `XX`. */

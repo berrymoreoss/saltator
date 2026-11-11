@@ -98,6 +98,7 @@ describe('tri-state modules sharing a bus', () => {
       { name: 'y', dir: 'out', lsb: 0, bits: [2] },
     ],
     signals: [],
+    memories: [],
     cells: [{ type: '$tribuf', src: '', ports: { A: [1], EN: [0], Y: [2] }, params: {} }],
   };
 

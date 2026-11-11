@@ -175,6 +175,17 @@ describe('writing files', () => {
     expect(unknownBytes).toBe(1);
   });
 
+  it('writes wider words as their bytes, least significant first (HDL-6)', () => {
+    const data = new Uint32Array([0x12345678, 0x0000abcd]);
+    const unknown = new Uint32Array([0, 0x00ff0000]);
+    const { bytes, unknownBytes } = memoryBytes(data, unknown, 32);
+    expect([...bytes]).toEqual([0x78, 0x56, 0x34, 0x12, 0xcd, 0xab, 0x00, 0x00]);
+    expect(unknownBytes).toBe(1);
+    expect([...memoryBytes(new Uint32Array([0x1ff]), new Uint32Array(1), 9).bytes]).toEqual([
+      0xff, 0x01,
+    ]);
+  });
+
   it('writes Intel HEX with 16-byte records and the end record', () => {
     const bytes = new Uint8Array(0x40);
     for (let i = 0; i < bytes.length; i++) bytes[i] = readIntelHex(EXAMPLE).chunks[0]!.bytes[i]!;

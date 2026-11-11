@@ -2,9 +2,9 @@
  * What the interpreter needs to know about a module before it runs it (HDL-1): who drives each
  * bit (a pin, a cell), the order of its combinational cells, its flip-flops, the pins each cell
  * depends on (HDL-8: a floating pin is reported where it is used), its combinational loops
- * (HDL-9), and what it can't run — a bit driven twice, two inout ports joined — or runs
- * differently from a Verilog simulator (an inferred latch, a loop). Clocks and asynchronous
- * controls may come from anywhere (HDL-9).
+ * (HDL-9), its memories' write ports (HDL-6), and what it can't run — a bit driven twice, two
+ * inout ports joined, a memory too large — or runs differently from a Verilog simulator (an
+ * inferred latch, a loop). Clocks and asynchronous controls may come from anywhere (HDL-9).
  * Spec: docs/components.md#verilog-modules-hdl.
  */
 import {
@@ -13,6 +13,7 @@ import {
   type HdlCellSpec,
   type HdlMessage,
   type HdlModule,
+  hdlCellOutput,
 } from '../../core';
 
 export interface HdlAnalysis {
@@ -43,6 +44,13 @@ export interface HdlAnalysis {
   readonly dataCones: readonly (readonly number[])[];
   /** Per flip-flop, the bits read from pins its asynchronous controls (and `AD`) depend on. */
   readonly asyncCones: readonly (readonly number[])[];
+  /**
+   * The memories' write ports (`$memwr`, HDL-6), in cell order: edge-triggered like flip-flops,
+   * storing into their memory instead of driving bits.
+   */
+  readonly writePorts: readonly number[];
+  /** Per write port, the bits read from pins what its edges sample — EN, ADDR, DATA — depend on. */
+  readonly writeDataCones: readonly (readonly number[])[];
   /** Errors (it can't run) first, then warnings. */
   readonly messages: readonly HdlMessage[];
 }
@@ -51,6 +59,15 @@ export interface HdlAnalysis {
 const SAMPLED = ['D', 'EN', 'SRST'];
 /** A flip-flop's asynchronous (level-sensitive) ports. */
 const ASYNC = ['ARST', 'SET', 'CLR', 'ALOAD', 'AD'];
+/** A memory's write port's ports an edge samples. */
+const WRITTEN = ['EN', 'ADDR', 'DATA'];
+
+/**
+ * The most words and bits a module's memory may have: a 256K × 32 RAM. An instance keeps its
+ * words and two access stamps per word (ADR-0018), copied by every snapshot.
+ */
+export const HDL_MEMORY_WORDS = 2 ** 18;
+export const HDL_MEMORY_BITS = 2 ** 23;
 
 /** A bit read from a pin (`HdlAnalysis.driver`). */
 export const PIN = -1;
@@ -101,7 +118,7 @@ export function analyzeHdlModule(module: HdlModule): HdlAnalysis {
   const { cells } = module;
   for (const [index, cell] of cells.entries()) {
     const spec: HdlCellSpec = HDL_CELLS[cell.type];
-    for (const bit of cell.ports[spec.output]!) {
+    for (const bit of hdlCellOutput(cell)) {
       const b = bit as number;
       if (spec.kind === 'tribuf' && inoutOf.has(b)) continue;
       if (driver[b] !== NO_DRIVER) {
@@ -130,10 +147,24 @@ export function analyzeHdlModule(module: HdlModule): HdlAnalysis {
     }
   }
 
+  for (const memory of module.memories) {
+    if (memory.size > HDL_MEMORY_WORDS || memory.size * memory.width > HDL_MEMORY_BITS) {
+      error(
+        `memory ${memory.name} (${memory.size} × ${memory.width}) is larger than a module's memory may be: ${HDL_MEMORY_WORDS / 1024}K words, ${HDL_MEMORY_BITS / 1024 / 1024} Mbit`,
+        memory.src,
+      );
+    }
+  }
+
   const flipFlops: number[] = [];
+  const writePorts: number[] = [];
   const combinational: number[] = [];
   for (const [index, cell] of cells.entries()) {
     const spec: HdlCellSpec = HDL_CELLS[cell.type];
+    if (spec.kind === 'memwr') {
+      writePorts.push(index);
+      continue;
+    }
     if (spec.kind !== 'flip-flop') {
       combinational.push(index);
       if (spec.kind === 'latch')
@@ -194,7 +225,7 @@ export function analyzeHdlModule(module: HdlModule): HdlAnalysis {
     }
     ready = following.sort((a, b) => first(a) - first(b));
   }
-  const outputOf = (index: number) => cells[index]!.ports[HDL_CELLS[cells[index]!.type].output]!;
+  const outputOf = (index: number) => hdlCellOutput(cells[index]!);
   for (const members of loops) {
     // Name the loop by a signal on it, if one of its cells drives a named one.
     const named =
@@ -222,7 +253,7 @@ export function analyzeHdlModule(module: HdlModule): HdlAnalysis {
   };
   const inLoop = new Int32Array(cells.length).fill(-1);
   for (const [l, members] of loops.entries()) for (const m of members) inLoop[m] = l;
-  for (const index of [...order, ...flipFlops]) {
+  for (const index of [...order, ...flipFlops, ...writePorts]) {
     const l = inLoop[index]!;
     if (l >= 0) {
       // A loop's cells depend on each other: each has the cone of the whole loop.
@@ -250,6 +281,7 @@ export function analyzeHdlModule(module: HdlModule): HdlAnalysis {
   // A flip-flop's data — what an edge samples — and its asynchronous controls, apart.
   const dataCones = flipFlops.map((index) => coneOf(cells[index]!, SAMPLED));
   const asyncCones = flipFlops.map((index) => coneOf(cells[index]!, ASYNC));
+  const writeDataCones = writePorts.map((index) => coneOf(cells[index]!, WRITTEN));
 
   return {
     driver,
@@ -259,6 +291,8 @@ export function analyzeHdlModule(module: HdlModule): HdlAnalysis {
     cones,
     dataCones,
     asyncCones,
+    writePorts,
+    writeDataCones,
     messages: [...errors, ...warnings],
   };
 }

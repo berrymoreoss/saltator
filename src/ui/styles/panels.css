@@ -958,7 +958,8 @@ kbd {
   margin-left: auto;
 }
 
-.memory-notice {
+.memory-notice,
+.memory-note {
   flex: none;
   padding: 3px 10px;
 }

@@ -10,9 +10,11 @@ import {
   innerReader,
   type Level,
   levelChar,
+  type MemoryDef,
   type SignalsDef,
   type Simulator,
 } from '../core';
+import { memorySize } from '../editor';
 import { fromYosys, type YosysConversion, yosysCommand } from '../library';
 
 /** What the view lists of a compiled module. */
@@ -117,6 +119,36 @@ export function signalRows(
       ...(src !== undefined && { src }),
       ...(ref !== undefined && { ref }),
       ...(value !== undefined && { value }),
+    };
+  });
+}
+
+/** A memory of the module as its view lists it (HDL-6). */
+export interface MemoryRow {
+  readonly name: string;
+  /** Its Verilog addresses: `[0:255]`, `[16:25]`. */
+  readonly range: string;
+  /** `256 × 8`. */
+  readonly size: string;
+  readonly src?: string;
+  /** Its reference in the open instance (`A1/rom`), to show in the Memory tab; none without one. */
+  readonly ref?: string;
+}
+
+/** The module's memories, their references in the instance at `path` (`''`: its own scope). */
+export function memoryRows(
+  memories: readonly MemoryDef[] | undefined,
+  module: HdlModule,
+  path: string | undefined,
+): MemoryRow[] {
+  return (memories ?? []).map(({ name, words, width, offset = 0 }) => {
+    const src = module.memories.find((m) => m.name === name)?.src;
+    return {
+      name: name!,
+      range: `[${offset}:${offset + words - 1}]`,
+      size: memorySize(words, width),
+      ...(src !== undefined && { src }),
+      ...(path !== undefined && { ref: path === '' ? name! : `${path}/${name}` }),
     };
   });
 }

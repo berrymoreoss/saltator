@@ -82,8 +82,16 @@ describe('Insert Image… in a test script', () => {
   it('lists the circuit’s memory parts', () => {
     const memory = benchTestDocument().circuits.find((c) => c.id === 'memory')!;
     expect(circuitMemories(memory, registry)).toEqual([
-      { id: 'U1', name: 'RAM', words: 16, volatile: true },
+      { id: 'U1', name: 'RAM', words: 16, width: 8, volatile: true },
     ]);
+  });
+
+  it('writes a binary image for wider words as Intel HEX from its byte address (HDL-6)', () => {
+    const bytes = Uint8Array.from([0x13, 0, 0, 0]);
+    const info = readImageForLoad('program.bin', bytes) as ImageFileInfo;
+    const call = benchImageCall('A1/ram', info, bytes, 8, 32);
+    expect(call.split('\n')[0]).toBe("b.loadIntelHex('A1/ram', `");
+    expect(call).toContain(':0400080013000000E1');
   });
 
   it('writes a binary image as b.memory, sixteen bytes a line, that loads in a bench', () => {

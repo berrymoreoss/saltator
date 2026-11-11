@@ -6,6 +6,7 @@
  * interpreter can't run) are the analysis's. Spec: docs/components.md#verilog-modules-hdl.
  */
 import type { AnyComponentDefinition, PinDir, PropDef } from './component';
+import { readHdlMemoryInit } from './hdl-memory';
 import { BUS_NAME } from './net-names';
 import { ns } from './time';
 
@@ -73,6 +74,28 @@ export interface HdlSignal {
   readonly src?: string;
 }
 
+/**
+ * A memory of the module (HDL-6): a Verilog array Yosys kept as one (`reg [7:0] m[0:255]`), read
+ * by `$memrd` cells and written by `$memwr` cells. Its words are addressed as in the source: from
+ * `offset` to `offset + size − 1`.
+ */
+export interface HdlMemory {
+  /** Its Verilog name: `rom`, a flattened submodule's `u_fifo.mem`. */
+  readonly name: string;
+  /** Bits per word. */
+  readonly width: number;
+  /** The number of words. */
+  readonly size: number;
+  /** The Verilog address of its first word: `reg [7:0] m[16:25]` has 16. */
+  readonly offset: number;
+  /**
+   * Its power-up contents (`initial`, `$readmemh`, read by Yosys): runs `ADDR:WORDS` in hex,
+   * `x` digits unknown (`readHdlMemoryInit`). Words no run gives, and all without it, start `X`.
+   */
+  readonly init?: string;
+  readonly src?: string;
+}
+
 /** A cell: one of `HDL_CELLS`, its ports' bits and its parameters. */
 export interface HdlCell {
   readonly type: HdlCellType;
@@ -82,7 +105,8 @@ export interface HdlCell {
   readonly ports: Readonly<Record<string, readonly HdlBit[]>>;
   /**
    * Polarities (0 or 1), the operands' signedness (`A_SIGNED`, `B_SIGNED`: 1, or absent for
-   * unsigned) and reset values (bits, least significant first).
+   * unsigned), reset values (bits, least significant first), a memory port's memory (`MEMORY`, an
+   * index into `memories`) and a write port's priority (`PRIORITY`, bits, HDL-6).
    */
   readonly params: Readonly<Record<string, number | readonly HdlBit[]>>;
 }
@@ -114,6 +138,8 @@ export interface HdlModule {
   /** Inputs, outputs and inouts in declaration order. */
   readonly ports: readonly HdlPort[];
   readonly signals: readonly HdlSignal[];
+  /** Its memories (HDL-6), which `$memrd` and `$memwr` cells name by index. */
+  readonly memories: readonly HdlMemory[];
   readonly cells: readonly HdlCell[];
 }
 
@@ -129,13 +155,16 @@ export type HdlCellKind =
   | 'flip-flop' // CLK (EN, ARST, SRST, SET, CLR, ALOAD, AD), D → Q
   | 'latch' // EN (ARST, SET, CLR), D → Q
   | 'sr' // SET, CLR → Q (no clock: set and cleared per bit)
-  | 'tribuf'; // A, EN → Y (released while EN is 0)
+  | 'tribuf' // A, EN → Y (released while EN is 0)
+  | 'memrd' // ADDR → DATA (a memory's word, asynchronously)
+  | 'memwr'; // CLK, EN, ADDR, DATA → a memory's word (on CLK's edge; no output)
 
 /** A cell type's shape: its input and output ports and its parameters. */
 export interface HdlCellSpec {
   readonly kind: HdlCellKind;
   readonly inputs: readonly string[];
-  readonly output: string;
+  /** The port it drives; none for a memory's write port, which drives its memory. */
+  readonly output?: string;
   /** Parameters that are a polarity (0 or 1). */
   readonly flags: readonly string[];
   /**
@@ -147,6 +176,8 @@ export interface HdlCellSpec {
   readonly values: readonly string[];
   /** Whether its operands are words (numbers of any width) rather than bits side by side. */
   readonly word: boolean;
+  /** Parameters that are an index into the module's memories (`MEMORY`, HDL-6). */
+  readonly indices?: readonly string[];
 }
 
 const unary = (word: boolean): HdlCellSpec => ({
@@ -278,12 +309,41 @@ export const HDL_CELLS = {
     values: [],
     word: false,
   },
+  // A memory's ports (HDL-6), from Yosys's `$mem_v2`: reads are asynchronous (a registered read
+  // stays a flip-flop after one), writes happen on a clock edge, `EN` per bit; `PRIORITY` holds a
+  // bit per earlier write port of the memory, set where this one wins when both write a bit.
+  $memrd: {
+    kind: 'memrd',
+    inputs: ['ADDR'],
+    output: 'DATA',
+    flags: [],
+    signedness: [],
+    values: [],
+    word: false,
+    indices: ['MEMORY'],
+  },
+  $memwr: {
+    kind: 'memwr',
+    inputs: ['CLK', 'EN', 'ADDR', 'DATA'],
+    flags: ['CLK_POLARITY'],
+    signedness: [],
+    values: [],
+    word: false,
+    indices: ['MEMORY'],
+  },
 } as const satisfies Record<string, HdlCellSpec>;
 
 export type HdlCellType = keyof typeof HDL_CELLS;
 
 export function isHdlCellType(type: string): type is HdlCellType {
   return Object.hasOwn(HDL_CELLS, type);
+}
+
+/** The bits a cell drives: its output port's; none for a memory's write port. */
+export function hdlCellOutput(cell: Pick<HdlCell, 'type' | 'ports'>): readonly HdlBit[] {
+  const spec: HdlCellSpec = HDL_CELLS[cell.type];
+  const output = spec.output;
+  return output === undefined ? [] : (cell.ports[output] ?? []);
 }
 
 /** Ports whose bits are each one control signal, whatever the cell's width. */
@@ -377,7 +437,7 @@ export function hdlModuleProblems(value: unknown, path = 'module'): string[] {
     at(path, 'expected an object');
     return problems;
   }
-  const known = ['format', 'top', 'creator', 'bitCount', 'ports', 'signals', 'cells'];
+  const known = ['format', 'top', 'creator', 'bitCount', 'ports', 'signals', 'memories', 'cells'];
   for (const key of Object.keys(value)) {
     if (!known.includes(key)) at(`${path}.${key}`, 'unknown field');
   }
@@ -498,8 +558,48 @@ export function hdlModuleProblems(value: unknown, path = 'module'): string[] {
     }
   }
 
+  /** Per memory, its width when its shape is right (ports are checked against it). */
+  const memoryWidths: (number | undefined)[] = [];
+  if (!Array.isArray(value.memories)) at(`${path}.memories`, 'expected an array');
+  else {
+    const names = new Set<string>();
+    for (const [i, memory] of (value.memories as unknown[]).entries()) {
+      const where = `${path}.memories[${i}]`;
+      memoryWidths.push(undefined);
+      if (!isObject(memory)) {
+        at(where, 'expected an object');
+        continue;
+      }
+      const before = problems.length;
+      for (const key of Object.keys(memory)) {
+        if (!['name', 'width', 'size', 'offset', 'init', 'src'].includes(key))
+          at(`${where}.${key}`, 'unknown field');
+      }
+      if (typeof memory.name !== 'string' || memory.name === '')
+        at(`${where}.name`, 'expected a name');
+      else if (names.has(memory.name)) at(`${where}.name`, `${memory.name} is an earlier memory's`);
+      else names.add(memory.name);
+      for (const key of ['width', 'size'] as const) {
+        if (!isIndex(memory[key]) || memory[key] === 0)
+          at(`${where}.${key}`, 'expected an integer ≥ 1');
+      }
+      if (!isIndex(memory.offset)) at(`${where}.offset`, 'expected an integer ≥ 0');
+      optionalSrc(where, memory.src);
+      if (memory.init !== undefined && typeof memory.init !== 'string') {
+        at(`${where}.init`, 'expected a string');
+      }
+      if (problems.length > before) continue;
+      const shape = memory as unknown as HdlMemory;
+      const init = readHdlMemoryInit(shape);
+      if (typeof init === 'string') at(`${where}.init`, init);
+      memoryWidths[i] = shape.width;
+    }
+  }
+
   if (!Array.isArray(value.cells)) at(`${path}.cells`, 'expected an array');
   else {
+    /** Per memory, how many write ports came before (a write port's `PRIORITY` has a bit each). */
+    const writePorts = memoryWidths.map(() => 0);
     for (const [i, cell] of (value.cells as unknown[]).entries()) {
       const where = `${path}.cells[${i}]`;
       if (!isObject(cell)) {
@@ -516,12 +616,43 @@ export function hdlModuleProblems(value: unknown, path = 'module'): string[] {
         continue;
       }
       const spec: HdlCellSpec = HDL_CELLS[cell.type];
-      for (const problem of cellShapeProblems(spec, cell.ports, cell.params, bitsProblem)) {
+      const memory = memoryOf(spec, cell.params, memoryWidths);
+      if (typeof memory === 'string') at(`${where}.params.MEMORY`, memory);
+      const port =
+        typeof memory === 'number'
+          ? { memory, width: memoryWidths[memory]!, writePorts }
+          : undefined;
+      for (const problem of cellShapeProblems(spec, cell.ports, cell.params, bitsProblem, port)) {
         at(`${where}.${problem.at}`, problem.message);
       }
+      if (typeof memory === 'number' && spec.kind === 'memwr') writePorts[memory]!++;
     }
   }
   return problems;
+}
+
+/**
+ * The memory a port names (`MEMORY`), or why it names none; `undefined` for other cells and for
+ * a memory whose own shape is wrong (reported there).
+ */
+function memoryOf(
+  spec: HdlCellSpec,
+  params: unknown,
+  widths: readonly (number | undefined)[],
+): number | string | undefined {
+  if (!spec.indices || !isObject(params)) return undefined;
+  const index = params.MEMORY;
+  if (!isIndex(index) || index >= widths.length) {
+    return `expected the index of one of the ${widths.length} memories`;
+  }
+  return widths[index] === undefined ? undefined : index;
+}
+
+/** A memory port's memory, its width, and the write ports each memory had before it. */
+interface PortContext {
+  readonly memory: number;
+  readonly width: number;
+  readonly writePorts: readonly number[];
 }
 
 function cellShapeProblems(
@@ -529,10 +660,11 @@ function cellShapeProblems(
   ports: unknown,
   params: unknown,
   bitsProblem: (bits: unknown, allowed: 'signals' | 'constants') => string | undefined,
+  port: PortContext | undefined,
 ): { at: string; message: string }[] {
   const problems: { at: string; message: string }[] = [];
   if (!isObject(ports)) return [{ at: 'ports', message: 'expected an object' }];
-  const names = [...spec.inputs, spec.output];
+  const names = spec.output === undefined ? spec.inputs : [...spec.inputs, spec.output];
   for (const key of Object.keys(ports)) {
     if (!names.includes(key)) problems.push({ at: `ports.${key}`, message: 'not a port of it' });
   }
@@ -545,11 +677,15 @@ function cellShapeProblems(
     }
     width[name] = (ports[name] as unknown[]).length;
     if (width[name] === 0) problems.push({ at: `ports.${name}`, message: 'expected bits' });
-    if (ONE_BIT.has(name) && width[name] !== 1)
+    // A write port's EN is per bit, as wide as its data.
+    if (ONE_BIT.has(name) && width[name] !== 1 && !(spec.kind === 'memwr' && name === 'EN'))
       problems.push({ at: `ports.${name}`, message: 'expected one bit' });
   }
   if (problems.length > 0) return problems;
-  const y = width[spec.output]!;
+  if (spec.kind === 'memrd' || spec.kind === 'memwr') {
+    return [...problems, ...memoryPortProblems(spec, width, params, port)];
+  }
+  const y = width[spec.output!]!;
   const sameAsY = (name: string) => {
     if (width[name] !== y)
       problems.push({ at: `ports.${name}`, message: `expected ${y} bits, as ${spec.output}` });
@@ -601,6 +737,52 @@ function cellShapeProblems(
       problems.push({ at: `params.${name}`, message: 'expected constant bits' });
     else if ((params[name] as unknown[]).length !== y)
       problems.push({ at: `params.${name}`, message: `expected ${y} bits, as ${spec.output}` });
+  }
+  return problems;
+}
+
+/** A memory port's widths (its data and enables as wide as the memory) and parameters. */
+function memoryPortProblems(
+  spec: HdlCellSpec,
+  width: Readonly<Record<string, number>>,
+  params: unknown,
+  port: PortContext | undefined,
+): { at: string; message: string }[] {
+  if (!isObject(params)) return [{ at: 'params', message: 'expected an object' }];
+  const problems: { at: string; message: string }[] = [];
+  const priority = spec.kind === 'memwr' ? ['PRIORITY'] : [];
+  const allowed = [...spec.flags, ...(spec.indices ?? []), ...priority];
+  for (const key of Object.keys(params)) {
+    if (!allowed.includes(key))
+      problems.push({ at: `params.${key}`, message: 'not a parameter of it' });
+  }
+  for (const flag of spec.flags) {
+    if (params[flag] !== 0 && params[flag] !== 1)
+      problems.push({ at: `params.${flag}`, message: 'expected 0 or 1' });
+  }
+  // Without a memory of the right shape there is nothing to check the widths against.
+  if (!port) return problems;
+  for (const name of spec.kind === 'memrd' ? ['DATA'] : ['EN', 'DATA']) {
+    if (width[name] !== port.width)
+      problems.push({
+        at: `ports.${name}`,
+        message: `expected ${port.width} bits, as its memory's words`,
+      });
+  }
+  if (spec.kind === 'memwr') {
+    // A bit per earlier write port of the memory, set where this one wins.
+    const earlier = port.writePorts[port.memory]!;
+    const bits = params.PRIORITY;
+    if (
+      !Array.isArray(bits) ||
+      bits.length !== earlier ||
+      bits.some((b) => b !== '0' && b !== '1')
+    ) {
+      problems.push({
+        at: 'params.PRIORITY',
+        message: `expected ${earlier} bits "0" or "1", one per earlier write port of its memory`,
+      });
+    }
   }
   return problems;
 }

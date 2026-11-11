@@ -41,7 +41,7 @@ import { Toolbar } from './Toolbar';
 import type { TestSession } from './test-session';
 import type { Example, UiState } from './ui-state';
 import { VcdExportAction, WaveformsPanel, WavesBadge } from './WaveformsPanel';
-import { createCommands, TOOLBAR, workbenchMenus } from './workbench-commands';
+import { createCommands, memoryOfPart, TOOLBAR, workbenchMenus } from './workbench-commands';
 import './styles/tokens.css';
 import './styles/workbench.css';
 import './styles/panels.css';
@@ -163,8 +163,9 @@ export function Workbench({
       if (selection.parts.size !== 1 || selection.wires.size !== 0) return;
       const [id] = selection.parts;
       const part = circuit.components.find((c) => c.id === id);
-      if (part && editor.registry.get(part.type)?.memory && ui.get().memoryPick !== part.id) {
-        ui.update((s) => ({ ...s, memoryPick: part.id }));
+      const picked = part && memoryOfPart(editor, part.id);
+      if (picked !== undefined && ui.get().memoryPick !== picked) {
+        ui.update((s) => ({ ...s, memoryPick: picked }));
       }
       const current = ui.get().partPick;
       if (!part || (current?.id === part.id && current.type === part.type)) return;
@@ -187,7 +188,16 @@ export function Workbench({
         panels: { ...s.panels, bottom: { ...s.panels.bottom, visible: true } },
       }));
     }
-  }, [request, commands, settingsStore]);
+    // A module's memory picked in its view (HDL-6): the Memory tab shows it.
+    if (request?.kind === 'show-memory') {
+      ui.update((s) => ({ ...s, memoryPick: request.ref }));
+      settingsStore.update((s) => ({
+        ...s,
+        bottomTab: 'memory',
+        panels: { ...s.panels, bottom: { ...s.panels.bottom, visible: true } },
+      }));
+    }
+  }, [request, commands, settingsStore, ui]);
 
   // The Parts panel's parts: the library's and the document's circuits, except the circuits that
   // contain the open one (placing them would make it contain itself).

@@ -12,7 +12,7 @@ import {
 import { partLayout, placementOf, placePins } from './layout';
 import { compareDesignators, parseAddress, Resolver } from './resolve';
 import { documentRegistry } from './subcircuit';
-import { testModule, testRegistry } from './test-parts';
+import { testMemoryModule, testModule, testRegistry } from './test-parts';
 
 const registry = testRegistry();
 
@@ -152,6 +152,7 @@ describe('Resolver', () => {
       part: 'U2',
       type: 'test/rom',
       memory: rom,
+      name: 'U2',
       from,
       to,
     });
@@ -185,6 +186,14 @@ describe('parseAddress', () => {
     expect(parseAddress('800', 2048)).toBe('The last address is 7FF.');
     expect(parseAddress('xyz', 2048)).toBe('Type a hex address, 0 to 7FF.');
     expect(parseAddress('', 2048)).toBe('Type a hex address, 0 to 7FF.');
+  });
+
+  it("reads a module memory's addresses from its first one (HDL-6)", () => {
+    expect(parseAddress('10', 10, 16)).toBe(16);
+    expect(parseAddress('19', 10, 16)).toBe(25);
+    expect(parseAddress('F', 10, 16)).toBe('The first address is 10.');
+    expect(parseAddress('1A', 10, 16)).toBe('The last address is 19.');
+    expect(parseAddress('?', 10, 16)).toBe('Type a hex address, 10 to 19.');
   });
 });
 
@@ -452,5 +461,81 @@ describe('Resolver: signals inside Verilog modules (HDL-4)', () => {
       'no part, net or signal named held in A1: it keeps no named signals',
     );
     expect(r.signal('S1/held')).toBe('no part or net named S1/held');
+  });
+});
+
+describe('Resolver: memories inside Verilog modules (HDL-6)', () => {
+  // `store` (testMemoryModule) holds `rom` (16 × 8) and `wide` (10 × 32 from address 16); the top
+  // places it as A1.
+  const store: Circuit = {
+    ...emptyVerilogCircuit('store', 'Store'),
+    verilog: { module: testMemoryModule },
+  };
+  const document: CircuitDocument = {
+    schemaVersion: SCHEMA_VERSION,
+    circuits: [
+      {
+        id: 'main',
+        name: 'Main',
+        components: [part('A1', 'sub/store', 0, 0), part('U5', 'test/rom', 0, 40)],
+        wires: [],
+        probes: [],
+        testScript: [],
+      },
+      store,
+    ],
+  };
+  const design = compileDesign(document, registry);
+  const r = new Resolver(design, design.registry);
+  const definition = design.registry.get('hdl/store')!;
+  const [rom, wide] = definition.memories!;
+
+  it('lists them by name after the instance, beside the chips, the part apart', () => {
+    expect(r.memories().map(({ id, part }) => [id, part])).toEqual([
+      ['A1/rom', 'A1/U1'],
+      ['A1/wide', 'A1/U1'],
+      ['U5', 'U5'],
+    ]);
+  });
+
+  it('resolves a whole memory and its cells at its Verilog addresses', () => {
+    expect(r.resolve('A1/rom')).toEqual({
+      kind: 'memory',
+      part: 'A1/U1',
+      type: 'hdl/store',
+      memory: rom,
+      name: 'A1/rom',
+    });
+    expect(r.resolve('A1/rom[1F]')).toBe('A1/rom[1F]: The last address is F.');
+    expect(r.resolve('A1/rom[2..0]')).toEqual({
+      kind: 'cells',
+      part: 'A1/U1',
+      type: 'hdl/store',
+      memory: rom,
+      name: 'A1/rom',
+      from: 0,
+      to: 2,
+    });
+    // m[16:25]: address 0x10 is word 0.
+    expect(r.resolve('A1/wide[0x11]')).toMatchObject({
+      kind: 'cells',
+      memory: wide,
+      from: 1,
+      to: 1,
+    });
+    expect(r.resolve('A1/wide[0]')).toBe('A1/wide[0]: The first address is 10.');
+    expect(r.signal('A1/rom[1]')).toBe('A1/rom[1] is memory, not a signal');
+    // A chip's cells name the chip.
+    expect(r.resolve('U5[1]')).toMatchObject({ kind: 'cells', part: 'U5', name: 'U5', from: 1 });
+  });
+
+  it("names them without a path in the module's own scope, and lists them when a name is wrong", () => {
+    const own = compileDesign(document, registry, { top: 'store' });
+    const alone = new Resolver(own, own.registry);
+    expect(alone.resolve('rom[1]')).toMatchObject({ kind: 'cells', part: 'U1', name: 'rom' });
+    expect(alone.memories().map((m) => m.id)).toEqual(['rom', 'wide']);
+    expect(r.signal('A1/ram')).toBe(
+      'no part, net or signal named ram in A1 (signals: and_y, held, u1.word; memories: rom, wide)',
+    );
   });
 });

@@ -1,10 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { type Circuit, CircuitBuilder, type Point } from '../circuit';
+import {
+  type Circuit,
+  CircuitBuilder,
+  type CircuitDocument,
+  documentRegistry,
+  emptyVerilogCircuit,
+  type Point,
+  SCHEMA_VERSION,
+} from '../circuit';
 import { formatImage, ns, placeImage, readIntelHex } from '../core';
-import { createDefaultRegistry } from '../library';
+import { createDefaultRegistry, fromYosys } from '../library';
+import { YOSYS_FIXTURES } from '../library/hdl/fixtures';
 import { Editor } from './editor';
 import { FakeClock } from './fake-clock';
-import { ACCESS_FADE_MS, memorySize, STOPPED_RAM } from './memory-inspector';
+import { ACCESS_FADE_MS, memorySize, STOPPED_MODULE_MEMORY, STOPPED_RAM } from './memory-inspector';
 import { MAX_SPEED } from './simulation';
 
 const registry = createDefaultRegistry();
@@ -238,5 +247,94 @@ describe('MemoryInspector: edits', () => {
     expect(inspector.load('U2', [{ address: 4, bytes: new Uint8Array([9]) }])).toBeUndefined();
     const ram = inspector.contents('U2') as { bytes: Uint8Array; unknownBytes: number };
     expect([ram.bytes[4], ram.unknownBytes]).toEqual([9, 2047]);
+  });
+});
+
+describe("MemoryInspector: a module's memories (HDL-6)", () => {
+  /** mem_regfile as A1 (8 × 8), mem_word32 as A2 (16 × 32), mem_offset as A3 (m[16:25]). */
+  function withModules() {
+    const modules = ['mem_regfile', 'mem_word32', 'mem_offset'].map((name): Circuit => {
+      const { module } = fromYosys(YOSYS_FIXTURES[name]);
+      return { ...emptyVerilogCircuit(name.replace('_', '-'), name), verilog: { module } };
+    });
+    const draft: CircuitDocument = { schemaVersion: SCHEMA_VERSION, circuits: modules };
+    const main = new CircuitBuilder(documentRegistry(draft, registry))
+      .add('A1', 'sub/mem-regfile', { at: [0, 0] })
+      .add('A2', 'sub/mem-word32', { at: [0, 40] })
+      .add('A3', 'sub/mem-offset', { at: [0, 80] })
+      .build();
+    const clock = new FakeClock();
+    const document: CircuitDocument = {
+      schemaVersion: SCHEMA_VERSION,
+      circuits: [main, ...modules],
+    };
+    const editor = new Editor(registry, document, {}, { simulation: { clock } });
+    return { editor, inspector: editor.memory, simulation: editor.simulation };
+  }
+
+  it('lists them by name inside their instance, the part holding them apart', () => {
+    const { inspector } = withModules();
+    expect(
+      inspector.memories().map((m) => [m.label, m.part, m.offset, m.bytes, m.volatile]),
+    ).toEqual([
+      ['A1/regs · mem_regfile · 8 × 8', 'A1/U1', 0, 8, true],
+      ['A2/ram · mem_word32 · 16 × 32', 'A2/U1', 0, 64, true],
+      ['A3/m · mem_offset · 10 × 8', 'A3/U1', 16, 10, true],
+    ]);
+    expect(inspector.address('A1/regs')).toBeUndefined();
+  });
+
+  it('shows the power-up contents while stopped, read-only', () => {
+    const { inspector } = withModules();
+    const cells = inspector.cells('A3/m');
+    expect(cells.kind).toBe('power-up');
+    if (cells.kind !== 'power-up') return;
+    expect([...cells.data.slice(0, 3)]).toEqual([16, 17, 18]);
+    expect(inspector.cells('A1/regs')).toMatchObject({ kind: 'power-up' });
+    expect(inspector.write('A3/m', 0, [1])).toBe(STOPPED_MODULE_MEMORY);
+    expect(inspector.contents('A3/m')).toMatchObject({ unknownBytes: 0 });
+  });
+
+  it('takes edits and loads while simulating: words, bytes of wider words, files little-endian', () => {
+    const { inspector, simulation } = withModules();
+    simulation.step(); // power-on at t = 0
+    expect(inspector.write('A1/regs', 2, [0x42])).toBeUndefined();
+    const live = (id: string) => {
+      const cells = inspector.cells(id);
+      if (cells.kind !== 'live') throw new Error(`${id} is not live`);
+      return cells.view;
+    };
+    expect(live('A1/regs').data[2]).toBe(0x42);
+    expect(live('A1/regs').unknown[2]).toBe(0);
+    expect(inspector.write('A1/regs', 2, [0x100])).toBe('A1/regs holds bytes 0x00–0xFF at 0–7.');
+    expect(inspector.write('A2/ram', 1, [0xdeadbeef])).toBeUndefined();
+    expect(inspector.writeByte('A2/ram', 1, 0, 0x11)).toBeUndefined();
+    expect(live('A2/ram').data[1]).toBe(0xdeadbe11);
+    expect(inspector.write('A2/ram', 16, [1])).toBe(
+      'A2/ram holds words 0x00000000–0xFFFFFFFF at 0–F.',
+    );
+    expect(inspector.load('A2/ram', [{ address: 8, bytes: Uint8Array.from([1, 2, 3, 4]) }])).toBe(
+      undefined,
+    );
+    expect(live('A2/ram').data[2]).toBe(0x04030201);
+    const saved = inspector.contents('A2/ram');
+    if (typeof saved === 'string') throw new Error(saved);
+    expect([...saved.bytes.slice(4, 12)]).toEqual([0x11, 0xbe, 0xad, 0xde, 1, 2, 3, 4]);
+    expect(inspector.write('A3/m', 0, [0x55])).toBeUndefined();
+    expect(live('A3/m').data[0]).toBe(0x55);
+    // Reset powers on again: the contents Yosys read are back, the edits gone.
+    simulation.reset();
+    expect(live('A3/m').data[0]).toBe(16);
+    expect(live('A2/ram').unknown[1]).toBe(0xffffffff);
+  });
+
+  it("is watched in the Debug tab at the memory's own addresses", () => {
+    const { editor, simulation } = withModules();
+    expect(editor.debug.addWatch('A3/m[11]')).toBeUndefined();
+    expect(editor.debug.addWatch('A3/m[1]')).toBe('A3/m[1]: The first address is 10.');
+    simulation.step();
+    expect(editor.debug.watches.get().map((w) => [w.reference, w.value])).toEqual([
+      ['A3/m[0x11]', '0x11'],
+    ]);
   });
 });

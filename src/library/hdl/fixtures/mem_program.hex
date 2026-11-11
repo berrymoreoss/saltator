@@ -1,0 +1,4 @@
+// mem_program.v's first words: addi x0, x0, 0; addi x1, x0, 1; a marker.
+00000013
+00100093
+DEADBEEF

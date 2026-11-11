@@ -70,7 +70,9 @@ export type Watch =
     }
   | {
       readonly kind: 'cells';
+      /** The memory's reference: a chip (`U5`) or a module's memory (`A1/rom`, HDL-6). */
       readonly part: string;
+      /** Addresses, as the memory tools write them (a module memory's from its first one). */
       readonly from: number;
       readonly to: number;
       readonly name?: string;
@@ -1110,13 +1112,17 @@ export class Debugger {
       const target = resolver.resolve(cellsReference(watch.part, watch.from, watch.to));
       if (typeof target === 'string') return { problem: target };
       if (target.kind !== 'cells') return { problem: `${watch.part} holds no memory` };
-      const cells = this.#editor.memory.cells(watch.part);
+      const cells = this.#editor.memory.cells(target.name);
       if (cells.kind === 'none') return { value: '', vector: true }; // a stopped RAM
-      const end = watch.to + 1;
-      const data = (cells.kind === 'live' ? cells.view.data : cells.data).subarray(watch.from, end);
+      // The watch keeps addresses; the cells are words from the memory's first address.
+      const end = target.to + 1;
+      const data = (cells.kind === 'live' ? cells.view.data : cells.data).subarray(
+        target.from,
+        end,
+      );
       const unknown =
         cells.kind === 'live'
-          ? cells.view.unknown.subarray(watch.from, end)
+          ? cells.view.unknown.subarray(target.from, end)
           : new Uint8Array(data.length);
       return { value: formatCells(data, unknown, target.memory.width, radix), vector: true };
     }
@@ -1142,7 +1148,13 @@ export class Debugger {
       const target = resolver.resolve(trimmed);
       if (typeof target !== 'string' && target.kind === 'cells') {
         if (target.to - target.from >= 16) return 'Watch at most 16 cells.';
-        return { kind: 'cells', part: target.part, from: target.from, to: target.to };
+        const offset = target.memory.offset ?? 0;
+        return {
+          kind: 'cells',
+          part: target.name,
+          from: target.from + offset,
+          to: target.to + offset,
+        };
       }
       const signal = resolver.signal(trimmed);
       if (typeof signal === 'string') return signal;

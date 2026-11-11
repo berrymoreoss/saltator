@@ -12,7 +12,7 @@ import type { Point, Rotation } from './geometry';
  * circuits with subcircuit instances; circuit ids are slugs (`CIRCUIT_ID`). v5 (R15a): test
  * scripts (`Circuit.testScript`). v6 (HDL-1): circuits written in Verilog (`Circuit.verilog`).
  */
-export const SCHEMA_VERSION = 8;
+export const SCHEMA_VERSION = 9;
 
 /**
  * Ids of components (their designators: `U1`, `SW1`) and wires: a letter or `_`, then

@@ -1,7 +1,7 @@
 /**
  * Writing documents as JSON: fixed key order, defaults omitted, one line per component, per
- * wire, per probe and per line of the test script — and for a Verilog module per port, signal
- * and cell — so a saved file diffs well in git (one edit = one changed line). A circuit without
+ * wire, per probe and per line of the test script — and for a Verilog module per port, signal,
+ * memory and cell — so a saved file diffs well in git (one edit = one changed line). A circuit without
  * probes or a test script leaves the key out; a Verilog module leaves out its parts and wires.
  */
 import type { HdlModule } from '../core';
@@ -43,7 +43,7 @@ export function serializeDocument(document: CircuitDocument): string {
   ].join('\n');
 }
 
-/** A Verilog module: `{}`, or its IR with a line per port, signal and cell. */
+/** A Verilog module: `{}`, or its IR with a line per port, signal, memory and cell. */
 function verilogJson(module: HdlModule | undefined): string {
   if (!module) return '{}';
   const indent = '          ';
@@ -54,6 +54,7 @@ function verilogJson(module: HdlModule | undefined): string {
     `"bitCount": ${module.bitCount}`,
     `"ports": ${list(module.ports, indent)}`,
     `"signals": ${list(module.signals, indent)}`,
+    `"memories": ${list(module.memories, indent)}`,
     `"cells": ${list(module.cells, indent)}`,
   ];
   return [

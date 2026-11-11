@@ -731,8 +731,9 @@ the waveforms, watches and breakpoint hits show the circuit as it was then.
 ## Memory inspector
 
 R12b ([ADR-0018](adr/0018-memory-inspector.md)): the **Memory** tab of the bottom dock shows one
-memory part of the circuit (`MemoryDef` on its definition: EEPROMs, SRAMs) as a hex view, the
-way a programmer's buffer or a debugger's memory window does.
+memory part of the circuit (`MemoryDef` on its definition: EEPROMs, SRAMs) — or a memory of a
+Verilog module (HDL-6, [ADR-0036](adr/0036-memories-in-modules.md)) — as a hex view, the way a
+programmer's buffer or a debugger's memory window does.
 
 ### Memory tab
 
@@ -744,21 +745,31 @@ way a programmer's buffer or a debugger's memory window does.
 - **Picker**: the circuit's memories in designator order (`U1 · AT28C16 · 2K × 8`), found
   through the resolver ([circuit.md](circuit.md#resolver)). Selecting a memory part on the
   canvas shows it (as the Part tab follows the pick), Edit ▸ Inspect Memory and the part's
-  context menu open the tab on it, and the pick follows renames.
+  context menu open the tab on it, and the pick follows renames. A module's memories are listed
+  by their reference (`A1/rom · Store · 256 × 8`); selecting a placed module shows its first
+  one, and its view's Memories list shows any (HDL-6).
 - **Cells**: while simulating, the instance's cells, read in place every frame; while stopped, a
   ROM's image (its `contents` prop). A stopped RAM has none: "A RAM holds data only while
   simulating. Step (F10) powers on at t = 0, paused, to edit or load it before running." (RAMs
-  stay volatile; a test bench loads them before t = 0 with `b.memory`, R15a.)
+  stay volatile; a test bench loads them before t = 0 with `b.memory`, R15a.) A stopped module's
+  memory shows its power-up contents, what Yosys read from `initial` and `$readmemh` (HDL-6, Q1:
+  as an FPGA's block RAM), read-only — "Power-up contents (initial, $readmemh): Step (F10) to
+  run and edit them"; new ones come from a new `.hex` and a Compile.
 - **Hex view** (`MemoryPanel.tsx`, pure pieces in `memory-view.ts`): rows of 8, 16 or 32 cells,
   as many as fit the dock's width (`bytesPerRow`), with the row address (at least 4 hex digits)
   and an ASCII column (printable ASCII, else `.`). Unknown bits show as `X` nibbles in the `X`
   color (`XX`, `3X`); a ROM's erased bytes (`FF`) are dimmed. Only the visible rows (and a few
-  around them) are rendered: a 62256 is 1024 rows of 32.
+  around them) are rendered: a 62256 is 1024 rows of 32. A module's memory is addressed from its
+  first address (`m[16:25]`'s rows start at `0010`); a memory wider than 8 bits (HDL-6, Q3) shows
+  its **Words** — as many hex digits as the width needs, down to 4 a row, no ASCII column — or,
+  switched (**Cells as**: Words / Bytes, per memory), its **Bytes** little-endian at byte
+  addresses, as a CPU sees PicoRV32's RAM; a byte lights with its word.
 - **Live**: cells read since the last frame light up green (level 1), cells written orange
   (warning), fading over ½ s of wall time (`ACCESS_FADE_MS`); paused, the fade stops, so a Step
   shows what it touched. After a rewind nothing is lit until the run moves on (R14b). The cell at the address on the chip's pins is outlined; the toolbar
   shows that address (`0x01F`, `X`/`Z` nibbles). **Follow** (on by default, a setting) scrolls to
-  keep it in view; scrolling by hand or Go to turns it off.
+  keep it in view; scrolling by hand or Go to turns it off. A module's memory has no pins: no
+  address, no Follow.
 - **Editing**: click a cell (or move with the arrows, Home/End, Page Up/Down), type hex digits —
   the last digit of a cell writes it and moves on, Enter writes a half-typed cell, Escape or
   Backspace drops it; Mod+G or the Go to box jumps to an address (`7F0`, `0x7F0`, `$7F0`,
@@ -766,7 +777,9 @@ way a programmer's buffer or a debugger's memory window does.
   tool). A ROM's edit changes its image — one undo step, consecutive bytes of one memory
   coalesced (`Edit U1 contents`) — stopped or running (a running ROM restarts from the new image
   with its outputs carried, ADR-0010); a simulated RAM's edit is a debug write (`poke`) at the
-  current instant, not undoable, lost at Reset. Problems show under the toolbar.
+  current instant, not undoable, lost at Reset. A module's memory takes words (or, in the Bytes
+  view, a byte of a word, its other bits kept) as a RAM does, while simulating only. Problems
+  show under the toolbar.
 
 ### Image files
 
@@ -782,25 +795,31 @@ elsewhere); the formats are `core` ([components.md](components.md#image-files)).
   says where the file ends), and **Fill the rest with FF** (on: erase first, as a programmer
   does; off: keep the other bytes). A file that doesn't fit, or an unreadable one ("line 12:
   checksum 0x3C, expected 0x4A"), is refused with the reason. **Program** writes a ROM's image
-  (one undo step, `Load image into U1`) or pokes a simulated RAM.
+  (one undo step, `Load image into U1`) or pokes a simulated RAM. A file's addresses are byte
+  addresses from the memory's start: into a memory of wider words (HDL-6) its bytes are packed
+  little-endian (word = byte address ÷ bytes a word; `packWords`), whichever view is on.
 - **Save…** — binary (`U1.bin`, every byte from address 0) or Intel HEX (`U1.hex`; the address
   of byte 0 in the file, e.g. 0x8000 for a ROM decoded there, and Leave out lines of FF, on for
   ROMs); unknown bits of a RAM are written as 0 and the dialog counts the bytes that had them.
+  Wider words are written little-endian (`memoryBytes`); a stopped module's memory saves its
+  power-up contents.
 - **Erase** (ROMs): every byte `FF`, one undo step (`Erase U1`).
 
 ### Model
 
 `MemoryInspector` (`src/editor/memory-inspector.ts`, `editor.memory`) has no DOM:
 
-- `memories()` from the resolver over the scene's compile result; `cells(id)` (`live` view,
-  `image` bytes, or `none` with the reason); `address(id)` from the definition's `addressPins`.
+- `memories()` from the resolver over the scene's compile result, each with the part holding it
+  (`part`), its `offset` and its size in a file (`bytes`); `cells(id)` (`live` view, `image`
+  bytes, a module memory's `power-up` contents, or `none` with the reason); `address(id)` from
+  the definition's `addressPins`.
 - `intensity(stamp)` turns a cell's access stamp (`readAt`, `writtenAt`: simulated time) into
   0–1: the inspector samples the simulated time against wall time on the host's `revision` and
   `status` (`AccessClock`, a ring of recent frames); an access is as old as the first frame that
   reached it. Time going backwards (Reset) clears the samples. `fading` tells the view to keep
   redrawing.
-- `write`, `load` (an image file's writes from `placeImage`), `erase`, `contents` (the bytes to
-  save, unknown bits as 0).
+- `write` (words from an index), `writeByte` (a byte of a wider word), `load` (an image file's
+  writes from `placeImage`), `erase`, `contents` (the bytes to save, unknown bits as 0).
 
 ## Waveforms
 
@@ -1092,7 +1111,8 @@ canvas (`ModuleView.tsx`, pure pieces in `module-view.ts`), below the breadcrumb
   converter's errors and warnings with their source locations, or "Compiled decoder: 6 cells" —
   are listed under the editor; before a Compile in this session, the module's issues are.
 - **The summary**: the module's top name and Yosys version, its ports (`input`, `output`,
-  `inout`), its **signals** (HDL-4), its cells by type, where it is placed.
+  `inout`), its **signals** (HDL-4), its **memories** (HDL-6), its cells by type, where it is
+  placed.
 - **Signals** (HDL-4, [ADR-0035](adr/0035-inner-signals.md)): the named signals Yosys kept — name,
   range (`[9:0]`), the source line on hover — named for the open instance (`Signals in A1`: the
   instance the breadcrumbs show, the first placed when opened from the Circuits list), with its
@@ -1100,6 +1120,9 @@ canvas (`ModuleView.tsx`, pure pieces in `module-view.ts`), below the breadcrumb
   signal to the waveforms (`A1/shift`) and shows the Waveforms tab; **Watch** adds it to the
   debugger's watches (`Editor.watch`) and shows the Debug tab. A module placed nowhere lists its
   signals without them.
+- **Memories** (HDL-6): its memories — name, Verilog range (`[16:25]`), size (`10 × 8`), the
+  source line on hover (`memoryRows`) — and, for the open instance, a button showing it in the
+  Memory tab (`Editor.showMemory`, a `show-memory` request).
 - Properties of the open circuit says **Role: Verilog module**; its instances (Parts ▸
   Subcircuits) have the module's pins and the `delay` property. The editor refuses parts or
   wires in a Verilog module (a paste while one is open).
@@ -1182,8 +1205,10 @@ The seventh bottom-dock tab (`TestsPanel.tsx`; pure pieces in `tests-view.ts`,
 ### Insert Image…
 
 Reads a `.bin` or Intel HEX file (R12b's reader), asks for the memory — the circuit's memory
-parts by designator, or a path typed (`A1/U3`) — and, for a binary, the load address (checked
-against the memory's size), and writes at the editor's cursor:
+parts by designator, a Verilog module's own memories by name (HDL-6), or a path typed (`A1/U3`)
+— and, for a binary, the load address (checked against the memory's size in bytes), and writes
+at the editor's cursor (a binary for a memory of wider words as Intel HEX from that byte address,
+which the bench packs little-endian):
 
 ```js
 b.memory(

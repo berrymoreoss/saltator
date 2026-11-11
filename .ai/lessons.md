@@ -551,3 +551,18 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
   the same instant: listeners run in subscription order, and `Trigger.attach` re-subscribes after
   every carry-over. The trigger asks its recorder to sample first (idempotent per instant) rather
   than relying on who subscribed earlier.
+- 2026-11-11 (HDL-6) — Yosys's `sim` loops forever when two write ports of one memory write the
+  same bit at one edge (priority or not): `pnpm hdl:differential` timed out on a byte-enable design
+  at the one step where both ports hit one word. Differential designs keep their write ports on
+  different words; collisions and priority are unit tests. Bisect a `sim` hang by replaying the
+  witness's first n steps.
+- 2026-11-11 (HDL-6) — `proc` gives a memory write's address and data an `x` default where the
+  process doesn't write (`we ? rd : x`). With `-keepdc` they stay, so an unknown `we` made the
+  address unknown and the whole memory `X` — not what a board does. Look at what Yosys feeds a
+  cell's ports before reasoning about `X` from the source.
+- 2026-11-11 (HDL-6) — JavaScript's bitwise operators are 32-bit signed: `unk & 0xffffffff` is
+  `-1`, never equal to the mask `4294967295`, so an all-unknown 32-bit word read as known. With
+  32-bit limbs (`Uint32Array`) compare `(x & mask) >>> 0`, and build masks of bit 31 with
+  `>>> 0` or `2 ** 31`.
+- 2026-11-11 (HDL-6) — Biome formats Markdown too: a hand-edited table row of another width (a
+  status `in-progress` in a plan's or a track's table) fails `pnpm check` until `pnpm lint:fix`.

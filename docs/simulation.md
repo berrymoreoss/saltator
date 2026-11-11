@@ -455,7 +455,9 @@ sim.restore(copy.snapshot());
   of the instance's cells and of when each was last read and written (simulated time, stamped
   by the part), read through `sim.stateOf(id)` without copying; RAMs take a debug write, the
   action `{ type: 'poke', address, data }` (`PokeAction`), that bypasses their timing
-  ([components.md](components.md#memories-mem)). The editor's Memory tab is built on them
+  ([components.md](components.md#memories-mem)). A Verilog module lists its memories as
+  `memories` (HDL-6, [ADR-0036](adr/0036-memories-in-modules.md)): named, words up to 32 bits, a
+  first address (`offset`), `powerUp` contents; its pokes carry the memory's name. The editor's Memory tab is built on them
   ([editor.md](editor.md#memory-inspector)); parts and nets are found by reference through the
   resolver ([circuit.md](circuit.md#resolver)). A CPU part's definition has `cpu` (`CpuDef`,
   R17a: its registers — name, width, a status register's flag letters `NV-BDIZC` — the program

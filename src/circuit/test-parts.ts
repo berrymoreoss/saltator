@@ -11,11 +11,14 @@ import {
   hdlDelayProp,
   hdlPinDirs,
   hdlPortPins,
+  isPokeAction,
   Level,
+  type MemoryDef,
   ns,
   type PinDef,
   type PortSide,
   Registry,
+  readHdlMemoryInit,
   strong,
   weak,
 } from '../core';
@@ -338,7 +341,24 @@ export function testHdlPart(type: string, name: string, module: HdlModule): HdlP
     .filter((p) => p.dir === 'in')
     .flatMap((p) => hdlPortPins(p).map((pin, i) => [pin, p.bits[i]] as const));
   const yBit = module.ports.find((p) => p.name === 'y')?.bits[0];
-  const definition = defineComponent<{ delay: number }, Level[]>({
+  // Its memories (HDL-6): words from `init`, poked by name, read by nothing.
+  const contents = module.memories.map((m) => {
+    const words = readHdlMemoryInit(m);
+    if (typeof words === 'string') throw new Error(words);
+    return words;
+  });
+  const memories = module.memories.map(
+    (m, i): MemoryDef<TestModuleState> => ({
+      name: m.name,
+      words: m.size,
+      width: m.width,
+      offset: m.offset,
+      volatile: true,
+      powerUp: () => ({ data: contents[i]!.val, unknown: contents[i]!.unk }),
+      view: (state) => state.memories[i]!,
+    }),
+  );
+  const definition = defineComponent<{ delay: number }, TestModuleState>({
     type,
     name,
     title: `Test module ${module.top}`,
@@ -348,26 +368,57 @@ export function testHdlPart(type: string, name: string, module: HdlModule): HdlP
       list: module.signals.map((s) => ({ name: s.name, lsb: s.lsb, width: s.bits.length })),
       level: (state, signal, bit) => {
         const b = module.signals[signal]!.bits[bit]!;
-        if (typeof b === 'number') return state[b] ?? Level.X;
+        if (typeof b === 'number') return state.levels[b] ?? Level.X;
         return b === '0' ? Level.L0 : b === '1' ? Level.L1 : Level.X;
       },
     },
+    ...(memories.length > 0 && { memories }),
     create: ({ delay }) => ({
-      createState: () => Array.from({ length: module.bitCount }, () => Level.X),
+      createState: () => ({
+        levels: Array.from({ length: module.bitCount }, () => Level.X),
+        memories: module.memories.map((m, i) => ({
+          data: contents[i]!.val.slice(),
+          unknown: contents[i]!.unk.slice(),
+          ...createAccessStamps(m.size),
+        })),
+      }),
       evaluate: (ctx) => {
-        for (const [pin, b] of inputs) if (typeof b === 'number') ctx.state[b] = ctx.read(at(pin));
+        const { levels } = ctx.state;
+        for (const [pin, b] of inputs) if (typeof b === 'number') levels[b] = ctx.read(at(pin));
         if (at('y') >= 0) {
           const y = and(ctx.read(at('a')), ctx.read(at('b')));
-          if (typeof yBit === 'number') ctx.state[yBit] = y;
+          if (typeof yBit === 'number') levels[yBit] = y;
           ctx.drive(at('y'), strong(y), delay);
         }
         for (const bit of ['0', '1']) {
           if (at(`e${bit}`) >= 0) ctx.drive(at(`e${bit}`), strong(ctx.read(at(`d${bit}`))), delay);
         }
       },
+      action: (ctx, payload) => {
+        if (!isPokeAction(payload)) throw new Error(`${ctx.id}: bad action`);
+        const i = module.memories.findIndex((m) => m.name === payload.memory);
+        const memory = ctx.state.memories[i];
+        if (!memory) throw new Error(`${ctx.id}: no memory ${payload.memory}`);
+        for (const [k, word] of payload.data.entries()) {
+          memory.data[payload.address + k] = word;
+          memory.unknown[payload.address + k] = 0;
+          memory.writtenAt[payload.address + k] = ctx.now;
+        }
+      },
     }),
   });
   return { definition, messages: [] };
+}
+
+/** The state of `testHdlPart`'s parts: a level per signal bit, its memories' cells. */
+interface TestModuleState {
+  readonly levels: Level[];
+  readonly memories: {
+    readonly data: Uint32Array;
+    readonly unknown: Uint32Array;
+    readonly readAt: Float64Array;
+    readonly writtenAt: Float64Array;
+  }[];
 }
 
 /**
@@ -395,6 +446,7 @@ export const testModule: HdlModule = {
     { name: 'held', lsb: 0, bits: [6] },
     { name: 'u1.word', lsb: 4, bits: [3, 4, '1'] },
   ],
+  memories: [],
   cells: [
     { type: '$and', src: 'gate.v:4.10-4.15', ports: { A: [1], B: [2], Y: [5] }, params: {} },
     {
@@ -403,5 +455,18 @@ export const testModule: HdlModule = {
       ports: { CLK: [0], D: [5], Q: [6] },
       params: { CLK_POLARITY: 1 },
     },
+  ],
+};
+
+/**
+ * `testModule` with memories (HDL-6), which nothing reads or writes: `rom` (16 × 8, `0x11`… from
+ * 0, the rest unknown) and `wide` (10 × 32, addressed from 16, as `reg [31:0] wide[16:25]`).
+ */
+export const testMemoryModule: HdlModule = {
+  ...testModule,
+  top: 'store',
+  memories: [
+    { name: 'rom', width: 8, size: 16, offset: 0, init: '0000:112233', src: 'store.v:2.13-2.16' },
+    { name: 'wide', width: 32, size: 10, offset: 16, init: '0010:DEADBEEF' },
   ],
 };

@@ -1,5 +1,5 @@
-// yosys: read_verilog {in}; hierarchy -auto-top; proc; flatten; opt -keepdc; write_json {out}
-// A case statement turned into a ROM by proc without -norom.
+// yosys: read_verilog {in}; hierarchy -auto-top; proc; flatten; opt -keepdc; memory_collect; write_json {out}
+// A case statement turned into a ROM by proc without -norom: it runs as a memory (HDL-6).
 module rom (input [3:0] a, output reg [3:0] sel);
   always @* case (a)
     4'h0, 4'h1, 4'h2, 4'h3: sel = 4'b1110;

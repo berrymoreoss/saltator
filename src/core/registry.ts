@@ -105,10 +105,12 @@ export class Registry implements ComponentRegistry {
 /**
  * A memory part's size must be whole words of 1–8 bits, one word per combination of its address
  * pins, which must be input pins of the part; an `image` prop needs its size in bytes (`max`),
- * the memory's word count when the part has one.
+ * the memory's word count when the part has one. A module's memories (`memories`, HDL-6) have
+ * distinct names, words of 1–32 bits, a first address ≥ 0 and no address pins.
  */
 function validateMemory(definition: AnyComponentDefinition, pins: readonly PinDef[]): void {
-  const { type, memory } = definition;
+  const { type, memory, memories } = definition;
+  if (memory && memories) throw new Error(`${type}: a part has memory or memories, not both`);
   if (memory) {
     if (!Number.isInteger(memory.words) || memory.words < 1) {
       throw new Error(`${type}: memory words must be a positive integer, got ${memory.words}`);
@@ -116,15 +118,32 @@ function validateMemory(definition: AnyComponentDefinition, pins: readonly PinDe
     if (!Number.isInteger(memory.width) || memory.width < 1 || memory.width > 8) {
       throw new Error(`${type}: memory width must be 1 to 8 bits, got ${memory.width}`);
     }
-    if (2 ** memory.addressPins.length !== memory.words) {
+    const addressPins = memory.addressPins ?? [];
+    if (2 ** addressPins.length !== memory.words) {
       throw new Error(
-        `${type}: ${memory.addressPins.length} address pins select ${2 ** memory.addressPins.length} words, the memory has ${memory.words}`,
+        `${type}: ${addressPins.length} address pins select ${2 ** addressPins.length} words, the memory has ${memory.words}`,
       );
     }
-    for (const name of memory.addressPins) {
+    for (const name of addressPins) {
       const pin = pins.find((p) => p.name === name);
       if (pin?.dir !== 'in') throw new Error(`${type}: address pin "${name}" is not an input pin`);
     }
+  }
+  const names = new Set<string>();
+  for (const m of memories ?? []) {
+    const at = `${type}: memory ${m.name ?? '(no name)'}`;
+    if (!m.name || names.has(m.name)) throw new Error(`${at}: memories need distinct names`);
+    names.add(m.name);
+    if (!Number.isInteger(m.words) || m.words < 1) {
+      throw new Error(`${at}: words must be a positive integer, got ${m.words}`);
+    }
+    if (!Number.isInteger(m.width) || m.width < 1 || m.width > 32) {
+      throw new Error(`${at}: width must be 1 to 32 bits, got ${m.width}`);
+    }
+    if (m.offset !== undefined && (!Number.isInteger(m.offset) || m.offset < 0)) {
+      throw new Error(`${at}: offset must be an integer ≥ 0, got ${m.offset}`);
+    }
+    if (m.addressPins) throw new Error(`${at}: a module's memory has no address pins`);
   }
   for (const prop of definition.props ?? []) {
     if (prop.type !== 'image') continue;

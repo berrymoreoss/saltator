@@ -114,7 +114,9 @@ interface Wire {
   ports, `z` port bits, `$tribuf` cells), so an older app refuses such a document as newer
   instead of as broken; its migration changes nothing. v8 (HDL-9) let it hold the rest of the
   cells (`$mul`, `$div`, `$pow`, `$eqx`, `$bmux`, `$dffsr`, `$aldff`, `$sr`, …) and signed
-  operands (`A_SIGNED`, `B_SIGNED`, absent meaning unsigned); its migration changes nothing.
+  operands (`A_SIGNED`, `B_SIGNED`, absent meaning unsigned); its migration changes nothing. v9
+  (HDL-6) gave it memories (`memories`, one line each, and their ports `$memrd`, `$memwr`); its
+  migration gives every module an empty `memories`.
 - `serializeDocument(doc)` writes stable JSON: fixed key order, defaults omitted, one line per
   component, per wire, per probe and per line of the test script (no `probes` or `testScript`
   key without any) — a Verilog module instead of its (empty) `components` and `wires` its
@@ -544,7 +546,9 @@ resolver.signal('A1/count[3:0]'); // { bits: [{ part: 'A1/U1', signal: 2, bit: 0
   (`parseAddress`: hex, bare or with `0x`, `$` or `h`), either way round, within the memory
   (`U5[800]: The last address is 7FF.`). A memory's designator before `[` wins over a bus name
   (`U5[10..15]` is cells, not a bus); another part's is refused (`U1 holds no memory`) unless
-  the text is a bus name.
+  the text is a bus name. The target is `{ kind: 'cells', part, type, memory, name, from, to }`:
+  the part holding the memory, the memory's reference (`name`: `U5`, `A1/rom`) and word indices
+  (an address minus the memory's `offset`).
 - Parts the compiler left out (design errors) and schematic-only parts (net labels) are not in
   the simulation and don't resolve.
 - References that name nothing are refused with the reason (`U1 has no pin Q`, `no part U9`).
@@ -557,7 +561,8 @@ resolver.signal('A1/count[3:0]'); // { bits: [{ part: 'A1/U1', signal: 2, bit: 0
   `/` (`R/W`): the leading segments are walked while they name instances, and a rest that names
   nothing there is tried further out; a path that goes nowhere says where (`no instance B9 in
   A2`, `U1 is not a subcircuit`). `memories()` lists every memory by path, in designator order
-  (`A1/U3`, `U2`); `netReference(net)` names a flat net from the outermost circuit it is in
+  (`A1/U3`, `U2`, a module's `A1/rom`), each with the part holding it (`part`: `A1/U1` for
+  `A1/rom`); `netReference(net)` names a flat net from the outermost circuit it is in
   (`HIGH`, `A1/LOCAL`, `A2/B1/U2.Y`).
 - **Renames** (`renameReference(ref, from, to, scopes)`): a part's pins (`U5.A0` → `U7.A0`), the
   paths through a renamed instance (`A1/U3.Q0` → `A3/U3.Q0`), and with `scopes` — the instance
@@ -583,6 +588,13 @@ resolver.signal('A1/count[3:0]'); // { bits: [{ part: 'A1/U1', signal: 2, bit: 0
   target is `{ kind: 'inner', part, type, signal, name, lsb, width, bits }`: the flat part, the
   index into its `signals.list`, the bits chosen. A module with errors has no part and resolves
   nothing inside.
+- **Memories inside Verilog modules** (HDL-6, [ADR-0036](adr/0036-memories-in-modules.md)): named
+  as its signals are — `rom` in the module's own scope, `A1/rom` from the circuit that places it,
+  `A1/u_fifo.mem` flattened — a whole memory is `{ kind: 'memory', part, type, memory, name }`
+  (benches load it; a signal or an expected value it isn't: `A1/rom[1] is memory, not a
+  signal`), its cells as a chip's (`A1/rom[1F]`, `A1/rom[10..1F]`) at its Verilog addresses, hex
+  as every memory tool: `reg [7:0] m[16:25]` is `A1/m[10..19]` (`A1/m[0]: The first address is
+  10.`). A wrong name lists the memories too (`… (signals: …; memories: rom, wide)`).
 - **Signal bits** (`ProbeTarget`): `signal` and `probe` give `bits`, bit 0 first, each a net id,
   a bit inside a part (`InnerBit`: `{ part, signal, bit }`) or `undefined` (a bus member no net
   is named after), and `keys`, each bit's own reference (a bus's members `D0`…, a group's, a
@@ -681,7 +693,12 @@ bench('holds while disabled, without a carry', (b) => {
 - **Memories**: a RAM takes `b.memory` at any time through its `poke`; a ROM's image (its
   `image`-type prop) is replaced in the bench's flattened netlist — that instance only — and
   only before the simulation starts (before anything else in the bench). Addresses are numbers
-  or hex text as the Memory tab's Go to takes them.
+  or hex text as the Memory tab's Go to takes them. A Verilog module's memory (HDL-6: `regs`,
+  `A1/regs`) is a RAM from its power-up contents, addressed from its first address; a memory
+  wider than 8 bits takes words (numbers up to `2^width − 1`, or hex text `'DEADBEEF 13'`), and
+  `b.loadIntelHex` packs the file's bytes into its words little-endian by byte address, as
+  RISC-V tools lay a program out. `expect` and `get` read its cells (`'A1/regs[2..3]': [1, 2]`);
+  a whole memory as an output is refused ("check its cells").
 - Design errors in the circuit or the circuits it places make every bench of it an `error`
   listing them.
 

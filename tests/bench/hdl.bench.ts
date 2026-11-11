@@ -78,6 +78,7 @@ function synthetic(lanes: number): HdlModule {
     ],
     // Each lane's register by name (HDL-4: what probes inside a module record).
     signals: q.map((bits, i) => ({ name: `q${i}`, lsb: 0, bits })),
+    memories: [],
     cells,
   };
 }
@@ -272,5 +273,81 @@ describe('Verilog modules', () => {
     };
     cycle();
     await measure(bench, 'I/O port', sim, combinational(module), cycle);
+  });
+
+  test('register file (mem_regfile, 8 × 8, HDL-6): a write and two reads per clock cycle', async ({
+    bench,
+  }) => {
+    const module = convert('mem_regfile');
+    const sim = simulate(module);
+    sim.action('D_we', strong(1));
+    sim.action('D_clk', strong(0));
+    sim.settle();
+    let n = 0;
+    const bits = (name: string, width: number, value: number) => {
+      for (let i = 0; i < width; i++) sim.action(`D_${name}${i}`, strong((value >> i) & 1 ? 1 : 0));
+    };
+    const cycle = () => {
+      n = (n + 1) & 7;
+      bits('rd', 3, n);
+      bits('rs1', 3, (n + 3) & 7);
+      bits('rs2', 3, (n + 5) & 7);
+      bits('wd', 8, (n * 37) & 0xff);
+      sim.settle();
+      sim.action('D_clk', strong(1));
+      sim.settle();
+      sim.action('D_clk', strong(0));
+      sim.settle();
+    };
+    cycle();
+    await measure(bench, 'register file', sim, combinational(module), cycle);
+  });
+
+  test("a 4K × 32 RAM (a soft core's memory, HDL-6): a write and a read per clock cycle", async ({
+    bench,
+  }) => {
+    const pins = (from: number, width: number) => Array.from({ length: width }, (_, i) => from + i);
+    const [clk, we, a, d, q] = [0, 1, pins(2, 12), pins(14, 32), pins(46, 32)];
+    const module: HdlModule = {
+      format: 1,
+      top: 'ram4k',
+      creator: '',
+      bitCount: 78,
+      ports: [
+        { name: 'clk', dir: 'in', lsb: 0, bits: [clk] },
+        { name: 'we', dir: 'in', lsb: 0, bits: [we] },
+        { name: 'a', dir: 'in', lsb: 0, bits: a },
+        { name: 'd', dir: 'in', lsb: 0, bits: d },
+        { name: 'q', dir: 'out', lsb: 0, bits: q },
+      ],
+      signals: [],
+      memories: [{ name: 'ram', width: 32, size: 4096, offset: 0 }],
+      cells: [
+        { type: '$memrd', src: '', ports: { ADDR: a, DATA: q }, params: { MEMORY: 0 } },
+        {
+          type: '$memwr',
+          src: '',
+          ports: { CLK: [clk], EN: Array(32).fill(we), ADDR: a, DATA: d },
+          params: { MEMORY: 0, CLK_POLARITY: 1, PRIORITY: [] },
+        },
+      ],
+    };
+    const sim = simulate(module);
+    sim.action('D_we', strong(1));
+    sim.action('D_clk', strong(0));
+    sim.settle();
+    let n = 0;
+    const cycle = () => {
+      n = (n * 1103 + 12345) & 0xfff;
+      for (let i = 0; i < 12; i++) sim.action(`D_a${i}`, strong((n >> i) & 1 ? 1 : 0));
+      for (let i = 0; i < 32; i += 4) sim.action(`D_d${i}`, strong((n >> (i % 12)) & 1 ? 1 : 0));
+      sim.settle();
+      sim.action('D_clk', strong(1));
+      sim.settle();
+      sim.action('D_clk', strong(0));
+      sim.settle();
+    };
+    cycle();
+    await measure(bench, 'RAM 4K × 32', sim, 2, cycle);
   });
 });

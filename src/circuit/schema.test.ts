@@ -111,7 +111,7 @@ describe('loadDocument', () => {
       schemaVersion: SCHEMA_VERSION,
       circuits: [{ ...v1.circuits[0], probes: [], testScript: [] }],
     });
-    expect(SCHEMA_VERSION).toBe(8);
+    expect(SCHEMA_VERSION).toBe(9);
   });
 
   it('opens a schema v2 document (before probes) with none', () => {
@@ -450,13 +450,16 @@ describe('loadDocument: Verilog modules (v6)', () => {
     expect(problemsOf(doc7)).toEqual([]);
   });
 
-  it('opens a v7 module unchanged as v8, which may hold signed and HDL-9 cells', () => {
-    const doc7 = { ...v6({ id: 'gate', name: 'Gate', verilog: { module: testModule } }) };
+  // Modules before v9 have no `memories`.
+  const { memories: _, ...v8Module } = testModule;
+
+  it('opens a v7 module as v9, gaining an empty memories; v8 ones may hold signed and HDL-9 cells', () => {
+    const doc7 = { ...v6({ id: 'gate', name: 'Gate', verilog: { module: v8Module } }) };
     const loaded = loadDocument({ ...doc7, schemaVersion: 7 });
-    expect(loaded.schemaVersion).toBe(8);
+    expect(loaded.schemaVersion).toBe(9);
     expect(loaded.circuits[1]?.verilog?.module).toEqual(testModule);
     const signed = {
-      ...testModule,
+      ...v8Module,
       cells: [
         ...testModule.cells,
         {
@@ -472,5 +475,28 @@ describe('loadDocument: Verilog modules (v6)', () => {
       schemaVersion: 8,
     };
     expect(problemsOf(doc8)).toEqual([]);
+    expect(loadDocument(doc8).circuits[1]?.verilog?.module?.memories).toEqual([]);
+  });
+
+  it('takes memories and their ports in a v9 module, and checks them (HDL-6)', () => {
+    const memory = { name: 'rom', width: 8, size: 4, offset: 0, init: '0000:0102' };
+    const read = {
+      type: '$memrd',
+      src: '',
+      ports: { ADDR: [1, 2], DATA: [3, 4, 5, 6, 0, 0, 0, 0] },
+      params: { MEMORY: 0 },
+    };
+    const module = { ...testModule, bitCount: 7, memories: [memory], cells: [read] };
+    const doc9 = { ...v6({ id: 'rom', name: 'ROM', verilog: { module } }), schemaVersion: 9 };
+    expect(problemsOf(doc9)).toEqual([]);
+    const wrong = { ...module, memories: [{ ...memory, init: '0004:01' }] };
+    expect(
+      problemsOf({
+        ...doc9,
+        circuits: [doc9.circuits[0], { ...doc9.circuits[1], verilog: { module: wrong } }],
+      }),
+    ).toEqual([
+      'circuits[1].verilog.module.memories[0].init: run "0004:01" is outside the memory\'s addresses 0x0–0x3',
+    ]);
   });
 });

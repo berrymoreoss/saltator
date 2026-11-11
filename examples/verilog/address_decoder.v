@@ -2,7 +2,7 @@
 //   RAM $0000-$3FFF (selected only while PHI2 is HIGH, so writes end with the clock),
 //   VIA $6000-$7FFF, ROM $8000-$FFFF. Chip selects are active LOW.
 // Synthesize: yosys -q -p 'read_verilog address_decoder.v; hierarchy -auto-top; proc -norom;
-//   flatten; opt -keepdc; check; write_json address_decoder.json'
+//   flatten; tribuf -logic; opt -keepdc; memory_collect; check; write_json address_decoder.json'
 module address_decoder (
     input [15:12] addr,
     input phi2,

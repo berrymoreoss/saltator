@@ -9,7 +9,7 @@ import {
 import type { CpuDef } from './cpu';
 import type { SignalsDef } from './inner-signals';
 import { Level } from './logic';
-import { createAccessStamps } from './memory';
+import { createAccessStamps, type MemoryDef } from './memory';
 import { familyOf, Registry } from './registry';
 import type { SymbolDef } from './symbol';
 
@@ -145,6 +145,26 @@ describe('Registry', () => {
       ],
     ])('rejects a malformed size or address', (bad, message) => {
       expect(() => new Registry([part('mem/bad', { pins, memory: bad })])).toThrow(message);
+    });
+
+    it("takes a module's named memories: up to 32 bits, a first address, no pins (HDL-6)", () => {
+      const named = { name: 'rom', words: 10, width: 32, offset: 16, volatile: true, view };
+      expect(new Registry([part('hdl/m', { memories: [named] })]).has('hdl/m')).toBe(true);
+      const bad = (m: MemoryDef, message: string) =>
+        expect(() => new Registry([part('hdl/bad', { memories: [named, m] })])).toThrow(message);
+      bad(named, 'hdl/bad: memory rom: memories need distinct names');
+      bad(
+        { ...named, name: 'w', width: 33 },
+        'hdl/bad: memory w: width must be 1 to 32 bits, got 33',
+      );
+      bad({ ...named, name: 'o', offset: -1 }, 'hdl/bad: memory o: offset must be an integer ≥ 0');
+      bad(
+        { ...named, name: 'p', addressPins },
+        "hdl/bad: memory p: a module's memory has no address pins",
+      );
+      expect(() => new Registry([part('hdl/bad', { pins, memory, memories: [named] })])).toThrow(
+        'hdl/bad: a part has memory or memories, not both',
+      );
     });
 
     it('rejects an image prop without its size, or of another size than the memory', () => {

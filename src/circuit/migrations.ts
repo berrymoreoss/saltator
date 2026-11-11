@@ -29,7 +29,27 @@ export const MIGRATIONS: Migrations = {
   6: (doc) => doc,
   // v8 let modules hold the rest of the cells and signed operands (HDL-9); v7 ones have none.
   7: (doc) => doc,
+  // v9 gave modules memories (`memories`, `$memrd`, `$memwr`; HDL-6); v8 ones have none.
+  8: addModuleMemories,
 };
+
+/** v8 → v9: every compiled module gets an empty `memories`. */
+function addModuleMemories(doc: RawDocument): RawDocument {
+  const { circuits } = doc;
+  if (!Array.isArray(circuits)) return doc;
+  return {
+    ...doc,
+    circuits: (circuits as unknown[]).map((circuit) => {
+      if (typeof circuit !== 'object' || circuit === null) return circuit;
+      const { verilog } = circuit as RawDocument;
+      if (typeof verilog !== 'object' || verilog === null) return circuit;
+      const { module } = verilog as RawDocument;
+      if (typeof module !== 'object' || module === null || Array.isArray(module)) return circuit;
+      if ((module as RawDocument).memories !== undefined) return circuit;
+      return { ...circuit, verilog: { ...verilog, module: { ...module, memories: [] } } };
+    }),
+  };
+}
 
 function slugCircuitIds(doc: RawDocument): RawDocument {
   const { circuits } = doc;

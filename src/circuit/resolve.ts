@@ -36,13 +36,29 @@ export type Target =
       readonly members: readonly (string | undefined)[];
     }
   | {
-      /** Cells `from` … `to` (inclusive, `from ≤ to`) of a memory part: `U5[1F]`, `U5[10..1F]`. */
+      /**
+       * Cells `from` … `to` (word indices, inclusive, `from ≤ to`; an address minus the memory's
+       * `offset`) of a memory: a chip's (`U5[1F]`, `U5[10..1F]`) or a module's (`A1/rom[1F]`,
+       * HDL-6). `part` holds it; `name` is the memory's reference (`U5`, `A1/rom`).
+       */
       readonly kind: 'cells';
       readonly part: string;
       readonly type: string;
       readonly memory: MemoryDef;
+      readonly name: string;
       readonly from: number;
       readonly to: number;
+    }
+  | {
+      /**
+       * A memory of a Verilog module, whole (HDL-6): `A1/rom`, `rom` in the module's own scope.
+       * A chip's memory is its part (`U5`).
+       */
+      readonly kind: 'memory';
+      readonly part: string;
+      readonly type: string;
+      readonly memory: MemoryDef;
+      readonly name: string;
     }
   | {
       /**
@@ -63,20 +79,26 @@ export type Target =
 /** A memory reference taken apart: `U5[10..1F]` → `U5`, `10`, `1F`. */
 const CELLS = /^([^[\].\s]+)\[\s*([^\].]+?)\s*(?:\.\.\s*([^\].]+?)\s*)?\]$/;
 
+/** A module memory's cells taken apart: `u_fifo.mem[10..1F]` → `u_fifo.mem`, `10`, `1F`. */
+const MEMORY_CELLS = /^(.+?)\s*\[\s*([^\].]+?)\s*(?:\.\.\s*([^\].]+?)\s*)?\]$/;
+
 /** An inner signal's slice taken apart: `count[3:0]`, `count[3..0]`, `count[2]`. */
 const SLICE = /^(.+?)\s*\[\s*(\d+)\s*(?:(?::|\.\.)\s*(\d+)\s*)?\]$/;
 
 /**
  * An address as the memory tools take it: hex, bare or with `0x`, `$` or `h` (`7F0`, `0x7F0`,
- * `$7F0`, `7F0h`), below `words`; or why not.
+ * `$7F0`, `7F0h`), from `offset` (a module memory's first address, HDL-6) for `words` words; or
+ * why not.
  */
-export function parseAddress(text: string, words: number): number | string {
+export function parseAddress(text: string, words: number, offset = 0): number | string {
   const trimmed = text.trim();
   const hex = trimmed.replace(/^(0x|\$)/i, '').replace(/h$/i, '');
-  const last = (words - 1).toString(16).toUpperCase();
-  if (!/^[0-9a-f]+$/i.test(hex)) return `Type a hex address, 0 to ${last}.`;
+  const first = offset.toString(16).toUpperCase();
+  const last = (offset + words - 1).toString(16).toUpperCase();
+  if (!/^[0-9a-f]+$/i.test(hex)) return `Type a hex address, ${first} to ${last}.`;
   const address = Number.parseInt(hex, 16);
-  return address < words ? address : `The last address is ${last}.`;
+  if (address < offset) return `The first address is ${first}.`;
+  return address < offset + words ? address : `The last address is ${last}.`;
 }
 
 /**
@@ -127,9 +149,15 @@ export interface ProbeTarget {
   readonly vector: boolean;
 }
 
-/** A part holding memory, with its definition's description of it. */
+/**
+ * A memory of the design, with its definition's description of it: a chip's, by its part
+ * (`U5`, `A1/U3`), or a module's, by its name (`A1/rom`, HDL-6).
+ */
 export interface MemoryPart {
+  /** The memory's reference: `U5`, `A1/U3`, `A1/rom`. */
   readonly id: string;
+  /** The part holding it, as the simulator names it: `U5`, `A1/U3`, `A1/U1` (a module's part). */
+  readonly part: string;
   readonly type: string;
   readonly definition: AnyComponentDefinition;
   readonly memory: MemoryDef;
@@ -202,12 +230,27 @@ export class Resolver {
     return [...this.#parts.values()];
   }
 
-  /** The parts that hold memory, inner ones by path, in designator order (`A1/U3`, `U2`). */
+  /**
+   * The memories of the design in designator order: chips by their part, inner ones by path
+   * (`A1/U3`, `U2`); a module's by name after its instance's path (`A1/rom`; `rom` in the
+   * module's own circuit, HDL-6).
+   */
   memories(): MemoryPart[] {
     const found: MemoryPart[] = [];
     for (const { id, type } of this.#parts.values()) {
       const definition = this.#registry.get(type);
-      if (definition?.memory) found.push({ id, type, definition, memory: definition.memory });
+      if (definition?.memory) {
+        found.push({ id, part: id, type, definition, memory: definition.memory });
+      }
+    }
+    for (const s of this.#scopes.values()) {
+      const definition = s.module && this.#registry.get(s.module.type);
+      if (!s.module || !definition) continue;
+      const prefix = s.path === '' ? '' : `${s.path}/`;
+      for (const memory of definition.memories ?? []) {
+        const part = prefix + s.module.id;
+        found.push({ id: prefix + memory.name!, part, type: s.module.type, definition, memory });
+      }
     }
     return found.sort((a, b) => compareDesignators(a.id, b.id));
   }
@@ -260,7 +303,25 @@ export class Resolver {
   #resolveIn(s: Scope, text: string): Target | string {
     const found = this.#resolveNamed(s, text);
     if (typeof found !== 'string' || !s.module) return found;
-    return this.#inner(s, s.module, text) ?? found;
+    return this.#moduleMemory(s, s.module, text) ?? this.#inner(s, s.module, text) ?? found;
+  }
+
+  /**
+   * A memory of the module `part` (HDL-6), whole (`rom`, `u_fifo.mem`) or its cells (`rom[1F]`,
+   * `rom[10..1F]`, at its Verilog addresses); undefined where `text` names none.
+   */
+  #moduleMemory(s: Scope, part: NetlistComponent, text: string): Target | string | undefined {
+    const memories = this.#registry.get(part.type)?.memories ?? [];
+    if (memories.length === 0) return undefined;
+    const prefix = s.path === '' ? '' : `${s.path}/`;
+    const id = prefix + part.id;
+    const whole = memories.find((m) => m.name === text);
+    if (whole)
+      return { kind: 'memory', part: id, type: part.type, memory: whole, name: prefix + text };
+    const cells = MEMORY_CELLS.exec(text);
+    const memory = cells && memories.find((m) => m.name === cells[1]);
+    if (!cells || !memory) return undefined;
+    return this.#cells(prefix + memory.name!, id, part.type, memory, cells[2]!, cells[3]);
   }
 
   /** A pin, net, bus, part or cells of the circuit at scope `s`, or why not. */
@@ -271,7 +332,8 @@ export class Resolver {
     const owner = cells && s.parts.get(cells[1]!);
     if (cells && owner) {
       const memory = this.#registry.get(owner.type)?.memory;
-      if (memory) return this.#cells(prefix, owner, memory, cells[2]!, cells[3]);
+      const id = prefix + owner.id;
+      if (memory) return this.#cells(id, id, owner.type, memory, cells[2]!, cells[3]);
       if (!isBusName(text)) return `${prefix}${owner.id} holds no memory`;
     }
     if (isBusName(text)) {
@@ -330,7 +392,9 @@ export class Resolver {
     if (whole >= 0) return target(whole, range(0, view.list[whole]!.width - 1));
     const slice = SLICE.exec(text);
     const index = slice ? view.list.findIndex((signal) => signal.name === slice[1]) : -1;
-    if (!slice || index < 0) return noSignal(s, view, text);
+    if (!slice || index < 0) {
+      return noSignal(s, view, this.#registry.get(part.type)?.memories ?? [], text);
+    }
     const { name, lsb, width } = view.list[index]!;
     const ends = [Number(slice[2]), Number(slice[3] ?? slice[2])];
     const outside = ends.find((i) => i < lsb || i >= lsb + width);
@@ -360,25 +424,28 @@ export class Resolver {
     return this.#design ? this.#design.netOf(s.path, net) : net;
   }
 
+  /** Cells of memory `name` (held by `part`) from `first` to `last`, as addresses go. */
   #cells(
-    prefix: string,
-    part: NetlistComponent,
+    name: string,
+    part: string,
+    type: string,
     memory: MemoryDef,
     first: string,
     last: string | undefined,
   ): Target | string {
-    const id = prefix + part.id;
-    const from = parseAddress(first, memory.words);
-    if (typeof from === 'string') return `${id}[${first}]: ${from}`;
-    const to = last === undefined ? from : parseAddress(last, memory.words);
-    if (typeof to === 'string') return `${id}[${last}]: ${to}`;
+    const offset = memory.offset ?? 0;
+    const from = parseAddress(first, memory.words, offset);
+    if (typeof from === 'string') return `${name}[${first}]: ${from}`;
+    const to = last === undefined ? from : parseAddress(last, memory.words, offset);
+    if (typeof to === 'string') return `${name}[${last}]: ${to}`;
     return {
       kind: 'cells',
-      part: id,
-      type: part.type,
+      part,
+      type,
       memory,
-      from: Math.min(from, to),
-      to: Math.max(from, to),
+      name,
+      from: Math.min(from, to) - offset,
+      to: Math.max(from, to) - offset,
     };
   }
 
@@ -400,6 +467,7 @@ export class Resolver {
       case 'bus':
         return { bits: target.members, keys, vector: true };
       case 'cells':
+      case 'memory':
         return `${text} is memory, not a signal`;
       case 'inner': {
         const { part, signal, name, lsb, width, bits } = target;
@@ -476,12 +544,19 @@ function declared(name: string, lsb: number, width: number): string {
   return `${name}[${lsb + width - 1}:${lsb}]`;
 }
 
-/** Why `text` names no signal of a module: the names there are, the first few. */
-function noSignal(s: Scope, view: SignalsDef, text: string): string {
+/** Why `text` names no signal or memory of a module: the names there are, the first few. */
+function noSignal(
+  s: Scope,
+  view: SignalsDef,
+  memories: readonly MemoryDef[],
+  text: string,
+): string {
   const where = s.path === '' ? 'this module' : s.path;
   const names = view.list.map((signal) => signal.name);
-  if (names.length === 0)
+  const few = (list: readonly string[]) =>
+    list.length > 8 ? `${list.slice(0, 8).join(', ')}, …` : list.join(', ');
+  const stored = memories.length === 0 ? '' : `; memories: ${few(memories.map((m) => m.name!))}`;
+  if (names.length === 0 && memories.length === 0)
     return `no part, net or signal named ${text} in ${where}: it keeps no named signals`;
-  const shown = names.length > 8 ? `${names.slice(0, 8).join(', ')}, …` : names.join(', ');
-  return `no part, net or signal named ${text} in ${where} (signals: ${shown})`;
+  return `no part, net or signal named ${text} in ${where} (signals: ${few(names)}${stored})`;
 }
