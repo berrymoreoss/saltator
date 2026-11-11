@@ -61,7 +61,8 @@ function differences(
   return out;
 }
 
-const COMBINATIONAL = new Set(['combinational', 'latch', 'tribuf']);
+/** The kinds of cells that are not combinational steps (flip-flops, memory ports). */
+const NOT_STEPS = new Set(['flip-flop', 'memrd', 'memwr']);
 
 describe('generated cells against the cells’ semantics', () => {
   it.each(sampleModules())('%s', (_, module) => {
@@ -70,7 +71,7 @@ describe('generated cells against the cells’ semantics', () => {
     const random = new SeededRandom(11);
     const found: string[] = [];
     for (const [index, cell] of module.cells.entries()) {
-      if (!COMBINATIONAL.has(HDL_CELLS[cell.type].kind)) continue;
+      if (NOT_STEPS.has(HDL_CELLS[cell.type].kind)) continue;
       for (const unknown of [0, 0.05, 0.5]) {
         for (let round = 0; round < 8; round++) {
           const { v, u } = randomWords(layout.words, random, unknown);
