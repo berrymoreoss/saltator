@@ -163,7 +163,7 @@ export class MemoryInspector {
           width: memory.width,
           volatile: memory.volatile,
           label: `${id} · ${definition.name} · ${memorySize(memory.words, memory.width)}`,
-          addressPins: memory.addressPins,
+          addressPins: memory.addressPins ?? [],
         }))
         .sort((a, b) => compareDesignators(a.id, b.id));
     }
@@ -273,7 +273,7 @@ export class MemoryInspector {
     const cells = this.cells(id);
     if (cells.kind === 'none') return cells.reason;
     if (cells.kind === 'image') return { bytes: cells.data.slice(), unknownBytes: 0 };
-    return memoryBytes(cells.view.data, cells.view.unknown);
+    return memoryBytes(cells.view.data, cells.view.unknown, this.entry(id)!.width);
   }
 
   #apply(

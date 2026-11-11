@@ -253,6 +253,11 @@ export interface ComponentDefinition<
    */
   readonly memory?: MemoryDef<State>;
   /**
+   * The part holds several named memories (a Verilog module's, HDL-6), each like `memory` with
+   * its `name`; a part has `memory` or `memories`, not both.
+   */
+  readonly memories?: readonly MemoryDef<State>[];
+  /**
    * The part is a CPU: its registers and a view of an instance's state, for the CPU tab,
    * watches and test benches.
    */

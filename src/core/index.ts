@@ -142,8 +142,11 @@ export {
   isPokeAction,
   type MemoryDef,
   type MemoryView,
+  type MemoryWords,
+  memoriesOf,
   type PokeAction,
   parseImage,
+  pokeOf,
   programmedBytes,
   readImage,
 } from './memory';

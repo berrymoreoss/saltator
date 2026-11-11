@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { type AnyComponentDefinition, levelChar, us } from '../../core';
+import { type AnyComponentDefinition, levelChar, Registry, us } from '../../core';
 import { Bench, type BenchValues } from '../../core/testing';
 import { YOSYS_FIXTURES } from './fixtures';
 import { fromYosys } from './from-yosys';
@@ -260,6 +260,56 @@ describe('memories in modules (HDL-6)', () => {
     const floating = bench.diagnostics.filter((d) => d.kind === 'floating-input');
     expect(floating.map((d) => d.pin).sort()).toEqual(
       ['wd0', 'wd1', 'wd2', 'wd3', 'wd4', 'wd5', 'wd6', 'wd7'].sort(),
+    );
+  });
+
+  it('shows its memories: the words live, stamped as read and written, the power-up contents', () => {
+    const definition = part('mem_regfile');
+    expect(definition.memory).toBeUndefined();
+    const [regs] = definition.memories ?? [];
+    expect(regs).toMatchObject({ name: 'regs', words: 8, width: 8, offset: 0, volatile: true });
+    expect(regs?.addressPins).toBeUndefined();
+    expect(() => new Registry([definition])).not.toThrow();
+    const bench = regfile();
+    write(bench, 2, 0x42);
+    const view = () => regs!.view(bench.sim.stateOf('DUT'));
+    expect(view().data[2]).toBe(0x42);
+    expect(view().unknown[2]).toBe(0);
+    expect(view().unknown[3]).toBe(0xff);
+    const written = view().writtenAt[2]!;
+    expect(written).toBeGreaterThan(0);
+    bench.set(word('rs1', 0, 3, 2));
+    bench.run(us(1));
+    const read = view().readAt[2]!;
+    expect(read).toBeGreaterThan(written);
+    // Evaluations that read the same word again don't stamp it again.
+    bench.set(word('rs2', 0, 3, 5));
+    bench.run(us(1));
+    expect(view().readAt[2]).toBe(read);
+    // A ROM's power-up contents, without a simulation; m[16:25] starts at 16.
+    const [rom] = part('mem_rom').memories ?? [];
+    expect([...rom!.powerUp!().data.slice(0, 3)]).toEqual([0x48, 0x65, 0x6c]);
+    expect(rom!.powerUp!().unknown[10]).toBe(0xff);
+    expect(part('mem_offset').memories?.[0]?.offset).toBe(16);
+  });
+
+  it('takes pokes into a memory by name: what reads it follows after its delay', () => {
+    const bench = regfile();
+    bench.set(word('rs1', 0, 3, 6));
+    bench.action({ type: 'poke', memory: 'regs', address: 6, data: [0x81, 0x7e] });
+    bench.run(us(1));
+    expect(read(bench, 'r1', 8)).toBe('10000001');
+    bench.set(word('rs1', 0, 3, 7));
+    bench.run(us(1));
+    expect(read(bench, 'r1', 8)).toBe('01111110');
+    expect(() => bench.action({ type: 'poke', memory: 'nope', address: 0, data: [1] })).toThrow(
+      'no memory "nope"',
+    );
+    expect(() => bench.action({ type: 'poke', memory: 'regs', address: 7, data: [1, 2] })).toThrow(
+      'outside regs (8 words)',
+    );
+    expect(() => bench.action({ type: 'poke', memory: 'regs', address: 0, data: [256] })).toThrow(
+      'regs holds words of 8 bits, not 256',
     );
   });
 });

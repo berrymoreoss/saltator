@@ -178,7 +178,7 @@ Small, ordered, each committable with its tests (`pnpm check` green).
   `X` rules, races, collisions, stamps; unit tests per rule.
 - [x] 5. Differential: memory designs in `pnpm hdl:differential` against Yosys's `sim`; what
   differs on purpose (collisions) unit-tested.
-- [ ] 6. Core view (ADR-0036): `memories`, `MemoryDef` offset/width/optional pins, `PokeAction`
+- [x] 6. Core view (ADR-0036): `memories`, `MemoryDef` offset/width/optional pins, `PokeAction`
   with the memory; the module part's view and pokes; chips unchanged.
 - [ ] 7. Resolver: module memories and cells by name (Q2), listed in `memories()`; errors that
   say what exists.
@@ -262,11 +262,22 @@ Small, ordered, each committable with its tests (`pnpm check` green).
   designs, ≈ 128 k output bits, all agree. Yosys's `sim` loops on two ports writing one bit at
   one edge (lessons): the byte-lane design writes different halves. Mutation-checked (wrong word,
   enable ignored, one enable for all lanes, first address ignored, `init` ignored: each fails).
+- 2026-11-11 — task 6: `MemoryDef` gains `name`, `offset`, `powerUp`, widths to 32
+  (`MemoryWords` = `Uint8Array | Uint32Array`), optional `addressPins`; `memories` on a
+  definition (`memoriesOf`), `PokeAction.memory`, `pokeOf`; `memoryBytes` packs wider words
+  little-endian. The module part shows memories ≤ 32 bits (views over its state, `powerUp` from
+  the IR) and takes pokes (settles and drives at once). ADR-0036 written.
 
 ## Handoff
 
-- **State:** plan approved, branch started; no code yet.
-- **Next step:** task 1 (core IR, schema v9).
-- **Watch out:** `$readmemh` paths are relative to the `.v`; read stamps must not change on a
-  re-run of the steps (R17a lesson); `pnpm check` and `pnpm e2e` one after the other.
+- **State:** tasks 1–6 done and committed (IR + schema v9, converter + command, analysis,
+  interpreter in `memory-cells.ts`, differential). Modules with memories run headless; nothing
+  shows them yet (no view, references, benches or UI).
+- **Next step:** task 7 — resolver: `A1/rom`, `A1/rom[1F]`, `rom` in the module's own scope
+  (beside the signals in `#inner`), addresses at the memory's `offset`; `memories()` lists module
+  memories by reference with the flat part id apart (`MemoryPart.part`); then benches, the
+  Memory tab.
+- **Watch out:** `$readmemh` paths are relative to the `.v`; read stamps change only on a new
+  word or a write since (`stampReads`); `pnpm check` and `pnpm e2e` one after the other; Yosys's
+  `sim` loops on colliding write ports (lessons).
 - **Verify with:** `pnpm check`; `pnpm hdl:fixtures` / `pnpm hdl:differential` need Yosys.

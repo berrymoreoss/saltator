@@ -26,8 +26,11 @@ import {
   hdlPinDirs,
   hdlPortName,
   hdlPortPins,
+  isPokeAction,
   Level,
+  type MemoryDef,
   type PinDef,
+  type PokeAction,
   type SignalsDef,
   strong,
   toInput,
@@ -484,6 +487,7 @@ export function hdlPart(type: string, name: string, module: HdlModule): HdlPartR
     pins: hdlPins(module),
     props: [hdlDelayProp],
     signals: innerSignals(module),
+    ...(program.memories.some((m) => m.width <= 32) && { memories: memoryViews(program) }),
     create: (props) => behavior(program, props.delay),
   });
   return { definition, messages: analysis.messages };
@@ -506,6 +510,68 @@ function innerSignals(module: HdlModule): SignalsDef<HdlState> {
     list,
     level: (state, signal, bit) => tri(state.val, state.unk, planes[signal]![bit]!) as Level,
   };
+}
+
+/**
+ * The module's memories as the part shows them (HDL-6): each one's words read in place from the
+ * instance's state, the power-up contents from the IR; memories wider than 32 bits run but aren't
+ * shown.
+ */
+function memoryViews(program: Program): MemoryDef<HdlState>[] {
+  return program.memories.flatMap((m, i): MemoryDef<HdlState>[] =>
+    m.width > 32
+      ? []
+      : [
+          {
+            name: m.name,
+            words: m.size,
+            width: m.width,
+            offset: m.base,
+            volatile: true,
+            powerUp: () => ({ data: m.init.val, unknown: m.init.unk }),
+            view: (state) => ({
+              data: state.mval[i]!,
+              unknown: state.munk[i]!,
+              readAt: state.readAt[i]!,
+              writtenAt: state.writtenAt[i]!,
+            }),
+          },
+        ],
+  );
+}
+
+/**
+ * A debug write into a memory (`PokeAction`): known words from `address` on, written now — or
+ * an error for a memory, address or word the module doesn't have.
+ */
+function pokeMemory(program: Program, ctx: EvalContext<HdlState>, poke: PokeAction): void {
+  const m = program.memories.findIndex((memory) => memory.name === poke.memory);
+  const memory = program.memories[m];
+  if (!memory || memory.width > 32) {
+    throw new Error(`${ctx.id}: no memory ${JSON.stringify(poke.memory)} to poke`);
+  }
+  const { size, width } = memory;
+  if (
+    !Number.isInteger(poke.address) ||
+    poke.address < 0 ||
+    poke.address + poke.data.length > size
+  ) {
+    throw new Error(
+      `${ctx.id}: poke of ${poke.data.length} words at ${poke.address} outside ${memory.name} (${size} words)`,
+    );
+  }
+  const max = 2 ** width - 1;
+  const words = ctx.state.mval[m]!;
+  const unknown = ctx.state.munk[m]!;
+  const written = ctx.state.writtenAt[m]!;
+  for (const [k, value] of poke.data.entries()) {
+    if (!Number.isInteger(value) || value < 0 || value > max) {
+      throw new Error(`${ctx.id}: ${memory.name} holds words of ${width} bits, not ${value}`);
+    }
+    words[poke.address + k] = value;
+    unknown[poke.address + k] = 0;
+    written[poke.address + k] = ctx.now;
+  }
 }
 
 /** Whether a flip-flop's next state (`nextState`) has an unknown bit. */
@@ -951,6 +1017,16 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
       if (floats > 0) reportFloating(ctx);
       driveOutputs(ctx, floats);
       if (readMemory.length > 0) stampReads(readMemory, state, ctx.now);
+    },
+    action(ctx: EvalContext<HdlState>, payload: unknown) {
+      if (!isPokeAction(payload)) {
+        throw new Error(`${ctx.id}: unknown action ${JSON.stringify(payload)}`);
+      }
+      pokeMemory(program, ctx, payload);
+      // What reads the memory follows at once, the outputs after their delay.
+      settle(ctx);
+      driveOutputs(ctx, 0);
+      stampReads(readMemory, ctx.state, ctx.now);
     },
   };
 }

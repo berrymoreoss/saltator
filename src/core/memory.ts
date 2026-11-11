@@ -7,11 +7,17 @@
 /** An erased EEPROM byte: every bit 1. Bytes an image doesn't list are erased. */
 export const ERASED = 0xff;
 
-/** The cells of a memory part, one byte per word. */
+/**
+ * The cells of a memory, one element per word: a byte for a chip's words (1–8 bits), 32 bits for
+ * a module's (HDL-6: up to 32 bits).
+ */
+export type MemoryWords = Uint8Array | Uint32Array;
+
+/** The cells of a memory part, one element per word. */
 export interface MemoryView {
-  readonly data: Uint8Array;
+  readonly data: MemoryWords;
   /** A set bit is unknown (`X`): the bit stored in `data` means nothing. */
-  readonly unknown: Uint8Array;
+  readonly unknown: MemoryWords;
   /**
    * When each cell was last read, in ps (`-Infinity`: never): the outputs drove its data for
    * one known address. Inspectors light up the cells read since their last look.
@@ -33,36 +39,78 @@ export function createAccessStamps(words: number): Pick<MemoryView, 'readAt' | '
 }
 
 /**
- * What a memory part holds, for inspectors and test benches (`ComponentDefinition.memory`).
- * The view reads the instance's state; it never copies.
+ * What a memory holds, for inspectors and test benches: a chip's (`ComponentDefinition.memory`)
+ * or one of a Verilog module's (`ComponentDefinition.memories`, HDL-6). The view reads the
+ * instance's state; it never copies.
  */
 export interface MemoryDef<State = unknown> {
-  /** Number of words (addresses): `2 ** addressPins.length`. */
+  /** A module's memory: its Verilog name (`rom`, `u_fifo.mem`), which its pokes carry. */
+  readonly name?: string;
+  /** Number of words: a chip's `2 ** addressPins.length`. */
   readonly words: number;
-  /** Bits per word, 1–8. */
+  /** Bits per word: 1–8 for a chip, up to 32 for a module's memory. */
   readonly width: number;
-  /** RAM: contents live only while simulating. ROM: contents come from an `image` prop. */
+  /** The address of word 0 as the tools show it (`reg [7:0] m[16:25]`: 16); 0 when absent. */
+  readonly offset?: number;
+  /**
+   * RAM: contents live only while simulating. ROM: contents come from an `image` prop. A module's
+   * memory is volatile, starting from its `powerUp` contents.
+   */
   readonly volatile: boolean;
-  /** The address pins, A0 first: the address the chip sees is read from them. */
-  readonly addressPins: readonly string[];
+  /** A chip's address pins, A0 first: the address it sees is read from them. */
+  readonly addressPins?: readonly string[];
+  /**
+   * The contents every instance starts with, known without a simulation (a module's memory:
+   * `initial`, `$readmemh`), for a stopped inspector (HDL-6, Q1).
+   */
+  readonly powerUp?: () => Pick<MemoryView, 'data' | 'unknown'>;
   view(state: State): MemoryView;
 }
 
 /**
  * Debug write into a RAM at the current instant, bypassing its timing (an inspector edit, a
  * test bench loading a program): the cells change at once; outputs reading them follow through
- * the part's read path. `data` holds one byte per word from `address` on.
+ * the part's read path. `data` holds one word per cell from word `address` on (the word's index,
+ * not its `offset` address); `memory` names a module's memory (`MemoryDef.name`).
  */
 export interface PokeAction {
   readonly type: 'poke';
+  readonly memory?: string;
   readonly address: number;
   readonly data: readonly number[];
 }
 
 export function isPokeAction(action: unknown): action is PokeAction {
   if (typeof action !== 'object' || action === null) return false;
-  const { type, address, data } = action as Record<string, unknown>;
-  return type === 'poke' && Number.isInteger(address) && Array.isArray(data);
+  const { type, address, data, memory } = action as Record<string, unknown>;
+  return (
+    type === 'poke' &&
+    Number.isInteger(address) &&
+    Array.isArray(data) &&
+    (memory === undefined || typeof memory === 'string')
+  );
+}
+
+/** A poke of `data` into `memory` from word `address` on (its name carried for a module's). */
+export function pokeOf(memory: MemoryDef, address: number, data: readonly number[]): PokeAction {
+  return {
+    type: 'poke',
+    ...(memory.name !== undefined && { memory: memory.name }),
+    address,
+    data: [...data],
+  };
+}
+
+/**
+ * The memories a part holds, each with the reference it goes by after the part's own: a chip's
+ * one (`''`: `U5` itself) or a module's by name (`rom`: `A1/rom`).
+ */
+export function memoriesOf<State>(definition: {
+  readonly memory?: MemoryDef<State>;
+  readonly memories?: readonly MemoryDef<State>[];
+}): readonly MemoryDef<State>[] {
+  if (definition.memory) return [definition.memory];
+  return definition.memories ?? [];
 }
 
 /** The value of an `image` prop: whitespace-separated runs `AAAA:BBBB…` (address: bytes, hex). */
