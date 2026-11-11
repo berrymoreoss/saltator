@@ -7,9 +7,17 @@ import {
   timingOf,
 } from '../../core';
 import { Bench, functionTable, Trace, truthTable } from '../../core/testing';
+import { verilogChips } from '../verilog';
 import { GATE_SPECS, hcGates } from './gates';
 
 const chip = (number: string) => hcGates.find((d) => d.name === `74HC${number}`)!;
+/** The 74HC00 written in Verilog (HDL-2): it passes the hand-written chip's tests. */
+const verilog00 = verilogChips().find((d) => d.name === '74HC00')!;
+/** The 74HC00s: hand-written and in Verilog. */
+const NANDS = [
+  ['hand-written', chip('00')],
+  ['Verilog', verilog00],
+] as const;
 const nameAt = (d: AnyComponentDefinition, number: number) =>
   pinsOf(d, {}).find((p) => p.number === number)!.name;
 
@@ -107,8 +115,11 @@ const TPD_NS: Readonly<Record<string, number>> = {
   '86': 14,
 };
 
-describe.each(GATE_SPECS.map((spec) => [spec.number, spec] as const))('74HC%s', (number, spec) => {
-  const def = chip(number);
+describe.each([
+  ...GATE_SPECS.map((spec) => [spec.number, spec, chip(spec.number)] as const),
+  ['00 (Verilog)', GATE_SPECS[0]!, verilog00] as const,
+])('74HC%s', (_label, spec, def) => {
+  const number = spec.number;
 
   it('follows its data sheet function table on every gate, by pin number', () => {
     const bench = new Bench(def);
@@ -145,7 +156,8 @@ describe.each(GATE_SPECS.map((spec) => [spec.number, spec] as const))('74HC%s', 
   });
 
   it('switches its output tpd after an input, both ways', () => {
-    expect(timingOf(def, {})!.typical.tpd).toBe(ns(TPD_NS[number]!));
+    // The hand-written chip's timing table; the Verilog one is measured against it.
+    expect(timingOf(chip(number), {})!.typical.tpd).toBe(ns(TPD_NS[number]!));
     const [first, ...rest] = spec.units[0]!.pins.slice(0, -1);
     const output = spec.units[0]!.pins.at(-1)!;
     // The other inputs at the level that lets the first one through.
@@ -158,9 +170,9 @@ describe.each(GATE_SPECS.map((spec) => [spec.number, spec] as const))('74HC%s', 
 });
 
 describe('unknown and floating inputs', () => {
-  it('NAND (74HC00): a 0 decides, otherwise X', () => {
+  it.each(NANDS)('NAND (74HC00, %s): a 0 decides, otherwise X', (_, nand) => {
     truthTable(
-      new Bench(chip('00')),
+      new Bench(nand),
       ['1A', '1B'],
       ['1Y'],
       [
@@ -236,28 +248,36 @@ describe('unknown and floating inputs', () => {
     }
   });
 
-  it('unused gates with floating inputs drive X and their inputs are reported', () => {
-    const bench = new Bench(chip('00'));
-    bench.set({ '1A': 1, '1B': 1 }).settle();
-    expect(bench.levels(['1Y', '2Y', '3Y', '4Y'])).toEqual({
-      '1Y': '0',
-      '2Y': 'X',
-      '3Y': 'X',
-      '4Y': 'X',
-    });
-    const floating = bench.diagnostics.filter(
-      (d) => d.kind === KernelDiagnosticKind.FLOATING_INPUT,
-    );
-    expect(floating.map((d) => d.pin).sort()).toEqual(['2A', '2B', '3A', '3B', '4A', '4B']);
-  });
+  it.each(NANDS)(
+    'unused gates with floating inputs drive X and their inputs are reported (%s)',
+    (_, nand) => {
+      const bench = new Bench(nand);
+      bench.set({ '1A': 1, '1B': 1 }).settle();
+      expect(bench.levels(['1Y', '2Y', '3Y', '4Y'])).toEqual({
+        '1Y': '0',
+        '2Y': 'X',
+        '3Y': 'X',
+        '4Y': 'X',
+      });
+      const floating = bench.diagnostics.filter(
+        (d) => d.kind === KernelDiagnosticKind.FLOATING_INPUT,
+      );
+      expect(floating.map((d) => d.pin).sort()).toEqual(['2A', '2B', '3A', '3B', '4A', '4B']);
+    },
+  );
 });
 
 describe('gate sections', () => {
-  it('are independent: a change on one gate leaves the others alone', () => {
-    const bench = new Bench(chip('00'));
-    bench.set({ '1A': 1, '1B': 1, '2A': 1, '2B': 0, '3A': 0, '3B': 0, '4A': 1, '4B': 1 }).settle();
-    const trace = new Trace(bench.sim);
-    bench.set({ '2B': 1 }).settle();
-    expect(trace.lines().map((line) => line.split(' ')[1])).toEqual(['2B=1', '2Y=0']);
-  });
+  it.each(NANDS)(
+    'are independent: a change on one gate leaves the others alone (%s)',
+    (_, nand) => {
+      const bench = new Bench(nand);
+      bench
+        .set({ '1A': 1, '1B': 1, '2A': 1, '2B': 0, '3A': 0, '3B': 0, '4A': 1, '4B': 1 })
+        .settle();
+      const trace = new Trace(bench.sim);
+      bench.set({ '2B': 1 }).settle();
+      expect(trace.lines().map((line) => line.split(' ')[1])).toEqual(['2B=1', '2Y=0']);
+    },
+  );
 });

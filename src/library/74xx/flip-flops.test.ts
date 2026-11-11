@@ -11,6 +11,7 @@ import {
   us,
 } from '../../core';
 import { Bench, type BenchValues, functionTable } from '../../core/testing';
+import { verilogChips } from '../verilog';
 import { hcFlipFlops } from './flip-flops';
 
 const chip = (number: string) => hcFlipFlops.find((d) => d.name === `74HC${number}`)!;
@@ -22,8 +23,11 @@ const timing = (b: Bench) => b.diagnostics.filter((d) => isTimingViolation(d.kin
 const of = (n: 1 | 2, values: Record<string, 0 | 1 | 'X' | 'Z'>): BenchValues =>
   Object.fromEntries(Object.entries(values).map(([k, v]) => [k.replace(/^n/, String(n)), v]));
 
-describe('74HC74', () => {
-  const hc74 = chip('74');
+// The hand-written 74HC74 and the one written in Verilog (HDL-2) pass the same tests.
+describe.each([
+  ['74HC74', chip('74')],
+  ['74HC74 (Verilog)', verilogChips().find((d) => d.name === '74HC74')!],
+])('%s', (_name, hc74) => {
   // From the pinning figure, per flip-flop: SD, RD, CP, D, Q, Q̅.
   const UNIT_PINS = [
     [4, 1, 3, 2, 5, 6],

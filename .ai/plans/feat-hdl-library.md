@@ -224,9 +224,9 @@ checks included, and a benchmark compares the Verilog 74HC00 with the hand-writt
   unit tests against hand-built modules.
 - [x] 6. Library sources and tooling: `src/library/verilog/`, `pnpm hdl:library`, the `.ir.ts`
   files with hash and version, the staleness test, `verilogChip`.
-- [ ] 7. Verilog 74HC00 and its proof: the gate tests on both definitions.
-- [ ] 8. Verilog 74HC74: the flip-flop tests on both, timing checks included.
-- [ ] 9. Verilog 74HC574: the register and 3-state tests on both.
+- [x] 7. Verilog 74HC00 and its proof: the gate tests on both definitions.
+- [x] 8. Verilog 74HC74: the flip-flop tests on both, timing checks included.
+- [x] 9. Verilog 74HC574: the register and 3-state tests on both.
 - [ ] 10. Benchmark: Verilog vs hand-written 74HC00 chain; HDL-1's benchmarks unchanged.
 - [ ] 11. App: the command shown with `-specify`; the Part tab shows a module's paths and checks;
   the `delay` prop says it covers outputs without a path; e2e (a module with `specify` pasted
@@ -301,12 +301,16 @@ checks included, and a benchmark compares the Verilog 74HC00 with the hand-writt
   `hdlTiming` (keys from ports: `tpd(CP↑ → Q)`, `tsu(D → CP↑)`, `tW(CP HIGH)`); the dev palette
   gets them (`App.tsx`). The 74's "set and reset together → stored bit X" needs a second
   flip-flop (`stale`) in Verilog: Yosys refuses an asynchronous load of x on two signals.
+- 2026-11-12 — tasks 7–9: the hand-written chips' tests run on both definitions (`describe.each`
+  in `gates.test.ts`, `flip-flops.test.ts`, `registers.test.ts`): the Verilog 74HC00 (7 tests),
+  74HC74 (15, every timing check and "set and reset released at once → X" included) and 74HC574
+  (19, 3-state included) pass unchanged; expected delays come from the hand-written chip's table.
 
 ## Handoff
 
-- **State:** tasks 1–6 done; the Verilog 74HC00/74/574 exist (dev palette, `verilogChips()`).
-- **Next step:** tasks 7–9 — run the hand-written chips' tests on both definitions
-  (`gates.test.ts`, `flip-flops.test.ts`, `registers.test.ts`).
+- **State:** tasks 1–9 done; the Verilog 74HC00/74/574 pass the hand-written chips' tests.
+- **Next step:** task 10 — benchmark (Verilog vs hand-written 74HC00 chain; HDL-1's
+  benchmarks unchanged), then task 11 (app), 12 (docs).
 - **Watch out:** Yosys drops `$width`, `$period`, 3/6-value delays, `specparam`, `ifnone`, source
   lists — the conventions above work around them; try a construct on the real Yosys first.
 - **Verify with:** `pnpm check`; `pnpm hdl:fixtures` and `pnpm hdl:library` need `yosys`.
