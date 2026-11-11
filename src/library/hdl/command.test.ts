@@ -7,6 +7,12 @@ describe('yosysScript', () => {
       'read_verilog a.v b.v; hierarchy -auto-top; proc -norom; flatten; tribuf -logic; opt -keepdc; memory_collect; check; write_json out.json',
     );
   });
+
+  it('names the top module when given one', () => {
+    expect(yosysScript(['soc.v', 'picorv32.v'], 'soc.json', 'soc')).toBe(
+      'read_verilog soc.v picorv32.v; hierarchy -top soc; proc -norom; flatten; tribuf -logic; opt -keepdc; memory_collect; check; write_json soc.json',
+    );
+  });
 });
 
 describe('yosysCommand', () => {
