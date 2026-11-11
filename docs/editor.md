@@ -1480,7 +1480,7 @@ title and a description, in gallery order):
   `A2/at`, `A2/shift`) next to SEND, LINE and VALID; a board bench follows a frame through them.
 - **Verilog PicoRV32** (HDL-7) — a RISC-V CPU written in Verilog by someone else
   (`examples/verilog/picorv32/`: upstream's `picorv32.v` unchanged, our wrapper `soc.v` with
-  4 KB of RAM and two ports) running a C program from `$readmemh` on a 10 kHz clock: the DIP
+  4 KB of RAM and two ports) running a C program from `$readmemh` on a 100 kHz clock: the DIP
   switch sets n, the LED bar and two hex digits show the n-th Fibonacci number (a byte); RESET
   restarts the core, which also resets itself at power-up; TRAP lights if it stops. The
   waveforms show its PC and bus (`A1/cpu.reg_pc`, `A1/mem_addr`), the Memory tab its register

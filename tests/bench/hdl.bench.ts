@@ -394,15 +394,15 @@ describe('Verilog modules', () => {
     await measure(bench, 'PicoRV32', sim, combinational(soc), cycle, 1);
   });
 
-  test('PicoRV32 on its board (the example as the app runs it, 10 kHz clock): 10 ms, 100 cycles', async ({
+  test('PicoRV32 on its board (the example as the app runs it, 100 kHz clock): 1 ms, 100 cycles', async ({
     bench,
   }) => {
     const design = compileDesign(document, createDefaultRegistry());
     const sim = new Simulator(design.netlist, design.registry);
     for (let index = 0; index < 8; index++) sim.action('SW2', { type: 'set', index, on: true });
-    sim.runFor(ms(20));
+    sim.runFor(ms(2));
     const run = () => {
-      sim.runFor(ms(10));
+      sim.runFor(ms(1));
     };
     await measure(bench, 'PicoRV32 board', sim, combinational(soc), run, 100);
   });
