@@ -168,9 +168,9 @@ branch goes on and ends with what it reaches (Q3), the rest a track idea with th
 - [x] 6. The behavior on words: pins, edges, races, internal rounds, loops, floating rule, inner
   signals; `hdlPart` switched; every existing test green unchanged.
 - [x] 7. Differential test against the current interpreter (Q2), mutation-checked.
-- [ ] 7b. The interpreter's leftovers removed (`reference-part.ts`, the byte-plane steps no
+- [x] 7b. The interpreter's leftovers removed (`reference-part.ts`, the byte-plane steps no
   longer used, their tests ported), after task 8 so the tuning stays checked by the oracle.
-- [ ] 8. Benchmarks and profile to the target; HDL-1's numbers no slower; numbers into the plan.
+- [x] 8. Benchmarks and profile to the target; HDL-1's numbers no slower; numbers into the plan.
 - [ ] 9. The app: the examples in the browser, PicoRV32 at Max measured; the example's clock
   (Q4); whether `fix/run-loop-chunks` is still needed.
 - [ ] 10. Docs: ADR-0037 (and ADR-0030 amended), components.md (speed, how modules run), the
@@ -265,16 +265,19 @@ branch goes on and ends with what it reaches (Q3), the rest a track idea with th
   edge's phases (`pinEdges`: the 5 write ports sampled bit by bit) ≈ 17 %, next states and loads
   of all 116 flip-flops ≈ 11 %, pins ≈ 9 %, `clockEdge` 3 %, memory stores 4 %. Further speed
   (a 2-state path, activity for flip-flops, write samples by limbs) → a track idea (Q3).
+- 2026-11-12 — 7b: `reference-part.ts` and `tests/scenarios/verilog-engine.test.ts` removed (Q2),
+  the plane memory ports (`compileReadStep`, `compileWritePorts`, `sampleWrite`) too; the
+  flip-flops' bit-by-bit model moved from `cells.ts` into `flip-flops.test.ts` (the reference the
+  generated code is held to). `cells.ts` keeps `compileStep`: the adapter's uncommon cells and
+  the reference of `codegen.test.ts`. 3 984 tests, 34 example benches.
 
 ## Handoff
 
-- **State:** tasks 1–7 and a first round of 8 done: the part runs on words; every test green;
-  PicoRV32 ≈ 240 k cycles/s (×23); the old interpreter still in `reference-part.ts`.
-- **Next step:** 7b — remove `reference-part.ts`, `tests/scenarios/verilog-engine.test.ts`,
-  the byte-plane flip-flop functions in `cells.ts` (their model moves into
-  `flip-flops.test.ts`) and the plane memory ports in `memory-cells.ts`; keep `compileStep`
-  (the adapter's and generated code's reference); then task 9 (app), task 10 (docs).
-- **Watch out:** `tests/bench/hdl-reference.bench.ts` is an untracked copy of the bench on the
-  old part, for alternate measurements; delete it with 7b.
+- **State:** tasks 1–8 and 7b done: the part runs on words, the old interpreter is gone; every
+  test green; PicoRV32 ≈ 240 k cycles/s (×23).
+- **Next step:** task 9 (the app: examples in the browser, PicoRV32 at Max, the example's clock
+  per Q4, whether `fix/run-loop-chunks` is still needed), then task 10 (docs).
+- **Watch out:** comparing against the old interpreter now needs `main` (a worktree: call
+  `node_modules/.bin/vitest bench` directly there, `.ai/lessons.md` HDL-8).
 - **Watch out:** benchmark against `main` alternately in one sitting; native imports only.
 - **Verify with:** `pnpm check`; `pnpm bench tests/bench/hdl.bench.ts`.

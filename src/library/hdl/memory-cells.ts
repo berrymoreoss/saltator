@@ -1,7 +1,8 @@
 /**
- * A module's memories (HDL-6): their words in an instance's state, the read ports as steps over
- * the planes, and the write ports, edge-triggered in two phases like flip-flops — what an edge
- * writes is sampled from the values before it, then stored with the flip-flops' loads. `X` as the
+ * A module's memories (HDL-6; on words, HDL-10): their words in an instance's state, the read
+ * ports as steps of the settle, and the write ports, edge-triggered in two phases like flip-flops
+ * — what an edge writes is sampled from the words before it, then stored with the flip-flops'
+ * loads. `X` as the
  * memory chips have it: an unknown address reads the words it could select merged (up to 8 such
  * bits; beyond them, or reaching outside the memory, all `X`); a write that may happen, or may hit
  * several words, makes `X` the bits it would change; two ports writing one bit at one edge make it
@@ -15,7 +16,7 @@ import {
   readHdlMemoryInit,
 } from '../../core';
 import { type Layout, limbsOf, maskOf, operand } from './layout';
-import { type CellStep, indices, type MemoryPlanes, merge, TX, tri } from './planes';
+import { type MemoryPlanes, merge, TX } from './planes';
 import { type OperandReader, operandReader, type WordClosure } from './source';
 
 /** The most unknown address bits a read merges the words of; beyond, it reads all `X`. */
@@ -69,98 +70,15 @@ function popCount(x: number): number {
   return n;
 }
 
-/** `readAddress`'s result: the known bits, the unknown ones (32-bit each), and bits 32 and up. */
+/** An address read (`wordAddress`): the known bits, the unknown ones (32-bit each), and bits 32 and up. */
 const address = new Float64Array(3);
 /** Bits 32 and up: all 0, one surely 1 (outside every memory), or unknown ones. */
 const HIGH_ZERO = 0;
 const HIGH_ONE = 1;
 const HIGH_UNKNOWN = 2;
 
-/** Reads an address from the planes into `address`. */
-function readAddress(val: Uint8Array, unk: Uint8Array, bits: Int32Array): void {
-  let a = 0;
-  let x = 0;
-  let high = HIGH_ZERO;
-  for (let i = 0; i < bits.length; i++) {
-    const b = bits[i]!;
-    if (i < 32) {
-      if (unk[b]) x |= 1 << i;
-      else if (val[b]) a |= 1 << i;
-    } else if (unk[b]) {
-      if (high === HIGH_ZERO) high = HIGH_UNKNOWN;
-    } else if (val[b]) high = HIGH_ONE;
-  }
-  address[0] = a >>> 0;
-  address[1] = x >>> 0;
-  address[2] = high;
-}
-
 /** The next subset of the bits of `mask` after `subset` (0 after the last). */
 const nextSubset = (subset: number, mask: number) => ((subset - mask) & mask) >>> 0;
-
-/**
- * A read port (`$memrd`, the `port`-th of the module): the word at its address, `X` outside the
- * memory, merged over the words an unknown address could select. It notes the word it read (for
- * the access stamps, set after the evaluation), and nothing else.
- */
-export function compileReadStep(
-  cell: HdlCell,
-  memoryIndex: number,
-  memory: CompiledMemory,
-  port: number,
-  bitCount: number,
-): CellStep {
-  const addr = indices(cell, 'ADDR', bitCount);
-  const data = indices(cell, 'DATA', bitCount);
-  const { width, size, base, limbs } = memory;
-  const allX = (val: Uint8Array, unk: Uint8Array) => {
-    for (let i = 0; i < width; i++) {
-      val[data[i]!] = 0;
-      unk[data[i]!] = 1;
-    }
-  };
-  return (val, unk, mem) => {
-    const planes = mem!;
-    const words = planes.mval[memoryIndex]!;
-    const unknown = planes.munk[memoryIndex]!;
-    planes.readWord[port] = -1;
-    readAddress(val, unk, addr);
-    const a = address[0]!;
-    const x = address[1]!;
-    if (address[2] !== HIGH_ZERO || popCount(x) > MAX_MERGED_BITS) {
-      allX(val, unk);
-      return;
-    }
-    const known = (a & ~x) >>> 0;
-    let subset = 0;
-    let first = true;
-    do {
-      const w = ((known | subset) >>> 0) - base;
-      if (w < 0 || w >= size) {
-        allX(val, unk);
-        return;
-      }
-      const at = w * limbs;
-      for (let i = 0; i < width; i++) {
-        const limb = at + (i >>> 5);
-        const s = i & 31;
-        const u = (unknown[limb]! >>> s) & 1;
-        const v = (words[limb]! >>> s) & 1;
-        const b = data[i]!;
-        if (first) {
-          unk[b] = u;
-          val[b] = v & (u ^ 1);
-        } else if (!unk[b] && (u || v !== val[b])) {
-          unk[b] = 1;
-          val[b] = 0;
-        }
-      }
-      if (x === 0) planes.readWord[port] = w;
-      first = false;
-      subset = nextSubset(subset, x);
-    } while (subset !== 0);
-  };
-}
 
 /** What storing a write port's samples needs of it (HDL-6; on words too, HDL-10). */
 export interface WriteShape {
@@ -175,55 +93,6 @@ export interface WriteShape {
    */
   readonly earlier: Int32Array;
   readonly wins: Uint8Array;
-}
-
-/** A memory's write port (`$memwr`) as instances run it. */
-export interface WritePort extends WriteShape {
-  readonly memory: number;
-  /** The plane index of its clock. */
-  readonly clk: number;
-  readonly rising: boolean;
-  readonly en: Int32Array;
-  readonly data: Int32Array;
-  readonly addr: Int32Array;
-  /** Its first bit in the samples' per-bit arrays. */
-  readonly offset: number;
-  /**
-   * The memory's earlier write ports (indices among the module's write ports) and, for each,
-   * whether this one wins where both write a bit at one edge.
-   */
-  readonly earlier: Int32Array;
-  readonly wins: Uint8Array;
-}
-
-/**
- * Compiles the write ports of a module, in cell order: `cells[i]` writes into
- * `memories[cells[i].params.MEMORY]`.
- */
-export function compileWritePorts(cells: readonly HdlCell[], bitCount: number): WritePort[] {
-  const byMemory = new Map<number, number[]>();
-  let offset = 0;
-  return cells.map((cell, p) => {
-    const memory = cell.params.MEMORY as number;
-    const earlier = byMemory.get(memory) ?? [];
-    byMemory.set(memory, [...earlier, p]);
-    const priority = cell.params.PRIORITY as readonly string[];
-    const en = indices(cell, 'EN', bitCount);
-    const port: WritePort = {
-      memory,
-      width: en.length,
-      clk: indices(cell, 'CLK', bitCount)[0]!,
-      rising: cell.params.CLK_POLARITY === 1,
-      en,
-      data: indices(cell, 'DATA', bitCount),
-      addr: indices(cell, 'ADDR', bitCount),
-      offset,
-      earlier: Int32Array.from(earlier),
-      wins: Uint8Array.from(earlier, (_, j) => (priority[j] === '1' ? 1 : 0)),
-    };
-    offset += en.length;
-    return port;
-  });
 }
 
 /**
@@ -248,30 +117,6 @@ export function newWriteSamples(ports: readonly WriteShape[]): WriteSamples {
     addrX: new Float64Array(ports.length),
     high: new Uint8Array(ports.length),
   };
-}
-
-/**
- * Samples what port `p`'s edge writes from the planes (phase one). An uncertain edge may write:
- * its enabled bits become maybe-enabled (`X`).
- */
-export function sampleWrite(
-  ports: readonly WritePort[],
-  p: number,
-  uncertain: boolean,
-  val: Uint8Array,
-  unk: Uint8Array,
-  s: WriteSamples,
-): void {
-  const wp = ports[p]!;
-  for (let i = 0; i < wp.width; i++) {
-    const e = tri(val, unk, wp.en[i]!);
-    s.en[wp.offset + i] = uncertain && e !== 0 ? TX : e;
-    s.data[wp.offset + i] = tri(val, unk, wp.data[i]!);
-  }
-  readAddress(val, unk, wp.addr);
-  s.addr[p] = address[0]!;
-  s.addrX[p] = address[1]!;
-  s.high[p] = address[2]!;
 }
 
 /** Marks port `p`'s sample as clocked without end: every bit it may write becomes `X`. */
@@ -455,7 +300,7 @@ export function stampReads(readMemory: Int32Array, state: MemoryState, now: numb
 
 // --- On words (HDL-10) -------------------------------------------------------------------------
 
-/** Reads an address operand's limbs into `address`, as `readAddress` does from the planes. */
+/** Reads an address operand's limbs into `address`: bits 32 and up all 0, a 1, or unknown. */
 function wordAddress(v: Uint32Array, u: Uint32Array): void {
   let high = HIGH_ZERO;
   for (let k = 1; k < v.length && high !== HIGH_ONE; k++) {
@@ -470,7 +315,7 @@ function wordAddress(v: Uint32Array, u: Uint32Array): void {
 /**
  * A read port (`$memrd`, the `port`-th of the module) over an instance's words: its `DATA` (from
  * word `first`) the memory's word at its address, a limb at a time; `X` outside the memory,
- * merged over the words an unknown address could select (`compileReadStep`'s rules).
+ * merged over the words an unknown address could select.
  */
 export function readClosure(
   cell: HdlCell,
@@ -551,7 +396,10 @@ export interface WordWritePort extends WriteShape {
   readonly au: Uint32Array;
 }
 
-/** The write ports of a module on words, in cell order (`compileWritePorts`). */
+/**
+ * The write ports of a module on words, in cell order: `cells[i]` writes into
+ * `memories[cells[i].params.MEMORY]`.
+ */
 export function compileWordWritePorts(cells: readonly HdlCell[], layout: Layout): WordWritePort[] {
   const byMemory = new Map<number, number[]>();
   let offset = 0;
@@ -588,8 +436,8 @@ export function compileWordWritePorts(cells: readonly HdlCell[], layout: Layout)
 }
 
 /**
- * Samples what port `p`'s edge writes from the words (phase one, `sampleWrite`). An uncertain
- * edge may write: its enabled bits become maybe-enabled (`X`).
+ * Samples what port `p`'s edge writes from the words (phase one). An uncertain edge may write:
+ * its enabled bits become maybe-enabled (`X`).
  */
 export function sampleWriteWords(
   ports: readonly WordWritePort[],
