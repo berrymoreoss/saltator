@@ -4,7 +4,7 @@
 | ---------- | -------------------------------------------------------------------------------------------------- |
 | Branch     | `example/picorv32`                                                                                 |
 | Roadmap    | HDL-7 — PicoRV32 soft core, track [Programmable logic](../../docs/roadmap/programmable-logic.md)   |
-| Status     | in-progress                                                                                        |
+| Status     | done                                                                                               |
 | Depends on | HDL-1, HDL-8, HDL-9 (IR, converter, interpreter), HDL-4 (signals inside modules), HDL-6 (memories) |
 | Created    | 2026-11-11                                                                                         |
 
@@ -48,7 +48,7 @@ measurement: how fast a core runs against HDL-1's baseline — the target HDL-10
 - Changing the core's source: upstream as it is; the wrapper adapts.
 - The app's run loop at Max (found in task 5): kernel calls of 20 000 events between frame-budget
   checks take ≈ 0.35 s with this core (≈ 3 frames a second), and the achieved rate is computed
-  over a wall time capped at 100 ms ("max 5 s/s" for ≈ 1.7) → a `fix/` branch after this one
+  over a wall time capped at 100 ms ("max 5 s/s" for ≈ 1.7) → `fix/run-loop-chunks`, pre-drafted, after this one
   (the user's choice, 2026-11-11).
 
 ## Context
@@ -162,16 +162,16 @@ Small, ordered, each committable with its tests (`pnpm check` green).
 
 ## Acceptance criteria
 
-- [ ] `pnpm check` and `pnpm build` are green; `pnpm test:circuits` and `pnpm e2e` pass.
-- [ ] `picorv32.v` is byte-identical to upstream's at the cited commit, its license kept.
-- [ ] `pnpm riscv:firmware` rebuilds `firmware.hex` and `firmware.lst` identically;
+- [x] `pnpm check` and `pnpm build` are green; `pnpm test:circuits` and `pnpm e2e` pass.
+- [x] `picorv32.v` is byte-identical to upstream's at the cited commit, its license kept.
+- [x] `pnpm riscv:firmware` rebuilds `firmware.hex` and `firmware.lst` identically;
   `pnpm hdl:examples` regenerates the example identically.
-- [ ] The example opens in the app; after RESET the program runs and its output shows on the
+- [x] The example opens in the app; after RESET the program runs and its output shows on the
   board; the Memory tab shows the program in `A1/ram` and the registers in `A1/cpu.cpuregs`; the
   waveforms show `A1/cpu.reg_pc`.
-- [ ] The module's benches and the board's pass headless and in the app; a broken program (or a
+- [x] The module's benches and the board's pass headless and in the app; a broken program (or a
   wrong expected value) fails them (mutation check).
-- [ ] The core's speed is measured and written down (headless, in the app), HDL-1's baseline
+- [x] The core's speed is measured and written down (headless, in the app), HDL-1's baseline
   unchanged, HDL-10's target set in the track.
 
 ## Open questions
@@ -236,11 +236,22 @@ Small, ordered, each committable with its tests (`pnpm check` green).
   top module, the speed, the tests), editor.md (the example), ADR-0030 (amended: the top),
   README (third-party sources), AGENTS.md (`pnpm riscv:firmware`), lessons (auto-top, `if (x)`,
   the run loop's chunks, bench margins from the listing).
+- 2026-11-11 — finished. Verified: `pnpm check` (3543 tests), `pnpm build`, `pnpm
+  test:circuits` (34 benches), `pnpm e2e` (100); `picorv32.v` and `COPYING` byte-identical to
+  upstream at `ef203c2b`; `pnpm riscv:firmware` and `pnpm hdl:examples` rewrite their files
+  unchanged; in Chromium the example runs from power-up, n = 7 shows `0x0D`, RESET held gives
+  `0x00` with the PC at 0 in the waveforms, released `0x0D` again. Summary: PicoRV32 (upstream,
+  unchanged) runs a C program as a module of the document, with its benches, at ≈ 10.6 k cycles
+  a second; HDL-10 is held to 1 M. Follow-ups: the run loop at Max (a pre-drafted
+  [fix/run-loop-chunks](fix-run-loop-chunks.md)); three track ideas (a CPU view for soft cores,
+  flip-flops at 0 as an FPGA, PicoRV32 in the differential tests).
 
 ## Handoff
 
-- **State:** every task done; acceptance not yet verified (finish-branch).
-- **Next step:** `/finish-branch` (verify the acceptance criteria, merge with the user's approval); after the merge, a `fix/` branch for the run loop at Max (Out of scope).
-- **Watch out:** `hierarchy -auto-top` picks `picorv32_wb`; gate the wrapper's writes with
-  `resetn` (power-up `X`). The experiment's files are in the session scratchpad, not the repo.
-- **Verify with:** `pnpm check`; `pnpm hdl:examples` (Yosys), `pnpm riscv:firmware` (LLVM).
+- **State:** done; waiting for the user's approval to merge.
+- **Next step:** merge (`gh pr create`, `gh pr merge --merge --delete-branch`); then
+  `fix/run-loop-chunks` (pre-drafted) and HDL-10, the track's head.
+- **Watch out:** `hierarchy -auto-top` picks `picorv32_wb`; the wrapper gates its memory with
+  reset (power-up `X`); bench margins come from the program's loop (≈ 25 cycles a step).
+- **Verify with:** `pnpm check`, `pnpm e2e`; `pnpm hdl:examples` (Yosys), `pnpm riscv:firmware`
+  (LLVM).

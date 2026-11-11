@@ -21,18 +21,18 @@ sound controllers drive (a VGA monitor — the "Video output" track idea; the bu
 
 ## Items
 
-| ID     | Branch                | Title                           | Needs | Status      |
-| ------ | --------------------- | ------------------------------- | ----- | ----------- |
-| HDL-1  | `feat/hdl-modules`    | Verilog modules in the document | —     | done        |
-| HDL-8  | `feat/hdl-bus`        | Modules on a bus                | —     | done        |
-| HDL-9  | `feat/hdl-semantics`  | All of synthesizable Verilog    | —     | done        |
-| HDL-4  | `feat/hdl-inspection` | Inside a module                 | —     | done        |
-| HDL-6  | `feat/hdl-memories`   | Memories in modules             | —     | done        |
-| HDL-7  | `example/picorv32`    | PicoRV32 soft core              | —     | in-progress |
-| HDL-10 | `feat/hdl-fast`       | Fast evaluation                 | —     | planned     |
-| HDL-2  | `feat/hdl-library`    | Library parts in Verilog        | —     | planned     |
-| HDL-5  | `feat/pld-devices`    | Programmable devices            | —     | planned     |
-| HDL-3  | `feat/hdl-recompile`  | Recompiling a running module    | —     | planned     |
+| ID     | Branch                | Title                           | Needs | Status  |
+| ------ | --------------------- | ------------------------------- | ----- | ------- |
+| HDL-1  | `feat/hdl-modules`    | Verilog modules in the document | —     | done    |
+| HDL-8  | `feat/hdl-bus`        | Modules on a bus                | —     | done    |
+| HDL-9  | `feat/hdl-semantics`  | All of synthesizable Verilog    | —     | done    |
+| HDL-4  | `feat/hdl-inspection` | Inside a module                 | —     | done    |
+| HDL-6  | `feat/hdl-memories`   | Memories in modules             | —     | done    |
+| HDL-7  | `example/picorv32`    | PicoRV32 soft core              | —     | done    |
+| HDL-10 | `feat/hdl-fast`       | Fast evaluation                 | —     | next    |
+| HDL-2  | `feat/hdl-library`    | Library parts in Verilog        | —     | planned |
+| HDL-5  | `feat/pld-devices`    | Programmable devices            | —     | planned |
+| HDL-3  | `feat/hdl-recompile`  | Recompiling a running module    | —     | planned |
 
 ## HDL-1 · Verilog modules in the document — `feat/hdl-modules`
 
@@ -179,8 +179,8 @@ bench loads ending in EBREAK) and the board's, headless and in the app;
 fails them), `tests/e2e/hdl.spec.ts`. **Speed**: ≈ 10.6 k cycles a second headless, alone and
 on the board — HDL-1's baseline of ≈ 10 M cells a second, every cell on every evaluation; real
 time at 10 kHz in the app; the full core (1 180 cells) about half. HDL-10's target set from it
-(Q4). The app's run loop at Max chunks the kernel by
-20 000 events, ≈ 0.35 s with this core: a `fix/` branch after this one.
+(Q4). The app's run loop at Max calls the kernel in chunks of 20 000 events, ≈ 0.35 s with this
+core: [fix/run-loop-chunks](../../.ai/plans/fix-run-loop-chunks.md), pre-drafted.
 
 ## HDL-10 · Fast evaluation — `feat/hdl-fast`
 
