@@ -12,10 +12,12 @@ import {
   formatImage,
   type ImageChunk,
   Level,
+  type MemoryDef,
   type MemoryView,
   memoryBytes,
   type PropDef,
   parseImage,
+  pokeOf,
   resolveProps,
   toInput,
 } from '../core';
@@ -24,8 +26,13 @@ import type { SimClock } from './simulation';
 
 /** One memory of the circuit, as the picker lists it. */
 export interface MemoryEntry {
+  /** The memory's reference: `U5`, `A1/U3`, a module's `A1/rom` (HDL-6). */
   readonly id: string;
+  /** The part holding it, as the simulator names it (`A1/U1` for `A1/rom`). */
+  readonly part: string;
   readonly type: string;
+  /** What the part's definition says of it. */
+  readonly memory: MemoryDef;
   /** The part's name: `AT28C16`. */
   readonly name: string;
   readonly words: number;
@@ -155,9 +162,11 @@ export class MemoryInspector {
       const resolver = new Resolver(design, this.#editor.registry);
       this.#entries = resolver
         .memories()
-        .map(({ id, type, definition, memory }) => ({
+        .map(({ id, part, type, definition, memory }) => ({
           id,
+          part,
           type,
+          memory,
           name: definition.name,
           words: memory.words,
           width: memory.width,
@@ -179,10 +188,7 @@ export class MemoryInspector {
     const entry = this.entry(id);
     if (!entry) return { kind: 'none', reason: `No memory ${id} in the circuit.` };
     const sim = this.#editor.simulation.simulator;
-    if (sim) {
-      const memory = this.#editor.registry.get(entry.type)!.memory!;
-      return { kind: 'live', view: memory.view(sim.stateOf(id)) };
-    }
+    if (sim) return { kind: 'live', view: entry.memory.view(sim.stateOf(entry.part)) };
     const image = this.#image(id);
     return image ? { kind: 'image', data: image.bytes } : { kind: 'none', reason: STOPPED_RAM };
   }
@@ -191,9 +197,9 @@ export class MemoryInspector {
   address(id: string): MemoryAddress | undefined {
     const entry = this.entry(id);
     const sim = this.#editor.simulation.simulator;
-    if (!entry || !sim) return undefined;
+    if (!entry || !sim || entry.addressPins.length === 0) return undefined;
     const levels = entry.addressPins.map((pin) => {
-      const level = sim.pinLevel(id, pin);
+      const level = sim.pinLevel(entry.part, pin);
       return level === Level.Z ? Level.Z : toInput(level);
     });
     let value: number | undefined = 0;
@@ -286,7 +292,7 @@ export class MemoryInspector {
     if (entry.volatile) {
       if (!simulation.simulator) return STOPPED_RAM;
       for (const { address, bytes } of writes) {
-        if (!simulation.action(id, { type: 'poke', address, data: Array.from(bytes) })) {
+        if (!simulation.action(entry.part, pokeOf(entry.memory, address, Array.from(bytes)))) {
           return `${id} can't be written now.`;
         }
       }

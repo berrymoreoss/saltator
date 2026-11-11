@@ -180,7 +180,7 @@ Small, ordered, each committable with its tests (`pnpm check` green).
   differs on purpose (collisions) unit-tested.
 - [x] 6. Core view (ADR-0036): `memories`, `MemoryDef` offset/width/optional pins, `PokeAction`
   with the memory; the module part's view and pokes; chips unchanged.
-- [ ] 7. Resolver: module memories and cells by name (Q2), listed in `memories()`; errors that
+- [x] 7. Resolver: module memories and cells by name (Q2), listed in `memories()`; errors that
   say what exists.
 - [ ] 8. Benches: module memories in `b.memory`, `b.loadIntelHex`, `expect`/`get`/rows; wide
   words; `pnpm test:circuits`.
@@ -267,16 +267,19 @@ Small, ordered, each committable with its tests (`pnpm check` green).
   definition (`memoriesOf`), `PokeAction.memory`, `pokeOf`; `memoryBytes` packs wider words
   little-endian. The module part shows memories ≤ 32 bits (views over its state, `powerUp` from
   the IR) and takes pokes (settles and drives at once). ADR-0036 written.
+- 2026-11-11 — task 7: the resolver names a module's memories like its signals (`A1/rom`, a
+  `memory` target; `A1/rom[1F]`, `cells` with `name` and word indices from the memory's
+  `offset`); `parseAddress` takes the first address; `memories()` lists them with the holding
+  part apart (`MemoryPart.part`). The inspector and the debugger's watches now reach the
+  simulator through that part (watches keep the memory's reference and addresses).
 
 ## Handoff
 
-- **State:** tasks 1–6 done and committed (IR + schema v9, converter + command, analysis,
+- **State:** tasks 1–7 done and committed (IR + schema v9, converter + command, analysis,
   interpreter in `memory-cells.ts`, differential). Modules with memories run headless; nothing
   shows them yet (no view, references, benches or UI).
-- **Next step:** task 7 — resolver: `A1/rom`, `A1/rom[1F]`, `rom` in the module's own scope
-  (beside the signals in `#inner`), addresses at the memory's `offset`; `memories()` lists module
-  memories by reference with the flat part id apart (`MemoryPart.part`); then benches, the
-  Memory tab.
+- **Next step:** task 8 — benches: `#memory` takes a `memory` target, addresses from the
+  memory's `offset`, pokes by `pokeOf`, words up to `2^width`; then task 9 (the Memory tab).
 - **Watch out:** `$readmemh` paths are relative to the `.v`; read stamps change only on a new
   word or a write since (`stampReads`); `pnpm check` and `pnpm e2e` one after the other; Yosys's
   `sim` loops on colliding write ports (lessons).
