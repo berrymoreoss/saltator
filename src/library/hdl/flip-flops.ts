@@ -169,7 +169,7 @@ function asyncSource(cell: HdlCell, index: number, layout: Layout, marks: string
         // pick(set, 1, t), then pick(clr, 0, that).
         `const xu = ((s0 & tu) | (sx & (tu | (~tv & ${m})))) & ${m};`,
         `const xv = (s1 | (s0 & tv) | (sx & tv)) & ~xu & ${m};`,
-        'tu = ((c0 & xu) | (cx & (xu | xv))) & ' + m + ';',
+        `tu = ((c0 & xu) | (cx & (xu | xv))) & ${m};`,
         'tv = (c0 & xv) & ~tu;',
       );
     }

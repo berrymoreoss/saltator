@@ -24,8 +24,8 @@ export function window(
   high: number,
 ): number {
   let r = 0;
-  const lo = p > 0 ? p : 0;
-  const hi = p + 31 < top ? p + 31 : top;
+  const lo = Math.max(p, 0);
+  const hi = Math.min(p + 31, top);
   if (lo <= hi) {
     const length = hi - lo + 1;
     const k = lo >>> 5;

@@ -165,7 +165,7 @@ branch goes on and ends with what it reaches (Q3), the rest a track idea with th
 - [x] 4. Flip-flops: next states and loads generated (every flip-flop cell: enables, synchronous
   and asynchronous resets, sets and clears, `$aldff`, `$sr`), loads marking their readers.
 - [x] 5. Memories on words: read ports as steps, write ports' samples and stores, pokes, views.
-- [ ] 6. The behavior on words: pins, edges, races, internal rounds, loops, floating rule, inner
+- [x] 6. The behavior on words: pins, edges, races, internal rounds, loops, floating rule, inner
   signals; `hdlPart` switched; every existing test green unchanged.
 - [ ] 7. Differential test against the current interpreter (Q2), mutation-checked; then the
   interpreter's leftovers removed (or kept, per Q2).
@@ -225,11 +225,30 @@ branch goes on and ends with what it reaches (Q3), the rest a track idea with th
   3.2–4.1 µs (random changes reach most of the core). Generated cells ≈ 1–6 ns each; the three
   shifts ≈ 90 ns each. Projection: ≈ 5 µs a cycle with flip-flops and the kernel, ≈ 200 k cycles/s
   — short of 1 M; per Q3 the branch goes on and task 8 profiles the whole engine.
+- 2026-11-12 — task 4: `flip-flops.ts` — next states and loads per group (one pin and edge, or
+  one flip-flop clocked by logic), asynchronous controls in one function; against `nextState`,
+  `load`, `applyAsync` over every sample module and 40 random shapes of every type (4 of 4
+  mutations caught). The random shapes keep asynchronous inputs off the flip-flop's own Q: the old
+  `applyAsync` applies them bit by bit in place, an order a board doesn't have. Words keep their
+  unused bits 0 (`usedBits`), so whole words compare. Task 5: memories on words —
+  `readClosure` (a memory word's limbs copied, merged over an unknown address), write ports'
+  samples read from words (`compileWordWritePorts`, `sampleWriteWords`), the store functions on a
+  `WriteShape` (by width); closures get the instance's memories (`M`); a wide-address test.
+  Task 6: `module-part.ts` on words (the old one kept as `reference-part.ts`, the oracle of
+  task 7): the same phases and messages; one `clockEdge` per group; the floating rule's loads
+  checked only while a pin floats; a pin read marks its readers when it changed; a write or a
+  poke marks its memory's read ports. Every existing test passes unchanged (4 006), the examples'
+  34 benches too. `pnpm bench`: PicoRV32 250 k cycles/s (×23), on its board 252 k; decoder
+  2 170 k evaluations/s (main 1 955 k), counter 3 533 k (2 436 k), internal clocks 1 339 k
+  (617 k), wide words 81.6 k (70.8 k), register file 806 k (733 k), I/O port 955 k (963 k), RAM
+  4K × 32 384 k (399 k: to check alternately). The synthetic 1 024-cell module reads 1 853 k
+  (11.4 k): its flip-flops have no reset, so it is all `X` and nothing changes — the benchmark
+  measures nothing now (task 8).
 
 ## Handoff
 
-- **State:** tasks 1–3 done: layout, generated cells, settle with activity (not yet used by
-  the part).
-- **Next step:** task 4 (flip-flops on words, generated).
+- **State:** tasks 1–6 done: the part runs on words (generated cells, settle with activity,
+  flip-flops, memories); every test green; the old interpreter in `reference-part.ts`.
+- **Next step:** task 7 (differential test against `reference-part.ts`, then remove it).
 - **Watch out:** benchmark against `main` alternately in one sitting; native imports only.
 - **Verify with:** `pnpm check`; `pnpm bench tests/bench/hdl.bench.ts`.
