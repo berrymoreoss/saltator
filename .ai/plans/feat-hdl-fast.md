@@ -167,8 +167,9 @@ branch goes on and ends with what it reaches (Q3), the rest a track idea with th
 - [x] 5. Memories on words: read ports as steps, write ports' samples and stores, pokes, views.
 - [x] 6. The behavior on words: pins, edges, races, internal rounds, loops, floating rule, inner
   signals; `hdlPart` switched; every existing test green unchanged.
-- [ ] 7. Differential test against the current interpreter (Q2), mutation-checked; then the
-  interpreter's leftovers removed (or kept, per Q2).
+- [x] 7. Differential test against the current interpreter (Q2), mutation-checked.
+- [ ] 7b. The interpreter's leftovers removed (`reference-part.ts`, the byte-plane steps no
+  longer used, their tests ported), after task 8 so the tuning stays checked by the oracle.
 - [ ] 8. Benchmarks and profile to the target; HDL-1's numbers no slower; numbers into the plan.
 - [ ] 9. The app: the examples in the browser, PicoRV32 at Max measured; the example's clock
   (Q4); whether `fix/run-loop-chunks` is still needed.
@@ -244,11 +245,18 @@ branch goes on and ends with what it reaches (Q3), the rest a track idea with th
   4K × 32 384 k (399 k: to check alternately). The synthetic 1 024-cell module reads 1 853 k
   (11.4 k): its flip-flops have no reset, so it is all `X` and nothing changes — the benchmark
   measures nothing now (task 8).
+- 2026-11-12 — task 7: `tests/scenarios/verilog-engine.test.ts` — every sample and example
+  module (77), the same seeded stimulus on both parts (0, 1, `X`, released; one pin or several
+  at an instant; 1 or 40 ns apart), pins, diagnostics, inner signals and memories compared at
+  every step; 1.9 s. Mutations caught: a pin's change not marking (55 fail), races off (24), the
+  floating rule's loads off (19), a write not marking its memory's reads (7), internal races off
+  (1). The removal of the old interpreter waits for task 8 (7b).
 
 ## Handoff
 
 - **State:** tasks 1–6 done: the part runs on words (generated cells, settle with activity,
   flip-flops, memories); every test green; the old interpreter in `reference-part.ts`.
-- **Next step:** task 7 (differential test against `reference-part.ts`, then remove it).
+- **Next step:** task 8 (benchmarks, profile, tuning; the synthetic benchmark needs a reset),
+  then 7b (remove `reference-part.ts`).
 - **Watch out:** benchmark against `main` alternately in one sitting; native imports only.
 - **Verify with:** `pnpm check`; `pnpm bench tests/bench/hdl.bench.ts`.
