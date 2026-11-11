@@ -8,6 +8,7 @@ import type { ComponentRegistry } from '../core';
 import {
   detectImageFormat,
   formatAddress,
+  hdlPartType,
   type ImageFile,
   ImageFileError,
   type ImageFormat,
@@ -38,24 +39,47 @@ export function readImageForLoad(name: string, bytes: Uint8Array): ImageFileInfo
   }
 }
 
-/** A memory a test bench can load: a memory part of the circuit. */
+/** A memory a test bench can load: a memory part of the circuit, or a module's own memory. */
 export interface BenchMemory {
-  /** Its designator, as a script names it. */
+  /** Its designator — or a module's memory's name (HDL-6) — as a script names it. */
   readonly id: string;
   /** The part's name (`6116`). */
   readonly name: string;
   readonly words: number;
+  /** Bits per word: a file's bytes go into wider words little-endian (HDL-6). */
+  readonly width: number;
   readonly volatile: boolean;
 }
 
-/** The memory parts of a circuit, by designator (a script names ones in instances by path). */
+/**
+ * The memory parts of a circuit, by designator (a script names ones in instances by path), or a
+ * Verilog module's own memories by name (HDL-6).
+ */
 export function circuitMemories(circuit: Circuit, registry: ComponentRegistry): BenchMemory[] {
+  if (circuit.verilog) {
+    const definition = registry.get(hdlPartType(circuit.id));
+    return (definition?.memories ?? []).map((m) => ({
+      id: m.name!,
+      name: definition!.name,
+      words: m.words,
+      width: m.width,
+      volatile: m.volatile,
+    }));
+  }
   return circuit.components
     .flatMap((c) => {
       const definition = registry.get(c.type);
       const memory = definition?.memory;
       return definition && memory
-        ? [{ id: c.id, name: definition.name, words: memory.words, volatile: memory.volatile }]
+        ? [
+            {
+              id: c.id,
+              name: definition.name,
+              words: memory.words,
+              width: memory.width,
+              volatile: memory.volatile,
+            },
+          ]
         : [];
     })
     .sort((a, b) => a.id.localeCompare(b.id, 'en', { numeric: true }));
@@ -67,19 +91,25 @@ const PER_LINE = 16;
 /**
  * What Insert Image… writes into a test script (R15b): a binary image as `b.memory` at `at` (hex
  * text, sixteen bytes a line), an Intel HEX file as `b.loadIntelHex` with its records as they
- * are (each one where the file puts it); a comment names the file. `raw` is the file's bytes.
+ * are (each one where the file puts it); a comment names the file. `raw` is the file's bytes. A
+ * binary image for a memory of wider words (`width` > 8, HDL-6) becomes Intel HEX from byte `at`,
+ * which the bench packs into the words little-endian.
  */
 export function benchImageCall(
   ref: string,
   info: ImageFileInfo,
   raw: Uint8Array,
   at: number,
+  width = 8,
 ): string {
   const name = quote(ref);
   const facts = `${info.name}: ${describeImage(info.summary)}`;
-  if (info.format === 'intel-hex') {
-    const records = new TextDecoder()
-      .decode(raw)
+  const wide = info.format === 'binary' && width > 8;
+  if (info.format === 'intel-hex' || wide) {
+    const text = wide
+      ? writeIntelHex(Uint8Array.from(info.file.chunks.flatMap((c) => [...c.bytes])), { base: at })
+      : new TextDecoder().decode(raw);
+    const records = text
       .split(/\r\n|\r|\n/)
       .map((line) => line.trim())
       .filter((line) => line !== '');

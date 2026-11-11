@@ -9,7 +9,7 @@ import {
   useState,
 } from 'react';
 import { parseAddress } from '../circuit';
-import { cellsReference, type Editor, type MemoryEntry } from '../editor';
+import { bytesPerWord, cellsReference, type Editor, type MemoryEntry } from '../editor';
 import { useStore } from './hooks';
 import {
   addressDigits,
@@ -38,11 +38,14 @@ interface MemoryPanelProps {
 /**
  * The Memory tab of the bottom dock: a hex view of one memory of the circuit — live while
  * simulating, with the cells just read (green) and written (orange) lit and the address on the
- * chip's pins outlined and followed — whose bytes are edited in place. Spec:
+ * chip's pins outlined and followed — whose bytes are edited in place. A module memory's wider
+ * words (HDL-6) show as words or, switched, as their bytes little-endian. Spec:
  * docs/editor.md#memory-tab.
  */
 export function MemoryPanel({ editor, pick, onPick, follow, onFollow, actions }: MemoryPanelProps) {
   useStore(editor.state);
+  // The memories shown as bytes rather than words, by reference.
+  const [asBytes, setAsBytes] = useState<ReadonlySet<string>>(new Set());
   const memories = editor.memory.memories();
   const entry = memories.find((m) => m.id === pick) ?? memories[0];
   if (!entry) {
@@ -54,7 +57,7 @@ export function MemoryPanel({ editor, pick, onPick, follow, onFollow, actions }:
   }
   return (
     <MemoryView
-      key={entry.id}
+      key={`${entry.id}${asBytes.has(entry.id) ? ' bytes' : ''}`}
       editor={editor}
       entry={entry}
       memories={memories}
@@ -62,6 +65,15 @@ export function MemoryPanel({ editor, pick, onPick, follow, onFollow, actions }:
       follow={follow}
       onFollow={onFollow}
       actions={actions}
+      bytes={entry.width > 8 && asBytes.has(entry.id)}
+      onBytes={(bytes) =>
+        setAsBytes((set) => {
+          const next = new Set(set);
+          if (bytes) next.add(entry.id);
+          else next.delete(entry.id);
+          return next;
+        })
+      }
     />
   );
 }
@@ -69,6 +81,9 @@ export function MemoryPanel({ editor, pick, onPick, follow, onFollow, actions }:
 interface MemoryViewProps extends Omit<MemoryPanelProps, 'pick'> {
   readonly entry: MemoryEntry;
   readonly memories: readonly MemoryEntry[];
+  /** A wider memory's cells as bytes, little-endian, at byte addresses (HDL-6). */
+  readonly bytes: boolean;
+  readonly onBytes: (bytes: boolean) => void;
 }
 
 /** Rows drawn above and below the visible ones, so fast scrolling shows no gaps. */
@@ -82,6 +97,8 @@ function MemoryView({
   follow,
   onFollow,
   actions,
+  bytes,
+  onBytes,
 }: MemoryViewProps) {
   const inspector = editor.memory;
   const status = useStore(editor.simulation.status);
@@ -102,9 +119,15 @@ function MemoryView({
   const cells = inspector.cells(entry.id);
   const live = cells.kind === 'live';
   const address = inspector.address(entry.id);
-  const { words, width } = entry;
-  const digits = addressDigits(words);
-  const perRow = bytesPerRow(box.width - 16, charWidth, digits, cellDigits(width));
+  // The cells shown: words (their index from 0, their address from the memory's first one), or
+  // a wider memory's bytes little-endian at byte addresses (HDL-6).
+  const per = bytes ? bytesPerWord(entry.width) : 1;
+  const words = entry.words * per;
+  const width = bytes ? 8 : entry.width;
+  const first = entry.offset * per;
+  const wordOf = (cell: number) => Math.floor(cell / per);
+  const digits = addressDigits(first + words);
+  const perRow = bytesPerRow(box.width - 16, charWidth, digits, cellDigits(width), width <= 8);
   const rows = Math.ceil(words / perRow);
   const visibleRows = Math.max(1, Math.floor(box.height / ROW_HEIGHT));
   const firstVisible = Math.floor(scrollTop / ROW_HEIGHT);
@@ -147,7 +170,9 @@ function MemoryView({
   });
 
   const write = (at: number, value: number) => {
-    const problem = inspector.write(entry.id, at, [value]);
+    const problem = bytes
+      ? inspector.writeByte(entry.id, wordOf(at), at % per, value)
+      : inspector.write(entry.id, at, [value]);
     setNotice(problem ?? '');
   };
 
@@ -173,11 +198,12 @@ function MemoryView({
 
   const jump = (event: FormEvent) => {
     event.preventDefault();
-    const target = parseAddress(goTo, words);
-    if (typeof target === 'string') {
-      setNotice(target);
+    const parsed = parseAddress(goTo, words, first);
+    if (typeof parsed === 'string') {
+      setNotice(parsed);
       return;
     }
+    const target = parsed - first;
     setNotice('');
     setCursor({ address: target, typed: '' });
     onFollow(false);
@@ -190,6 +216,10 @@ function MemoryView({
     }
   };
 
+  // The word at the cursor (in the Bytes view, the word holding its byte), at its address.
+  const word = entry.offset + wordOf(cursor.address);
+  const watched = cellsReference(entry.id, word, word);
+
   const onScroll = () => {
     const element = grid.current;
     if (!element) return;
@@ -201,21 +231,38 @@ function MemoryView({
   };
 
   const data =
-    cells.kind === 'live' ? cells.view.data : cells.kind === 'image' ? cells.data : undefined;
-  const unknown = cells.kind === 'live' ? cells.view.unknown : undefined;
+    cells.kind === 'live'
+      ? cells.view.data
+      : cells.kind === 'image' || cells.kind === 'power-up'
+        ? cells.data
+        : undefined;
+  const unknown =
+    cells.kind === 'live'
+      ? cells.view.unknown
+      : cells.kind === 'power-up'
+        ? cells.unknown
+        : undefined;
+  /** A shown cell's value and unknown bits: a word, or a byte of one. */
+  const cellAt = (a: number): [number, number] => {
+    const w = wordOf(a);
+    const value = data![w]!;
+    const x = unknown?.[w] ?? 0;
+    if (per === 1) return [value, x];
+    const shift = 8 * (a % per);
+    return [(value >>> shift) & 0xff, (x >>> shift) & 0xff];
+  };
   const erasedDim = !entry.volatile;
-  const first = Math.max(0, firstVisible - OVERSCAN);
-  const last = Math.min(rows, firstVisible + visibleRows + OVERSCAN + 1);
+  const firstRow = Math.max(0, firstVisible - OVERSCAN);
+  const lastRow = Math.min(rows, firstVisible + visibleRows + OVERSCAN + 1);
   const rowElements: ReactNode[] = [];
   if (data) {
-    for (let row = first; row < last; row++) {
+    for (let row = firstRow; row < lastRow; row++) {
       const base = row * perRow;
       const cellElements: ReactNode[] = [];
       let ascii = '';
       for (let i = 0; i < perRow && base + i < words; i++) {
         const a = base + i;
-        const value = data[a]!;
-        const x = unknown?.[a] ?? 0;
+        const [value, x] = cellAt(a);
         const typing = cursor.address === a && cursor.typed !== '';
         const text = typing
           ? cursor.typed.padEnd(cellDigits(width), '_')
@@ -228,8 +275,8 @@ function MemoryView({
         if (cursor.address === a) className += ' cursor';
         let style: CSSProperties | undefined;
         if (cells.kind === 'live') {
-          const written = inspector.intensity(cells.view.writtenAt[a]!);
-          const read = inspector.intensity(cells.view.readAt[a]!);
+          const written = inspector.intensity(cells.view.writtenAt[wordOf(a)]!);
+          const read = inspector.intensity(cells.view.readAt[wordOf(a)]!);
           if (written > 0) {
             style = {
               background: `color-mix(in srgb, var(--warning) ${Math.round(written * 45)}%, transparent)`,
@@ -252,11 +299,11 @@ function MemoryView({
           key={row}
           className="memory-row"
           style={{ transform: `translateY(${row * ROW_HEIGHT}px)` }}
-          data-row={rowAddress(base, digits)}
+          data-row={rowAddress(first + base, digits)}
         >
-          <span className="memory-row-address">{rowAddress(base, digits)}</span>
+          <span className="memory-row-address">{rowAddress(first + base, digits)}</span>
           {cellElements}
-          <span className="memory-ascii">{ascii}</span>
+          {width <= 8 && <span className="memory-ascii">{ascii}</span>}
         </div>,
       );
     }
@@ -298,23 +345,36 @@ function MemoryView({
             onChange={(event) => setGoTo(event.target.value)}
           />
         </form>
+        {entry.width > 8 && (
+          <select
+            className="toolbar-select"
+            aria-label="Cells as"
+            title="Show the words, or their bytes little-endian at byte addresses (as a CPU sees them)"
+            value={bytes ? 'bytes' : 'words'}
+            onChange={(event) => onBytes(event.target.value === 'bytes')}
+          >
+            <option value="words">Words</option>
+            <option value="bytes">Bytes</option>
+          </select>
+        )}
         <button
           type="button"
           className="tool-button memory-action"
           title="Watch the cell at the cursor in the Debug tab"
-          onClick={() =>
-            setNotice(
-              editor.debug.addWatch(cellsReference(entry.id, cursor.address, cursor.address)) ?? '',
-            )
-          }
+          onClick={() => setNotice(editor.debug.addWatch(watched) ?? '')}
         >
-          Watch {cellsReference(entry.id, cursor.address, cursor.address)}
+          Watch {watched}
         </button>
         <span className="memory-actions">{actions?.(entry)}</span>
       </div>
       {notice !== '' && (
         <div className="field-error memory-notice" role="status">
           {notice}
+        </div>
+      )}
+      {cells.kind === 'power-up' && (
+        <div className="memory-note muted" data-testid="memory-power-up">
+          Power-up contents (initial, $readmemh): Step (F10) to run and edit them.
         </div>
       )}
       {cells.kind === 'none' ? (

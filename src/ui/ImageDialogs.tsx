@@ -2,7 +2,7 @@ import { Eraser, FileDown, FileUp } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { parseAddress } from '../circuit';
 import { formatAddress, placeImage, suggestedLoadAddress } from '../core';
-import type { Editor, MemoryEntry } from '../editor';
+import { bytesPerWord, type Editor, type MemoryEntry } from '../editor';
 import { Dialog } from './Dialogs';
 import type { ImageFileAccess, ImageFileKind } from './files';
 import {
@@ -115,15 +115,15 @@ function LoadImageDialog({
   readonly onClose: () => void;
 }) {
   const [at, setAt] = useState(() =>
-    formatAddress(suggestedLoadAddress(info.summary, entry.words)),
+    formatAddress(suggestedLoadAddress(info.summary, entry.bytes)),
   );
   const [eraseRest, setEraseRest] = useState(true);
   const [problem, setProblem] = useState('');
-  const target = parseAddress(at, entry.words);
+  const target = parseAddress(at, entry.bytes);
   const writes =
     typeof target === 'string'
       ? target
-      : placeImage(info.file, entry.words, { at: target, eraseRest });
+      : placeImage(info.file, entry.bytes, { at: target, eraseRest });
   const { low, high } = info.summary;
   const program = () => {
     if (typeof writes === 'string') return;
@@ -275,7 +275,7 @@ function SaveImageDialog({
       )}
       {typeof contents !== 'string' && contents.unknownBytes > 0 && (
         <p className="muted">
-          {contents.unknownBytes} of {entry.words} bytes have unknown (X) bits: they are saved as 0.
+          {contents.unknownBytes} of {entry.bytes} bytes have unknown (X) bits: they are saved as 0.
         </p>
       )}
       {(typeof contents === 'string' || typeof start === 'string' || problem !== '') && (
@@ -400,20 +400,21 @@ function InsertImageDialog({
   const [problem, setProblem] = useState('');
   const binary = info.format === 'binary';
   const memory = memories.find((m) => m.id === ref.trim());
-  const words = memory?.words ?? 2 ** 32;
-  const target = binary ? parseAddress(at, words) : 0;
+  // A file's bytes fill wider words little-endian (HDL-6): the memory's size in bytes.
+  const bytes = memory ? memory.words * bytesPerWord(memory.width) : 2 ** 32;
+  const target = binary ? parseAddress(at, bytes) : 0;
   const end = typeof target === 'number' ? target + info.summary.bytes : 0;
   const why =
     ref.trim() === ''
       ? 'Name the memory: a part of this circuit (U1), or one inside an instance (A1/U3).'
       : typeof target === 'string'
         ? target
-        : binary && memory && end > memory.words
-          ? `${info.summary.bytes} bytes from ${formatAddress(target)} don't fit ${memory.id} (${memory.words} words).`
+        : binary && memory && end > bytes
+          ? `${info.summary.bytes} bytes from ${formatAddress(target)} don't fit ${memory.id} (${bytes} bytes).`
           : undefined;
   const write = () => {
     if (why !== undefined || typeof target === 'string') return;
-    if (insert(benchImageCall(ref.trim(), info, raw, target))) onClose();
+    if (insert(benchImageCall(ref.trim(), info, raw, target, memory?.width))) onClose();
     else setProblem('The script editor is not open yet.');
   };
   return (

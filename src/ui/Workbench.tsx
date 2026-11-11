@@ -41,7 +41,7 @@ import { Toolbar } from './Toolbar';
 import type { TestSession } from './test-session';
 import type { Example, UiState } from './ui-state';
 import { VcdExportAction, WaveformsPanel, WavesBadge } from './WaveformsPanel';
-import { createCommands, TOOLBAR, workbenchMenus } from './workbench-commands';
+import { createCommands, memoryOfPart, TOOLBAR, workbenchMenus } from './workbench-commands';
 import './styles/tokens.css';
 import './styles/workbench.css';
 import './styles/panels.css';
@@ -163,8 +163,9 @@ export function Workbench({
       if (selection.parts.size !== 1 || selection.wires.size !== 0) return;
       const [id] = selection.parts;
       const part = circuit.components.find((c) => c.id === id);
-      if (part && editor.registry.get(part.type)?.memory && ui.get().memoryPick !== part.id) {
-        ui.update((s) => ({ ...s, memoryPick: part.id }));
+      const picked = part && memoryOfPart(editor, part.id);
+      if (picked !== undefined && ui.get().memoryPick !== picked) {
+        ui.update((s) => ({ ...s, memoryPick: picked }));
       }
       const current = ui.get().partPick;
       if (!part || (current?.id === part.id && current.type === part.type)) return;

@@ -1,9 +1,10 @@
 /**
- * The memory inspector's model (R12b): the memories of the circuit in the editor, their cells —
- * live from the simulator, or a ROM's image while stopped — the address on their pins, how
- * recently each cell was read or written, and edits: a ROM's contents are its `image` prop (a
- * document edit), a simulated RAM takes debug writes (`poke`). No DOM: the Memory tab renders
- * it, and tests drive it with a fake clock. Spec: docs/editor.md#memory-inspector.
+ * The memory inspector's model (R12b): the memories of the circuit in the editor — chips, and
+ * the memories of Verilog modules (HDL-6) — their cells — live from the simulator, a ROM's image
+ * or a module memory's power-up contents while stopped — the address on their pins, how recently
+ * each cell was read or written, and edits: a ROM's contents are its `image` prop (a document
+ * edit), a simulated RAM or module memory takes debug writes (`poke`). No DOM: the Memory tab
+ * renders it, and tests drive it with a fake clock. Spec: docs/editor.md#memory-inspector.
  */
 import { compareDesignators, type Design, Resolver } from '../circuit';
 import {
@@ -14,12 +15,15 @@ import {
   Level,
   type MemoryDef,
   type MemoryView,
+  type MemoryWords,
   memoryBytes,
   type PropDef,
+  packWords,
   parseImage,
   pokeOf,
   resolveProps,
   toInput,
+  type WordRun,
 } from '../core';
 import type { Editor } from './editor';
 import type { SimClock } from './simulation';
@@ -37,6 +41,10 @@ export interface MemoryEntry {
   readonly name: string;
   readonly words: number;
   readonly width: number;
+  /** The address of word 0 (a module's `m[16:25]`: 16); 0 for a chip. */
+  readonly offset: number;
+  /** Its size in a file: a byte per word up to 8 bits, wider words little-endian (HDL-6). */
+  readonly bytes: number;
   /** RAM: cells only while simulating. ROM: cells from its `image` prop. */
   readonly volatile: boolean;
   /** `U3 · AT28C16 · 2K × 8`. */
@@ -50,6 +58,8 @@ export type MemoryCells =
   | { readonly kind: 'live'; readonly view: MemoryView }
   /** A stopped ROM: the contents its image gives it at power-on. */
   | { readonly kind: 'image'; readonly data: Uint8Array }
+  /** A stopped module's memory (HDL-6): the contents Yosys read, which every run starts from. */
+  | { readonly kind: 'power-up'; readonly data: MemoryWords; readonly unknown: MemoryWords }
   /** Nothing to show, and why (a stopped RAM). */
   | { readonly kind: 'none'; readonly reason: string };
 
@@ -66,6 +76,13 @@ export const ACCESS_FADE_MS = 500;
 /** Why a stopped RAM shows nothing. */
 export const STOPPED_RAM =
   'A RAM holds data only while simulating. Step (F10) powers on at t = 0, paused, to edit or load it before running.';
+
+/** Why a stopped module's memory can't be edited (HDL-6). */
+export const STOPPED_MODULE_MEMORY =
+  "A module's memory starts from what Yosys read (initial, $readmemh): change the .hex and Compile, or Step (F10) to power on at t = 0, paused, and edit or load it before running.";
+
+/** Bytes a word takes in a file: 1 up to 8 bits, then little-endian (HDL-6). */
+export const bytesPerWord = (width: number): number => Math.max(1, Math.ceil(width / 8));
 
 /** `2K × 8`, `32K × 8`, `16 × 4`. */
 export function memorySize(words: number, width: number): string {
@@ -170,6 +187,8 @@ export class MemoryInspector {
           name: definition.name,
           words: memory.words,
           width: memory.width,
+          offset: memory.offset ?? 0,
+          bytes: memory.words * bytesPerWord(memory.width),
           volatile: memory.volatile,
           label: `${id} · ${definition.name} · ${memorySize(memory.words, memory.width)}`,
           addressPins: memory.addressPins ?? [],
@@ -183,14 +202,19 @@ export class MemoryInspector {
     return this.memories().find((m) => m.id === id);
   }
 
-  /** The cells of memory `id`: live while simulating, a stopped ROM's image, or why none. */
+  /**
+   * The cells of memory `id`: live while simulating, a stopped ROM's image, a stopped module
+   * memory's power-up contents, or why none.
+   */
   cells(id: string): MemoryCells {
     const entry = this.entry(id);
     if (!entry) return { kind: 'none', reason: `No memory ${id} in the circuit.` };
     const sim = this.#editor.simulation.simulator;
     if (sim) return { kind: 'live', view: entry.memory.view(sim.stateOf(entry.part)) };
     const image = this.#image(id);
-    return image ? { kind: 'image', data: image.bytes } : { kind: 'none', reason: STOPPED_RAM };
+    if (image) return { kind: 'image', data: image.bytes };
+    const powerUp = entry.memory.powerUp?.();
+    return powerUp ? { kind: 'power-up', ...powerUp } : { kind: 'none', reason: STOPPED_RAM };
   }
 
   /** The address on the pins of memory `id` while simulating. */
@@ -236,32 +260,61 @@ export class MemoryInspector {
   }
 
   /**
-   * Writes `bytes` into memory `id` from `address` on: a ROM's image (one undo step; edits of
-   * one memory in a row coalesce), a simulated RAM's cells (a debug write, not undoable).
-   * Returns why not instead.
+   * Writes `words` into memory `id` from word `address` on (its index: an address minus the
+   * memory's `offset`): a ROM's image (one undo step; edits of one memory in a row coalesce), a
+   * simulated RAM's or module memory's cells (a debug write, not undoable). Returns why not
+   * instead.
    */
-  write(id: string, address: number, bytes: readonly number[]): string | undefined {
+  write(id: string, address: number, words: readonly number[]): string | undefined {
     const entry = this.entry(id);
     if (!entry) return `No memory ${id} in the circuit.`;
+    const max = 2 ** entry.width - 1;
     if (
       !Number.isInteger(address) ||
       address < 0 ||
-      address + bytes.length > entry.words ||
-      bytes.some((b) => !Number.isInteger(b) || b < 0 || b > 0xff)
+      address + words.length > entry.words ||
+      words.some((w) => !Number.isInteger(w) || w < 0 || w > max)
     ) {
-      return `${id} holds bytes 0x00–0xFF at 0–${entry.words - 1}.`;
+      if (entry.width <= 8 && entry.offset === 0) {
+        return `${id} holds bytes 0x00–0xFF at 0–${entry.words - 1}.`;
+      }
+      const digits = Math.ceil(entry.width / 4);
+      const hex = (n: number) => `0x${n.toString(16).toUpperCase().padStart(digits, '0')}`;
+      const last = (entry.offset + entry.words - 1).toString(16).toUpperCase();
+      return `${id} holds words ${hex(0)}–${hex(max)} at ${entry.offset.toString(16).toUpperCase()}–${last}.`;
     }
-    const chunk: ImageChunk = { address, bytes: Uint8Array.from(bytes) };
+    if (entry.width > 8) return this.#poke(entry, [{ address, words }]);
+    const chunk: ImageChunk = { address, bytes: Uint8Array.from(words) };
     return this.#apply(entry, [chunk], {
       label: `Edit ${id} contents`,
       coalesce: `memory:${id}`,
     });
   }
 
-  /** Loads an image file's writes (`placeImage`) into memory `id`, as one undo step for a ROM. */
+  /**
+   * Writes one byte of a wider memory (HDL-6, its Bytes view): byte `lane` of word `address`,
+   * little-endian; the word's other bits keep their value (unknown ones become 0).
+   */
+  writeByte(id: string, address: number, lane: number, value: number): string | undefined {
+    const entry = this.entry(id);
+    if (!entry) return `No memory ${id} in the circuit.`;
+    const cells = this.cells(id);
+    if (cells.kind !== 'live') return STOPPED_MODULE_MEMORY;
+    if (!Number.isInteger(value) || value < 0 || value > 0xff) return 'A byte is 0x00–0xFF.';
+    const known = ((cells.view.data[address] ?? 0) & ~(cells.view.unknown[address] ?? 0)) >>> 0;
+    const shift = 2 ** (8 * lane);
+    const word = known - (Math.floor(known / shift) % 256) * shift + value * shift;
+    return this.write(id, address, [word % 2 ** entry.width]);
+  }
+
+  /**
+   * Loads an image file's writes (`placeImage`, byte addresses from the memory's start) into
+   * memory `id`, as one undo step for a ROM; into a wider memory packed little-endian (HDL-6).
+   */
   load(id: string, writes: readonly ImageChunk[]): string | undefined {
     const entry = this.entry(id);
     if (!entry) return `No memory ${id} in the circuit.`;
+    if (entry.width > 8) return this.#poke(entry, packWords(writes, bytesPerWord(entry.width)));
     return this.#apply(entry, writes, { label: `Load image into ${id}` });
   }
 
@@ -274,12 +327,32 @@ export class MemoryInspector {
     return this.#editor.setPartProp(id, key, '', { label: `Erase ${id}` });
   }
 
-  /** The bytes to save from memory `id` (unknown bits as 0), or why there are none. */
+  /**
+   * The bytes to save from memory `id` (unknown bits as 0; wider words little-endian), or why
+   * there are none.
+   */
   contents(id: string): { bytes: Uint8Array; unknownBytes: number } | string {
     const cells = this.cells(id);
     if (cells.kind === 'none') return cells.reason;
     if (cells.kind === 'image') return { bytes: cells.data.slice(), unknownBytes: 0 };
-    return memoryBytes(cells.view.data, cells.view.unknown, this.entry(id)!.width);
+    const { width } = this.entry(id)!;
+    if (cells.kind === 'power-up') return memoryBytes(cells.data, cells.unknown, width);
+    return memoryBytes(cells.view.data, cells.view.unknown, width);
+  }
+
+  /** Debug writes of words into a simulated memory (a RAM, a module's). */
+  #poke(entry: MemoryEntry, runs: readonly WordRun[]): string | undefined {
+    const simulation = this.#editor.simulation;
+    if (!simulation.simulator) return entry.memory.powerUp ? STOPPED_MODULE_MEMORY : STOPPED_RAM;
+    for (const { address, words } of runs) {
+      if (address + words.length > entry.words) {
+        return `${entry.id}: the image reaches past its last word.`;
+      }
+      if (!simulation.action(entry.part, pokeOf(entry.memory, address, words))) {
+        return `${entry.id} can't be written now.`;
+      }
+    }
+    return undefined;
   }
 
   #apply(
@@ -288,15 +361,11 @@ export class MemoryInspector {
     options: { label: string; coalesce?: string },
   ): string | undefined {
     const { id } = entry;
-    const simulation = this.#editor.simulation;
     if (entry.volatile) {
-      if (!simulation.simulator) return STOPPED_RAM;
-      for (const { address, bytes } of writes) {
-        if (!simulation.action(entry.part, pokeOf(entry.memory, address, Array.from(bytes)))) {
-          return `${id} can't be written now.`;
-        }
-      }
-      return undefined;
+      return this.#poke(
+        entry,
+        writes.map(({ address, bytes }) => ({ address, words: Array.from(bytes) })),
+      );
     }
     const image = this.#image(id);
     const key = this.#imageProp(entry)?.key;
