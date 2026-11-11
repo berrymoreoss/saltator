@@ -4,7 +4,7 @@
 | ---------- | ------------------------------------------------------------------------------------------------------ |
 | Branch     | `feat/hdl-library`                                                                                     |
 | Roadmap    | HDL-2 — Library parts in Verilog, track [Programmable logic](../../docs/roadmap/programmable-logic.md) |
-| Status     | in-progress                                                                                            |
+| Status     | done                                                                                                   |
 | Depends on | HDL-1, HDL-8, HDL-9, HDL-10 (IR, converter, generated engine), R09a (timing checks, ADR-0014), R06/R08 |
 | Created    | 2026-11-12                                                                                             |
 
@@ -237,21 +237,31 @@ checks included, and a benchmark compares the Verilog 74HC00 with the hand-writt
 
 ## Acceptance criteria
 
-- [ ] `pnpm check` and `pnpm build` are green; `pnpm e2e` green.
-- [ ] A module with a `specify` block drives each output with the delay of the path that caused
-  the change (simple, edge, conditional; rise and fall; `ten`/`tdis` by the enable idiom).
-- [ ] Its `$setup`, `$hold`, `$setuphold`, `$recovery` and pulse-width checks report the chips'
-  diagnostics on the pin at fault and make `X` what the chips make `X`.
-- [ ] The Verilog 74HC00, 74HC74 and 74HC574 pass the hand-written ones' function table, timing
-  and timing check tests (the same test code, both definitions).
-- [ ] A library `.v` changed without `pnpm hdl:library` fails `pnpm check`.
-- [ ] Benchmark: the Verilog 74HC00 measured against the hand-written one, recorded in the track;
-  HDL-1's benchmarks no slower.
-- [ ] Every existing example, fixture and document runs as before (no `specify` = today's
-  behavior).
-- [ ] A document's module with `specify` (pasted in the app) times its outputs by its paths and
-  shows them in the Part tab (e2e); the Verilog chips are in the dev palette only.
-- [ ] Docs, ADR, track and lessons updated.
+Verified 2026-11-12:
+
+- [x] `pnpm check` and `pnpm build` are green; `pnpm e2e` green — 4105 tests, the build, 101 e2e,
+  `pnpm test:circuits` 34 benches.
+- [x] A module with a `specify` block drives each output with the delay of the path that caused
+  the change (simple, edge, conditional; rise and fall; `ten`/`tdis` by the enable idiom) —
+  `module-part.test.ts`, "pin-to-pin delays from specify".
+- [x] Its `$setup`, `$hold`, `$setuphold`, `$recovery` and pulse-width checks report the chips'
+  diagnostics on the pin at fault and make `X` what the chips make `X` — "timing checks from
+  specify" (mutation-checked: the merge, the race standing down, the hold effect).
+- [x] The Verilog 74HC00, 74HC74 and 74HC574 pass the hand-written ones' function table, timing
+  and timing check tests (the same test code, both definitions) — 7 + 15 + 19 tests.
+- [x] A library `.v` changed without `pnpm hdl:library` fails `pnpm check` — tried: a comment
+  appended to `74hc00.v` fails `scripts/hdl-library.test.ts` with "run pnpm hdl:library".
+- [x] Benchmark: the Verilog 74HC00 measured against the hand-written one, recorded in the track;
+  HDL-1's benchmarks no slower — 3.21 M vs 5.63 M events/s; HDL-1's within the noise of `main`.
+- [x] Every existing example, fixture and document runs as before (no `specify` = today's
+  behavior) — fixtures and examples regenerate byte-identical with `-specify`; the generators
+  (`hdl:fixtures`, `hdl:examples`, `hdl:library`) leave the tree clean.
+- [x] A document's module with `specify` (pasted in the app) times its outputs by its paths and
+  shows them in the Part tab (e2e); the Verilog chips are in the dev palette only — e2e "a module
+  with a specify block"; a dev server shows the three under Developer Fixtures; the production
+  bundle holds none of their IR.
+- [x] Docs, ADR, track and lessons updated — ADR-0038, ADR-0030 amended, components.md,
+  simulation.md, circuit.md, editor.md, architecture.md, the track, lessons, AGENTS.md.
 
 ## Open questions
 
@@ -316,15 +326,24 @@ checks included, and a benchmark compares the Verilog 74HC00 with the hand-writt
   is the subcircuit's) — docs say it times the outputs no path reaches. e2e: a module with
   `specify` pasted, placed, its Part tab. Looked at in a dev server: the three Verilog chips under
   "Developer Fixtures", the 574's Part tab; no console errors.
+- 2026-11-12 — task 12 and the finish: docs, ADR-0038; `pnpm check`, `pnpm build`, `pnpm e2e`
+  (one e2e read schema 9 literally: now `SCHEMA_VERSION`), `pnpm test:circuits` green; every
+  acceptance criterion verified. HDL-2 `done`, HDL-5 `next`. Summary: a module's `specify` block
+  times its outputs (the chips' rule) and checks its requirements (`TimingChecks`, the chips' `X`
+  rules made generic); what Yosys can't read has a standard Verilog way it can; library parts can
+  be modules committed as IR (`src/library/verilog/`, `pnpm hdl:library`); the Verilog 74HC00, 74
+  and 574 pass the hand-written chips' tests at ≈ 55 % of their speed. Not merged: waits for the
+  user's approval (branch not pushed).
 
 ## Handoff
 
-- **State:** tasks 1–11 done; the Verilog 74HC00/74/574 pass the hand-written chips' tests and
-  run at ≈ 55 % of their speed.
-- **Next step:** task 12 — docs: new ADR (timing from specify), ADR-0030 amended, components.md
-  (Verilog modules: specify; library parts in Verilog), circuit.md done (v10), editor.md (Part
-  tab of a module), track (HDL-2 built), lessons; then the finish-branch checks (`pnpm build`,
-  `pnpm e2e`) and a summary for the user (merge waits for them).
+- **State:** finished and verified, not merged; the branch is local (not pushed, no PR) — the
+  user approves the merge (`.ai/workflows/finish-branch.md`, step 5).
+- **Next step:** on approval: `git push -u origin feat/hdl-library`, `gh pr create`, `gh pr merge
+  --merge --delete-branch`, `git switch main && git pull --ff-only`.
+- **Follow-ups** (track ideas): `$period`/`$skew` as kernel checks; faster small modules (a
+  Verilog 74HC00 at ≈ 57 %); the VIA/ACIA in Verilog (HDL-2 built the path).
 - **Watch out:** Yosys drops `$width`, `$period`, 3/6-value delays, `specparam`, `ifnone`, source
-  lists — the conventions above work around them; try a construct on the real Yosys first.
+  lists, and keeps a lone triple's typical value only — the conventions in components.md work
+  around them; try a construct on the real Yosys first.
 - **Verify with:** `pnpm check`; `pnpm hdl:fixtures` and `pnpm hdl:library` need `yosys`.
