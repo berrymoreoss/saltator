@@ -322,6 +322,10 @@ describe("MemoryInspector: a module's memories (HDL-6)", () => {
     expect([...saved.bytes.slice(4, 12)]).toEqual([0x11, 0xbe, 0xad, 0xde, 1, 2, 3, 4]);
     expect(inspector.write('A3/m', 0, [0x55])).toBeUndefined();
     expect(live('A3/m').data[0]).toBe(0x55);
+    // Reset powers on again: the contents Yosys read are back, the edits gone.
+    simulation.reset();
+    expect(live('A3/m').data[0]).toBe(16);
+    expect(live('A2/ram').unknown[1]).toBe(0xffffffff);
   });
 
   it("is watched in the Debug tab at the memory's own addresses", () => {

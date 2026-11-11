@@ -113,7 +113,7 @@ test('Probes: added from the context menu, undone, and saved with the circuit', 
   await menu(page, 'File', /Save As/);
   await expect(page).toHaveTitle('clock — Saltator');
   const saved = (await readFile(page, 'clock.saltator.json'))!;
-  expect(saved).toContain('"schemaVersion": 8');
+  expect(saved).toContain('"schemaVersion": 9');
   expect(saved).toContain('        { "ref": "U3.OUT" },\n        { "ref": "U5.1Y" }\n      ]');
   expect(errors).toEqual([]);
 });
