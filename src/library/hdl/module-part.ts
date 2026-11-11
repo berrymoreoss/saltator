@@ -73,6 +73,7 @@ import { compilePathDelays, DRIVE_Z, type ModulePathDelays } from './path-delays
 import { TX } from './planes';
 import { compileSettle, markAll, markWord, type Settle } from './settle';
 import { int } from './source';
+import { hdlTiming } from './timing';
 
 type HdlProps = { delay: number };
 
@@ -629,6 +630,12 @@ export function hdlPart(type: string, name: string, module: HdlModule): HdlPartR
   const analysis = analyzeHdlModule(module);
   if (analysis.messages.some((m) => m.severity === 'error')) return { messages: analysis.messages };
   const program = compile(module, analysis);
+  // HDL-2: a module's specify block times its outputs and shows in the Part tab; the one delay
+  // times the outputs no path reaches (all of them without a specify block).
+  const timing = hdlTiming(module, {
+    conditions: "as the module's specify block gives them, in ns: typical delays simulated",
+    source: `the specify block of module ${module.top}`,
+  });
   const definition = defineComponent<HdlProps, HdlState>({
     type,
     name,
@@ -636,6 +643,7 @@ export function hdlPart(type: string, name: string, module: HdlModule): HdlPartR
     keywords: ['verilog', 'module', module.top],
     pins: hdlPins(module),
     props: [hdlDelayProp],
+    ...(timing && { timing }),
     signals: innerSignals(module, program.layout),
     ...(program.memories.some((m) => m.width <= 32) && { memories: memoryViews(program) }),
     create: (props) => behavior(program, props.delay),

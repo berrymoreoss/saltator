@@ -1,6 +1,7 @@
 /**
  * A module's timing as a part shows it (HDL-2): its `specify` paths and checks as a `TimingDef`
- * keyed by its ports — `tpd(CP↑ → Q)`, `tPLH(A → Y)`, `tsu(D → CP↑)`, `tW(CP HIGH)` — the
+ * keyed by its ports as the chips' are — `tpd(CP↑ to Q)`, `tPLH(A to Y)`, `tsu(D to CP↑)`,
+ * `tW(CP HIGH)` — the
  * delays' typical values in `typical` and maxima in `max`, the checks' limits (guaranteed
  * minima) in `min`. The bits of one port are one entry. Spec: docs/components.md#verilog-modules-hdl.
  */
@@ -60,7 +61,7 @@ export function hdlTiming(module: HdlModule, info: HdlTimingInfo): TimingDef | u
   };
 
   for (const path of specify.paths) {
-    const base = `${names(path.from, inName)}${arrow(path.edge)} → ${names(path.to, outName)}${condition(path.when)}`;
+    const base = `${names(path.from, inName)}${arrow(path.edge)} to ${names(path.to, outName)}${condition(path.when)}`;
     if (path.rise.typ === path.fall.typ && path.rise.max === path.fall.max) {
       const key = put(typical, `tpd(${base})`, path.rise.typ, path.src);
       max[key] = path.rise.max;
@@ -74,7 +75,7 @@ export function hdlTiming(module: HdlModule, info: HdlTimingInfo): TimingDef | u
     const key =
       check.kind === 'width'
         ? `tW(${clock} ${check.clock.edge === 'rise' ? 'HIGH' : 'LOW'}${condition(check.clock.when)})`
-        : `${SYMBOLS[check.kind]}(${names(check.data.bits, inName)}${arrow(check.data.edge)} → ${clock}${arrow(check.clock.edge)}${condition(check.clock.when)})`;
+        : `${SYMBOLS[check.kind]}(${names(check.data.bits, inName)}${arrow(check.data.edge)} to ${clock}${arrow(check.clock.edge)}${condition(check.clock.when)})`;
     put(min, key, check.limit, check.src);
   }
   return {

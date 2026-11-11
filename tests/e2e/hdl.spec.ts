@@ -138,6 +138,31 @@ test("Verilog Counter and Traffic Light: its modules' benches and the board's pa
   expect(errors).toEqual([]);
 });
 
+// HDL-2: a module's specify block — its delays and checks in the Part tab of its instance.
+test("a module with a specify block: its paths and checks in its instance's Part tab", async ({
+  page,
+}) => {
+  const errors = watchErrors(page);
+  const grid = await newCircuit(page);
+  await page.getByTestId('add-verilog-module').click();
+  await expect(page.getByTestId('yosys-command')).toContainText('read_verilog -specify');
+  await compile(page, YOSYS_FIXTURES.spec_tristate!);
+  await expect(messages(page)).toContainText('Compiled spec_tristate');
+  await circuits(page).getByRole('button', { name: /Main/ }).click();
+  await place(page, grid, 'sub/module-2', [0, 0]);
+  await clickAt(page, grid([0, 0]));
+  await expect(summary(page)).toHaveText('A1 · Module 2');
+  await page.getByRole('tab', { name: 'Part', exact: true }).click();
+  const timing = page.getByTestId('part-sheet').getByRole('table', { name: 'Timing' });
+  await expect(timing).toContainText("as the module's specify block gives them");
+  await expect(timing.getByRole('row').filter({ hasText: 'clk↑' }).first()).toContainText('17 ns');
+  await expect(timing.getByRole('row').filter({ hasText: 'if !oen' })).toContainText('16 ns');
+  await expect(timing.getByRole('row').filter({ hasText: 'if oen' }).last()).toContainText('14 ns');
+  await expect(timing.getByRole('row').filter({ hasText: 'tsu' })).toContainText('12 ns');
+  await expect(timing).toContainText('the specify block of module spec_tristate');
+  expect(errors).toEqual([]);
+});
+
 // HDL-8: a module on a bus — an inout port, its bench writing and reading through it.
 const IO_PORT_BENCH = `bench('writes $A5, reads its pins', (b) => {
   b.set({ strobe: 0, cs_n: 0, rw: 0, 'pins[7..0]': 0x3c, 'd[7..0]': 0xa5 });

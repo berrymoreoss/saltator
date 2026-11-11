@@ -228,7 +228,7 @@ checks included, and a benchmark compares the Verilog 74HC00 with the hand-writt
 - [x] 8. Verilog 74HC74: the flip-flop tests on both, timing checks included.
 - [x] 9. Verilog 74HC574: the register and 3-state tests on both.
 - [x] 10. Benchmark: Verilog vs hand-written 74HC00 chain; HDL-1's benchmarks unchanged.
-- [ ] 11. App: the command shown with `-specify`; the Part tab shows a module's paths and checks;
+- [x] 11. App: the command shown with `-specify`; the Part tab shows a module's paths and checks;
   the `delay` prop says it covers outputs without a path; e2e (a module with `specify` pasted
   in the browser). The Verilog chips in the dev palette (Q3), looked at in `pnpm dev`.
 - [ ] 12. Docs: ADR (timing from `specify`), ADR-0030 amended, components.md (Verilog modules,
@@ -310,13 +310,21 @@ checks included, and a benchmark compares the Verilog 74HC00 with the hand-writt
   running); 74HC04 chain 6.63 M. HDL-1's benchmarks against `main`, alternately in one sitting:
   the same within the noise (decoder 2.05–2.16 M vs 1.98–2.09 M evaluations/s, PicoRV32
   210–226 k vs 226–227 k cycles/s).
+- 2026-11-12 — task 11: a document's module with `specify` gets `timing` (`hdlTiming`); the
+  Part tab of its instance (`sub/<id>`, no timing of its own) shows the module part's
+  (`timingSource` in `part-info.ts`); the `delay` prop keeps its label (the instance's definition
+  is the subcircuit's) — docs say it times the outputs no path reaches. e2e: a module with
+  `specify` pasted, placed, its Part tab. Looked at in a dev server: the three Verilog chips under
+  "Developer Fixtures", the 574's Part tab; no console errors.
 
 ## Handoff
 
-- **State:** tasks 1–10 done; the Verilog 74HC00/74/574 pass the hand-written chips' tests and
+- **State:** tasks 1–11 done; the Verilog 74HC00/74/574 pass the hand-written chips' tests and
   run at ≈ 55 % of their speed.
-- **Next step:** task 11 — the app: the Part tab for modules with `specify`, the `delay` prop's
-  wording, e2e; the dev palette looked at in `pnpm dev`. Then task 12 (docs).
+- **Next step:** task 12 — docs: new ADR (timing from specify), ADR-0030 amended, components.md
+  (Verilog modules: specify; library parts in Verilog), circuit.md done (v10), editor.md (Part
+  tab of a module), track (HDL-2 built), lessons; then the finish-branch checks (`pnpm build`,
+  `pnpm e2e`) and a summary for the user (merge waits for them).
 - **Watch out:** Yosys drops `$width`, `$period`, 3/6-value delays, `specparam`, `ifnone`, source
   lists — the conventions above work around them; try a construct on the real Yosys first.
 - **Verify with:** `pnpm check`; `pnpm hdl:fixtures` and `pnpm hdl:library` need `yosys`.

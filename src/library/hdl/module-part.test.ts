@@ -1388,3 +1388,19 @@ describe('timing checks from specify (HDL-2)', () => {
     return b;
   }
 });
+
+describe('a module with specify in the Part tab (HDL-2)', () => {
+  it('shows its paths and checks as its timing', () => {
+    const timed = part('spec_tristate');
+    expect(timed.timing).toMatchObject({
+      typical: {
+        'tpd(clk↑ to q)': ns(17),
+        'tpd(oen to q, if !oen)': ns(16),
+        'tpd(oen to q, if oen)': ns(14),
+      },
+      min: { 'tsu(d to clk↑)': ns(12), 'th(d to clk↑)': ns(5) },
+      source: 'the specify block of module spec_tristate',
+    });
+    expect(part('decoder').timing).toBeUndefined();
+  });
+});

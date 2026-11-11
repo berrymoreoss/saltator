@@ -46,18 +46,18 @@ describe('verilogChips (HDL-2)', () => {
   it('shows its timing from the specify block, with the data sheet and the source', () => {
     const t = timingOf(verilogChips()[2]!, {})!;
     expect(t.typical).toEqual({
-      'tpd(CP↑ → Q)': 17000,
-      'tpd(OEn → Q, if !OEn)': 16000,
-      'tpd(OEn → Q, if OEn)': 14000,
+      'tpd(CP↑ to Q)': 17000,
+      'tpd(OEn to Q, if !OEn)': 16000,
+      'tpd(OEn to Q, if OEn)': 14000,
     });
     expect(t.max).toEqual({
-      'tpd(CP↑ → Q)': 35000,
-      'tpd(OEn → Q, if !OEn)': 35000,
-      'tpd(OEn → Q, if OEn)': 31000,
+      'tpd(CP↑ to Q)': 35000,
+      'tpd(OEn to Q, if !OEn)': 35000,
+      'tpd(OEn to Q, if OEn)': 31000,
     });
     expect(t.min).toEqual({
-      'tsu(D → CP↑)': 12000,
-      'th(D → CP↑)': 5000,
+      'tsu(D to CP↑)': 12000,
+      'th(D to CP↑)': 5000,
       'tW(CP HIGH)': 16000,
       'tW(CP LOW)': 16000,
     });
