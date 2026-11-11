@@ -2,9 +2,10 @@
  * JavaScript generated from a module's IR (HDL-10, ADR-0037): each combinational cell or latch
  * as a block of word operations over an instance's planes (`layout.ts`) — its operands read by
  * shifts and masks found once, its outputs computed 32 bits at a time with the same `X` rules as
- * the cells' semantics (`cells.ts`, `word-cells.ts`), written only where they changed. Uncommon
- * cells (divisions, powers, `$bmux`, arithmetic past 32 bits, shifts, …) run those semantics
- * through an adapter: their bits copied to small byte planes and back.
+ * the cells' semantics (`cells.ts`, `word-cells.ts`), written only where they changed. Shifts run
+ * as closures over the words (`limb-cells.ts`); uncommon cells (divisions, powers, `$bmux`,
+ * arithmetic past 32 bits, …) run those semantics through an adapter: their bits copied to small
+ * byte planes and back.
  *
  * The source is made from this file's templates alone. The only values from the IR that enter it
  * are integers — word indices, bit positions, masks, widths, polarities — each through `int`,
@@ -21,26 +22,15 @@ import {
   maskOf,
   type Operand,
   operand,
-  type Run,
 } from './layout';
+import { shiftClosure } from './limb-cells';
 import { newPlanes, planeIndex, signedOperands } from './planes';
+import { i32, int, limbExpr, type WordClosure } from './source';
 
-/** A cell's semantics on words, run by generated code as `C[slot](V, U)`. */
-export type WordClosure = (V: Int32Array, U: Int32Array) => void;
+export { int, type WordClosure } from './source';
 
-/**
- * An integer as source text: the one way a value reaches generated code. Throws on anything that
- * isn't a safe integer, so text from a document can never become code.
- */
-export function int(n: number): string {
-  if (typeof n !== 'number' || !Number.isSafeInteger(n)) {
-    throw new Error(`generated code takes integers only, not ${String(n)}`);
-  }
-  return String(n);
-}
-
-/** A 32-bit mask as a signed integer literal (`0xffffffff` → `-1`). */
-const i32 = (n: number) => int(n | 0);
+/** The shifts, run as closures over the words (`limb-cells.ts`). */
+const SHIFTS = new Set<HdlCell['type']>(['$shl', '$sshl', '$shr', '$sshr', '$shift', '$shiftx']);
 
 /** The cells written as word operations; the others go through the adapter. */
 const NATIVE = new Set<HdlCell['type']>([
@@ -77,31 +67,6 @@ const NATIVE = new Set<HdlCell['type']>([
   '$dlatch',
   '$adlatch',
 ]);
-
-/** A run's bits in their place in an operand's limb, from `plane` (`V` or `U`). */
-function runExpr(run: Run, plane: string): string {
-  const word = `${plane}[${int(run.word)}]`;
-  if (run.kind === 'fill') {
-    return `(-((${word} >>> ${int(run.from)}) & 1) & ${i32(maskOf(run.length) * 2 ** run.to)})`;
-  }
-  if (run.from === 0 && run.length === 32) return word;
-  const shifted =
-    run.from + run.length === 32
-      ? `(${word} >>> ${int(run.from)})`
-      : run.from === 0
-        ? `(${word} & ${i32(maskOf(run.length))})`
-        : `((${word} >>> ${int(run.from)}) & ${i32(maskOf(run.length))})`;
-  return run.to === 0 ? shifted : `(${shifted} << ${int(run.to)})`;
-}
-
-/** An operand's limb from one plane: its runs and its constant bits. */
-function limbExpr(limb: Limb, plane: 'V' | 'U'): string {
-  const parts = limb.runs.map((run) => runExpr(run, plane));
-  const constant = plane === 'V' ? limb.ones : limb.unknown;
-  if (constant !== 0) parts.push(i32(constant));
-  if (parts.length === 0) return '0';
-  return parts.length === 1 ? parts[0]! : `(${parts.join(' | ')})`;
-}
 
 /** A tri-state value (0, 1, 2 = `X`) of an operand's bit 0 as source: `(V…) | ((U…) << 1)`. */
 function bitExpr(limb: Limb): string {
@@ -158,17 +123,31 @@ export class Generator {
     if (first < 0) return '';
     const words = Array.from({ length: count }, (_, k) => int(first + k));
     if (!isNative(cell)) {
-      const slot = this.closures.length;
-      this.closures.push(adapter(cell, this.#layout));
-      const saved = words.map((w, k) => `o${k}v = V[${w}], o${k}u = U[${w}]`).join(', ');
-      const differs = words.map((w, k) => `V[${w}] !== o${k}v || U[${w}] !== o${k}u`).join(' || ');
-      return `{\nconst ${saved};\nC[${int(slot)}](V, U);\nif (${differs}) {\n${onChange}\n}\n}\n`;
+      const list = Array.from({ length: count }, (_, k) => first + k);
+      const closure = SHIFTS.has(cell.type)
+        ? shiftClosure(cell, this.#layout, first)
+        : adapter(cell, this.#layout);
+      return this.call(closure, list, onChange);
     }
     const { compute } = this.#native(cell);
     const declare = words.map((_, k) => `y${k}v = 0, y${k}u = 0`).join(', ');
     const differs = words.map((w, k) => `y${k}v !== V[${w}] || y${k}u !== U[${w}]`).join(' || ');
     const write = words.map((w, k) => `V[${w}] = y${k}v; U[${w}] = y${k}u;`).join('\n');
     return `{\nlet ${declare};\n${compute}\nif (${differs}) {\n${write}\n${onChange}\n}\n}\n`;
+  }
+
+  /**
+   * A block that runs `closure` (which writes `words`) and, where one of them changed, runs
+   * `onChange`.
+   */
+  call(closure: WordClosure, words: readonly number[], onChange: string): string {
+    const slot = this.closures.length;
+    this.closures.push(closure);
+    const saved = words.map((w, k) => `o${k}v = V[${int(w)}], o${k}u = U[${int(w)}]`).join(', ');
+    const differs = words
+      .map((w, k) => `V[${int(w)}] !== o${k}v || U[${int(w)}] !== o${k}u`)
+      .join(' || ');
+    return `{\nconst ${saved};\nC[${int(slot)}](V, U);\nif (${differs}) {\n${onChange}\n}\n}\n`;
   }
 
   /** An operand read into constants `<name><k>v`, `<name><k>u`: the statements and the limbs. */

@@ -160,7 +160,7 @@ branch goes on and ends with what it reaches (Q3), the rest a track idea with th
   `$mux`, `$pmux`, comparisons, `$add`/`$sub`/`$neg`/`$mul` up to 32 bits, shifts, `$tribuf`,
   latches; helpers for the rest; the integer-only rule and the hostile-IR test (D4). Each cell's
   generated step tested against today's step on random 4-state inputs, over every fixture's cells.
-- [ ] 3. Activity and the checkpoint: dirty flags, fanout, `settle`; PicoRV32's combinational
+- [x] 3. Activity and the checkpoint: dirty flags, fanout, `settle`; PicoRV32's combinational
   settle measured; numbers and the projection into this plan (Q3: no stop either way).
 - [ ] 4. Flip-flops: next states and loads generated (every flip-flop cell: enables, synchronous
   and asynchronous resets, sets and clears, `$aldff`, `$sr`), loads marking their readers.
@@ -210,10 +210,26 @@ branch goes on and ends with what it reaches (Q3), the rest a track idea with th
 - 2026-11-11 — plan drafted; `main` green (3 543 tests); baseline benchmarks in D6.
 - 2026-11-11 — Q1–Q4 answered (Q1, Q2, Q4 as proposed; Q3: accept what is reached); plan
   approved; started.
+- 2026-11-12 — task 1: `layout.ts` (a cell's output from bit 0 of its own words, ports' pin bits
+  theirs, operands as runs per limb: bits, fills, constant masks), tests over every fixture and
+  differential design (`sample-modules.ts`). Task 2: `codegen.ts` — common cells as word
+  operations, the rest through an adapter to `compileStep` on small byte planes; `int` the only
+  way a number enters source; each cell's code against `compileStep` on random 4-state words over
+  every sample module's cells and 60 random shapes of every type (mutation-checked: 7 of 7).
+  Task 3: `settle.ts` — a step per cell (a loop's cells one step), a mark bit per step, marks only
+  to later steps, the code in functions of ≈ 24 k characters (V8 won't optimize one of a whole
+  core) behind a dispatcher; shifts as closures over limbs (`limb-cells.ts`, a 32-bit window),
+  operand readers generated (`source.ts`). **Checkpoint** (PicoRV32's 456 steps, memory reads
+  stubbed, Node 24, M3 Pro): a full settle 2.9 µs against 29 µs for today's steps (≈ 10×); a
+  settle with nothing marked 0.014 µs (the falling edge); after 5–20 random flip-flop words change
+  3.2–4.1 µs (random changes reach most of the core). Generated cells ≈ 1–6 ns each; the three
+  shifts ≈ 90 ns each. Projection: ≈ 5 µs a cycle with flip-flops and the kernel, ≈ 200 k cycles/s
+  — short of 1 M; per Q3 the branch goes on and task 8 profiles the whole engine.
 
 ## Handoff
 
-- **State:** plan approved, started; no code yet.
-- **Next step:** task 1 (layout).
+- **State:** tasks 1–3 done: layout, generated cells, settle with activity (not yet used by
+  the part).
+- **Next step:** task 4 (flip-flops on words, generated).
 - **Watch out:** benchmark against `main` alternately in one sitting; native imports only.
 - **Verify with:** `pnpm check`; `pnpm bench tests/bench/hdl.bench.ts`.
