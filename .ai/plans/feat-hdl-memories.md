@@ -176,7 +176,7 @@ Small, ordered, each committable with its tests (`pnpm check` green).
   (clocks, data cones, internal clocks, floating rule).
 - [x] 4. Interpreter: memory state and power-up, `$memrd`, `$memwr` at pin and internal edges,
   `X` rules, races, collisions, stamps; unit tests per rule.
-- [ ] 5. Differential: memory designs in `pnpm hdl:differential` against Yosys's `sim`; what
+- [x] 5. Differential: memory designs in `pnpm hdl:differential` against Yosys's `sim`; what
   differs on purpose (collisions) unit-tested.
 - [ ] 6. Core view (ADR-0036): `memories`, `MemoryDef` offset/width/optional pins, `PokeAction`
   with the memory; the module part's view and pokes; chips unchanged.
@@ -257,6 +257,11 @@ Small, ordered, each committable with its tests (`pnpm check` green).
   unknown and the whole memory `X`; the converter now takes `ADDR`/`DATA` through such
   `$procmux$` cells (only proc's, one input all `x`) — an unknown enable makes `X` only the word
   it addresses. HDL-1's benchmark unchanged (main and branch alternately, two rounds).
+- 2026-11-11 — task 5: five memory designs in `pnpm hdl:differential` (register file, FIFO, ROMs
+  from `$readmemh` / `initial` / `m[16:25]`, byte lanes, two clocks and a divided one); 23
+  designs, ≈ 128 k output bits, all agree. Yosys's `sim` loops on two ports writing one bit at
+  one edge (lessons): the byte-lane design writes different halves. Mutation-checked (wrong word,
+  enable ignored, one enable for all lanes, first address ignored, `init` ignored: each fails).
 
 ## Handoff
 

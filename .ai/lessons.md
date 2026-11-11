@@ -551,3 +551,12 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
   the same instant: listeners run in subscription order, and `Trigger.attach` re-subscribes after
   every carry-over. The trigger asks its recorder to sample first (idempotent per instant) rather
   than relying on who subscribed earlier.
+- 2026-11-11 (HDL-6) — Yosys's `sim` loops forever when two write ports of one memory write the
+  same bit at one edge (priority or not): `pnpm hdl:differential` timed out on a byte-enable design
+  at the one step where both ports hit one word. Differential designs keep their write ports on
+  different words; collisions and priority are unit tests. Bisect a `sim` hang by replaying the
+  witness's first n steps.
+- 2026-11-11 (HDL-6) — `proc` gives a memory write's address and data an `x` default where the
+  process doesn't write (`we ? rd : x`). With `-keepdc` they stay, so an unknown `we` made the
+  address unknown and the whole memory `X` — not what a board does. Look at what Yosys feeds a
+  cell's ports before reasoning about `X` from the source.
