@@ -217,3 +217,61 @@ test('Verilog UART: the registers inside its modules, probed, listed and watched
   await expect(waves.getByTestId('waves-row').locator('.waves-name').last()).toHaveText('A1/tick');
   expect(errors).toEqual([]);
 });
+
+// HDL-6: a module's memory — its power-up contents, as words and bytes, edited live, and a bench.
+const PROGRAM_BENCH = `bench('patches and reads the program', (b) => {
+  b.memory('ram', 3, 'CAFEF00D');
+  b.set({ clk: 0, we: 0, 'a[3..0]': 3, 'd[31..0]': 0 });
+  b.wait('1us');
+  b.expect({ 'q[31..0]': 0xcafef00d, 'ram[0..2]': [0x13, 0x100093, 0xdeadbeef] });
+});
+`;
+
+test('a memory in a module: its power-up contents, words and bytes, edited live, a bench', async ({
+  page,
+}) => {
+  const errors = watchErrors(page);
+  const grid = await newCircuit(page);
+  await page.getByTestId('add-verilog-module').click();
+  await expect(page.getByTestId('yosys-command')).toContainText(
+    'opt -keepdc; memory_collect; check',
+  );
+  await compile(page, YOSYS_FIXTURES.mem_program!);
+  await expect(messages(page)).toContainText('Compiled mem_program');
+  const memories = page.getByTestId('module-memories');
+  await expect(memories.locator('tr[data-memory="ram"]')).toContainText('ram [0:15]');
+  await expect(memories.locator('tr[data-memory="ram"]')).toContainText('16 × 32');
+
+  await page.getByRole('tab', { name: /^Tests/ }).click();
+  const code = page.getByTestId('tests-panel').locator('.cm-content');
+  await code.click();
+  await page.keyboard.insertText(PROGRAM_BENCH);
+  await page.keyboard.press('ControlOrMeta+Enter');
+  const benches = page.getByTestId('test-results').getByTestId('bench-row');
+  await expect(benches.and(page.locator('[data-state="pass"]'))).toHaveCount(1);
+
+  // Placed in Main and selected: the Memory tab shows its memory, stopped, as Yosys read it.
+  await circuits(page).getByRole('button', { name: /Main/ }).click();
+  await place(page, grid, 'sub/module-2', [0, 0]);
+  await clickAt(page, grid([0, 0]));
+  await page.getByRole('tab', { name: 'Memory' }).click();
+  const memory = page.getByTestId('memory-panel');
+  const cell = (address: number) => memory.locator(`.memory-cell[data-address="${address}"]`);
+  await expect(memory.getByLabel('Memory')).toHaveValue('A1/ram');
+  await expect(page.getByTestId('memory-power-up')).toBeVisible();
+  await expect(cell(0)).toHaveText('00000013');
+  await expect(cell(2)).toHaveText('DEADBEEF');
+  await expect(cell(3)).toHaveText('XXXXXXXX');
+  await memory.getByLabel('Cells as').selectOption('bytes');
+  await expect(cell(4)).toHaveText('93');
+  await expect(cell(8)).toHaveText('EF');
+  await memory.getByLabel('Cells as').selectOption('words');
+
+  // Stepped to power-on: live, and edited in place.
+  await page.keyboard.press('F10');
+  await expect(page.getByTestId('memory-power-up')).toHaveCount(0);
+  await cell(3).click();
+  await page.keyboard.type('CAFEF00D');
+  await expect(cell(3)).toHaveText('CAFEF00D');
+  expect(errors).toEqual([]);
+});

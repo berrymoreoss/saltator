@@ -327,14 +327,16 @@ function MemoryView({
         <span className="memory-now mono" data-testid="memory-address">
           {address ? `Address ${address.text}` : ''}
         </span>
-        <label className="memory-follow">
-          <input
-            type="checkbox"
-            checked={follow}
-            onChange={(event) => onFollow(event.target.checked)}
-          />
-          Follow
-        </label>
+        {entry.addressPins.length > 0 && (
+          <label className="memory-follow">
+            <input
+              type="checkbox"
+              checked={follow}
+              onChange={(event) => onFollow(event.target.checked)}
+            />
+            Follow
+          </label>
+        )}
         <form className="memory-goto" onSubmit={jump}>
           <input
             ref={goToInput}

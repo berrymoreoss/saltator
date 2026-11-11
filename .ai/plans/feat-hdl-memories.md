@@ -187,7 +187,7 @@ Small, ordered, each committable with its tests (`pnpm check` green).
 - [x] 9. Memory tab: module memories in the picker, stopped view (Q1), pokes; wide words with the
   Words/Bytes switch, Load/Save packed little-endian (Q3).
 - [x] 10. Module view: the Memories section.
-- [ ] 11. Proof (Q4, tests only): `tests/scenarios/verilog-memories.test.ts` (a FIFO, a register
+- [x] 11. Proof (Q4, tests only): `tests/scenarios/verilog-memories.test.ts` (a FIFO, a register
   file and a `$readmemh` ROM with chips and benches around them), `tests/e2e/hdl.spec.ts` (a
   module from a fixture: Memory tab, edits, a bench), a memory benchmark in
   `tests/bench/hdl.bench.ts`.
@@ -287,15 +287,24 @@ Small, ordered, each committable with its tests (`pnpm check` green).
 - 2026-11-11 — task 10: the module view lists its memories (Verilog range, size, source line)
   with a button showing the open instance's in the Memory tab (`editor.showMemory`, a
   `show-memory` request the workbench answers).
+- 2026-11-11 — task 11: e2e "a memory in a module" (fixture `mem_program`: a 32-bit RAM with a
+  program from `$readmemh`; its Memories row, a bench, the Memory tab stopped and live, Words and
+  Bytes, an edit); looked at in screenshots — fine, Follow hidden for memories without address
+  pins. `pnpm e2e` of hdl, memory, debugger and tests specs: 23 passed. Benchmark: HDL-1's
+  baseline unchanged (decoder 1.95 M evaluations/s, synthetic 11.6 k); register file 740 k
+  evaluations/s; a 4K × 32 RAM, a write and a read per cycle, 400 k evaluations/s (≈ 130 k
+  cycles/s).
 
 ## Handoff
 
-- **State:** tasks 1–10 done and committed (IR + schema v9, converter + command, analysis,
+- **State:** tasks 1–11 done and committed (IR + schema v9, converter + command, analysis,
   interpreter in `memory-cells.ts`, differential). Modules with memories run headless; nothing
   shows them yet (no view, references, benches or UI).
-- **Next step:** task 11 — e2e in `tests/e2e/hdl.spec.ts` (a module with memories from a
-  fixture: Memory tab live, power-up view, Words/Bytes, a bench), look at it in the browser
-  (screenshots); the memory benchmark in `tests/bench/hdl.bench.ts`. Then task 12 (docs).
+- **Next step:** task 12 — docs: ADR-0030 (command, memories) and ADR-0018 (module memories)
+  amended; components.md (IR, memories, cells), circuit.md (references, benches), editor.md
+  (Memory tab, module view), simulation.md if it names memory semantics; the track file (HDL-6
+  built, `$readmemh` wording, ideas: per-instance images, sync read ports); lessons. Then the
+  finish-branch workflow (full `pnpm e2e`, `pnpm build`, `pnpm test:circuits`).
 - **Watch out:** `$readmemh` paths are relative to the `.v`; read stamps change only on a new
   word or a write since (`stampReads`); `pnpm check` and `pnpm e2e` one after the other; Yosys's
   `sim` loops on colliding write ports (lessons).
