@@ -174,7 +174,7 @@ Small, ordered, each committable with its tests (`pnpm check` green).
   reset loop, a JSON from `memory -nomap`.
 - [x] 3. Analysis: drivers, order and cones of read ports; write ports with the flip-flops
   (clocks, data cones, internal clocks, floating rule).
-- [ ] 4. Interpreter: memory state and power-up, `$memrd`, `$memwr` at pin and internal edges,
+- [x] 4. Interpreter: memory state and power-up, `$memrd`, `$memwr` at pin and internal edges,
   `X` rules, races, collisions, stamps; unit tests per rule.
 - [ ] 5. Differential: memory designs in `pnpm hdl:differential` against Yosys's `sim`; what
   differs on purpose (collisions) unit-tested.
@@ -250,6 +250,13 @@ Small, ordered, each committable with its tests (`pnpm check` green).
   command gains `memory_collect`; `$mem_v2` converted (wide ports need nothing: their words come
   with constant low address bits); 13 memory fixtures. Until task 4, `hdlPart` refuses modules
   with memories ("not supported yet"), so the converter's IR is testable.
+- 2026-11-11 — task 3: analysis (write ports apart, cones, a 256K-word / 8 Mbit limit). Task 4:
+  `memory-cells.ts` (read steps, write ports in two phases, collisions, stamps on change only);
+  `CellStep` takes the instance's memories as a third argument. Found while testing: `proc` gives
+  a write's address and data an `x` default (`we ? rd : x`), so an unknown `we` made the address
+  unknown and the whole memory `X`; the converter now takes `ADDR`/`DATA` through such
+  `$procmux$` cells (only proc's, one input all `x`) — an unknown enable makes `X` only the word
+  it addresses. HDL-1's benchmark unchanged (main and branch alternately, two rounds).
 
 ## Handoff
 

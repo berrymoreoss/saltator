@@ -6,8 +6,10 @@
  * cells, latches and tri-state buffers run once each in topological order (no events inside a
  * module), and every output is driven with the delay — released (`Z`) where its tri-state buffer
  * is off (inertial, so an unchanged output costs nothing). A floating pin reads `X`, and is
- * reported only where that `X` reaches something the module drives or stores. State is byte
- * planes over the bits — plain data, so snapshots, rewind and replicas work as for any part.
+ * reported only where that `X` reaches something the module drives or stores. Memories (HDL-6)
+ * are read by steps in that order and written on clock edges with the flip-flops' loads
+ * (`memory-cells.ts`). State is byte planes over the bits and the memories' words in typed
+ * arrays — plain data, so snapshots, rewind and replicas work as for any part.
  * Spec: docs/components.md#verilog-modules-hdl.
  */
 import {
@@ -42,11 +44,27 @@ import {
   load,
   nextState,
 } from './cells';
-import { type CellStep, newPlanes, planeIndex, TX, tri } from './planes';
+import {
+  type CompiledMemory,
+  compileMemory,
+  compileReadStep,
+  compileWritePorts,
+  type MemoryState,
+  mergeWrite,
+  newMemoryState,
+  newWriteSamples,
+  sampleWrite,
+  spoilWrite,
+  stampReads,
+  storeWrite,
+  type WritePort,
+  writesUnknown,
+} from './memory-cells';
+import { type CellStep, type MemoryPlanes, newPlanes, planeIndex, TX, tri } from './planes';
 
 type HdlProps = { delay: number };
 
-interface HdlState {
+interface HdlState extends MemoryState {
   /** A byte per bit: its value (0 where unknown). Then the constants 0, 1, x. */
   readonly val: Uint8Array;
   /** A byte per bit: 1 where unknown. */
@@ -59,6 +77,8 @@ interface HdlState {
   readonly floating: Uint8Array;
   /** Per flip-flop, the value (0, 1, 2 = X) its clock had when it last looked (HDL-9). */
   readonly seen: Uint8Array;
+  /** The same per memory write port (HDL-6). */
+  readonly wseen: Uint8Array;
 }
 
 /** A driving pin's value: a bit's (or a constant's), push-pull. */
@@ -124,6 +144,21 @@ interface Program {
   /** Bits with a power-up value (`init`, HDL-9) and their values, 0 or 1. */
   readonly initBits: Int32Array;
   readonly initValues: Uint8Array;
+  /** The memories (HDL-6), and per read port (in step order) the memory it reads. */
+  readonly memories: readonly CompiledMemory[];
+  readonly readMemory: Int32Array;
+  /** The memories' write ports, edge-triggered like flip-flops, and their clocks' pins (−1: logic). */
+  readonly writes: readonly WritePort[];
+  readonly writeClockPins: Int32Array;
+  /** The write ports clocked by logic inside the module. */
+  readonly writeInternal: Int32Array;
+  /** Per write port, the read pins what it stores can come from, and what its edges sample. */
+  readonly writeCones: readonly Int32Array[];
+  readonly writeDataCones: readonly Int32Array[];
+  /** Per write port, whether what it samples comes from a clock pin: it races any edge. */
+  readonly writeDataSeesClock: Uint8Array;
+  /** Per write port, what it writes, for messages: `memory buffer`. */
+  readonly writeNames: readonly string[];
 }
 
 const PORT_WORDS = { in: 'input', out: 'output', inout: 'inout' } as const;
@@ -165,12 +200,12 @@ function loopStep(
   const val0 = new Uint8Array(outputs.length);
   const unk0 = new Uint8Array(outputs.length);
   /** One pass over the loop; says whether an output bit changed. */
-  const pass = (val: Uint8Array, unk: Uint8Array): boolean => {
+  const pass = (val: Uint8Array, unk: Uint8Array, mem: MemoryPlanes | undefined): boolean => {
     for (let i = 0; i < outputs.length; i++) {
       val0[i] = val[outputs[i]!]!;
       unk0[i] = unk[outputs[i]!]!;
     }
-    for (let k = 0; k < steps.length; k++) steps[k]!(val, unk);
+    for (let k = 0; k < steps.length; k++) steps[k]!(val, unk, mem);
     let changed = false;
     for (let i = 0; i < outputs.length && !changed; i++) {
       changed = val[outputs[i]!] !== val0[i] || unk[outputs[i]!] !== unk0[i];
@@ -186,12 +221,12 @@ function loopStep(
       unk[b] = 1;
     }
   };
-  return (val, unk) => {
-    for (let p = 0; p < limit; p++) if (!pass(val, unk)) return;
+  return (val, unk, mem) => {
+    for (let p = 0; p < limit; p++) if (!pass(val, unk, mem)) return;
     failed[slot] = 1;
     for (let p = 0; p < limit; p++) {
       unknownWhereChanged(val, unk);
-      if (!pass(val, unk)) return;
+      if (!pass(val, unk, mem)) return;
     }
     unknownWhereChanged(val, unk);
   };
@@ -305,11 +340,17 @@ function compile(module: HdlModule, analysis: HdlAnalysis): Program {
   const loopNames: string[] = [];
   const loopFailed = new Uint8Array(analysis.loops.length);
   let loopSteps: CellStep[] = [];
+  const memories = module.memories.map(compileMemory);
+  const readMemory: number[] = [];
   for (const index of analysis.order) {
     const cell = cells[index]!;
     const l = loopOf[index]!;
     const into = l >= 0 ? loopSteps : steps;
-    if (cell.type === '$tribuf') {
+    if (cell.type === '$memrd') {
+      const m = cell.params.MEMORY as number;
+      into.push(compileReadStep(cell, m, memories[m]!, readMemory.length, bitCount));
+      readMemory.push(m);
+    } else if (cell.type === '$tribuf') {
       const keep = cell.ports.Y!.flatMap((bit, i) => (driver[bit as number] === index ? [i] : []));
       if (keep.length > 0) {
         const ports = {
@@ -352,13 +393,23 @@ function compile(module: HdlModule, analysis: HdlAnalysis): Program {
     flipFlops.flatMap((ff, k) => (ff.clk < bitCount && clockPins[k]! < 0 ? [k] : [])),
   );
   const asyncFlops = Int32Array.from(flipFlops.flatMap((ff, k) => (hasAsync(ff) ? [k] : [])));
+  // The memories' write ports (HDL-6): edges as the flip-flops', clocks from pins or from logic.
+  const writes = compileWritePorts(
+    analysis.writePorts.map((index) => cells[index]!),
+    bitCount,
+  );
+  const writeClockPins = Int32Array.from(writes, (wp) => pinOfBit[wp.clk]!);
+  const writeInternal = Int32Array.from(
+    writes.flatMap((wp, p) => (wp.clk < bitCount && writeClockPins[p]! < 0 ? [p] : [])),
+  );
   const clockReads = new Uint8Array(readPins.length);
-  for (const ff of flipFlops)
-    if (ff.clk < bitCount && readPos[ff.clk]! >= 0) clockReads[readPos[ff.clk]!] = 1;
+  for (const { clk } of [...flipFlops, ...writes])
+    if (clk < bitCount && readPos[clk]! >= 0) clockReads[readPos[clk]!] = 1;
   const dataCones = analysis.dataCones.map(toReadPins);
   const dataSeesClock = Uint8Array.from(dataCones, (cone) =>
     cone.some((p) => clockReads[p]) ? 1 : 0,
   );
+  const writeDataCones = analysis.writeDataCones.map(toReadPins);
   // Power-up values, as an FPGA's bitstream loads its flip-flops; `x` bits start unknown.
   const initBits: number[] = [];
   const initValues: number[] = [];
@@ -390,7 +441,7 @@ function compile(module: HdlModule, analysis: HdlAnalysis): Program {
     internal,
     asyncFlops,
     asyncCones: analysis.asyncCones.map(toReadPins),
-    roundLimit: 2 * internal.length + 4,
+    roundLimit: 2 * (internal.length + writeInternal.length) + 4,
     pinNames: hdlPins(module).map((pin) => pin.name),
     loopNames,
     loopFailed,
@@ -399,6 +450,17 @@ function compile(module: HdlModule, analysis: HdlAnalysis): Program {
     nextSize: offset,
     initBits: Int32Array.from(initBits),
     initValues: Uint8Array.from(initValues),
+    memories,
+    readMemory: Int32Array.from(readMemory),
+    writes,
+    writeClockPins,
+    writeInternal,
+    writeCones: analysis.writePorts.map((index) => toReadPins(cones[index]!)),
+    writeDataCones,
+    writeDataSeesClock: Uint8Array.from(writeDataCones, (cone) =>
+      cone.some((p) => clockReads[p]) ? 1 : 0,
+    ),
+    writeNames: writes.map((wp) => `memory ${module.memories[wp.memory]!.name}`),
   };
 }
 
@@ -410,16 +472,6 @@ export function hdlPart(type: string, name: string, module: HdlModule): HdlPartR
   const shape = hdlModuleProblems(module);
   if (shape.length > 0) {
     return { messages: shape.map((message) => ({ severity: 'error', message })) };
-  }
-  // Memories convert and keep their shape, but don't run yet (HDL-6: the interpreter's task).
-  if (module.memories.length > 0) {
-    return {
-      messages: module.memories.map((memory) => ({
-        severity: 'error',
-        message: `a memory (${memory.name}) — not supported yet (HDL-6)`,
-        ...(memory.src !== undefined && { src: memory.src }),
-      })),
-    };
   }
   const analysis = analyzeHdlModule(module);
   if (analysis.messages.some((m) => m.severity === 'error')) return { messages: analysis.messages };
@@ -510,9 +562,14 @@ function mergeRace(ff: FlipFlop, next: Uint8Array, other: Uint8Array): boolean {
  * The combinational cells, then the asynchronous controls (level-sensitive, from pins or from
  * logic), again while those change a flip-flop. Says whether they kept changing past the limit.
  */
-function settlePlanes(program: Program, val: Uint8Array, unk: Uint8Array): boolean {
+function settlePlanes(
+  program: Program,
+  val: Uint8Array,
+  unk: Uint8Array,
+  mem: MemoryPlanes,
+): boolean {
   const { steps, flipFlops, asyncFlops, roundLimit } = program;
-  for (let k = 0; k < steps.length; k++) steps[k]!(val, unk);
+  for (let k = 0; k < steps.length; k++) steps[k]!(val, unk, mem);
   for (let round = 0; asyncFlops.length > 0; round++) {
     let changed = false;
     for (let j = 0; j < asyncFlops.length; j++) {
@@ -520,7 +577,7 @@ function settlePlanes(program: Program, val: Uint8Array, unk: Uint8Array): boole
     }
     if (!changed) return false;
     if (round >= roundLimit) return true;
-    for (let k = 0; k < steps.length; k++) steps[k]!(val, unk);
+    for (let k = 0; k < steps.length; k++) steps[k]!(val, unk, mem);
   }
   return false;
 }
@@ -530,32 +587,49 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
   const { drivePins, driveKinds, driveBits, driveEnables, driveCones, latches } = program;
   const { dataCones, clockPins, internal, asyncFlops, asyncCones, roundLimit, pinNames } = program;
   const { clockReads, dataSeesClock } = program;
+  const { memories, readMemory, writes, writeClockPins, writeInternal } = program;
+  const { writeCones, writeDataCones, writeDataSeesClock, writeNames } = program;
   // Scratch for one evaluation (nothing is kept between them): the planes as the evaluation
   // found them, the next states seen at another moment of a race, which pin flip-flops race.
-  const before = internal.length > 0 ? newPlanes(bitCount) : undefined;
+  const before = internal.length > 0 || writeInternal.length > 0 ? newPlanes(bitCount) : undefined;
   const other = new Uint8Array(program.nextSize);
   const racing = new Uint8Array(flipFlops.length);
   /** Which flip-flops clocked by logic had an edge in this evaluation already. */
   const clocked = new Uint8Array(flipFlops.length);
   /** Per read pin, whether it changed in this delta (filled at the first edge). */
   const changed = new Uint8Array(readPins.length);
+  // The same for the memories' write ports (HDL-6): what their edges write between the phases,
+  // which wait to store (`pending`), race, were clocked by logic.
+  const samples = newWriteSamples(writes);
+  const otherSamples = newWriteSamples(writes);
+  const pending = new Uint8Array(writes.length);
+  const writeRacing = new Uint8Array(writes.length);
+  const writeClocked = new Uint8Array(writes.length);
 
-  /** Loads every flip-flop with an edge waiting, all at once. */
-  const loadEdges = (state: HdlState) => {
+  /** Loads every flip-flop and stores every write with an edge waiting, all at once. */
+  const loadEdges = (ctx: EvalContext<HdlState>) => {
+    const state = ctx.state;
     const { val, unk, next, edges } = state;
     for (let k = 0; k < flipFlops.length; k++) {
       if (!edges[k]) continue;
       load(flipFlops[k]!, val, unk, next);
       edges[k] = 0;
     }
+    if (writes.length === 0) return;
+    // In port order, so a port that wins over an earlier one stores after it.
+    for (let p = 0; p < writes.length; p++) {
+      if (pending[p]) storeWrite(writes, p, samples, pending, memories, state, ctx.now);
+    }
+    pending.fill(0);
   };
   const { steps } = program;
   const { loopNames, loopFailed } = program;
   const settle = (ctx: EvalContext<HdlState>) => {
+    const state = ctx.state;
     if (asyncFlops.length === 0) {
-      const { val, unk } = ctx.state;
-      for (let k = 0; k < steps.length; k++) steps[k]!(val, unk);
-    } else if (settlePlanes(program, ctx.state.val, ctx.state.unk)) {
+      const { val, unk } = state;
+      for (let k = 0; k < steps.length; k++) steps[k]!(val, unk, state);
+    } else if (settlePlanes(program, state.val, state.unk, state)) {
       ctx.report({
         kind: 'oscillation',
         message: 'asynchronous controls made by logic keep changing their flip-flops',
@@ -577,8 +651,15 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
       reportCone(ctx, cone, ctx.state.floating, readPins);
     }
   };
+  /** The same for a write port storing an `X`. */
+  const reportWrite = (ctx: EvalContext<HdlState>, p: number) => {
+    const cone = writeCones[p]!;
+    if (cone.length > 0 && writesUnknown(writes, p, samples)) {
+      reportCone(ctx, cone, ctx.state.floating, readPins);
+    }
+  };
 
-  const pinClocked = clockPins.some((pin) => pin >= 0);
+  const pinClocked = clockPins.some((pin) => pin >= 0) || writeClockPins.some((pin) => pin >= 0);
 
   /**
    * Pin clocks' edges, each next state from the planes before this delta (a shift chain shifts by
@@ -611,6 +692,32 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
       for (let i = 0; i < cone.length; i++) {
         if (changed[cone[i]!]) {
           racing[k] = 1;
+          result = RACES;
+          break;
+        }
+      }
+    }
+    for (let p = 0; p < writes.length; p++) {
+      const pin = writeClockPins[p]!;
+      if (pin < 0) continue;
+      const edge = clockEdge(ctx, pin, writes[p]!.rising ? 'rise' : 'fall');
+      if (edge === ClockEdge.NONE) continue;
+      if (result === NO_EDGE) {
+        result = EDGED;
+        for (let i = 0; i < readPins.length; i++) {
+          const c = ctx.changed(readPins[i]!) ? 1 : 0;
+          changed[i] = c;
+          if (c && !clockReads[i]) dataChanged = true;
+        }
+      }
+      sampleWrite(writes, p, edge === ClockEdge.UNCERTAIN, val, unk, samples);
+      pending[p] = 1;
+      reportWrite(ctx, p);
+      if (!dataChanged && !writeDataSeesClock[p]) continue;
+      const cone = writeDataCones[p]!;
+      for (let i = 0; i < cone.length; i++) {
+        if (changed[cone[i]!]) {
+          writeRacing[p] = 1;
           result = RACES;
           break;
         }
@@ -656,7 +763,23 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
         ...(pin >= 0 ? { pin } : {}),
       });
     }
-    loadEdges(ctx.state);
+    for (let p = 0; p < writes.length; p++) {
+      if (!writeRacing[p]) continue;
+      writeRacing[p] = 0;
+      sampleWrite(writes, p, false, val, unk, otherSamples);
+      if (!mergeWrite(writes, p, samples, otherSamples)) continue;
+      const cone = writeDataCones[p]!;
+      let pin = -1;
+      for (let i = 0; i < cone.length && pin < 0; i++) {
+        if (changed[cone[i]!]) pin = readPins[cone[i]!]!;
+      }
+      ctx.report({
+        kind: 'setup-violation',
+        message: `${pinNames[pin] ?? 'an input'} changed at the clock edge of ${writeNames[p]}'s write: it writes X where that matters`,
+        ...(pin >= 0 ? { pin } : {}),
+      });
+    }
+    loadEdges(ctx);
     settle(ctx);
   };
 
@@ -702,10 +825,49 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
         any = true;
         reportLoad(ctx, k);
       }
+      if (writeRounds(ctx, round)) any = true;
       if (!any) return;
-      loadEdges(ctx.state);
+      loadEdges(ctx);
       settle(ctx);
     }
+  };
+
+  /** A round's edges of write ports clocked by logic (`internalRounds`); says whether one had one. */
+  const writeRounds = (ctx: EvalContext<HdlState>, round: number): boolean => {
+    const { val, unk, wseen } = ctx.state;
+    let any = false;
+    for (let j = 0; j < writeInternal.length; j++) {
+      const p = writeInternal[j]!;
+      const wp = writes[p]!;
+      const now = tri(val, unk, wp.clk);
+      const edge = edgeOf(wseen[p]!, now, wp.rising);
+      wseen[p] = now;
+      if (edge === ClockEdge.NONE) continue;
+      const uncertain = edge === ClockEdge.UNCERTAIN;
+      sampleWrite(writes, p, uncertain, val, unk, samples);
+      if (round >= roundLimit) {
+        spoilWrite(writes, p, samples);
+        ctx.report({
+          kind: 'oscillation',
+          message: `${writeNames[p]}'s write keeps clocking inside the module: X`,
+        });
+      } else if (!uncertain) {
+        sampleWrite(writes, p, false, before!.val, before!.unk, otherSamples);
+        if (mergeWrite(writes, p, samples, otherSamples)) {
+          ctx.report({
+            kind: 'race-violation',
+            message: writeClocked[p]
+              ? `${writeNames[p]}'s write is clocked again in the same instant (its clock glitches inside the module): it writes X where that matters`
+              : `${writeNames[p]}'s write is clocked by logic, and what it writes changed at the same instant: it writes X where that matters — use a write enable`,
+          });
+        }
+      }
+      pending[p] = 1;
+      writeClocked[p] = 1;
+      any = true;
+      reportWrite(ctx, p);
+    }
+    return any;
   };
 
   /** An open latch holding `X`, or an asynchronous control at `X`, reports the pins behind it. */
@@ -751,17 +913,22 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
         planes.unk[initBits[i]!] = 0;
         planes.val[initBits[i]!] = initValues[i]!;
       }
+      // Memories start with their power-up contents (`initial`, `$readmemh`), as an FPGA's
+      // bitstream loads its block RAMs.
+      const memoryState = newMemoryState(memories, readMemory.length);
       // The logic settles from the power-up values (the pins unknown), so a clock made from an
       // initialized register (`~div`) is known before anything happens.
-      settlePlanes(program, planes.val, planes.unk);
+      settlePlanes(program, planes.val, planes.unk, memoryState);
       program.loopFailed.fill(0);
       return {
         ...planes,
+        ...memoryState,
         next: new Uint8Array(program.nextSize),
         edges: new Uint8Array(flipFlops.length),
         floating: new Uint8Array(readPins.length),
         // Clocks start where power-up left them: `reg div = 0` makes no edge.
         seen: Uint8Array.from(flipFlops, (ff) => tri(planes.val, planes.unk, ff.clk)),
+        wseen: Uint8Array.from(writes, (wp) => tri(planes.val, planes.unk, wp.clk)),
       };
     },
     evaluate(ctx: EvalContext<HdlState>) {
@@ -770,18 +937,20 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
         before.val.set(state.val);
         before.unk.set(state.unk);
         clocked.fill(0);
+        writeClocked.fill(0);
       }
       // Each phase is its own function, run only where the module needs it: an evaluation of a
       // decoder reads its pins, settles and drives, as in HDL-1.
       const edges = pinClocked ? pinEdges(ctx) : NO_EDGE;
       // Flip-flops load now — unless one races: then all wait, so it sees the others as before.
-      if (edges === EDGED) loadEdges(state);
+      if (edges === EDGED) loadEdges(ctx);
       const floats = readInputs(ctx);
       settle(ctx);
       if (edges === RACES) resolveRaces(ctx);
-      if (internal.length > 0) internalRounds(ctx);
+      if (internal.length > 0 || writeInternal.length > 0) internalRounds(ctx);
       if (floats > 0) reportFloating(ctx);
       driveOutputs(ctx, floats);
+      if (readMemory.length > 0) stampReads(readMemory, state, ctx.now);
     },
   };
 }

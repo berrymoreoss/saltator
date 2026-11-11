@@ -267,6 +267,9 @@ describe('fromYosys: memories (HDL-6)', () => {
     const write = cells[2]!;
     expect(write.params).toEqual({ MEMORY: 0, CLK_POLARITY: 1, PRIORITY: [] });
     expect(write.ports.CLK).toEqual(module?.ports.find((p) => p.name === 'clk')?.bits);
+    // proc's don't-cares (`we ? rd : x`) dropped: the address and data are the pins'.
+    expect(write.ports.ADDR).toEqual(module?.ports.find((p) => p.name === 'rd')?.bits);
+    expect(write.ports.DATA).toEqual(module?.ports.find((p) => p.name === 'wd')?.bits);
     // One enable for the whole word, as wide as it.
     expect(new Set(write.ports.EN).size).toBe(1);
     expect(write.ports.EN).toHaveLength(8);

@@ -8,8 +8,22 @@ import type { HdlBit, HdlCell } from '../../core';
 /** A bit's planes as one value: 0, 1, or `X` (2). */
 export const TX = 2;
 
-/** A combinational cell or a latch: computes its outputs in the planes from its inputs there. */
-export type CellStep = (val: Uint8Array, unk: Uint8Array) => void;
+/**
+ * An instance's memories as the read ports see them (HDL-6): each memory's words in 32-bit limbs,
+ * values and unknown bits (`HdlMemoryWords`), and per read port the word it reads now (−1: none
+ * known).
+ */
+export interface MemoryPlanes {
+  readonly mval: readonly Uint32Array[];
+  readonly munk: readonly Uint32Array[];
+  readonly readWord: Int32Array;
+}
+
+/**
+ * A combinational cell, a latch or a memory's read port: computes its outputs in the planes from
+ * its inputs there (and a read port from the instance's memories, `mem`).
+ */
+export type CellStep = (val: Uint8Array, unk: Uint8Array, mem?: MemoryPlanes) => void;
 
 /** The plane index of a bit: signal bits as numbered, the constants 0, 1, x after them. */
 export function planeIndex(bit: HdlBit, bitCount: number): number {

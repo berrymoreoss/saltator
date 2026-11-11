@@ -137,6 +137,42 @@ function compact(module: HdlModule): HdlModule {
   return { ...module, bitCount: index.size, ports, signals, cells };
 }
 
+/**
+ * A memory write's address and data where it doesn't write: `proc` gives them `x` (`we ? a : x`),
+ * a don't-care, which with an unknown enable would make the address unknown and the write hit
+ * every word. Each write port's `ADDR` and `DATA` bits are taken through such multiplexers
+ * (`proc`'s, one input all `x`) to their other input, so an unknown enable makes `X` only the word
+ * it addresses (HDL-6). The multiplexers stay for whatever else reads them.
+ */
+function dropWriteDontCares(cells: HdlCell[], procMuxes: readonly number[]): void {
+  const through = new Map<number, HdlBit>();
+  for (const index of procMuxes) {
+    const { A, B, Y } = cells[index]!.ports;
+    for (const [i, y] of Y!.entries()) {
+      if (typeof y !== 'number') continue;
+      if (A![i] === 'x') through.set(y, B![i]!);
+      else if (B![i] === 'x') through.set(y, A![i]!);
+    }
+  }
+  if (through.size === 0) return;
+  const resolve = (bit: HdlBit): HdlBit => {
+    let b = bit;
+    // Nested ifs chain them; a chain is no longer than the multiplexers.
+    for (let n = 0; typeof b === 'number' && through.has(b) && n <= procMuxes.length; n++) {
+      b = through.get(b)!;
+    }
+    return b;
+  };
+  for (const [index, cell] of cells.entries()) {
+    if (cell.type !== '$memwr') continue;
+    const { ADDR, DATA } = cell.ports;
+    cells[index] = {
+      ...cell,
+      ports: { ...cell.ports, ADDR: ADDR!.map(resolve), DATA: DATA!.map(resolve) },
+    };
+  }
+}
+
 /** Cells that only carry information: dropped without a word. */
 const SILENT = new Set(['$scopeinfo']);
 /** Cells of simulation-only statements: dropped with a warning. */
@@ -445,6 +481,8 @@ export function fromYosys(json: unknown): YosysConversion {
     }
   }
 
+  /** The `$mux` cells `proc` made (`$procmux$…`), by index in `cells`. */
+  const procMuxes: number[] = [];
   const allCells = Object.entries(mod.cells ?? {});
   for (const [cellName, cell] of allCells) {
     const type = String(cell.type);
@@ -561,8 +599,11 @@ export function fromYosys(json: unknown): YosysConversion {
       }
       params[name] = bitsOf([...raw].reverse(), `${type} ${name}`, src, () => {});
     }
+    if (type === '$mux' && cellName.startsWith('$procmux$')) procMuxes.push(cells.length);
     cells.push({ type, src: src ?? '', ports: cellPorts, params });
   }
+
+  dropWriteDontCares(cells, procMuxes);
 
   // Bits nothing drives (an output never assigned) read X: they become the constant x.
   const driven = new Set<number>();
