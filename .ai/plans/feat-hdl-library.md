@@ -167,6 +167,17 @@ checks included, and a benchmark compares the Verilog 74HC00 with the hand-writt
     flip-flop, the bits its last edge changed).
   - a short asynchronous pulse (set, reset): `X` what the pulse changed.
 - Diagnostics on the pin at fault with the chips' messages and kinds.
+- **As built (task 5):** the checks run at the start of `evaluate` on the words before the delta
+  (conditions armed unless known 0). "What if P were `X`": a copy of the words with P's bit
+  unknown, settled (combinational steps only, a scratch `readWord`), the clock's group's next
+  states computed from it. Set-up: merged into the edge's next states (`mergeRace`), and the
+  race mechanism stands down for those flip-flops (one report, the check's). Hold: the next
+  states from the words with P as it was and as `X` — `X` in `Q` where they differ. Recovery: the
+  edge computed as uncertain. Pulse widths and removal: **snapshots** of the `Q` words of the
+  flip-flops a pin drives (clocked by it, or in its asynchronous cone), taken when the pin makes
+  the edge that starts a pulse (before anything loads); at a violation, after this evaluation's
+  loads, `X` where `Q` differs from the snapshot — the bits the pulse (or the edge) changed.
+  Removal reports a `hold-violation` of the control's release.
 
 ### Library parts in Verilog
 
@@ -208,7 +219,7 @@ checks included, and a benchmark compares the Verilog 74HC00 with the hand-writt
 - [x] 4. Module part: pin list and port map from outside; per-bit path delays; the `delay` prop
   only where an output has no path; unit tests (each path kind, rise/fall, enable/disable,
   forced evaluation, carry-over unchanged).
-- [ ] 5. Timing checks in the module part: declaration from the IR, arming by conditions,
+- [x] 5. Timing checks in the module part: declaration from the IR, arming by conditions,
   reports; effects (set-up merge, hold recompute, uncertain edges, short phases and pulses);
   unit tests against hand-built modules.
 - [ ] 6. Library sources and tooling: `src/library/verilog/`, `pnpm hdl:library`, the `.ir.ts`
@@ -280,12 +291,17 @@ checks included, and a benchmark compares the Verilog 74HC00 with the hand-writt
 - 2026-11-12 — task 4: `path-delays.ts` (per driving pin, flat arrays; longest among the paths
   whose source changed, edge and condition respected; fallback longest; the `delay` prop where no
   path reaches); `compile` takes an `HdlPinMap` (library pins). Modules without `specify`: as before.
+- 2026-11-12 — task 5: `module-checks.ts` (compile: `TimingChecks` per check, groups, read
+  indices, snapshot slots) and the runtime in `module-part.ts` (`runChecks`, `edgeChecks`,
+  `endChecks`; see Design, "As built"). The kernel merges repeats of one kind on one pin
+  (`count`): two hold checks on one pin are one diagnostic. Mutation-checked.
 
 ## Handoff
 
-- **State:** tasks 1–4 done; modules with `specify` time their outputs by their paths; checks
-  not run yet.
-- **Next step:** task 5 — timing checks in the module part (`TimingChecks`, effects).
+- **State:** tasks 1–5 done: modules with `specify` time their outputs by their paths and run
+  their checks with the chips' effects.
+- **Next step:** task 6 — `src/library/verilog/`, `pnpm hdl:library`, `.ir.ts` with hash,
+  staleness test, `verilogChip`.
 - **Watch out:** Yosys drops `$width`, `$period`, 3/6-value delays, `specparam`, `ifnone`, source
   lists — the conventions above work around them; try a construct on the real Yosys first.
 - **Verify with:** `pnpm check`; `pnpm hdl:fixtures` and `pnpm hdl:library` need `yosys`.

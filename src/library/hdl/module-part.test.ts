@@ -1212,3 +1212,179 @@ describe('pin-to-pin delays from specify (HDL-2)', () => {
     expect(b.measure({ rdn: 0 }, 'q')).toBe(ns(19));
   });
 });
+
+describe('timing checks from specify (HDL-2)', () => {
+  const messages = (b: Bench) =>
+    b.diagnostics
+      .filter((d) => d.kind.endsWith('-violation'))
+      .map((d) => `${d.kind} ${d.pin}: ${d.message}`);
+
+  /** spec_checks: a D flip-flop reset to 0 long ago, cp low, d low, neither set nor reset. */
+  function flop(): Bench {
+    const b = new Bench(part('spec_checks'));
+    b.set({ cp: 0, d: 0, sdn: 1, rdn: 0 });
+    b.run(us(1));
+    b.set({ rdn: 1 });
+    b.run(us(1));
+    return b;
+  }
+
+  it('set-up: 15 ns is enough; 14 ns reports and loads X', () => {
+    const setup = (before: number) => {
+      const b = flop();
+      b.set({ d: 1 }).run(ns(before));
+      b.set({ cp: 1 }).run(us(1));
+      return b;
+    };
+    expect(messages(setup(15))).toEqual([]);
+    setup(15).expect({ q: 1 });
+    const b = setup(14);
+    expect(messages(b)).toEqual([
+      'setup-violation d: d changed 14 ns before cp rose (setup time ≥ 15 ns)',
+    ]);
+    b.expect({ q: 'X' });
+  });
+
+  it('hold: 4 ns is enough for both checks; 2 ns reports (the two merged) and makes the bit X', () => {
+    const hold = (after: number) => {
+      const b = flop();
+      b.set({ d: 1 }).run(us(1));
+      b.set({ cp: 1 }).run(ns(after));
+      b.set({ d: 0 }).run(us(1));
+      return b;
+    };
+    expect(messages(hold(4))).toEqual([]);
+    hold(4).expect({ q: 1 });
+    const b = hold(2);
+    // Repeats of one kind on one pin are one diagnostic (counted): the first check's message.
+    expect(messages(b).map((m) => m.split(': ')[1])).toEqual([
+      'd changed 2 ns after cp rose (hold time ≥ 3 ns)',
+    ]);
+    expect(b.diagnostics.find((d) => d.kind === 'hold-violation')?.count).toBe(2);
+    b.expect({ q: 'X' });
+  });
+
+  it('a short LOW clock phase makes the edge unreliable', () => {
+    const pulse = (low: number) => {
+      const b = flop();
+      b.set({ cp: 1 }).run(us(1));
+      b.set({ d: 1 }).run(us(1));
+      b.set({ cp: 0 }).run(ns(low));
+      b.set({ cp: 1 }).run(us(1));
+      return b;
+    };
+    expect(messages(pulse(20))).toEqual([]);
+    pulse(20).expect({ q: 1 });
+    const b = pulse(19);
+    expect(messages(b)).toEqual([
+      'pulse-width-violation cp: cp was LOW for only 19 ns (pulse width ≥ 20 ns)',
+    ]);
+    b.expect({ q: 'X' });
+  });
+
+  it('a short HIGH clock phase makes X what the edge before it changed', () => {
+    const b = flop();
+    b.set({ d: 1 }).run(us(1));
+    b.set({ cp: 1 }).run(ns(19));
+    b.set({ cp: 0 }).run(us(1));
+    expect(messages(b).map((m) => m.split(': ')[1])).toEqual([
+      'cp was HIGH for only 19 ns (pulse width ≥ 20 ns)',
+    ]);
+    b.expect({ q: 'X' });
+    const same = flop();
+    same.set({ cp: 1 }).run(ns(19));
+    same.set({ cp: 0 }).run(us(1));
+    same.expect({ q: 0 });
+  });
+
+  it('a short set pulse leaves the bit unknown', () => {
+    const pulse = (width: number) => {
+      const b = flop();
+      b.set({ sdn: 0 }).run(ns(width));
+      b.set({ sdn: 1 }).run(us(1));
+      return b;
+    };
+    pulse(20).expect({ q: 1 });
+    expect(messages(pulse(20))).toEqual([]);
+    const b = pulse(19);
+    expect(messages(b).map((m) => m.split(': ')[1])).toEqual([
+      'sdn was LOW for only 19 ns (pulse width ≥ 20 ns)',
+    ]);
+    b.expect({ q: 'X' });
+  });
+
+  it('recovery: 8 ns after reset is enough; 7 ns makes the edge unreliable', () => {
+    const recover = (after: number) => {
+      const b = flop();
+      b.set({ d: 1, rdn: 0 }).run(us(1));
+      b.set({ rdn: 1 }).run(ns(after));
+      b.set({ cp: 1 }).run(us(1));
+      return b;
+    };
+    expect(messages(recover(8))).toEqual([]);
+    recover(8).expect({ q: 1 });
+    const b = recover(7);
+    expect(messages(b)).toEqual([
+      'recovery-violation rdn: cp rose 7 ns after rdn was released (recovery time ≥ 8 ns)',
+    ]);
+    b.expect({ q: 'X' });
+  });
+
+  it('removal: a set released 1 ns after the edge reports a hold of its release', () => {
+    const b = flop();
+    b.set({ sdn: 0 }).run(us(1));
+    b.set({ cp: 1 }).run(ns(1));
+    b.set({ sdn: 1 }).run(us(1));
+    expect(messages(b).map((m) => m.split(': ')[1])).toEqual([
+      'sdn rose 1 ns after cp rose (hold time ≥ 2 ns)',
+    ]);
+  });
+
+  it('checks the clock only while armed: not while reset holds the flip-flop', () => {
+    const b = flop();
+    b.set({ rdn: 0 }).run(us(1));
+    b.set({ d: 1 }).run(ns(13)); // passes the unarmed 12 ns set-up, not the armed 15 ns one
+    b.set({ cp: 1 }).run(ns(10)); // a HIGH phase of 10 ns
+    b.set({ cp: 0 }).run(us(1));
+    expect(messages(b)).toEqual([]);
+    b.expect({ q: 0 });
+  });
+
+  it('makes X only the bits whose data was late or early (a vector)', () => {
+    const b = settled4();
+    b.set({ d0: 1 }).run(ns(11));
+    b.set({ clk: 1 }).run(us(1));
+    expect(messages(b)).toEqual([
+      'setup-violation d0: d0 changed 11 ns before clk rose (setup time ≥ 12 ns)',
+    ]);
+    expect(['q0', 'q1', 'q2', 'q3'].map((q) => levelChar(b.get(q))).join('')).toBe('X111');
+    b.set({ clk: 0, d0: 0 }).run(us(1));
+    b.set({ clk: 1 }).run(ns(4));
+    b.set({ d2: 0 }).run(us(1));
+    expect(messages(b).slice(1)).toEqual([
+      'hold-violation d2: d2 changed 4 ns after clk rose (hold time ≥ 5 ns)',
+    ]);
+    expect(['q0', 'q1', 'q2', 'q3'].map((q) => levelChar(b.get(q))).join('')).toBe('01X1');
+  });
+
+  it('reports data changing with the clock once, as a set-up violation', () => {
+    const b = settled4();
+    b.set({ d0: 1, clk: 1 }).run(us(1));
+    expect(messages(b)).toEqual([
+      'setup-violation d0: d0 changed at the same time as clk rose (setup time ≥ 12 ns)',
+    ]);
+    expect(levelChar(b.get('q0'))).toBe('X');
+    expect(levelChar(b.get('q1'))).toBe('1');
+    expect(b.diagnostics.find((d) => d.kind === 'setup-violation')?.count).toBe(1);
+  });
+
+  /** spec_tristate enabled, d = 1110 (d0 = 0) loaded long ago. */
+  function settled4(): Bench {
+    const b = new Bench(part('spec_tristate'));
+    b.set({ clk: 0, oen: 0, d0: 0, d1: 1, d2: 1, d3: 1 });
+    b.run(us(1));
+    b.set({ clk: 1 }).run(us(1));
+    b.set({ clk: 0 }).run(us(1));
+    return b;
+  }
+});
