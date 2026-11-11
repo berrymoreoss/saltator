@@ -10,7 +10,8 @@
   `memory_collect`); amended in HDL-7 (example/picorv32: the top module named where
   `-auto-top` would pick another); how the interpreter runs since HDL-10 (feat/hdl-fast):
   [ADR-0037](0037-hdl-generated-code.md) — JavaScript generated from the IR, on 32-bit words,
-  with activity
+  with activity; its `specify` timing and library parts in Verilog since HDL-2
+  (feat/hdl-library): [ADR-0038](0038-specify-timing.md)
 
 ## Context
 
@@ -29,7 +30,8 @@ carry-over across recompiles, diagnostics, test benches, determinism, and the pu
 
 - **Yosys is the front end, and it runs outside the app.** Yosys (ISC license) compiles
   Verilog on the user's computer, as their FPGA or CPLD flow does anyway, with a command the app
-  shows: `read_verilog` (`-specify` from HDL-2), `hierarchy -auto-top` (`-top <module>` where
+  shows: `read_verilog -specify` (HDL-2: the `specify` block's paths and checks,
+  [ADR-0038](0038-specify-timing.md)), `hierarchy -auto-top` (`-top <module>` where
   the sources hold other modules nobody instantiates, as `picorv32.v` does: HDL-7), `proc`,
   `flatten`,
   `tribuf -logic` (HDL-8: tri-states become `$tribuf` cells, one per net), `opt -keepdc`
@@ -52,8 +54,8 @@ carry-over across recompiles, diagnostics, test benches, determinism, and the pu
   `evaluate`, no events inside a module; flip-flops and latches on the kernel's strict edges, an
   edge from `X`/`Z` making the stored bits `X`; outputs driven through the kernel (inertial, like
   every part) with the delays of the module's `specify` paths, or with one delay set on the part
-  where the module has none (a document's module, until HDL-2); `specify` timing checks run by
-  `TimingChecks`. A part whose definition changed (a module compiled again) starts from power-on
+  where no path reaches an output (HDL-2: the longest delay among the paths whose source changed,
+  the chips' rule); `specify` timing checks run by `TimingChecks` ([ADR-0038](0038-specify-timing.md)). A part whose definition changed (a module compiled again) starts from power-on
   when the running simulation carries over, as one whose props changed.
 - **A module is a black box with pin to pin timing**, as data sheets describe chips: delays in
   the code (`#5`) are not simulated, as synthesis ignores them. A library part is a module plus
@@ -72,7 +74,8 @@ carry-over across recompiles, diagnostics, test benches, determinism, and the pu
 
 - **A module on a bus** (HDL-8): an output a `$tribuf` drives is a `tristate` pin, an `inout`
   a `bidir` pin that the module reads back from the net (inside the module a released net reads
-  `X`); taking and releasing the bus use the module's delay until HDL-2. A module reads its pins
+  `X`); taking and releasing the bus use the module's delay, or (HDL-2) the enable's two
+  conditional `specify` paths — `ten` and `tdis`. A module reads its pins
   without reporting a floating one (`EvalContext.level`) and reports it (`reportFloating`) only
   where its `X` is used — an output driven `X`, a flip-flop loading `X`, an open latch, an
   asynchronous reset — by the cells' combinational cones: the library's rule ("read only where

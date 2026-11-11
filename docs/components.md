@@ -714,7 +714,9 @@ load — a chip that may go metastable, and the same rule as an uncertain edge
 
 The clock's checks are **armed** only while the clock matters: not while a set/reset holds the
 chip, and the data's not while loading is disabled — a clock running under a held reset is no
-fault. The 74HC4511 checks its LE the same way (code set-up 12 ns, LE LOW width 16 ns).
+fault. The 74HC4511 checks its LE the same way (code set-up 12 ns, LE LOW width 16 ns). Verilog
+modules check their `specify` block's requirements with the same checks and the same rules
+(HDL-2, [Timing from `specify`](#timing-from-specify)).
 
 ### Counters and shift registers
 
@@ -1279,7 +1281,9 @@ one net into one buffer fed by a `$pmux` and makes those that reach no port logi
 stays a flip-flop: the command runs no `memory_dff`). Several files,
 `` `include ``, SystemVerilog (`read_verilog -sv`) are the user's command line. For every
 tri-state `read_verilog` says "Yosys has only limited support for tri-state logic at the
-moment": harmless here, where only buffers on the ports are left.
+moment": harmless here, where only buffers on the ports are left. `-specify` (HDL-2) keeps a
+`specify` block's paths and timing checks ([below](#timing-from-specify)); a module without one
+gives the same JSON as before.
 
 **The IR** (`HdlModule`, format 1): the top's name, Yosys's `creator`, `bitCount` signal bits
 numbered from 0, the ports in declaration order (`name`, `dir` — `in`, `out`, `inout` —, `lsb` —
@@ -1295,7 +1299,12 @@ flattened submodule's `u_fifo.mem`), `width`, `size`, `offset` — the Verilog a
 `$readmemh`: runs `ADDR:WORDS` in hex at Verilog addresses, each word as many digits as its width
 needs, `x` digits unknown (a digit with any unknown bit; `readHdlMemoryInit`,
 `formatHdlMemoryInit` in `src/core/hdl-memory.ts`); words no run gives start `X`. Their ports are
-cells naming the memory by index (`MEMORY`). `hdlModuleProblems` checks the shape (documents are
+cells naming the memory by index (`MEMORY`). **Timing** (HDL-2,
+[ADR-0038](adr/0038-specify-timing.md), schema v10): `specify`, absent without a `specify`
+block — `paths` (`from` input or inout bits, `to` output or inout bits, `full` for `*>`, an
+`edge`, a `when` condition bit, `rise` and `fall` as `{ min, typ, max }` in ps) and `checks`
+(`kind` — `setup`, `hold`, `recovery`, `removal`, `width` —, a `clock` and a `data` event, each its
+bits, edge and `when`, and a `limit` in ps). `hdlModuleProblems` checks the shape (documents are
 loaded with it); widths come from the connections.
 
 **The cells** (`HDL_CELLS`): `$not` `$pos` `$neg`, the reductions (`$reduce_and`, `_or`,
@@ -1357,8 +1366,11 @@ and asynchronous controls may come from pins or from logic (HDL-9).
 type `hdl/<circuit id>`, a pin per port bit (`addr12`…`addr15` for `addr[15:12]`, a one-bit
 port by its name) in declaration order — an input's `in`, an inout's `bidir`, an output's
 `tristate` where a `$tribuf` drives it or it is `z`, else `out` (core's `hdlPinDirs`) —, one
-property `delay` (`hdlDelayProp`, default 15 ns, an ATF22V10C-15's tPD) for every output, taking
-and releasing the bus too until HDL-2's per-path timing, and a **`signals` view** (HDL-4,
+property `delay` (`hdlDelayProp`, default 15 ns, an ATF22V10C-15's tPD) for every output no
+`specify` path reaches — all of them, taking and releasing the bus too, in a module without one
+(HDL-2) —, its `timing` from its `specify` block (`hdlTiming`, shown in the Part tab of its
+instances: `tpd(clk↑ to q)`, `tpd(oen to q, if !oen)`, `tsu(d to clk↑)`, `tW(clk HIGH)`), and a
+**`signals` view** (HDL-4,
 [ADR-0035](adr/0035-inner-signals.md)): the IR's named signals (`state`, a flattened submodule's
 `u_core.count`), each bit read from the words — a register's or latch's state is its `Q` bits —
 so probes, watches, breakpoints and test benches name them (`A1/state`,
@@ -1443,7 +1455,8 @@ module needs (a decoder: steps 2, 3 and 6):
    with an `oscillation`. Write ports on clocks made by logic take part in the rounds as
    flip-flops do.
 5. With floating pins, the floating rule below.
-6. Every output bit is driven with `delay` (inertial: an unchanged output costs nothing, and a
+6. Every output bit is driven with its `specify` paths' delay (HDL-2, [below](#timing-from-specify)),
+   or with `delay` where no path reaches it (inertial: an unchanged output costs nothing, and a
    bit released and taken again within the delay never floats). A buffer's pin drives `A`
    while `EN` is 1, is released while 0 and drives `X` while unknown — it might be driving, as
    the library's 3-state buffers do. A `z` bit is never driven; `tristate` and `bidir` pins
@@ -1487,6 +1500,66 @@ a power with an unknown operand, a division by zero and `0 ** −n` are all `X` 
 Yosys's `x`; a board's value would depend on the synthesis). Division truncates (`$div`,
 `$mod`) or floors (`$divfloor`, `$modfloor`) at the widest of A, B and Y; a power follows
 Verilog for a negative exponent (`1 ** −n` is 1, `−1 ** −n` ±1, any other base 0).
+
+### Timing from `specify`
+
+HDL-2 ([ADR-0038](adr/0038-specify-timing.md)): a module's `specify` block gives its pin-to-pin
+delays and its timing checks, as a chip's data sheet does. Yosys reads simple paths
+(`(A => Y) = (tPLH, tPHL)`), full ones (`(S *> Y)`), edge-sensitive ones
+(`(posedge CP => (Q +: D))`), conditional ones (`if (en) (A => Y)`), `min:typ:max` triples, and the
+checks `$setup`, `$hold`, `$setuphold`, `$recovery`, `$removal`, `$recrem` with `&&&` conditions.
+Numbers are nanoseconds (`timescale` is ignored, decimals are fine). What Yosys doesn't read:
+
+| Wanted                                     | Yosys                                     | Write instead                                                   |
+| ------------------------------------------ | ----------------------------------------- | --------------------------------------------------------------- |
+| a pulse width, `$width(posedge CP, 20)`    | "unsupported specify rule type"           | `$hold(posedge CP &&& armed, negedge CP, 20)` (the HIGH phase)  |
+| enable and disable, `(OE *> Q) = (r,f,z)`  | keeps rise and fall, drops the rest       | `if (!OEn) (OEn *> Q) = ten;` and `if (OEn) (OEn *> Q) = tdis;` |
+| a lone triple, `(A => Y) = (6:7:8)`        | keeps the typical value only (7:7:7)      | `(A => Y) = (6:7:8, 6:7:8)` (rise, fall)                        |
+| `(A, B *> Y)`, `specparam`, `ifnone`       | syntax errors                             | one path per source; numbers                                    |
+| `$period`, `$skew`, `$nochange`, negatives | `$period` an error; the rest dropped here | — (a warning says what is not checked)                          |
+
+- **Delays.** Each output bit is driven with the **longest** typical delay among its paths whose
+  source pin changed in this delta — an edge path only with its edge (also an uncertain one), a
+  conditional path unless its condition is known 0 after the change — the rule of the chips with
+  several paths ([Timing](#timing)): rise for a new 1, fall for a new 0, the longer for `X` and a
+  release. With no such path (the forced evaluation, a change through logic no path describes),
+  the bit's longest path; with no path at all, `delay`. A submodule's paths survive `flatten`
+  where its ports are the top's: a chip is written as its sections, each with its `specify`.
+- **Checks** run through core's `TimingChecks` ([Timing checks](#timing-checks)) on the part's pins,
+  armed unless their `&&&` condition is known 0, with the chips' diagnostics on the pin at fault
+  (`d0 changed 11 ns before clk rose (setup time ≥ 12 ns)`). What a violation makes `X`, as the
+  chips do ([ADR-0014](adr/0014-timing-checks.md)): a late data pin — the flip-flops on that clock
+  load what "the pin unknown" would give them merged with what they load (computed on a settled
+  copy of the words: exact bit by bit), and the race of the same instant isn't reported again; an
+  early one (hold) — `X` where the pin may have changed the load; a recovery violation — the edge
+  is uncertain; a short pulse, or a control released too soon after an edge (removal, reported as
+  a hold of the release) — `X` where `Q` changed since the pulse (the edge) began. A hold
+  violation of a flip-flop whose data also depends on its own state (a counter's enable) may make
+  more bits `X` than the chip would.
+
+### Library parts in Verilog
+
+HDL-2: a chip of the library can be a module — its source in `src/library/verilog/` with its
+`specify` timing, compiled by `pnpm hdl:library` (the system Yosys, the command above) into
+`modules.ts`: each module's IR and its source's SHA-256; a test fails when a source changed
+without a new run, so `pnpm check` never runs Yosys. `hdlLibraryPart(module, map, info)` runs it
+on the data sheet's pins: `map` places each module pin among the chip's (`pins`, from the
+`ChipSpec` as the hand-written chip has them: numbers, descriptions, power pins), `info` gives the
+rest of the definition (units, function table, data sheet) and `hdlTiming` its timing from the
+IR. Every output needs a path, and no property is left. Port names map to the data sheet's: a
+section's bit `n − 1` is pin `n` (`CP0` → `1CP`), an active-LOW pin ends in `n` (`SDn` → `SD`).
+
+The proof (`src/library/verilog/chips.ts`, `verilogChips()`): the **74HC00** (a NAND gate placed
+four times), the **74HC74** (a flip-flop with set and reset placed twice — synthesizable Verilog
+has no asynchronous load of `x`, so a second flip-flop remembers that set and reset were both
+active and the outputs read `X` until a load, a set or a reset) and the **74HC574** (3-state, its
+enable and disable as the table above says) pass the hand-written chips' tests — function tables,
+unknown and floating inputs, every delay path, the 3-state outputs and every timing check
+(`gates.test.ts`, `flip-flops.test.ts`, `registers.test.ts` run on both). They are dev parts
+(`dev/74hc00-verilog`, …, titled `… (Verilog)`), in the palette of dev builds only, next to the
+hand-written ones; a generic engine runs them at ≈ 55 % of the hand-written chips' speed
+(`pnpm bench`: a 74HC00 chain 3.2 M against 5.6 M events a second, a 74HC574 pipeline 2.75 M
+against 5.1 M).
 
 **Speed** (`tests/bench/hdl.bench.ts`, Apple M3 Pro): about 10 M combinational cells a second —
 every cell on every evaluation; a 1 000-cell module clocks at ≈ 6 kHz per second of wall time

@@ -145,8 +145,11 @@ interpreter in `src/library/hdl/` runs any module's IR — 4-state values in 32-
 compiled once per module into JavaScript (HDL-10: only integers from the IR enter it), the
 combinational cells downstream of a change in topological order inside one `evaluate` (loops
 until they settle, clocks made by logic in rounds, HDL-9), flip-flops on strict edges, races `X`,
-one output delay ([components.md](components.md#verilog-modules-hdl),
-[ADR-0030](adr/0030-hdl-modules.md), [ADR-0037](adr/0037-hdl-generated-code.md)).
+outputs timed by the module's `specify` paths and its timing checks run by `TimingChecks` (HDL-2),
+else one delay ([components.md](components.md#verilog-modules-hdl),
+[ADR-0030](adr/0030-hdl-modules.md), [ADR-0037](adr/0037-hdl-generated-code.md),
+[ADR-0038](adr/0038-specify-timing.md)). A library part can be such a module, compiled ahead of
+time and committed as IR (`src/library/verilog/`, HDL-2).
 
 ## Circuit model
 

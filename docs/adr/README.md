@@ -42,6 +42,7 @@ the alternatives we rejected. Format: [ADR-0001](0001-record-architecture-decisi
 | [0035](0035-inner-signals.md)                     | Inner signals: a view on the part, named like nets inside a subcircuit, sampled at instants     | accepted |
 | [0036](0036-memories-in-modules.md)               | Memories in modules: Yosys collects them, the interpreter runs words, the tools see a chip's    | accepted |
 | [0037](0037-hdl-generated-code.md)                | HDL modules run as JavaScript generated from their IR, on 32-bit words, with activity           | accepted |
+| [0038](0038-specify-timing.md)                    | Timing from `specify`: paths by the chips' rule, checks through `TimingChecks`, library parts   | accepted |
 
 New ADR: copy [template.md](template.md) to `NNNN-short-title.md` (next free number), fill it in,
 add a row here. Branches of different tracks can take the same number at the same time: the one

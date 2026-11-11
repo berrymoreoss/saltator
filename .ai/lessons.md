@@ -605,3 +605,22 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
   read 2–4 % slower than the old engine in every paired run, yet a plain Node loop of the same
   cycle timed both the same (5.39–5.44 µs); the gap was inlining in the harness, and the profile
   showed the kernel's reads and drives were 80 % of it anyway.
+- 2026-11-12 (HDL-2) — Yosys reads only part of `specify`: no `$width`, `$period`, `specparam`,
+  `ifnone`, source lists `(A, B *> Y)` or attributes on paths; it drops a path's third and later
+  delays (`tPZH`, `tPHZ`) with a warning and keeps only the typical value of a lone triple —
+  `(6:7:8)` is 7:7:7, while `(6:7:8, 6:7:8)` keeps all three. Probe each construct on the real
+  Yosys (a one-line module per construct took minutes) and write what it can't read the standard
+  way it can: a pulse width as `$hold(posedge CP, negedge CP, tW)`, enable/disable as two paths
+  conditional on the enable.
+- 2026-11-12 (HDL-2) — Yosys refuses an asynchronous load of `x` (or any branch on two async
+  signals at once: "Multiple edge sensitive events found for this signal!"); each async signal
+  needs its own `if` branch. A chip's "both active → unknown" takes a second flip-flop set by
+  `both` and cleared by `one`, the outputs `X` while it holds.
+- 2026-11-12 (HDL-2) — The kernel merges repeated diagnostics of one kind on one pin into one
+  entry with a `count`: two hold checks failing on one pin are one diagnostic, and a race report
+  merged with a check's on the same pin looks like one. Assert `count` where "reported once"
+  matters, or a duplicate passes.
+- 2026-11-12 (HDL-2) — `pnpm check | grep …` followed by `|| git commit` committed twice past a
+  failing check (a type error in a test, a Biome lint): grep patterns miss what they don't name.
+  Gate commits on `pnpm check`'s exit code (a tiny script printing the summary and exiting with
+  its status), never on matching its output.

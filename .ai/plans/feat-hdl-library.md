@@ -231,7 +231,7 @@ checks included, and a benchmark compares the Verilog 74HC00 with the hand-writt
 - [x] 11. App: the command shown with `-specify`; the Part tab shows a module's paths and checks;
   the `delay` prop says it covers outputs without a path; e2e (a module with `specify` pasted
   in the browser). The Verilog chips in the dev palette (Q3), looked at in `pnpm dev`.
-- [ ] 12. Docs: ADR (timing from `specify`), ADR-0030 amended, components.md (Verilog modules,
+- [x] 12. Docs: ADR (timing from `specify`), ADR-0030 amended, components.md (Verilog modules,
   library parts in Verilog), circuit.md (schema v10), editor.md, simulation.md if touched,
   track (HDL-2 built), lessons.
 

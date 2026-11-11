@@ -21,18 +21,18 @@ sound controllers drive (a VGA monitor — the "Video output" track idea; the bu
 
 ## Items
 
-| ID     | Branch                | Title                           | Needs | Status      |
-| ------ | --------------------- | ------------------------------- | ----- | ----------- |
-| HDL-1  | `feat/hdl-modules`    | Verilog modules in the document | —     | done        |
-| HDL-8  | `feat/hdl-bus`        | Modules on a bus                | —     | done        |
-| HDL-9  | `feat/hdl-semantics`  | All of synthesizable Verilog    | —     | done        |
-| HDL-4  | `feat/hdl-inspection` | Inside a module                 | —     | done        |
-| HDL-6  | `feat/hdl-memories`   | Memories in modules             | —     | done        |
-| HDL-7  | `example/picorv32`    | PicoRV32 soft core              | —     | done        |
-| HDL-10 | `feat/hdl-fast`       | Fast evaluation                 | —     | done        |
-| HDL-2  | `feat/hdl-library`    | Library parts in Verilog        | —     | in-progress |
-| HDL-5  | `feat/pld-devices`    | Programmable devices            | —     | planned     |
-| HDL-3  | `feat/hdl-recompile`  | Recompiling a running module    | —     | planned     |
+| ID     | Branch                | Title                           | Needs | Status  |
+| ------ | --------------------- | ------------------------------- | ----- | ------- |
+| HDL-1  | `feat/hdl-modules`    | Verilog modules in the document | —     | done    |
+| HDL-8  | `feat/hdl-bus`        | Modules on a bus                | —     | done    |
+| HDL-9  | `feat/hdl-semantics`  | All of synthesizable Verilog    | —     | done    |
+| HDL-4  | `feat/hdl-inspection` | Inside a module                 | —     | done    |
+| HDL-6  | `feat/hdl-memories`   | Memories in modules             | —     | done    |
+| HDL-7  | `example/picorv32`    | PicoRV32 soft core              | —     | done    |
+| HDL-10 | `feat/hdl-fast`       | Fast evaluation                 | —     | done    |
+| HDL-2  | `feat/hdl-library`    | Library parts in Verilog        | —     | done    |
+| HDL-5  | `feat/pld-devices`    | Programmable devices            | —     | next    |
+| HDL-3  | `feat/hdl-recompile`  | Recompiling a running module    | —     | planned |
 
 ## HDL-1 · Verilog modules in the document — `feat/hdl-modules`
 
@@ -225,7 +225,31 @@ and benchmark, the same results at the target speed.
 _Re-scoped on 2026-11-09 ([plan](../../.ai/plans/docs-hdl-roadmap.md)): took the library parts
 and the 74HC00 proof from HDL-1._
 
-Chips of the library written in Verilog with their data sheet timing, so controllers (a VIA, an
+**Built** ([plan](../../.ai/plans/feat-hdl-library.md), [ADR-0038](../adr/0038-specify-timing.md),
+[ADR-0030](../adr/0030-hdl-modules.md) amended): a module's `specify` block is its timing. The
+command reads it (`read_verilog -specify`); the IR (schema v10) keeps its paths (full or
+parallel, edge-sensitive, conditional; rise and fall at `min:typ:max` in ps) and its checks
+(set-up, hold, recovery, removal, pulse width). Each output is driven with the longest delay
+among its paths whose source changed (the chips' rule), the `delay` property only where no path
+reaches; the checks run through core's `TimingChecks` with the chips' diagnostics and `X`
+rules made generic (a late pin's "what if it were `X`" merged into the load, exact per bit).
+What Yosys doesn't read (tried on Yosys 0.70) has a standard Verilog way it does (Q1: a pulse
+width as a `$hold` between one pin's opposite edges; enable and disable as two paths
+conditional on the enable); `$period`, `$skew`, negative limits are dropped with a warning. Every
+module (Q2), so a document's module times its outputs, takes and releases a bus with `ten` and
+`tdis`, and shows its paths and checks in its instance's Part tab. Library parts written in
+Verilog: `src/library/verilog/*.v`, compiled by `pnpm hdl:library` into `modules.ts` with each
+source's SHA-256 (a test fails when one changed since); `hdlLibraryPart` runs a module on the data
+sheet's pins. Specs: [components.md](../components.md#timing-from-specify),
+[circuit.md](../circuit.md), [simulation.md](../simulation.md#timing-checks),
+[editor.md](../editor.md#part-info). Proof (Q4: tests and benchmark): a 74HC00, a 74HC74 and a
+74HC574 in Verilog pass the hand-written chips' tests unchanged — function tables, unknown and
+floating inputs, every delay path, the 3-state outputs and every timing check; dev parts only
+(Q3: `dev/74hc00-verilog`, …, in the dev palette next to the hand-written ones). `pnpm bench`:
+≈ 55 % of the hand-written chips' speed (a 74HC00 chain 3.2 M against 5.6 M events a second, a
+74HC574 pipeline 2.75 M against 5.1 M); HDL-1's benchmarks unchanged.
+
+_The item as planned:_ Chips of the library written in Verilog with their data sheet timing, so controllers (a VIA, an
 ACIA, a video or sound chip) can be modules instead of TypeScript. A library part is a module
 plus its data sheet metadata (pinout, pin descriptions, function table), compiled ahead of time
 by the repo's scripts with the system Yosys and committed as IR, so running it never needs
@@ -281,7 +305,13 @@ Not scheduled yet; promoting one gives it the next free id and a row in the tabl
 - Memory controllers in Verilog: DRAM refresh, an SDRAM controller; needs the DRAM or SDRAM part
   ([Parts](parts.md)).
 - Library controllers in Verilog: the W65C22 VIA or the 6551 ACIA (R18) written as modules with
-  a `specify` block instead of TypeScript; needs HDL-2.
+  a `specify` block instead of TypeScript; HDL-2 built the path (`src/library/verilog/`,
+  `hdlLibraryPart`).
+- `$period` as the kernel's cycle check (`TimingChecks.cycle`), and `$skew`: Yosys reads `$skew`
+  and (as a `$hold` of one edge) a period; HDL-2 drops them with a warning.
+- Faster small modules: a Verilog 74HC00 runs at ≈ 57 % of the hand-written one (HDL-2); a
+  module's evaluation reads every pin and drives every output, where a chip touches only what it
+  needs.
 - Messages and assertions from a module: Yosys turns `$display` in an `always` block into `$print`
   cells and immediate assertions into `$check` cells — lines in the simulator's log and
   diagnostics.

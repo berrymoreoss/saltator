@@ -318,6 +318,10 @@ const recovery = checks.recovery({
   and returns what failed, so the part can make the bits it may have loaded `X`
   ([ADR-0014](adr/0014-timing-checks.md)). Data and clock changing at the same instant is one
   set-up violation.
+- A Verilog module declares its checks from its `specify` block (HDL-2; `module-checks.ts`, keys
+  `limit0`, `limit1`, …), and the kernel merges repeats of one kind on one pin into one
+  diagnostic (`count`): two hold checks failing on one pin are one entry
+  ([components.md](components.md#timing-from-specify)).
 - The per-instance state is a `Float64Array` (`PinTimes`) of each watched pin's last change and
   of when it last left LOW and HIGH — absolute times, so a carry-over keeps them. `track` records
   them from `changed`/`prev` only (it observes, it doesn't read), after the checks.
