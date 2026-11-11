@@ -4,9 +4,13 @@
  * instance's words. Spec: docs/components.md#verilog-modules-hdl.
  */
 import { type Limb, maskOf, type Operand, type Run } from './layout';
+import type { MemoryPlanes } from './planes';
 
-/** A cell's semantics on words, run by generated code as `C[slot](V, U)`. */
-export type WordClosure = (V: Int32Array, U: Int32Array) => void;
+/**
+ * A cell's semantics on words, run by generated code as `C[slot](V, U, M)`; `M` is the instance's
+ * memories, for a memory's read port (HDL-6).
+ */
+export type WordClosure = (V: Int32Array, U: Int32Array, M: MemoryPlanes) => void;
 
 /**
  * An integer as source text: the one way a value reaches generated code. Throws on anything that

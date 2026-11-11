@@ -24,7 +24,7 @@ import {
   operand,
 } from './layout';
 import { shiftClosure } from './limb-cells';
-import { newPlanes, planeIndex, signedOperands } from './planes';
+import { type MemoryPlanes, newPlanes, planeIndex, signedOperands } from './planes';
 import { i32, int, limbExpr, type WordClosure } from './source';
 
 export { int, type WordClosure } from './source';
@@ -147,7 +147,7 @@ export class Generator {
     const differs = words
       .map((w, k) => `V[${int(w)}] !== o${k}v || U[${int(w)}] !== o${k}u`)
       .join(' || ');
-    return `{\nconst ${saved};\nC[${int(slot)}](V, U);\nif (${differs}) {\n${onChange}\n}\n}\n`;
+    return `{\nconst ${saved};\nC[${int(slot)}](V, U, M);\nif (${differs}) {\n${onChange}\n}\n}\n`;
   }
 
   /** An operand read into constants `<name><k>v`, `<name><k>u`: the statements and the limbs. */
@@ -499,13 +499,14 @@ export function compileCells(
 ): WordClosure {
   const generator = new Generator(cells, layout);
   const body = indices.map((index) => generator.cell(index, onChange)).join('');
-  const run = new Function('V', 'U', 'C', `'use strict';\n${body}`) as (
+  const run = new Function('V', 'U', 'M', 'C', `'use strict';\n${body}`) as (
     V: Int32Array,
     U: Int32Array,
+    M: MemoryPlanes,
     C: readonly WordClosure[],
   ) => void;
   const closures = generator.closures;
-  return (V, U) => run(V, U, closures);
+  return (V, U, M) => run(V, U, M, closures);
 }
 
 /** Whether a cell is written as word operations (else it runs through the adapter). */

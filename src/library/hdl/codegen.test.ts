@@ -11,7 +11,7 @@ import { analyzeHdlModule } from './analyze';
 import { compileStep } from './cells';
 import { compileCells, Generator, int, isNative } from './codegen';
 import { bitLevel, type Layout, layoutModule, limbsOf } from './layout';
-import { newPlanes } from './planes';
+import { NO_MEMORIES, newPlanes } from './planes';
 import { sampleModules } from './sample-modules';
 
 /** Random words: values and unknowns, a share of unknown bits from none to most. */
@@ -50,7 +50,7 @@ function differences(
   compileStep(cell, bitCount)(val, unk);
   const V = v.slice();
   const U = u.slice();
-  compileCells(cells, layout, [index])(V, U);
+  compileCells(cells, layout, [index])(V, U, NO_MEMORIES);
   const out: string[] = [];
   for (const [i, bit] of hdlCellOutput(cell).entries()) {
     if (typeof bit !== 'number' || !drives(bit)) continue;

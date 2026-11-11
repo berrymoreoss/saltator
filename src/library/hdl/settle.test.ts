@@ -3,7 +3,7 @@ import { HDL_CELLS, hdlCellOutput, SeededRandom } from '../../core';
 import { analyzeHdlModule } from './analyze';
 import { compileStep } from './cells';
 import { bitLevel, layoutModule } from './layout';
-import { newPlanes } from './planes';
+import { NO_MEMORIES, newPlanes } from './planes';
 import { sampleModules } from './sample-modules';
 import { compileSettle, markAll, markWord, settleOutputs } from './settle';
 
@@ -32,19 +32,19 @@ describe('settle', () => {
     const marks = new Int32Array(settle.groups);
     randomize(V, U, free, random);
     markAll(settle, marks);
-    settle.run(V, U, marks);
+    settle.run(V, U, marks, NO_MEMORIES);
     expect([...marks].every((m) => m === 0)).toBe(true);
     for (let round = 0; round < 24; round++) {
       // A few words that pins and flip-flops write change; their readers are marked.
       const changed = free.filter(() => random.nextUint32() % 3 === 0);
       randomize(V, U, changed, random);
       for (const w of changed) markWord(settle, marks, w);
-      settle.run(V, U, marks);
+      settle.run(V, U, marks, NO_MEMORIES);
       expect([...marks].every((m) => m === 0)).toBe(true);
       const fullV = V.slice();
       const fullU = U.slice();
       markAll(settle, marks);
-      settle.run(fullV, fullU, marks);
+      settle.run(fullV, fullU, marks, NO_MEMORIES);
       expect([...V]).toEqual([...fullV]);
       expect([...U]).toEqual([...fullU]);
     }
@@ -72,7 +72,7 @@ describe('settle', () => {
         compileStep(module.cells[index]!, module.bitCount)(val, unk);
       const marks = new Int32Array(settle.groups);
       markAll(settle, marks);
-      settle.run(V, U, marks);
+      settle.run(V, U, marks, NO_MEMORIES);
       const differ: string[] = [];
       for (const index of analysis.order) {
         const cell = module.cells[index]!;
@@ -96,9 +96,9 @@ describe('settle', () => {
     const U = new Int32Array(layout.words).fill(-1);
     const marks = new Int32Array(settle.groups);
     markAll(settle, marks);
-    settle.run(V, U, marks);
+    settle.run(V, U, marks, NO_MEMORIES);
     const before = [...V, ...U];
-    settle.run(V, U, marks);
+    settle.run(V, U, marks, NO_MEMORIES);
     expect([...V, ...U]).toEqual(before);
   });
 });

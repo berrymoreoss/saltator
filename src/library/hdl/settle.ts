@@ -12,6 +12,7 @@ import { HDL_CELLS, type HdlCellSpec, type HdlModule, hdlCellOutput } from '../.
 import type { HdlAnalysis } from './analyze';
 import { compileCells, Generator } from './codegen';
 import type { Layout } from './layout';
+import type { MemoryPlanes } from './planes';
 import { int, type WordClosure } from './source';
 
 /** About this many characters of source a function of the settle holds. */
@@ -30,8 +31,11 @@ export interface Settle {
   readonly readerMask: Int32Array;
   /** Per combinational loop, a step's cells and whether it failed to settle (scratch, set by runs). */
   readonly loopFailed: Uint8Array;
-  /** Runs the marked steps in order, clearing their marks (`marks` holds a bit per step). */
-  run(V: Int32Array, U: Int32Array, marks: Int32Array): void;
+  /**
+   * Runs the marked steps in order, clearing their marks (`marks` holds a bit per step); `M` is
+   * the instance's memories.
+   */
+  run(V: Int32Array, U: Int32Array, marks: Int32Array, M: MemoryPlanes): void;
 }
 
 /** Marks every step that reads word `w`. */
@@ -85,12 +89,12 @@ function loopClosure(
   const limit = 2 * size + 2;
   const v0 = new Int32Array(outputs.length);
   const u0 = new Int32Array(outputs.length);
-  const once = (V: Int32Array, U: Int32Array): boolean => {
+  const once = (V: Int32Array, U: Int32Array, M: MemoryPlanes): boolean => {
     for (let i = 0; i < outputs.length; i++) {
       v0[i] = V[outputs[i]!]!;
       u0[i] = U[outputs[i]!]!;
     }
-    pass(V, U);
+    pass(V, U, M);
     for (let i = 0; i < outputs.length; i++) {
       if (V[outputs[i]!] !== v0[i] || U[outputs[i]!] !== u0[i]) return true;
     }
@@ -104,12 +108,12 @@ function loopClosure(
       V[w] = V[w]! & ~changed;
     }
   };
-  return (V, U) => {
-    for (let p = 0; p < limit; p++) if (!once(V, U)) return;
+  return (V, U, M) => {
+    for (let p = 0; p < limit; p++) if (!once(V, U, M)) return;
     failed[slot] = 1;
     for (let p = 0; p < limit; p++) {
       unknownWhereChanged(V, U);
-      if (!once(V, U)) return;
+      if (!once(V, U, M)) return;
     }
     unknownWhereChanged(V, U);
   };
@@ -213,22 +217,29 @@ export function compileSettle(
     if (current.size >= CHUNK_SOURCE) flush(s);
   }
   flush(steps - 1);
-  type Chunk = (V: Int32Array, U: Int32Array, D: Int32Array, C: readonly WordClosure[]) => void;
+  type Chunk = (
+    V: Int32Array,
+    U: Int32Array,
+    D: Int32Array,
+    M: MemoryPlanes,
+    C: readonly WordClosure[],
+  ) => void;
   const functions = chunks.map(
-    (chunk) => new Function('V', 'U', 'D', 'C', `'use strict';\n${chunk.body}`) as Chunk,
+    (chunk) => new Function('V', 'U', 'D', 'M', 'C', `'use strict';\n${chunk.body}`) as Chunk,
   );
   const dispatch = chunks
     .map((chunk, i) => {
       const covered: string[] = [];
       for (let g = chunk.first >>> 5; g <= chunk.last >>> 5; g++)
         covered.push(`D[${int(g)}] !== 0`);
-      return `if (${covered.join(' || ')}) F[${int(i)}](V, U, D, C);`;
+      return `if (${covered.join(' || ')}) F[${int(i)}](V, U, D, M, C);`;
     })
     .join('\n');
-  const dispatcher = new Function('V', 'U', 'D', 'C', 'F', `'use strict';\n${dispatch}`) as (
+  const dispatcher = new Function('V', 'U', 'D', 'M', 'C', 'F', `'use strict';\n${dispatch}`) as (
     V: Int32Array,
     U: Int32Array,
     D: Int32Array,
+    M: MemoryPlanes,
     C: readonly WordClosure[],
     F: readonly Chunk[],
   ) => void;
@@ -241,7 +252,7 @@ export function compileSettle(
     readerGroup: Int32Array.from(pairs, ([g]) => g),
     readerMask: Int32Array.from(pairs, ([, m]) => m),
     loopFailed,
-    run: (V, U, marks) => dispatcher(V, U, marks, closures, functions),
+    run: (V, U, marks, M) => dispatcher(V, U, marks, M, closures, functions),
   };
 }
 

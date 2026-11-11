@@ -19,6 +19,9 @@ export interface MemoryPlanes {
   readonly readWord: Int32Array;
 }
 
+/** The memories of a module that has none. */
+export const NO_MEMORIES: MemoryPlanes = { mval: [], munk: [], readWord: new Int32Array(0) };
+
 /**
  * A combinational cell, a latch or a memory's read port: computes its outputs in the planes from
  * its inputs there (and a read port from the instance's memories, `mem`).

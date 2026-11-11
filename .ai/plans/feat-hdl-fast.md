@@ -164,7 +164,7 @@ branch goes on and ends with what it reaches (Q3), the rest a track idea with th
   settle measured; numbers and the projection into this plan (Q3: no stop either way).
 - [x] 4. Flip-flops: next states and loads generated (every flip-flop cell: enables, synchronous
   and asynchronous resets, sets and clears, `$aldff`, `$sr`), loads marking their readers.
-- [ ] 5. Memories on words: read ports as steps, write ports' samples and stores, pokes, views.
+- [x] 5. Memories on words: read ports as steps, write ports' samples and stores, pokes, views.
 - [ ] 6. The behavior on words: pins, edges, races, internal rounds, loops, floating rule, inner
   signals; `hdlPart` switched; every existing test green unchanged.
 - [ ] 7. Differential test against the current interpreter (Q2), mutation-checked; then the
