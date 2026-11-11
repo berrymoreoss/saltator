@@ -1265,7 +1265,10 @@ converter, the analysis, the interpreter).
 yosys -q -p 'read_verilog decoder.v; hierarchy -auto-top; proc -norom; flatten; tribuf -logic; opt -keepdc; memory_collect; check; write_json decoder.json'
 ```
 
-`hierarchy -auto-top` marks the top module, `proc -norom` turns processes into cells but keeps a
+`hierarchy -auto-top` marks the top module — `hierarchy -top soc` names it where the sources hold
+other modules nobody instantiates (HDL-7: `picorv32.v` with its bus adapters, where `-auto-top`
+picks `picorv32_wb`; the repo's scripts take a top, `yosysScript(sources, output, top)`), `proc
+-norom` turns processes into cells but keeps a
 `case` as logic, as a GAL gets it (plain `proc` makes a decoder's table a ROM), `flatten` inlines
 the hierarchy, `tribuf -logic` (HDL-8) turns tri-states
 (`oe ? q : 8'bz`, also from an `always` block) into `$tribuf` cells — it merges the drivers of
@@ -1480,7 +1483,11 @@ words, new operands every cycle, ≈ 73 k evaluations a second (words read bit b
 planes); a divider, a ripple chain and a reset by logic ≈ 0.64 M. HDL-6's: a register file
 (8 × 8, a write and two reads a cycle) ≈ 0.74 M evaluations a second; a 4K × 32 RAM, a write
 and a read at new addresses every cycle, ≈ 0.40 M (≈ 130 k cycles a second); HDL-1's numbers
-unchanged. HDL-10 makes it fast.
+unchanged. HDL-7's: PicoRV32 (RV32I with the barrel shifter, 558 cells, 4 KB of RAM) running
+its program ≈ 10.6 k cycles a second, alone and on its board (≈ 3 k instructions; ≈ 14–16 k in
+Chromium); the full core (C, MUL, DIV, IRQ, counters: 1 180 cells) about half that. Half the
+time goes to `$mux` and `$pmux` evaluated bit by bit, and every evaluation runs every cell, the
+falling clock edge's too. HDL-10 makes it fast: PicoRV32 at 1 M cycles a second.
 
 **Tests**: the converter on fixtures Yosys made of `src/library/hdl/fixtures/*.v` (`pnpm
 hdl:fixtures`, the system `yosys`; `pnpm check` never runs Yosys), every cell against
@@ -1504,5 +1511,7 @@ made from its own flip-flop (it loops `sim` forever), and two write ports writin
 edge (`sim` loops on it too; the designs keep their ports on different words). Across the layers
 `tests/scenarios/verilog-modules.test.ts`, `verilog-bus.test.ts` (an I/O port's bench, two
 modules and a 74HC244 on one bus) and `verilog-memories.test.ts` (memories loaded and checked by
-benches, a module's own and through an instance), the examples' benches, the rewind property, and the browser
+benches, a module's own and through an instance), the examples' benches — among them a whole
+RISC-V core, the Verilog PicoRV32 (`verilog-picorv32.test.ts`: its RAM holds the program built,
+and a changed instruction fails its benches) —, the rewind property, and the browser
 (`tests/e2e/hdl.spec.ts`).

@@ -20,15 +20,21 @@ import {
 } from '../src/circuit/index.ts';
 import { type PropValue, resolveProps } from '../src/core/index.ts';
 import { createDefaultRegistry, fromYosys } from '../src/library/index.ts';
-import { hasYosys, runYosys } from './yosys.ts';
+import { hasYosys, runYosys, type YosysDesign } from './yosys.ts';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const SOURCES = join(ROOT, 'examples/verilog');
 const library = createDefaultRegistry();
 
-/** A module's circuit: its source synthesized and compiled, with its own benches. */
-function moduleCircuit(id: string, name: string, file: string, script: string): Circuit {
-  const run = runYosys(join(SOURCES, file));
+/** A module's circuit: its sources synthesized and compiled, with its own benches. */
+function moduleCircuit(
+  id: string,
+  name: string,
+  file: string,
+  script: string,
+  design: YosysDesign = {},
+): Circuit {
+  const run = runYosys(join(SOURCES, file), design);
   if (run.json === undefined) throw new Error(`${file}: yosys failed\n${run.log}`);
   const { module, messages } = fromYosys(run.json);
   if (!module) throw new Error(`${file}: ${messages.map((m) => m.message).join('; ')}`);
@@ -471,6 +477,157 @@ function uart(): CircuitDocument {
   );
 }
 
+// ── Verilog PicoRV32 ─────────────────────────────────────────────────────────────────────
+
+const PICORV32_BENCHES = `// The module alone: the input port is n, the output port shows the n-th Fibonacci number (as
+// a byte), as the program in the RAM computes it (picorv32/firmware/main.c). The core runs
+// from power-up; a pulse of clk is one of its cycles. An instruction takes 3 to 6, a step of
+// the loop about 25: a new n shows after the step in progress and n steps.
+const fibonacci = (n) => {
+  let [a, b] = [0, 1];
+  while (n-- > 0) [a, b] = [b, (a + b) & 255];
+  return a;
+};
+
+bench('runs the program from power-up: F(n) of the input on the output', (b) => {
+  b.set({ resetn: 1, 'in[7..0]': 10 });
+  b.clock('clk', 400);
+  b.expect({ 'out[7..0]': 55, trap: 0 }, 'F(10)');
+  for (const [n, cycles] of [
+    [13, 700],
+    [0, 400],
+  ]) {
+    b.set({ 'in[7..0]': n });
+    b.clock('clk', cycles);
+    b.expect({ 'out[7..0]': fibonacci(n) }, \`F(\${n})\`);
+  }
+});
+
+bench('holds the core while resetn is LOW, the output at 0', (b) => {
+  b.set({ resetn: 1, 'in[7..0]': 10 });
+  b.clock('clk', 400);
+  b.expect({ 'out[7..0]': 55 });
+  b.set({ resetn: 0 });
+  b.clock('clk', 2);
+  b.expect({ 'out[7..0]': 0, 'cpu.reg_pc': 0 }, 'in reset: the program counter back at 0');
+  b.set({ resetn: 1 });
+  b.clock('clk', 400);
+  b.expect({ 'out[7..0]': 55 }, 'running again');
+});
+
+bench('inside: the program in the RAM, the stack pointer in the register file', (b) => {
+  b.expect({ 'ram[0]': 0x00001137 }, 'the first instruction, lui sp, 0x1');
+  b.set({ resetn: 1, 'in[7..0]': 3 });
+  b.clock('clk', 100);
+  b.expect({ 'cpu.cpuregs[2]': 0x1000 }, 'x2 (sp): the top of the RAM, as start.S set it');
+});
+
+bench('runs a program the bench loads instead; EBREAK stops the core', (b) => {
+  // Four instructions over firmware.hex from address 0, one 32-bit word each.
+  b.memory('ram', 0, [
+    0x10000537, // lui    a0, 0x10000    a0 = 0x1000_0000, the output port
+    0x05a00593, // li     a1, 0x5a
+    0x00b52023, // sw     a1, 0(a0)      the output port = 0x5A
+    0x00100073, // ebreak                the core stops: trap
+  ]);
+  b.set({ resetn: 1, 'in[7..0]': 0 });
+  b.clock('clk', 40);
+  b.expect({ 'out[7..0]': 0x5a, trap: 1 });
+});
+`;
+
+const PICORV32_MAIN_BENCHES = `// The board: n on the DIP switch (switch 1 is bit 0), the n-th Fibonacci number on the LED bar
+// and the hex digits. The clock runs at 10 kHz: 100 ms are 1 000 cycles of the core, a step of
+// its loop about 25.
+bench('shows the n-th Fibonacci number of the switches', (b) => {
+  b.set({ SW2: 10 });
+  b.wait(ms(50));
+  b.expect({ 'OUT[7..0]': 55, TRAP: 0 }, 'F(10) = 55: 0x37 on the hex digits');
+  b.set({ SW2: 13 });
+  b.wait(ms(100));
+  b.expect({ 'OUT[7..0]': 233 }, 'F(13) = 233: 0xE9');
+});
+
+bench('RESET holds the core; released, the program starts again', (b) => {
+  b.set({ SW2: 7 });
+  b.wait(ms(50));
+  b.expect({ 'OUT[7..0]': 13 });
+  b.press('SW1');
+  b.wait(ms(1));
+  b.expect({ 'OUT[7..0]': 0, 'A1/cpu.reg_pc': 0 }, 'in reset');
+  b.release('SW1');
+  b.wait(ms(50));
+  b.expect({ 'OUT[7..0]': 13 }, 'running again');
+});
+`;
+
+function picorv32(): CircuitDocument {
+  const soc = moduleCircuit('soc', 'PicoRV32 SoC', 'picorv32/soc.v', PICORV32_BENCHES, {
+    with: ['picorv32.v'],
+    top: 'soc',
+  });
+  return document(
+    (b) => {
+      // HDL-4: the waveforms show the core's program counter and its bus next to the ports.
+      for (const probe of [
+        { ref: 'RESETN' },
+        { ref: 'A1/cpu.reg_pc' },
+        { ref: 'A1/mem_addr' },
+        { ref: 'N[7..0]' },
+        { ref: 'OUT[7..0]' },
+        { ref: 'TRAP' },
+      ]) {
+        b.probe(probe);
+      }
+      b.add('X1', 'io/clock', { at: [0, 0], label: 'CLK', props: { frequency: 10_000 } });
+      b.label('NL1', 'CLK', 'X1.Y', 4);
+      // RESET: a button to ground with a pull-up, as on a breadboard (the core resets itself
+      // at power-up).
+      b.add('SW1', 'io/button', { at: [0, 5], label: 'RESET', props: { contact: 'spst-gnd' } });
+      b.label('NL2', 'RESETN', 'SW1.Y', 4);
+      b.add('R1', 'prim/pull', { at: [0, 9], props: { direction: 'up' } });
+      b.label('NL3', 'RESETN', 'R1.Y', 4);
+      // Switch k sets bit k - 1 of n, as the LED bar shows the result: LED k is bit k - 1.
+      b.add('SW2', 'io/dip-switch', {
+        at: [0, 18],
+        label: 'N',
+        props: { count: 8, contact: 'spdt' },
+      });
+      for (let i = 0; i < 8; i++) b.label(`NL${4 + i}`, `N${i}`, `SW2.S${i + 1}`, 4);
+
+      b.add('A1', 'sub/soc', { at: [28, 0] });
+      b.label('NL12', 'CLK', 'A1.clk', -5);
+      b.label('NL13', 'RESETN', 'A1.resetn', -5);
+      b.busLabel('NL14', 'N[7..0]', 'A1.in[7..0]', -5);
+      b.busLabel('NL15', 'OUT[7..0]', 'A1.out[7..0]', 5);
+      b.label('NL16', 'TRAP', 'A1.trap', 5);
+
+      // The result in hex (U1 the high digit) and in binary.
+      b.add('U1', 'io/hex-display', { at: [58, 0], label: 'OUT' });
+      b.add('U2', 'io/hex-display', { at: [64, 0] });
+      for (let i = 0; i < 4; i++) {
+        b.labelDown(`NL${17 + i}`, `OUT${4 + i}`, `U1.D${i}`, 2);
+        b.labelDown(`NL${21 + i}`, `OUT${i}`, `U2.D${i}`, 2);
+      }
+      b.add('D1', 'io/led-bar', {
+        at: [60, 18],
+        label: 'OUT',
+        props: { count: 8, color: 'green' },
+      });
+      for (let i = 0; i < 8; i++) b.label(`NL${25 + i}`, `OUT${i}`, `D1.A${i + 1}`, -4);
+      b.wire('D1.K1', 'D1.K8');
+      b.add('G1', 'io/gnd', { at: [b.pin('D1.K8')[0] + 3, b.pin('D1.K8')[1] + 1] });
+      b.connect('D1.K8', 'G1.Y');
+      b.add('D2', 'io/led', { at: [60, 32], label: 'TRAP', props: { color: 'red' } });
+      b.label('NL33', 'TRAP', 'D2.A', -4);
+      b.add('G2', 'io/gnd', { at: [b.pin('D2.K')[0] + 3, 33] });
+      b.connect('D2.K', 'G2.Y');
+    },
+    PICORV32_MAIN_BENCHES,
+    [soc],
+  );
+}
+
 if (!hasYosys()) {
   console.error('yosys is not on the PATH (macOS: brew install yosys)');
   process.exit(2);
@@ -479,6 +636,7 @@ for (const [id, make] of [
   ['verilog-address-decoder', addressDecoder],
   ['verilog-counter-traffic-light', counterAndTrafficLight],
   ['verilog-uart', uart],
+  ['verilog-picorv32', picorv32],
 ] as const) {
   writeFileSync(join(ROOT, 'examples', `${id}.saltator.json`), serializeDocument(make()));
   console.log(`wrote examples/${id}.saltator.json`);

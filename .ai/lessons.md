@@ -566,3 +566,20 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
   `>>> 0` or `2 ** 31`.
 - 2026-11-11 (HDL-6) — Biome formats Markdown too: a hand-edited table row of another width (a
   status `in-progress` in a plan's or a track's table) fails `pnpm check` until `pnpm lint:fix`.
+- 2026-11-11 (HDL-7) — `hierarchy -auto-top` guesses: given `picorv32.v` with a wrapper it picked
+  `picorv32_wb`, one of the file's bus adapters nobody instantiates, and the JSON converted
+  without a word — a different module. Name the top (`hierarchy -top soc`) whenever the sources
+  hold more than one module that could be it, and check the IR's `top`.
+- 2026-11-11 (HDL-7) — A testbench written for Icarus may rely on `if (x)` being false: PicoRV32's
+  upstream RAM writes on `mem_valid && !mem_ready`, `mem_valid` has no power-up value, and in a
+  4-state simulator the first clock edge wrote `X` at an unknown address — the whole RAM `X`
+  before reset ended, every register `X` after. Gate a wrapper's writes and ports with reset,
+  and look at the first edges of a run whose state goes `X` before suspecting the interpreter.
+- 2026-11-11 (HDL-7) — The app's run loop calls the kernel in chunks of 20 000 events and checks
+  the frame budget between them: fine for gates, ≈ 0.35 s for a module of 550 cells (≈ 3 frames a
+  second at Max), and the achieved rate, computed over a wall time capped at 100 ms, said 5 s/s
+  for 1.7. Measure heavy parts in the app, not only headless (`pnpm bench`).
+- 2026-11-11 (HDL-7) — Bench margins for a CPU program come from its listing, not from one run:
+  a loop step of PicoRV32's Fibonacci is 6 instructions ≈ 25 cycles, so a new input shows after
+  the step in progress plus n steps; a harness that happened to read the input early (390
+  cycles) hid that a bench needs ≈ 600.

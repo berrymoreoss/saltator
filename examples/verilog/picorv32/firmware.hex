@@ -1,0 +1,30 @@
+// PicoRV32 example program: built from firmware/ by `pnpm riscv:firmware`; do not edit.
+// 112 bytes, 32-bit words little-endian from address 0 (firmware.lst lists them).
+00001137
+00000517
+06c50513
+00000597
+06458593
+00b57863
+00052023
+00450513
+ff5ff06f
+008000ef
+00100073
+10000537
+00452583
+0ff5f613
+02060663
+00000613
+00100693
+00060713
+fff58593
+00068613
+0ff5f793
+00d706b3
+fe0796e3
+0ff67593
+0080006f
+00000593
+00b52023
+fc5ff06f

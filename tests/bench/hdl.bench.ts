@@ -1,18 +1,22 @@
 /**
- * The Verilog interpreter's speed (HDL-1; a bus, HDL-8; wide words and internal clocks, HDL-9):
- * the baseline HDL-7 (PicoRV32) measures against and HDL-10 (fast evaluation) is held to. Printed
+ * The Verilog interpreter's speed (HDL-1; a bus, HDL-8; wide words and internal clocks, HDL-9;
+ * a soft core, HDL-7): the baseline HDL-10 (fast evaluation) is held to — PicoRV32 at 1 M cycles a
+ * second (HDL-7, Q4). Printed
  * as module evaluations/s and cells/s — every evaluation runs every combinational cell once (no
  * events inside a module; a loop's cells until they settle, a clock made by logic another round).
  * `pnpm bench` runs this on native `import`. Results are recorded in the plan of the branch that
  * changed them.
  */
 import { describe, type TestContext, test } from 'vitest';
+import picorv32 from '../../examples/verilog-picorv32.saltator.json' with { type: 'json' };
+import { compileDesign, parseDocument } from '../../src/circuit';
 import {
   type ChannelSource,
   Drive,
   type HdlBit,
   type HdlCell,
   type HdlModule,
+  ms,
   NetlistBuilder,
   ns,
   Recorder,
@@ -21,7 +25,7 @@ import {
   strong,
 } from '../../src/core';
 import { testDriver } from '../../src/core/testing';
-import { fromYosys, hdlPart } from '../../src/library';
+import { createDefaultRegistry, fromYosys, hdlPart } from '../../src/library';
 import { YOSYS_FIXTURES } from '../../src/library/hdl/fixtures';
 
 /** A module's part on a bench: a driver on every input and inout, a net on every output. */
@@ -83,21 +87,29 @@ function synthetic(lanes: number): HdlModule {
   };
 }
 
-/** Benchmarks `iterate` and prints module evaluations/s and combinational cells/s. */
+/**
+ * Benchmarks `iterate` and prints module evaluations/s and combinational cells/s, or the clock
+ * cycles/s of an iteration of `cycles` (a soft core: what HDL-10's target counts).
+ */
 async function measure(
   bench: TestContext['bench'],
   name: string,
   sim: Simulator,
   cells: number,
   iterate: () => void,
+  cycles?: number,
 ): Promise<void> {
   const before = sim.stats.evaluations;
   iterate();
   const evaluations = sim.stats.evaluations - before;
   const result = await bench(name, iterate).run();
   const perSecond = result.throughput.mean * evaluations;
+  const speed =
+    cycles === undefined
+      ? `${((perSecond * cells) / 1e6).toFixed(1)}M cells/s`
+      : `${((result.throughput.mean * cycles) / 1e3).toFixed(1)}k cycles/s`;
   console.log(
-    `${name}: ${evaluations} evaluations/iteration, ${(perSecond / 1e3).toFixed(1)}k evaluations/s, ${((perSecond * cells) / 1e6).toFixed(1)}M cells/s`,
+    `${name}: ${evaluations} evaluations/iteration, ${(perSecond / 1e3).toFixed(1)}k evaluations/s, ${speed}`,
   );
 }
 
@@ -349,5 +361,42 @@ describe('Verilog modules', () => {
     };
     cycle();
     await measure(bench, 'RAM 4K × 32', sim, 2, cycle);
+  });
+  // HDL-7: the example's module (RV32I with the barrel shifter) and its board.
+  // Parsed as a file is (defaults filled in), not used as the JSON is.
+  const document = parseDocument(JSON.stringify(picorv32));
+  const soc = document.circuits.find((c) => c.id === 'soc')?.verilog?.module;
+  if (!soc) throw new Error('the PicoRV32 example has no compiled module');
+
+  test('PicoRV32 (the example: RV32I, barrel shifter, 4 KB RAM): a clock cycle running its program', async ({
+    bench,
+  }) => {
+    const sim = simulate(soc);
+    // n = 255: the program's loop runs, its result written every ≈ 6 400 cycles.
+    for (let i = 0; i < 8; i++) sim.action(`D_in${i}`, strong(1));
+    sim.action('D_resetn', strong(1));
+    sim.action('D_clk', strong(0));
+    sim.settle();
+    const cycle = () => {
+      sim.action('D_clk', strong(1));
+      sim.settle();
+      sim.action('D_clk', strong(0));
+      sim.settle();
+    };
+    for (let i = 0; i < 100; i++) cycle(); // past the power-on reset
+    await measure(bench, 'PicoRV32', sim, combinational(soc), cycle, 1);
+  });
+
+  test('PicoRV32 on its board (the example as the app runs it, 10 kHz clock): 10 ms, 100 cycles', async ({
+    bench,
+  }) => {
+    const design = compileDesign(document, createDefaultRegistry());
+    const sim = new Simulator(design.netlist, design.registry);
+    for (let index = 0; index < 8; index++) sim.action('SW2', { type: 'set', index, on: true });
+    sim.runFor(ms(20));
+    const run = () => {
+      sim.runFor(ms(10));
+    };
+    await measure(bench, 'PicoRV32 board', sim, combinational(soc), run, 100);
   });
 });

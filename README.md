@@ -75,4 +75,5 @@ the workflows in [`.ai/workflows/`](.ai/workflows/). With Claude Code:
 
 ## License
 
-[MIT](LICENSE) © 2026 Sergei Aleinik
+[MIT](LICENSE) © 2026 Sergei Aleinik. The examples include third-party sources under their own
+licenses: [PicoRV32](examples/verilog/picorv32/README.md) (ISC).

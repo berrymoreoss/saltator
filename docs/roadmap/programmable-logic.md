@@ -28,8 +28,8 @@ sound controllers drive (a VGA monitor — the "Video output" track idea; the bu
 | HDL-9  | `feat/hdl-semantics`  | All of synthesizable Verilog    | —     | done    |
 | HDL-4  | `feat/hdl-inspection` | Inside a module                 | —     | done    |
 | HDL-6  | `feat/hdl-memories`   | Memories in modules             | —     | done    |
-| HDL-7  | `example/picorv32`    | PicoRV32 soft core              | —     | next    |
-| HDL-10 | `feat/hdl-fast`       | Fast evaluation                 | —     | planned |
+| HDL-7  | `example/picorv32`    | PicoRV32 soft core              | —     | done    |
+| HDL-10 | `feat/hdl-fast`       | Fast evaluation                 | —     | next    |
 | HDL-2  | `feat/hdl-library`    | Library parts in Verilog        | —     | planned |
 | HDL-5  | `feat/pld-devices`    | Programmable devices            | —     | planned |
 | HDL-3  | `feat/hdl-recompile`  | Recompiling a running module    | —     | planned |
@@ -161,10 +161,26 @@ HDL-1's benchmark unchanged, a 4K × 32 RAM at ≈ 130 k cycles a second.
 
 ## HDL-7 · PicoRV32 soft core — `example/picorv32`
 
-PicoRV32 (ISC license, its upstream source) as a module in an example: the core with its memory,
-running a program that writes to an output port, verified by a test bench; the program built
-outside the app and kept as a hex image. Measures how fast a core of a few thousand cells runs
-against HDL-1's baseline — the target HDL-10 is held to.
+**Built** ([plan](../../.ai/plans/example-picorv32.md)): the example **Verilog PicoRV32** — a
+RISC-V core written by someone else, run as written. `examples/verilog/picorv32/` holds
+PicoRV32's `picorv32.v` unchanged (ISC, upstream commit `ef203c2b`) and a wrapper `soc.v`: the
+core (RV32I with the barrel shifter, Q2: 558 cells), 4 KB of RAM filled by `$readmemh`, an 8-bit
+input and output port, a power-on reset from `init` (as an FPGA starts); its memory and ports do
+nothing in reset, or the core's unknown `mem_valid` at the first edge would make the whole RAM
+`X` (Icarus's `if (x)` hides it). The program is C (Q3: n on the input, the n-th Fibonacci
+number on the output), built by `pnpm riscv:firmware` with LLVM for RV32I, its image
+(`firmware.hex`) and listing committed. The repo's Yosys scripts take several sources and a top
+(`hierarchy -top soc`: `-auto-top` picks one of `picorv32.v`'s bus adapters; ADR-0030 amended).
+The board (Q1): a 10 kHz clock, RESET, a DIP switch, an LED bar and two hex digits, TRAP; the
+waveforms show the core's PC and bus, the Memory tab its RAM (words or bytes) and its register
+file x0–x31 live. Benches: the module's (from power-up, reset, its RAM and `sp`, a program the
+bench loads ending in EBREAK) and the board's, headless and in the app;
+`tests/scenarios/verilog-picorv32.test.ts` (the RAM holds the image; `add` changed to `sub`
+fails them), `tests/e2e/hdl.spec.ts`. **Speed**: ≈ 10.6 k cycles a second headless, alone and
+on the board — HDL-1's baseline of ≈ 10 M cells a second, every cell on every evaluation; real
+time at 10 kHz in the app; the full core (1 180 cells) about half. HDL-10's target set from it
+(Q4). The app's run loop at Max calls the kernel in chunks of 20 000 events, ≈ 0.35 s with this
+core: [fix/run-loop-chunks](../../.ai/plans/fix-run-loop-chunks.md), pre-drafted.
 
 ## HDL-10 · Fast evaluation — `feat/hdl-fast`
 
@@ -175,9 +191,14 @@ Speed for cores and video: only the cells downstream of what changed are evaluat
 time where no bit is `X`, and the IR is compiled once per module — to JavaScript functions or to
 WebAssembly, decided in its plan with the test bench sandbox
 ([ADR-0026](../adr/0026-test-bench-sandbox.md)) in mind, since a document's module is code from a
-shared file. The target is set from HDL-7's measurement: PicoRV32 running real programs, and a
-video controller's pixel clock within reach. Proof: HDL-7's example and benchmark, the same
-results at the target speed.
+shared file. **Target** (set by HDL-7's measurement, [its plan](../../.ai/plans/example-picorv32.md)
+Q4): PicoRV32 at **1 M cycles a second** headless (`pnpm bench`, the Verilog PicoRV32 example's
+module; ≈ 10.6 k on 2026-11-11, so ≈ 94×) — a 1 MHz core in real time — with HDL-1's benchmarks
+no slower. Where the time goes today (a profile of the example's board): ≈ 45 % in `$mux` and
+`$pmux` cells evaluated bit by bit over 32-bit words, ≈ 14 % gathering the operands of word
+cells, ≈ 18 % in flip-flop edges, ≈ 2 % in the kernel; every evaluation runs all ≈ 520
+combinational cells, the falling clock edge's too, where nothing changes. Proof: HDL-7's example
+and benchmark, the same results at the target speed.
 
 ## HDL-2 · Library parts in Verilog — `feat/hdl-library`
 
@@ -261,6 +282,14 @@ Not scheduled yet; promoting one gives it the next free id and a row in the tabl
   and collision masks), for JSON from flows that run `memory -nomap`; the command leaves the
   register a flip-flop (HDL-6).
 - Memories wider than 32 bits in the Memory tab and pokes (they run; HDL-6 shows up to 32).
+- A CPU view for soft cores: a RISC-V core's registers from its register file, its PC from a
+  signal, the RAM disassembled — what R17b gives the 6502 ([MOS 6502](mos6502.md)), for a
+  module (HDL-7 shows x0–x31 in the Memory tab).
+- Flip-flops powering up at 0 without an `init`, as an FPGA loads them: a module option (HDL-7's
+  wrapper resets what it needs; a design from an Icarus testbench may rely on `if (x)` being
+  false).
+- PicoRV32 in the differential tests: the core and its program against Yosys's `sim`, cycle by
+  cycle (HDL-7 checks the program's results).
 - Gate-level netlists: the cells `synth` and `techmap` leave (`$_AND_`, `$_MUX_`, `$_DFF_P_`, …),
   so the JSON of a full synthesis runs too.
 - Parameters per instance: a module compiled for several parameter sets (`chparam` in the

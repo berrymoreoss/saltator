@@ -46,6 +46,8 @@ describe('example benches', () => {
       'verilog-counter-traffic-light/decade-counter',
       'verilog-counter-traffic-light/main',
       'verilog-counter-traffic-light/traffic-light',
+      'verilog-picorv32/main',
+      'verilog-picorv32/soc',
       'verilog-uart/main',
       'verilog-uart/uart-rx',
       'verilog-uart/uart-tx',

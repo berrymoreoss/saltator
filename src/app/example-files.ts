@@ -144,6 +144,12 @@ export const EXAMPLE_FILES: readonly ExampleFile[] = [
     description:
       'A UART transmitter and receiver in Verilog, 8N1 at 8 clocks a bit: set a byte on the DIP switch, press SEND, watch LINE blink and the byte arrive on the LED bar; the Waveforms tab shows the shift registers inside the modules.',
   },
+  {
+    id: 'verilog-picorv32',
+    title: 'Verilog PicoRV32',
+    description:
+      'PicoRV32, a RISC-V CPU written in Verilog, runs a C program from its 4 KB RAM at 10 kHz: set n on the DIP switch, the LED bar and the hex digits show the n-th Fibonacci number. The Memory tab shows the program and the registers x0–x31.',
+  },
 ];
 
 // Not a JSON import: the text is kept as saved and parsed (migrated, validated) like any file.
