@@ -222,7 +222,7 @@ checks included, and a benchmark compares the Verilog 74HC00 with the hand-writt
 - [x] 5. Timing checks in the module part: declaration from the IR, arming by conditions,
   reports; effects (set-up merge, hold recompute, uncertain edges, short phases and pulses);
   unit tests against hand-built modules.
-- [ ] 6. Library sources and tooling: `src/library/verilog/`, `pnpm hdl:library`, the `.ir.ts`
+- [x] 6. Library sources and tooling: `src/library/verilog/`, `pnpm hdl:library`, the `.ir.ts`
   files with hash and version, the staleness test, `verilogChip`.
 - [ ] 7. Verilog 74HC00 and its proof: the gate tests on both definitions.
 - [ ] 8. Verilog 74HC74: the flip-flop tests on both, timing checks included.
@@ -295,13 +295,18 @@ checks included, and a benchmark compares the Verilog 74HC00 with the hand-writt
   indices, snapshot slots) and the runtime in `module-part.ts` (`runChecks`, `edgeChecks`,
   `endChecks`; see Design, "As built"). The kernel merges repeats of one kind on one pin
   (`count`): two hold checks on one pin are one diagnostic. Mutation-checked.
+- 2026-11-12 — task 6: `src/library/verilog/` (`74hc00.v`, `74hc74.v`, `74hc574.v`, generated
+  `modules.ts` with SHA-256 per source, `chips.ts`: `verilogChips()` lazy, `libraryModule`);
+  `pnpm hdl:library`; staleness test in `scripts/hdl-library.test.ts`; `hdlLibraryPart` and
+  `hdlTiming` (keys from ports: `tpd(CP↑ → Q)`, `tsu(D → CP↑)`, `tW(CP HIGH)`); the dev palette
+  gets them (`App.tsx`). The 74's "set and reset together → stored bit X" needs a second
+  flip-flop (`stale`) in Verilog: Yosys refuses an asynchronous load of x on two signals.
 
 ## Handoff
 
-- **State:** tasks 1–5 done: modules with `specify` time their outputs by their paths and run
-  their checks with the chips' effects.
-- **Next step:** task 6 — `src/library/verilog/`, `pnpm hdl:library`, `.ir.ts` with hash,
-  staleness test, `verilogChip`.
+- **State:** tasks 1–6 done; the Verilog 74HC00/74/574 exist (dev palette, `verilogChips()`).
+- **Next step:** tasks 7–9 — run the hand-written chips' tests on both definitions
+  (`gates.test.ts`, `flip-flops.test.ts`, `registers.test.ts`).
 - **Watch out:** Yosys drops `$width`, `$period`, 3/6-value delays, `specparam`, `ifnone`, source
   lists — the conventions above work around them; try a construct on the real Yosys first.
 - **Verify with:** `pnpm check`; `pnpm hdl:fixtures` and `pnpm hdl:library` need `yosys`.

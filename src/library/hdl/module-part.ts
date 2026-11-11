@@ -14,7 +14,9 @@
  * part. Spec: docs/components.md#verilog-modules-hdl.
  */
 import {
+  type AnyComponentDefinition,
   type Behavior,
+  type ComponentDefinition,
   Drive,
   defineComponent,
   type EvalContext,
@@ -639,6 +641,59 @@ export function hdlPart(type: string, name: string, module: HdlModule): HdlPartR
     create: (props) => behavior(program, props.delay),
   });
   return { definition, messages: analysis.messages };
+}
+
+/** What a library part made from a module takes from its data sheet (HDL-2). */
+export type HdlLibraryInfo = Pick<
+  ComponentDefinition<Record<string, never>, HdlState>,
+  | 'type'
+  | 'name'
+  | 'title'
+  | 'keywords'
+  | 'datasheet'
+  | 'package'
+  | 'units'
+  | 'timing'
+  | 'functionTable'
+>;
+
+/**
+ * A library part made from a module (HDL-2): the module run on the data sheet's pins (`map`),
+ * every output timed by its `specify` paths — no delay property. Throws where the module can't be
+ * one: errors, a pin whose direction differs from the module's, an output no path reaches.
+ */
+export function hdlLibraryPart(
+  module: HdlModule,
+  map: HdlPinMap,
+  info: HdlLibraryInfo,
+): AnyComponentDefinition {
+  const fail = (why: string): never => {
+    throw new Error(`${info.name} (Verilog ${module.top}): ${why}`);
+  };
+  const shape = hdlModuleProblems(module);
+  if (shape.length > 0) fail(shape.join('; '));
+  const analysis = analyzeHdlModule(module);
+  const errors = analysis.messages.filter((m) => m.severity === 'error');
+  if (errors.length > 0) fail(errors.map((m) => m.message).join('; '));
+  const modulePins = hdlPins(module);
+  if (map.at.length !== modulePins.length) fail('the pin map does not cover every module pin');
+  for (const [i, pin] of modulePins.entries()) {
+    const placed = map.pins[map.at[i]!];
+    if (placed?.dir !== pin.dir) {
+      fail(`${pin.name} is ${pin.dir}, the data sheet's pin ${placed?.name} ${placed?.dir}`);
+    }
+  }
+  const program = compile(module, analysis, map);
+  const unreached = [...program.drivePins].filter((_, i) => !program.pathDelays?.reached[i]);
+  if (unreached.length > 0) {
+    fail(`no specify path reaches ${unreached.map((p) => map.pins[p]!.name).join(', ')}`);
+  }
+  return defineComponent<Record<string, never>, HdlState>({
+    ...info,
+    pins: [...map.pins],
+    signals: innerSignals(module, program.layout),
+    create: () => behavior(program, 0),
+  });
 }
 
 /**

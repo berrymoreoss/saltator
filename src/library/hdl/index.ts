@@ -6,4 +6,11 @@
 export { analyzeHdlModule, bitName, type HdlAnalysis } from './analyze';
 export { yosysCommand, yosysScript } from './command';
 export { fromYosys, type YosysConversion } from './from-yosys';
-export { hdlPart, hdlPins } from './module-part';
+export {
+  type HdlLibraryInfo,
+  type HdlPinMap,
+  hdlLibraryPart,
+  hdlPart,
+  hdlPins,
+} from './module-part';
+export { type HdlTimingInfo, hdlTiming } from './timing';
