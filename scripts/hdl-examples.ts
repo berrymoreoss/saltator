@@ -537,26 +537,26 @@ bench('runs a program the bench loads instead; EBREAK stops the core', (b) => {
 `;
 
 const PICORV32_MAIN_BENCHES = `// The board: n on the DIP switch (switch 1 is bit 0), the n-th Fibonacci number on the LED bar
-// and the hex digits. The clock runs at 10 kHz: 100 ms are 1 000 cycles of the core, a step of
-// its loop about 25.
+// and the hex digits. The clock runs at 100 kHz (HDL-10): 10 ms are 1 000 cycles of the core, a
+// step of its loop about 25.
 bench('shows the n-th Fibonacci number of the switches', (b) => {
   b.set({ SW2: 10 });
-  b.wait(ms(50));
+  b.wait(ms(5));
   b.expect({ 'OUT[7..0]': 55, TRAP: 0 }, 'F(10) = 55: 0x37 on the hex digits');
   b.set({ SW2: 13 });
-  b.wait(ms(100));
+  b.wait(ms(10));
   b.expect({ 'OUT[7..0]': 233 }, 'F(13) = 233: 0xE9');
 });
 
 bench('RESET holds the core; released, the program starts again', (b) => {
   b.set({ SW2: 7 });
-  b.wait(ms(50));
+  b.wait(ms(5));
   b.expect({ 'OUT[7..0]': 13 });
   b.press('SW1');
   b.wait(ms(1));
   b.expect({ 'OUT[7..0]': 0, 'A1/cpu.reg_pc': 0 }, 'in reset');
   b.release('SW1');
-  b.wait(ms(50));
+  b.wait(ms(5));
   b.expect({ 'OUT[7..0]': 13 }, 'running again');
 });
 `;
@@ -579,7 +579,7 @@ function picorv32(): CircuitDocument {
       ]) {
         b.probe(probe);
       }
-      b.add('X1', 'io/clock', { at: [0, 0], label: 'CLK', props: { frequency: 10_000 } });
+      b.add('X1', 'io/clock', { at: [0, 0], label: 'CLK', props: { frequency: 100_000 } });
       b.label('NL1', 'CLK', 'X1.Y', 4);
       // RESET: a button to ground with a pull-up, as on a breadboard (the core resets itself
       // at power-up).

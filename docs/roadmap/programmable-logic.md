@@ -29,8 +29,8 @@ sound controllers drive (a VGA monitor — the "Video output" track idea; the bu
 | HDL-4  | `feat/hdl-inspection` | Inside a module                 | —     | done    |
 | HDL-6  | `feat/hdl-memories`   | Memories in modules             | —     | done    |
 | HDL-7  | `example/picorv32`    | PicoRV32 soft core              | —     | done    |
-| HDL-10 | `feat/hdl-fast`       | Fast evaluation                 | —     | next    |
-| HDL-2  | `feat/hdl-library`    | Library parts in Verilog        | —     | planned |
+| HDL-10 | `feat/hdl-fast`       | Fast evaluation                 | —     | done    |
+| HDL-2  | `feat/hdl-library`    | Library parts in Verilog        | —     | next    |
 | HDL-5  | `feat/pld-devices`    | Programmable devices            | —     | planned |
 | HDL-3  | `feat/hdl-recompile`  | Recompiling a running module    | —     | planned |
 
@@ -187,9 +187,29 @@ core: [fix/run-loop-chunks](../../.ai/plans/fix-run-loop-chunks.md), pre-drafted
 _Promoted from the track's ideas on 2026-11-09 ([plan](../../.ai/plans/docs-hdl-roadmap.md)):
 soft cores and video controllers are the track's goal, not a possibility._
 
-Speed for cores and video: only the cells downstream of what changed are evaluated, 32 bits at a
-time where no bit is `X`, and the IR is compiled once per module — to JavaScript functions or to
-WebAssembly, decided in its plan with the test bench sandbox
+**Built** ([plan](../../.ai/plans/feat-hdl-fast.md), [ADR-0037](../adr/0037-hdl-generated-code.md)):
+the IR is compiled once per module into JavaScript (Q1; `new Function`, only integers from the IR
+enter the source, a test feeds it hostile parameters) over 32-bit words — values and unknowns, a
+cell's output in words of its own, operands read by shifts and masks found once — with
+activity: a combinational cell runs only when what it reads changed, so a falling clock edge in
+a design clocked on rising edges runs nothing. Common cells are generated word operations, the
+flip-flops of one clock pin and edge one function, shifts closures over limbs, uncommon cells
+their plain steps through an adapter; the settle split into functions V8 optimizes. The rules,
+messages and state (plain typed arrays) are the interpreter's; it ran beside the new engine as a
+differential oracle over every module of the tests and examples, then was removed (Q2). Speed
+(Q3: the target missed, the speed reached is the result): PicoRV32 ≈ 230–250 k cycles a second
+in `pnpm bench` (≈ 23×; ≈ 280–290 k measured directly), ≈ 180–200 k in Chromium at Max; HDL-1's
+benchmarks faster (decoder ≈ +10 %, counter ≈ +20–40 %, the synthetic 1 024-cell module ≈ 140×
+once its lanes got power-up values — all `X`, it measured nothing with activity), the others
+the same within the noise. The example **Verilog PicoRV32** runs at 100 kHz (Q4: the round
+rate the app keeps in real time; its board's benches wait a tenth as long); the app at Max
+draws ≈ 40 frames a second with it (≈ 3 before), and the speed it reports is right, so
+`fix/run-loop-chunks` is less urgent. Specs: [components.md](../components.md#verilog-modules-hdl),
+[architecture.md](../architecture.md).
+
+_The item as planned:_ speed for cores and video: only the cells downstream of what changed are
+evaluated, 32 bits at a time where no bit is `X`, and the IR is compiled once per module — to
+JavaScript functions or to WebAssembly, decided in its plan with the test bench sandbox
 ([ADR-0026](../adr/0026-test-bench-sandbox.md)) in mind, since a document's module is code from a
 shared file. **Target** (set by HDL-7's measurement, [its plan](../../.ai/plans/example-picorv32.md)
 Q4): PicoRV32 at **1 M cycles a second** headless (`pnpm bench`, the Verilog PicoRV32 example's
@@ -288,6 +308,13 @@ Not scheduled yet; promoting one gives it the next free id and a row in the tabl
 - Flip-flops powering up at 0 without an `init`, as an FPGA loads them: a module option (HDL-7's
   wrapper resets what it needs; a design from an Icarus testbench may rely on `if (x)` being
   false).
+- Faster still (HDL-10 reached ≈ 240 k of the 1 M cycles a second it aimed at): PicoRV32 runs
+  ≈ 145 of its 456 steps a cycle at ≈ 7 ns each; then the edges' phases (five memory write ports
+  sampled bit by bit, next states and loads of all 116 flip-flops whether their inputs changed or
+  not) and the kernel's pin reads and drives. Ideas: write samples by limbs; activity for
+  flip-flops (an edge computes only those whose D, EN or SRST changed); a 2-state path for words
+  without unknown bits; cones of single-reader cells merged into one block; `clockEdge` once per
+  pin. The profile: [the plan](../../.ai/plans/feat-hdl-fast.md), task 8.
 - PicoRV32 in the differential tests: the core and its program against Yosys's `sim`, cycle by
   cycle (HDL-7 checks the program's results).
 - Gate-level netlists: the cells `synth` and `techmap` leave (`$_AND_`, `$_MUX_`, `$_DFF_P_`, …),

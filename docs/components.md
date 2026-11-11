@@ -1360,7 +1360,7 @@ port by its name) in declaration order — an input's `in`, an inout's `bidir`, 
 property `delay` (`hdlDelayProp`, default 15 ns, an ATF22V10C-15's tPD) for every output, taking
 and releasing the bus too until HDL-2's per-path timing, and a **`signals` view** (HDL-4,
 [ADR-0035](adr/0035-inner-signals.md)): the IR's named signals (`state`, a flattened submodule's
-`u_core.count`), each bit read from the planes — a register's or latch's state is its `Q` bits —
+`u_core.count`), each bit read from the words — a register's or latch's state is its `Q` bits —
 so probes, watches, breakpoints and test benches name them (`A1/state`,
 [circuit.md](circuit.md#resolver)), and a **`memories` view** (HDL-6): each memory up to 32 bits
 wide as a `MemoryDef` with its `name`, `words`, `width`, `offset`, `volatile` and `powerUp` (the
@@ -1370,12 +1370,25 @@ after their delay) — so the Memory tab, the debugger's watches and benches sho
 (`A1/rom`, `A1/rom[1F]`). Wider memories run but aren't shown. No definition while the module
 has errors.
 
-**The interpreter** (`module-part.ts`; cells compiled once per definition in `cells.ts`, the
-word cells in `word-cells.ts` on numbers up to 32 bits and on 32-bit limbs beyond, `words.ts`):
-state is two byte planes over the bits — value and unknown — plus the flip-flops' next states,
-the value each flip-flop last saw of its clock, and each memory's words (`memory-cells.ts`,
-HDL-6: values and unknown bits in 32-bit limbs, ADR-0018's access stamps; up to 256K words and 8
-Mbit a memory), plain data for snapshots (unchanged pages shared), rewind and replicas. **Power-up**: the bits with an `init` (`reg q = 0`) start at it, as an FPGA's
+**The interpreter** (`module-part.ts`; since HDL-10 the IR compiled once per module into
+JavaScript, [ADR-0037](adr/0037-hdl-generated-code.md)): state is two planes of 32-bit words over
+the bits — values (0 where unknown) and unknowns (`layout.ts`: each cell's output in words of its
+own, a port's pin bits in theirs, the constants in one word) — plus the value each flip-flop last
+saw of its clock, the floating pins, and each memory's words (`memory-cells.ts`, HDL-6: values
+and unknown bits in 32-bit limbs, ADR-0018's access stamps; up to 256K words and 8 Mbit a
+memory), plain data for snapshots (unchanged pages shared), rewind and replicas. The common cells
+run as generated word operations (`codegen.ts`; the 4-state rules as word algebra, arithmetic on
+numbers when no operand bit is unknown), the flip-flops' next states and loads one generated
+function per clock pin and edge (`flip-flops.ts`), the shifts as closures over limbs
+(`limb-cells.ts`), the uncommon cells (divisions, powers, `$bmux`, `$demux`, `$sr`, `$dlatchsr`,
+arithmetic and orders past 32 bits) through an adapter to their plain steps (`cells.ts`,
+`word-cells.ts`, `words.ts`), which the generated code is tested against. The generated source is
+made from templates and integers alone — no text of a document ever enters it. **Activity**
+(`settle.ts`): each combinational cell (a loop's cells together) is a step with a mark; it runs
+only when marked and marks the steps reading its output when that changed; a pin that changed, a
+flip-flop's load, an asynchronous control, a memory write or a poke marks the readers of what it
+changed — so the words are always the settled function of the pins, the flip-flops and the
+memories, and a falling clock edge in a design clocked on rising edges runs nothing. **Power-up**: the bits with an `init` (`reg q = 0`) start at it, as an FPGA's
 bitstream loads them — the rest `X` — memories hold their `init` contents, and the logic settles
 from them, pins unknown, so a clock
 made from an initialized register (`~div`) is known before anything happens; the kernel's
@@ -1383,7 +1396,7 @@ evaluation at t = 0 drives them after `delay`. Each `evaluate` runs, in phases, 
 module needs (a decoder: steps 2, 3 and 6):
 
 1. Flip-flops whose pin clock had an edge (`clockEdge`, strict: `0 → 1` for a rising edge)
-   compute their next state **from the planes as they were before this delta** — D, EN, SRST —
+   compute their next state **from the words as they were before this delta** — D, EN, SRST —
    then all load at once, so a shift chain shifts by one. An uncertain edge (`0 → X`, `X → 1`,
    `Z`) makes `X` only the bits a load would change, as the library's chips do (`0 → X → 1` is
    two such edges). **A race** (HDL-9): when a pin of a flip-flop's data cone changed in the
@@ -1394,10 +1407,11 @@ module needs (a decoder: steps 2, 3 and 6):
    edge-triggered the same way: its edge samples `EN`, `ADDR` and `DATA` from before the delta
    and stores with the flip-flops' loads, raced the same way ("wd0 changed at the clock edge of
    memory regs's write: it writes X where that matters").
-2. The input pins and the inouts' pins read back are read into the planes (`Z` reads `X`).
+2. The input pins and the inouts' pins read back are read into the words (`Z` reads `X`), a
+   word at a time; one that changed marks the cells reading it.
 3. **Settle**: the combinational cells, the latches (`Q = EN ? D : Q`, merged while EN is
-   unknown; `$dlatchsr` and `$sr` clear, then set, per bit) and the tri-state buffers run in
-   order — no events inside a module, zero delay; a buffer gives `EN ? A : X` inside the module
+   unknown; `$dlatchsr` and `$sr` clear, then set, per bit) and the tri-state buffers downstream
+   of a change run in order — no events inside a module, zero delay; a buffer gives `EN ? A : X` inside the module
    (a released net reads `X`). A **combinational loop** runs as one step, over and over until no
    bit of it changes (an SR latch of NANDs sets, resets, holds; one that starts `X` stays `X`);
    past twice its cells and two passes the bits still changing go `X` until that settles, and
@@ -1413,7 +1427,7 @@ module needs (a decoder: steps 2, 3 and 6):
    no loop with its memory's writes.
 4. **Rounds** (HDL-9): every flip-flop clocked by logic (a divider, a ripple stage, a gated
    `clk & en`) compares its clock with the value it last saw; those with an edge compute their
-   next states from the planes as they are, all load at once, the logic settles (step 3), and
+   next states from the words as they are, all load at once, the logic settles (step 3), and
    another round looks — a ripple chain of n stages takes n rounds. Inside one evaluation
    everything is one instant, so a flip-flop on a clock made by logic whose data changed in it
    (since the evaluation began) **races** its clock: its next state is merged with the one from
@@ -1486,8 +1500,15 @@ and a read at new addresses every cycle, ≈ 0.40 M (≈ 130 k cycles a second);
 unchanged. HDL-7's: PicoRV32 (RV32I with the barrel shifter, 558 cells, 4 KB of RAM) running
 its program ≈ 10.6 k cycles a second, alone and on its board (≈ 3 k instructions; ≈ 14–16 k in
 Chromium); the full core (C, MUL, DIV, IRQ, counters: 1 180 cells) about half that. Half the
-time goes to `$mux` and `$pmux` evaluated bit by bit, and every evaluation runs every cell, the
-falling clock edge's too. HDL-10 makes it fast: PicoRV32 at 1 M cycles a second.
+time went to `$mux` and `$pmux` evaluated bit by bit, and every evaluation ran every cell, the
+falling clock edge's too. **HDL-10** (words, generated code, activity): PicoRV32 ≈ 230–250 k
+cycles a second in `pnpm bench` (≈ 280–290 k measured directly; ≈ 23×; the target, 1 M, not
+reached: ≈ 145 of its 456 steps run a cycle, ≈ 7 ns each, and the edges' phases and the kernel's
+pins take the rest), ≈ 180–200 k in Chromium at Max, so the example runs at 100 kHz in real time;
+a decoder ≈ 2.2 M evaluations a second, the counter ≈ 3.0–3.5 M, the 1 024-cell synthetic module
+(now with power-up values, so it changes at every edge) ≈ 1.5 M against 11 k, clocks made by
+logic ≈ 1.2–1.35 M, the wide words ≈ 74–81 k, the register file ≈ 0.78 M, the RAM ≈ 0.40 M, the
+I/O port ≈ 0.95 M (its time is the kernel's).
 
 **Tests**: the converter on fixtures Yosys made of `src/library/hdl/fixtures/*.v` (`pnpm
 hdl:fixtures`, the system `yosys`; `pnpm check` never runs Yosys), every cell against
@@ -1495,7 +1516,15 @@ JavaScript (`BigInt`) on seeded values of 1 to 128 bits, signed and unsigned, an
 decoder's function table and delay, the counter, the traffic light, every flip-flop flavour,
 latches, a shift chain, power-up values, clocks made inside a module, races, loops, snapshots,
 every tri-state shape Yosys makes (an I/O port, a 74HC574, merged drivers, an open drain, inouts
-read, driven and clocking) and the floating rule (`src/library/hdl/*.test.ts`). **Differential
+read, driven and clocking) and the floating rule (`src/library/hdl/*.test.ts`). The generated
+code (HDL-10) against the cells' plain steps and the flip-flops' bit-by-bit model, cell by cell:
+every cell of every fixture and differential design and 40–60 random shapes of every type, on
+random 4-state words (`codegen.test.ts`, `flip-flops.test.ts`); the layout's operands, the
+settle's activity (a few words changed come out as a full settle; nothing marked runs nothing)
+and the memory ports on words (`layout.test.ts`, `settle.test.ts`, `memory-words.test.ts`);
+the source refuses anything but integers. While HDL-10 was built, every module of the tests and
+the examples ran on both engines under the same seeded stimulus — pins, reports, inner signals
+and memories equal at every step — before the old one was removed. **Differential
 tests** (HDL-9): `pnpm hdl:differential` (the system `yosys`) synthesizes seeded random
 expressions over every word cell (half of the modules all signed), the sequential designs of
 `src/library/hdl/differential/*.v` and `examples/verilog/*.v`, drives each with seeded vectors

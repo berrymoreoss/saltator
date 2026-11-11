@@ -1,11 +1,11 @@
 /**
- * The cells of a module, compiled once per definition into steps over an instance's bit planes
- * (HDL-1): a byte per bit for its value and one for "unknown", the constants 0, 1 and x after the
- * signal bits. Combinational cells and latches are steps run in topological order; flip-flops
- * are loaded on their clock's edges in two phases (every next state from the values before the
- * edge, then all of them at once). `X` is pessimistic where it must be and no more: bitwise
- * cells per bit, comparisons by the ranges unknown bits allow, arithmetic unknown from the
- * lowest unknown bit up, multiplexers merging the inputs a select could pick.
+ * The combinational cells and latches of a module bit by bit (HDL-1), over byte planes: a byte
+ * per bit for its value and one for "unknown", the constants 0, 1 and x after the signal bits.
+ * Since HDL-10 modules run on words (`codegen.ts`); these steps are the cells' semantics written
+ * plainly — the adapter runs the uncommon cells through them, and the generated code is tested
+ * against all of them. `X` is pessimistic where it must be and no more: bitwise cells per bit,
+ * comparisons by the ranges unknown bits allow, arithmetic unknown from the lowest unknown bit
+ * up, multiplexers merging the inputs a select could pick.
  * Spec: docs/components.md#verilog-modules-hdl.
  */
 import { HDL_CELLS, type HdlBit, type HdlCell, type HdlCellSpec } from '../../core';
@@ -298,128 +298,3 @@ export function compileStep(cell: HdlCell, bitCount: number): CellStep {
 
 /** Whether a control at level `t` is active for `polarity` (1: HIGH): 1, 0, or `X`. */
 export const active = (t: number, polarity: number) => (t === TX ? TX : t === polarity ? 1 : 0);
-
-/** A flip-flop, compiled. */
-export interface FlipFlop {
-  readonly type: HdlCell['type'];
-  /** The plane index of its clock: an input bit or a constant. */
-  readonly clk: number;
-  readonly rising: boolean;
-  readonly d: Int32Array;
-  readonly q: Int32Array;
-  /** Plane indices of EN, SRST, ARST; −1 where it has none. */
-  readonly en: number;
-  readonly enPolarity: number;
-  readonly srst: number;
-  readonly srstPolarity: number;
-  readonly srstValue: Int32Array;
-  readonly arst: number;
-  readonly arstPolarity: number;
-  readonly arstValue: Int32Array;
-  /** Per bit, asynchronous set and clear (`$dffsr`, `$dffsre`); empty where it has none. */
-  readonly set: Int32Array;
-  readonly setPolarity: number;
-  readonly clr: Int32Array;
-  readonly clrPolarity: number;
-  /** An asynchronous load of `ad` (`$aldff`, `$aldffe`); −1 where it has none. */
-  readonly aload: number;
-  readonly aloadPolarity: number;
-  readonly ad: Int32Array;
-  /** Where its next state sits in the instance's `next` array. */
-  readonly offset: number;
-}
-
-export function compileFlipFlop(cell: HdlCell, bitCount: number, offset: number): FlipFlop {
-  const one = (port: string) =>
-    cell.ports[port] ? planeIndex(cell.ports[port][0]!, bitCount) : -1;
-  const values = (name: string) =>
-    Int32Array.from((cell.params[name] as HdlBit[] | undefined) ?? [], (bit) =>
-      planeIndex(bit, bitCount),
-    );
-  const polarity = (name: string) => (cell.params[name] as number | undefined) ?? 1;
-  return {
-    type: cell.type,
-    clk: one('CLK'),
-    rising: polarity('CLK_POLARITY') === 1,
-    d: indices(cell, 'D', bitCount),
-    q: indices(cell, 'Q', bitCount),
-    en: one('EN'),
-    enPolarity: polarity('EN_POLARITY'),
-    srst: one('SRST'),
-    srstPolarity: polarity('SRST_POLARITY'),
-    srstValue: values('SRST_VALUE'),
-    arst: one('ARST'),
-    arstPolarity: polarity('ARST_POLARITY'),
-    arstValue: values('ARST_VALUE'),
-    set: indices(cell, 'SET', bitCount),
-    setPolarity: polarity('SET_POLARITY'),
-    clr: indices(cell, 'CLR', bitCount),
-    clrPolarity: polarity('CLR_POLARITY'),
-    aload: one('ALOAD'),
-    aloadPolarity: polarity('ALOAD_POLARITY'),
-    ad: indices(cell, 'AD', bitCount),
-    offset,
-  };
-}
-
-/**
- * The state a clock edge loads into a flip-flop, from the planes as they are (before the edge),
- * into `next` (one value a bit: 0, 1, `X`). An uncertain edge merges it with the stored state, so
- * only the bits a load would change become `X`.
- */
-export function nextState(
-  ff: FlipFlop,
-  uncertain: boolean,
-  val: Uint8Array,
-  unk: Uint8Array,
-  next: Uint8Array,
-): void {
-  const en = ff.en < 0 ? 1 : active(tri(val, unk, ff.en), ff.enPolarity);
-  const srst = ff.srst < 0 ? 0 : active(tri(val, unk, ff.srst), ff.srstPolarity);
-  // $sdffce resets only while enabled; $sdffe's reset (and $sdff's) wins over the enable.
-  const resetInside = ff.type === '$sdffce';
-  for (let i = 0; i < ff.q.length; i++) {
-    const q = tri(val, unk, ff.q[i]!);
-    const d = tri(val, unk, ff.d[i]!);
-    const r = srst === 0 ? 0 : tri(val, unk, ff.srstValue[i]!);
-    const t = resetInside ? pick(en, pick(srst, r, d), q) : pick(srst, r, pick(en, d, q));
-    next[ff.offset + i] = uncertain ? merge(q, t) : t;
-  }
-}
-
-/** Stores a flip-flop's next state (`nextState`) in the planes. */
-export function load(ff: FlipFlop, val: Uint8Array, unk: Uint8Array, next: Uint8Array): void {
-  for (let i = 0; i < ff.q.length; i++) put(val, unk, ff.q[i]!, next[ff.offset + i]!);
-}
-
-/** Whether a flip-flop has an asynchronous control: reset, set and clear, or load. */
-export const hasAsync = (ff: FlipFlop): boolean =>
-  ff.arst >= 0 || ff.set.length > 0 || ff.aload >= 0;
-
-/**
- * A flip-flop's asynchronous controls, level-sensitive: while active, the reset value, the loaded
- * `AD`, or per bit clear (which wins) and set; merged while unknown. Says whether a bit changed.
- */
-export function applyAsync(ff: FlipFlop, val: Uint8Array, unk: Uint8Array): boolean {
-  const r = ff.arst < 0 ? 0 : active(tri(val, unk, ff.arst), ff.arstPolarity);
-  const l = ff.aload < 0 ? 0 : active(tri(val, unk, ff.aload), ff.aloadPolarity);
-  const bits = ff.set.length > 0;
-  if (r === 0 && l === 0 && !bits) return false;
-  let changed = false;
-  for (let i = 0; i < ff.q.length; i++) {
-    const q = tri(val, unk, ff.q[i]!);
-    let t = q;
-    if (l !== 0) t = pick(l, tri(val, unk, ff.ad[i]!), t);
-    if (r !== 0) t = pick(r, tri(val, unk, ff.arstValue[i]!), t);
-    if (bits) {
-      const c = active(tri(val, unk, ff.clr[i]!), ff.clrPolarity);
-      const st = active(tri(val, unk, ff.set[i]!), ff.setPolarity);
-      t = pick(c, 0, pick(st, 1, t));
-    }
-    if (t !== q) {
-      put(val, unk, ff.q[i]!, t);
-      changed = true;
-    }
-  }
-  return changed;
-}

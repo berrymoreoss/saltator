@@ -8,7 +8,9 @@
   the rest of synthesizable Verilog, races `X`); its signals inside: [ADR-0035](0035-inner-signals.md)
   (HDL-4); its memories: [ADR-0036](0036-memories-in-modules.md) (HDL-6, the command gains
   `memory_collect`); amended in HDL-7 (example/picorv32: the top module named where
-  `-auto-top` would pick another)
+  `-auto-top` would pick another); how the interpreter runs since HDL-10 (feat/hdl-fast):
+  [ADR-0037](0037-hdl-generated-code.md) — JavaScript generated from the IR, on 32-bit words,
+  with activity
 
 ## Context
 
@@ -118,7 +120,9 @@ carry-over across recompiles, diagnostics, test benches, determinism, and the pu
   for a soft core of thousands of cells it is measured in HDL-1 and HDL-7, and HDL-10 makes it
   fast (the IR compiled to JavaScript or WebAssembly). HDL-1's baseline (Apple M3 Pro): about
   10 M combinational cells a second — a 1 000-cell module clocks at ≈ 6 kHz per second of wall
-  time, enough for decoders, counters and state machines.
+  time, enough for decoders, counters and state machines. HDL-10 ([ADR-0037](0037-hdl-generated-code.md)):
+  the IR compiled to JavaScript over 32-bit words, only the cells downstream of a change run —
+  PicoRV32 ≈ 23× faster (≈ 240 k cycles a second).
 - `X` is pessimistic by design, so results can differ from a Verilog simulator where the source
   relies on Verilog's optimistic `X` (an `always @(posedge clk)` firing on `X → 1`), compares
   `x` literally (`===`), or races (a gated or derived clock sampling its source domain): a
@@ -145,6 +149,8 @@ carry-over across recompiles, diagnostics, test benches, determinism, and the pu
 - **TypeScript generated per module** — fast and fine for library parts, but a user's module
   would be generated code in a document, run through `eval` or the test bench sandbox
   ([ADR-0026](0026-test-bench-sandbox.md)); one data path for both is simpler and safe to share.
+  (HDL-10 generates JavaScript from the IR inside the app instead — the document still holds
+  data, and only integers from it enter the source: [ADR-0037](0037-hdl-generated-code.md).)
 - **Our own Verilog front end** — small and fully ours, but elaborating Verilog (parameters,
   `generate`, functions, `always` semantics) is a compiler project, and its semantics would drift
   from the synthesis tools'.

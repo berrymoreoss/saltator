@@ -1,16 +1,17 @@
 /**
- * A Verilog module as a part (HDL-1, ADR-0030; tri-states HDL-8): the definition made from a
- * module's IR — a pin per port bit, one delay (`delay`) for every output — and its behavior, the
- * interpreter. Each `evaluate`: the flip-flops whose clock had an edge load from the values
- * before it, the input and inout pins are read, asynchronous resets apply, the combinational
- * cells, latches and tri-state buffers run once each in topological order (no events inside a
- * module), and every output is driven with the delay — released (`Z`) where its tri-state buffer
- * is off (inertial, so an unchanged output costs nothing). A floating pin reads `X`, and is
- * reported only where that `X` reaches something the module drives or stores. Memories (HDL-6)
- * are read by steps in that order and written on clock edges with the flip-flops' loads
- * (`memory-cells.ts`). State is byte planes over the bits and the memories' words in typed
- * arrays — plain data, so snapshots, rewind and replicas work as for any part.
- * Spec: docs/components.md#verilog-modules-hdl.
+ * A Verilog module as a part (HDL-1, ADR-0030; tri-states HDL-8; on words, HDL-10): the
+ * definition made from a module's IR — a pin per port bit, one delay (`delay`) for every output —
+ * and its behavior. The IR is compiled once per module into code over 32-bit words (`layout.ts`,
+ * `codegen.ts`, `settle.ts`, `flip-flops.ts`) shared by its instances. Each `evaluate`: the
+ * flip-flops whose clock had an edge load from the words before it, the input and inout pins are
+ * read, the combinational cells downstream of what changed run once each in topological order (no
+ * events inside a module), asynchronous controls apply, and every output is driven with the delay
+ * — released (`Z`) where its tri-state buffer is off (inertial, so an unchanged output costs
+ * nothing). A floating pin reads `X`, and is reported only where that `X` reaches something the
+ * module drives or stores. Memories (HDL-6) are read by steps in that order and written on clock
+ * edges with the flip-flops' loads (`memory-cells.ts`). State is the words, the memories' words
+ * and a few bytes in typed arrays — plain data, so snapshots, rewind and replicas work as for any
+ * part. Spec: docs/components.md#verilog-modules-hdl.
  */
 import {
   type Behavior,
@@ -18,6 +19,7 @@ import {
   defineComponent,
   type EvalContext,
   HDL_CELLS,
+  type HdlBit,
   type HdlModule,
   type HdlPartResult,
   hdlCellOutput,
@@ -38,46 +40,47 @@ import {
 import { ClockEdge, clockEdge } from '../74xx/edge-triggered';
 import { analyzeHdlModule, type HdlAnalysis, outputName, PIN } from './analyze';
 import {
-  active,
-  applyAsync,
-  compileFlipFlop,
-  compileStep,
-  type FlipFlop,
-  hasAsync,
-  load,
-  nextState,
-} from './cells';
+  type AsyncControls,
+  compileAsyncControls,
+  compileLoads,
+  compileNextStates,
+  isAsync,
+  type Loads,
+  type NextStates,
+} from './flip-flops';
+import { type Layout, layoutModule, setBit, usedBits } from './layout';
 import {
   type CompiledMemory,
   compileMemory,
-  compileReadStep,
-  compileWritePorts,
+  compileWordWritePorts,
   type MemoryState,
   mergeWrite,
   newMemoryState,
   newWriteSamples,
-  sampleWrite,
+  readClosure,
+  sampleWriteWords,
   spoilWrite,
   stampReads,
   storeWrite,
-  type WritePort,
+  type WordWritePort,
   writesUnknown,
 } from './memory-cells';
-import { type CellStep, type MemoryPlanes, newPlanes, planeIndex, TX, tri } from './planes';
+import { TX } from './planes';
+import { compileSettle, markAll, markWord, type Settle } from './settle';
+import { int } from './source';
 
 type HdlProps = { delay: number };
 
 interface HdlState extends MemoryState {
-  /** A byte per bit: its value (0 where unknown). Then the constants 0, 1, x. */
-  readonly val: Uint8Array;
-  /** A byte per bit: 1 where unknown. */
-  readonly unk: Uint8Array;
-  /** The flip-flops' next states between the two phases of a clock edge (0, 1, 2 = X). */
-  readonly next: Uint8Array;
-  /** Which flip-flops have a next state waiting in this evaluation. */
-  readonly edges: Uint8Array;
-  /** A byte per read pin: 1 where it was floating when last read. */
+  /**
+   * The module's bits in 32-bit words (`layout.ts`): values (0 where unknown) and unknowns; the
+   * constants' word last.
+   */
+  readonly v: Int32Array;
+  readonly u: Int32Array;
+  /** A byte per read pin: 1 where it was floating when last read; how many did. */
   readonly floating: Uint8Array;
+  readonly floats: Int32Array;
   /** Per flip-flop, the value (0, 1, 2 = X) its clock had when it last looked (HDL-9). */
   readonly seen: Uint8Array;
   /** The same per memory write port (HDL-6). */
@@ -92,66 +95,126 @@ const BUFFER = 1;
 /** The drive of each value a bit can have (0, 1, `X`). */
 const DRIVES = [strong(Level.L0), strong(Level.L1), strong(Level.X)] as const;
 
+/**
+ * A bit's place for a quick read: its word and its position. The constants have a word of their
+ * own after the layout's (0 at bit 0, 1 at bit 1, `X` at bit 2), so a read never asks which.
+ */
+interface Places {
+  readonly word: Int32Array;
+  readonly pos: Int32Array;
+}
+
+/** The constants' word's values and unknowns. */
+const CONSTANT_V = 0b010;
+const CONSTANT_U = 0b100;
+
+function places(layout: Layout, bits: readonly HdlBit[]): Places {
+  return {
+    word: Int32Array.from(bits, (bit) =>
+      typeof bit === 'number' ? layout.word[bit]! : layout.words,
+    ),
+    pos: Int32Array.from(bits, (bit) =>
+      typeof bit === 'number' ? layout.pos[bit]! : bit === '0' ? 0 : bit === '1' ? 1 : 2,
+    ),
+  };
+}
+
+/** A bit of the words: 0, 1, or 2 (`X`). */
+function levelAt(v: Int32Array, u: Int32Array, w: number, p: number): number {
+  return (u[w]! >>> p) & 1 ? TX : (v[w]! >>> p) & 1;
+}
+
+/** Whether a control at level `t` is active for `polarity` (1: HIGH): 1, 0, or `X`. */
+const active = (t: number, polarity: number) => (t === TX ? TX : t === polarity ? 1 : 0);
+
 /** A latch, for the floating rule: open (or maybe open) and holding `X` from a floating pin. */
 interface Latch {
-  readonly en: number;
+  readonly en: Places;
   readonly enPolarity: number;
-  readonly q: Int32Array;
+  readonly q: Places;
   readonly cone: Int32Array;
+}
+
+/** A flip-flop with asynchronous controls, for the floating rule. */
+interface AsyncFlop {
+  readonly arst: Places;
+  readonly arstPolarity: number;
+  readonly aload: Places;
+  readonly aloadPolarity: number;
+  readonly set: Places;
+  readonly setPolarity: number;
+  readonly clr: Places;
+  readonly clrPolarity: number;
+  readonly q: Places;
+}
+
+/** Flip-flops sharing their functions: those of one pin and edge, or one clocked by logic. */
+interface Group {
+  readonly members: Int32Array;
+  readonly next: NextStates;
+  readonly load: Loads;
+  /** Its clock's pin; −1 for a clock made by logic or a constant. */
+  readonly pin: number;
+  readonly rising: boolean;
+  /** Whether a member's data cone holds a clock pin (`q <= clk`): it races any edge. */
+  readonly seesClock: boolean;
 }
 
 /** Everything an instance runs, made once per module. */
 interface Program {
-  readonly bitCount: number;
-  /** The pins read into the planes — inputs, inouts no logic drives — and their bits. */
+  readonly layout: Layout;
+  readonly settle: Settle;
+  /** The pins read into the words — inputs, inouts no logic drives — and their bits' places. */
   readonly readPins: Int32Array;
-  readonly readBits: Int32Array;
-  /** The pins that drive (outputs, inouts), how (`STRONG`, `BUFFER`), from which plane index. */
+  readonly readWord: Int32Array;
+  readonly readPos: Int32Array;
+  /** The pins that drive (outputs, inouts), how (`STRONG`, `BUFFER`), from which bit. */
   readonly drivePins: Int32Array;
   readonly driveKinds: Uint8Array;
-  readonly driveBits: Int32Array;
-  /** A buffer's enable (plane index); −1 for `STRONG`. */
-  readonly driveEnables: Int32Array;
+  readonly driveBits: Places;
+  /** A buffer's enable. */
+  readonly driveEnables: Places;
   /** Per driving pin, the read pins (positions in `readPins`) its value can come from. */
   readonly driveCones: readonly Int32Array[];
-  readonly steps: readonly CellStep[];
-  readonly flipFlops: readonly FlipFlop[];
-  /** Per flip-flop, the name of what it stores (`q`, `state`), for messages. */
+  /** The flip-flops in analysis order: their groups, `Q` words, clocks, names, cones. */
+  readonly groups: readonly Group[];
+  readonly groupOf: Int32Array;
+  readonly qFirst: Int32Array;
+  readonly qCount: Int32Array;
+  readonly clocks: Places;
+  readonly rising: Uint8Array;
   readonly flipFlopNames: readonly string[];
   /** Per flip-flop, the read pins its next state can come from. */
   readonly flipFlopCones: readonly Int32Array[];
   /** Per flip-flop, the read pins what its edge samples (D, EN, SRST) comes from: races. */
   readonly dataCones: readonly Int32Array[];
-  /** Per flip-flop, its clock's pin; −1 for a clock made by logic or a constant. */
-  readonly clockPins: Int32Array;
-  /** Per read pin, whether it clocks a flip-flop. */
+  /** Per read pin, whether it clocks a flip-flop or a write port. */
   readonly clockReads: Uint8Array;
-  /** Per flip-flop, whether its data cone holds a clock pin (`q <= clk`): it races any edge. */
-  readonly dataSeesClock: Uint8Array;
   /** The flip-flops clocked by logic inside the module (HDL-9). */
   readonly internal: Int32Array;
-  /** The flip-flops with asynchronous controls, and the read pins those can come from. */
+  /** The flip-flops with asynchronous controls, their controls in one function, their cones. */
   readonly asyncFlops: Int32Array;
+  readonly asyncFlopInfo: readonly AsyncFlop[];
+  readonly applyAsync: AsyncControls | undefined;
   readonly asyncCones: readonly Int32Array[];
   /** The most rounds of clock edges one evaluation runs (a ripple chain of n takes n). */
   readonly roundLimit: number;
   /** The names of the part's pins, for messages. */
   readonly pinNames: readonly string[];
-  /** Per combinational loop, a signal on it, and whether it failed to settle (scratch). */
+  /** Per combinational loop, a signal on it. */
   readonly loopNames: readonly string[];
-  readonly loopFailed: Uint8Array;
   readonly latches: readonly Latch[];
-  /** The pin that reads each plane index (−1 for others), for clocks. */
-  readonly pinOfBit: Int32Array;
-  readonly nextSize: number;
   /** Bits with a power-up value (`init`, HDL-9) and their values, 0 or 1. */
   readonly initBits: Int32Array;
   readonly initValues: Uint8Array;
   /** The memories (HDL-6), and per read port (in step order) the memory it reads. */
   readonly memories: readonly CompiledMemory[];
   readonly readMemory: Int32Array;
+  /** Per memory, the (group, mask) marks of the steps reading it. */
+  readonly memoryReaders: readonly Int32Array[];
   /** The memories' write ports, edge-triggered like flip-flops, and their clocks' pins (−1: logic). */
-  readonly writes: readonly WritePort[];
+  readonly writes: readonly WordWritePort[];
+  readonly writeClocks: Places;
   readonly writeClockPins: Int32Array;
   /** The write ports clocked by logic inside the module. */
   readonly writeInternal: Int32Array;
@@ -187,64 +250,17 @@ export function hdlPins(module: HdlModule): PinDef[] {
   });
 }
 
-/**
- * A combinational loop's cells as one step (HDL-9): run over and over from the planes' values
- * until no output bit of the loop changes — an SR latch of NANDs holds, sets and resets; one that
- * starts `X` stays `X`. Past twice its cells and two passes it oscillates (a ring of inverters):
- * the bits still changing become `X` and it goes on until that settles; `failed[slot]` says so.
- */
-function loopStep(
-  steps: readonly CellStep[],
-  outputs: Int32Array,
-  failed: Uint8Array,
-  slot: number,
-): CellStep {
-  const limit = 2 * steps.length + 2;
-  const val0 = new Uint8Array(outputs.length);
-  const unk0 = new Uint8Array(outputs.length);
-  /** One pass over the loop; says whether an output bit changed. */
-  const pass = (val: Uint8Array, unk: Uint8Array, mem: MemoryPlanes | undefined): boolean => {
-    for (let i = 0; i < outputs.length; i++) {
-      val0[i] = val[outputs[i]!]!;
-      unk0[i] = unk[outputs[i]!]!;
-    }
-    for (let k = 0; k < steps.length; k++) steps[k]!(val, unk, mem);
-    let changed = false;
-    for (let i = 0; i < outputs.length && !changed; i++) {
-      changed = val[outputs[i]!] !== val0[i] || unk[outputs[i]!] !== unk0[i];
-    }
-    return changed;
-  };
-  /** Makes `X` every output bit the last pass changed. */
-  const unknownWhereChanged = (val: Uint8Array, unk: Uint8Array) => {
-    for (let i = 0; i < outputs.length; i++) {
-      const b = outputs[i]!;
-      if (val[b] === val0[i] && unk[b] === unk0[i]) continue;
-      val[b] = 0;
-      unk[b] = 1;
-    }
-  };
-  return (val, unk, mem) => {
-    for (let p = 0; p < limit; p++) if (!pass(val, unk, mem)) return;
-    failed[slot] = 1;
-    for (let p = 0; p < limit; p++) {
-      unknownWhereChanged(val, unk);
-      if (!pass(val, unk, mem)) return;
-    }
-    unknownWhereChanged(val, unk);
-  };
-}
-
 function compile(module: HdlModule, analysis: HdlAnalysis): Program {
   const { bitCount, cells } = module;
   const { driver, cones } = analysis;
+  const layout = layoutModule(module, analysis);
 
-  // The pins read into the planes: the inputs, then the inouts' bits no logic drives (an
-  // inout sharing an input's bit drives it instead).
+  // The pins read into the words: the inputs, then the inouts' bits no logic drives (an inout
+  // sharing an input's bit drives it instead).
   const readPins: number[] = [];
   const readBits: number[] = [];
   const readPos = new Int32Array(bitCount).fill(-1);
-  const pinOfBit = new Int32Array(bitCount + 3).fill(-1);
+  const pinOfBit = new Int32Array(bitCount).fill(-1);
   const firstPin: number[] = [];
   let pins = 0;
   for (const port of module.ports) {
@@ -269,6 +285,8 @@ function compile(module: HdlModule, analysis: HdlAnalysis): Program {
       }
     }
   }
+  /** The pin a clock bit is read from; −1 for a bit made by logic or a constant. */
+  const pinOf = (bit: HdlBit) => (typeof bit === 'number' ? pinOfBit[bit]! : -1);
 
   const isFlipFlop = (index: number) => HDL_CELLS[cells[index]!.type].kind === 'flip-flop';
   const toReadPins = (bits: readonly number[]) =>
@@ -281,7 +299,7 @@ function compile(module: HdlModule, analysis: HdlAnalysis): Program {
     return toReadPins(cones[from]!);
   };
 
-  // The buffer driving each inout's bit through its pin (its plane driver is the pin).
+  // The buffer driving each inout's bit through its pin (its word's driver is the pin).
   const pinBuffer = new Int32Array(bitCount).fill(-1);
   const pinBufferBit = new Int32Array(bitCount).fill(-1);
   for (const [index, cell] of cells.entries()) {
@@ -297,10 +315,10 @@ function compile(module: HdlModule, analysis: HdlAnalysis): Program {
 
   const drivePins: number[] = [];
   const driveKinds: number[] = [];
-  const driveBits: number[] = [];
-  const driveEnables: number[] = [];
+  const driveBits: HdlBit[] = [];
+  const driveEnables: HdlBit[] = [];
   const driveCones: Int32Array[] = [];
-  const drives = (pin: number, kind: number, bit: number, enable: number, cone: Int32Array) => {
+  const drives = (pin: number, kind: number, bit: HdlBit, enable: HdlBit, cone: Int32Array) => {
     drivePins.push(pin);
     driveKinds.push(kind);
     driveBits.push(bit);
@@ -309,8 +327,7 @@ function compile(module: HdlModule, analysis: HdlAnalysis): Program {
   };
   const buffer = (pin: number, cell: number, i: number) => {
     const ports = cells[cell]!.ports;
-    const a = planeIndex(ports.A![i]!, bitCount);
-    drives(pin, BUFFER, a, planeIndex(ports.EN![0]!, bitCount), toReadPins(cones[cell]!));
+    drives(pin, BUFFER, ports.A![i]!, ports.EN![0]!, toReadPins(cones[cell]!));
   };
   for (const [p, port] of module.ports.entries()) {
     if (port.dir === 'in') continue;
@@ -318,7 +335,7 @@ function compile(module: HdlModule, analysis: HdlAnalysis): Program {
       const pin = firstPin[p]! + i;
       if (bit === 'z') continue; // never driven: tristate and bidir pins start released
       if (typeof bit !== 'number') {
-        drives(pin, STRONG, planeIndex(bit, bitCount), -1, new Int32Array(0));
+        drives(pin, STRONG, bit, '0', new Int32Array(0));
       } else if (port.dir === 'inout' && pinOfBit[bit] === pin) {
         // The pin reads this bit back; only a buffer drives it.
         if (pinBuffer[bit]! >= 0) buffer(pin, pinBuffer[bit]!, pinBufferBit[bit]!);
@@ -329,90 +346,141 @@ function compile(module: HdlModule, analysis: HdlAnalysis): Program {
       ) {
         buffer(pin, driver[bit]!, cells[driver[bit]!]!.ports.Y!.indexOf(bit));
       } else {
-        drives(pin, STRONG, bit, -1, coneOfBit(bit));
+        drives(pin, STRONG, bit, '0', coneOfBit(bit));
       }
     }
   }
 
-  // Steps in order; a buffer writes only the bits it is the plane driver of (not an inout's). A
-  // loop's cells make one step, run until they settle (HDL-9).
-  const steps: CellStep[] = [];
-  const latches: Latch[] = [];
-  const loopOf = new Int32Array(cells.length).fill(-1);
-  for (const [l, members] of analysis.loops.entries()) for (const m of members) loopOf[m] = l;
-  const loopNames: string[] = [];
-  const loopFailed = new Uint8Array(analysis.loops.length);
-  let loopSteps: CellStep[] = [];
+  // The memories (HDL-6): read ports as steps of the settle, write ports on edges.
   const memories = module.memories.map(compileMemory);
   const readMemory: number[] = [];
+  const settle = compileSettle(module, analysis, layout, (index) => {
+    const cell = cells[index]!;
+    const m = cell.params.MEMORY as number;
+    const port = readMemory.length;
+    readMemory.push(m);
+    return readClosure(cell, m, memories[m]!, port, layout, layout.cellWord[index]!);
+  });
+  const memoryReaders = memories.map((_, m) => {
+    const marks: number[] = [];
+    for (const [index, cell] of cells.entries()) {
+      if (cell.type !== '$memrd' || cell.params.MEMORY !== m) continue;
+      const s = settle.stepOf[index]!;
+      marks.push(s >>> 5, (1 << (s & 31)) | 0);
+    }
+    return Int32Array.from(marks);
+  });
+
+  /** The source marking the readers of a flip-flop's words. */
+  const marksOf = (index: number): string => {
+    const first = layout.cellWord[index]!;
+    const out: string[] = [];
+    for (let w = first; w < first + layout.cellWords[index]!; w++) {
+      for (let i = settle.readerStart[w]!; i < settle.readerStart[w + 1]!; i++) {
+        out.push(`D[${int(settle.readerGroup[i]!)}] |= ${int(settle.readerMask[i]!)};`);
+      }
+    }
+    return out.join(' ');
+  };
+
+  // Flip-flops: grouped by pin and edge; one clocked by logic or a constant is a group of its own.
+  const flipFlops = analysis.flipFlops;
+  const clockBits = flipFlops.map((index) => cells[index]!.ports.CLK![0]!);
+  const rising = Uint8Array.from(flipFlops, (index) =>
+    cells[index]!.params.CLK_POLARITY === 1 ? 1 : 0,
+  );
+  const clockReads = new Uint8Array(readPins.length);
+  for (const bit of clockBits)
+    if (typeof bit === 'number' && readPos[bit]! >= 0) clockReads[readPos[bit]!] = 1;
+  const writeCells = analysis.writePorts.map((index) => cells[index]!);
+  for (const cell of writeCells) {
+    const bit = cell.ports.CLK![0]!;
+    if (typeof bit === 'number' && readPos[bit]! >= 0) clockReads[readPos[bit]!] = 1;
+  }
+  const dataCones = analysis.dataCones.map(toReadPins);
+  const dataSeesClock = dataCones.map((cone) => cone.some((p) => clockReads[p]));
+  const byPin = new Map<string, number[]>();
+  const groupsOfMembers: number[][] = [];
+  const groupPins: number[] = [];
+  const groupRising: boolean[] = [];
+  for (const [k, bit] of clockBits.entries()) {
+    const pin = pinOf(bit);
+    if (pin < 0) {
+      groupsOfMembers.push([k]);
+      groupPins.push(-1);
+      groupRising.push(rising[k] === 1);
+      continue;
+    }
+    const key = `${pin}:${rising[k]}`;
+    let members = byPin.get(key);
+    if (!members) {
+      members = [];
+      byPin.set(key, members);
+      groupsOfMembers.push(members);
+      groupPins.push(pin);
+      groupRising.push(rising[k] === 1);
+    }
+    members.push(k);
+  }
+  const groupOf = new Int32Array(flipFlops.length);
+  const groups: Group[] = groupsOfMembers.map((members, g) => {
+    for (const k of members) groupOf[k] = g;
+    const indices = members.map((k) => flipFlops[k]!);
+    return {
+      members: Int32Array.from(members),
+      next: compileNextStates(cells, layout, indices),
+      load: compileLoads(layout, indices, marksOf),
+      pin: groupPins[g]!,
+      rising: groupRising[g]!,
+      seesClock: members.some((k) => dataSeesClock[k]),
+    };
+  });
+  const internal = Int32Array.from(
+    clockBits.flatMap((bit, k) => (typeof bit === 'number' && pinOf(bit) < 0 ? [k] : [])),
+  );
+  const asyncList = flipFlops.flatMap((index, k) => (isAsync(cells[index]!) ? [k] : []));
+  const asyncFlopInfo = asyncList.map((k): AsyncFlop => {
+    const cell = cells[flipFlops[k]!]!;
+    const polarity = (name: string) => (cell.params[name] as number | undefined) ?? 1;
+    return {
+      arst: places(layout, cell.ports.ARST ?? []),
+      arstPolarity: polarity('ARST_POLARITY'),
+      aload: places(layout, cell.ports.ALOAD ?? []),
+      aloadPolarity: polarity('ALOAD_POLARITY'),
+      set: places(layout, cell.ports.SET ?? []),
+      setPolarity: polarity('SET_POLARITY'),
+      clr: places(layout, cell.ports.CLR ?? []),
+      clrPolarity: polarity('CLR_POLARITY'),
+      q: places(layout, cell.ports.Q!),
+    };
+  });
+
+  // The memories' write ports (HDL-6): edges as the flip-flops', clocks from pins or from logic.
+  const writes = compileWordWritePorts(writeCells, layout);
+  const writeClockBits = writeCells.map((cell) => cell.ports.CLK![0]!);
+  const writeClockPins = Int32Array.from(writeClockBits, pinOf);
+  const writeInternal = Int32Array.from(
+    writeClockBits.flatMap((bit, p) => (typeof bit === 'number' && pinOf(bit) < 0 ? [p] : [])),
+  );
+  const writeDataCones = analysis.writeDataCones.map(toReadPins);
+
+  // Steps' and loops' bookkeeping: latches for the floating rule, a name per loop.
+  const latches: Latch[] = [];
   for (const index of analysis.order) {
     const cell = cells[index]!;
-    const l = loopOf[index]!;
-    const into = l >= 0 ? loopSteps : steps;
-    if (cell.type === '$memrd') {
-      const m = cell.params.MEMORY as number;
-      into.push(compileReadStep(cell, m, memories[m]!, readMemory.length, bitCount));
-      readMemory.push(m);
-    } else if (cell.type === '$tribuf') {
-      const keep = cell.ports.Y!.flatMap((bit, i) => (driver[bit as number] === index ? [i] : []));
-      if (keep.length > 0) {
-        const ports = {
-          A: keep.map((i) => cell.ports.A![i]!),
-          EN: cell.ports.EN!,
-          Y: keep.map((i) => cell.ports.Y![i]!),
-        };
-        into.push(compileStep({ ...cell, ports }, bitCount));
-      }
-    } else into.push(compileStep(cell, bitCount));
-    const members = l >= 0 ? analysis.loops[l]! : undefined;
-    if (members && index === members[members.length - 1]) {
-      // The loop's last cell: its steps become one, iterated.
-      const outputs = members.flatMap((m) =>
-        hdlCellOutput(cells[m]!).map((bit) => planeIndex(bit, bitCount)),
-      );
-      steps.push(loopStep(loopSteps, Int32Array.from(outputs), loopFailed, l));
-      loopNames.push(outputName(module, hdlCellOutput(cells[members[0]!]!)));
-      loopSteps = [];
-    }
     if (HDL_CELLS[cell.type].kind === 'latch' && cell.ports.EN) {
       latches.push({
-        en: planeIndex(cell.ports.EN![0]!, bitCount),
+        en: places(layout, cell.ports.EN),
         enPolarity: cell.params.EN_POLARITY as number,
-        q: Int32Array.from(cell.ports.Q!, (bit) => planeIndex(bit, bitCount)),
+        q: places(layout, cell.ports.Q!),
         cone: toReadPins(cones[index]!),
       });
     }
   }
+  const loopNames = analysis.loops.map((members) =>
+    outputName(module, hdlCellOutput(cells[members[0]!]!)),
+  );
 
-  let offset = 0;
-  const flipFlops = analysis.flipFlops.map((index) => {
-    const ff = compileFlipFlop(cells[index]!, bitCount, offset);
-    offset += ff.q.length;
-    return ff;
-  });
-  const clockPins = Int32Array.from(flipFlops, (ff) => pinOfBit[ff.clk]!);
-  // A clock that is a signal bit but no pin's is made by logic; a constant one never ticks.
-  const internal = Int32Array.from(
-    flipFlops.flatMap((ff, k) => (ff.clk < bitCount && clockPins[k]! < 0 ? [k] : [])),
-  );
-  const asyncFlops = Int32Array.from(flipFlops.flatMap((ff, k) => (hasAsync(ff) ? [k] : [])));
-  // The memories' write ports (HDL-6): edges as the flip-flops', clocks from pins or from logic.
-  const writes = compileWritePorts(
-    analysis.writePorts.map((index) => cells[index]!),
-    bitCount,
-  );
-  const writeClockPins = Int32Array.from(writes, (wp) => pinOfBit[wp.clk]!);
-  const writeInternal = Int32Array.from(
-    writes.flatMap((wp, p) => (wp.clk < bitCount && writeClockPins[p]! < 0 ? [p] : [])),
-  );
-  const clockReads = new Uint8Array(readPins.length);
-  for (const { clk } of [...flipFlops, ...writes])
-    if (clk < bitCount && readPos[clk]! >= 0) clockReads[readPos[clk]!] = 1;
-  const dataCones = analysis.dataCones.map(toReadPins);
-  const dataSeesClock = Uint8Array.from(dataCones, (cone) =>
-    cone.some((p) => clockReads[p]) ? 1 : 0,
-  );
-  const writeDataCones = analysis.writeDataCones.map(toReadPins);
   // Power-up values, as an FPGA's bitstream loads its flip-flops; `x` bits start unknown.
   const initBits: number[] = [];
   const initValues: number[] = [];
@@ -425,37 +493,50 @@ function compile(module: HdlModule, analysis: HdlAnalysis): Program {
     }
   }
   return {
-    bitCount,
+    layout,
+    settle,
     readPins: Int32Array.from(readPins),
-    readBits: Int32Array.from(readBits),
+    readWord: Int32Array.from(readBits, (b) => layout.word[b]!),
+    readPos: Int32Array.from(readBits, (b) => layout.pos[b]!),
     drivePins: Int32Array.from(drivePins),
     driveKinds: Uint8Array.from(driveKinds),
-    driveBits: Int32Array.from(driveBits),
-    driveEnables: Int32Array.from(driveEnables),
+    driveBits: places(layout, driveBits),
+    driveEnables: places(layout, driveEnables),
     driveCones,
-    steps,
-    flipFlops,
-    flipFlopNames: analysis.flipFlops.map((index) => outputName(module, cells[index]!.ports.Q!)),
-    flipFlopCones: analysis.flipFlops.map((index) => toReadPins(cones[index]!)),
+    groups,
+    groupOf,
+    qFirst: Int32Array.from(flipFlops, (index) => layout.cellWord[index]!),
+    qCount: Int32Array.from(flipFlops, (index) => layout.cellWords[index]!),
+    clocks: places(layout, clockBits),
+    rising,
+    flipFlopNames: flipFlops.map((index) => outputName(module, cells[index]!.ports.Q!)),
+    flipFlopCones: flipFlops.map((index) => toReadPins(cones[index]!)),
     dataCones,
-    clockPins,
     clockReads,
-    dataSeesClock,
     internal,
-    asyncFlops,
+    asyncFlops: Int32Array.from(asyncList),
+    asyncFlopInfo,
+    applyAsync:
+      asyncList.length > 0
+        ? compileAsyncControls(
+            cells,
+            layout,
+            asyncList.map((k) => flipFlops[k]!),
+            marksOf,
+          )
+        : undefined,
     asyncCones: analysis.asyncCones.map(toReadPins),
     roundLimit: 2 * (internal.length + writeInternal.length) + 4,
     pinNames: hdlPins(module).map((pin) => pin.name),
     loopNames,
-    loopFailed,
     latches,
-    pinOfBit,
-    nextSize: offset,
     initBits: Int32Array.from(initBits),
     initValues: Uint8Array.from(initValues),
     memories,
     readMemory: Int32Array.from(readMemory),
+    memoryReaders,
     writes,
+    writeClocks: places(layout, writeClockBits),
     writeClockPins,
     writeInternal,
     writeCones: analysis.writePorts.map((index) => toReadPins(cones[index]!)),
@@ -486,7 +567,7 @@ export function hdlPart(type: string, name: string, module: HdlModule): HdlPartR
     keywords: ['verilog', 'module', module.top],
     pins: hdlPins(module),
     props: [hdlDelayProp],
-    signals: innerSignals(module),
+    signals: innerSignals(module, program.layout),
     ...(program.memories.some((m) => m.width <= 32) && { memories: memoryViews(program) }),
     create: (props) => behavior(program, props.delay),
   });
@@ -494,10 +575,10 @@ export function hdlPart(type: string, name: string, module: HdlModule): HdlPartR
 }
 
 /**
- * The module's named signals as the part shows them (HDL-4): each bit read from the planes,
- * where a register's or latch's state is its `Q` bits — 0, 1 and `X` are `Level`'s numbers.
+ * The module's named signals as the part shows them (HDL-4): each bit read from the words, where
+ * a register's or latch's state is its `Q` bits — 0, 1 and `X` are `Level`'s numbers.
  */
-function innerSignals(module: HdlModule): SignalsDef<HdlState> {
+function innerSignals(module: HdlModule, layout: Layout): SignalsDef<HdlState> {
   const named = module.signals.filter((s) => s.bits.length > 0);
   const list = named.map((s) => ({
     name: s.name,
@@ -505,10 +586,13 @@ function innerSignals(module: HdlModule): SignalsDef<HdlState> {
     width: s.bits.length,
     ...(s.src !== undefined && { src: s.src }),
   }));
-  const planes = named.map((s) => Int32Array.from(s.bits, (b) => planeIndex(b, module.bitCount)));
+  const at = named.map((s) => places(layout, s.bits));
   return {
     list,
-    level: (state, signal, bit) => tri(state.val, state.unk, planes[signal]![bit]!) as Level,
+    level: (state, signal, bit) => {
+      const p = at[signal]!;
+      return levelAt(state.v, state.u, p.word[bit]!, p.pos[bit]!) as Level;
+    },
   };
 }
 
@@ -542,9 +626,9 @@ function memoryViews(program: Program): MemoryDef<HdlState>[] {
 
 /**
  * A debug write into a memory (`PokeAction`): known words from `address` on, written now — or
- * an error for a memory, address or word the module doesn't have.
+ * an error for a memory, address or word the module doesn't have. Says which memory.
  */
-function pokeMemory(program: Program, ctx: EvalContext<HdlState>, poke: PokeAction): void {
+function pokeMemory(program: Program, ctx: EvalContext<HdlState>, poke: PokeAction): number {
   const m = program.memories.findIndex((memory) => memory.name === poke.memory);
   const memory = program.memories[m];
   if (!memory || memory.width > 32) {
@@ -572,12 +656,7 @@ function pokeMemory(program: Program, ctx: EvalContext<HdlState>, poke: PokeActi
     unknown[poke.address + k] = 0;
     written[poke.address + k] = ctx.now;
   }
-}
-
-/** Whether a flip-flop's next state (`nextState`) has an unknown bit. */
-function loadsUnknown(ff: FlipFlop, next: Uint8Array): boolean {
-  for (let i = 0; i < ff.q.length; i++) if (next[ff.offset + i] === TX) return true;
-  return false;
+  return m;
 }
 
 /** Reports the floating pins among `cone` (positions in `readPins`): their `X` was used. */
@@ -610,58 +689,30 @@ function edgeOf(was: number, now: number, rising: boolean): ClockEdge {
     : ClockEdge.NONE;
 }
 
-/**
- * Merges the next state a flip-flop computed into `next` with the one in `other` (the same
- * edge seen at another moment of a race): the bits that differ become `X`. Says whether one did.
- */
-function mergeRace(ff: FlipFlop, next: Uint8Array, other: Uint8Array): boolean {
-  let differ = false;
-  for (let i = ff.offset; i < ff.offset + ff.q.length; i++) {
-    if (next[i] === other[i]) continue;
-    next[i] = TX;
-    differ = true;
-  }
-  return differ;
-}
-
-/**
- * The combinational cells, then the asynchronous controls (level-sensitive, from pins or from
- * logic), again while those change a flip-flop. Says whether they kept changing past the limit.
- */
-function settlePlanes(
-  program: Program,
-  val: Uint8Array,
-  unk: Uint8Array,
-  mem: MemoryPlanes,
-): boolean {
-  const { steps, flipFlops, asyncFlops, roundLimit } = program;
-  for (let k = 0; k < steps.length; k++) steps[k]!(val, unk, mem);
-  for (let round = 0; asyncFlops.length > 0; round++) {
-    let changed = false;
-    for (let j = 0; j < asyncFlops.length; j++) {
-      if (applyAsync(flipFlops[asyncFlops[j]!]!, val, unk)) changed = true;
-    }
-    if (!changed) return false;
-    if (round >= roundLimit) return true;
-    for (let k = 0; k < steps.length; k++) steps[k]!(val, unk, mem);
-  }
-  return false;
-}
-
 function behavior(program: Program, delay: number): Behavior<HdlState> {
-  const { bitCount, readPins, readBits, flipFlops, flipFlopCones, flipFlopNames } = program;
+  const { layout, settle, readPins, readWord, readPos, groups, groupOf } = program;
+  const { qFirst, qCount, clocks, rising, flipFlopNames, flipFlopCones, dataCones } = program;
   const { drivePins, driveKinds, driveBits, driveEnables, driveCones, latches } = program;
-  const { dataCones, clockPins, internal, asyncFlops, asyncCones, roundLimit, pinNames } = program;
-  const { clockReads, dataSeesClock } = program;
-  const { memories, readMemory, writes, writeClockPins, writeInternal } = program;
-  const { writeCones, writeDataCones, writeDataSeesClock, writeNames } = program;
-  // Scratch for one evaluation (nothing is kept between them): the planes as the evaluation
-  // found them, the next states seen at another moment of a race, which pin flip-flops race.
-  const before = internal.length > 0 || writeInternal.length > 0 ? newPlanes(bitCount) : undefined;
-  const other = new Uint8Array(program.nextSize);
-  const racing = new Uint8Array(flipFlops.length);
+  const { internal, asyncFlops, asyncFlopInfo, applyAsync, asyncCones } = program;
+  const { roundLimit, pinNames, clockReads, loopNames } = program;
+  const { memories, readMemory, memoryReaders, writes, writeClocks, writeClockPins } = program;
+  const { writeInternal, writeCones, writeDataCones, writeDataSeesClock, writeNames } = program;
+  const words = layout.words;
+  // Scratch for one evaluation (nothing is kept between them): the marks of the steps to run,
+  // the next states between an edge's phases and those seen at another moment of a race, the
+  // words as the evaluation found them (for clocks made by logic), which groups had an edge.
+  const marks = new Int32Array(settle.groups);
+  const NV = new Int32Array(words);
+  const NU = new Int32Array(words);
+  const OV = new Int32Array(words);
+  const OU = new Int32Array(words);
+  const hasInternal = internal.length > 0 || writeInternal.length > 0;
+  const BV = hasInternal ? new Int32Array(words + 1) : NV;
+  const BU = hasInternal ? new Int32Array(words + 1) : NU;
+  const groupEdge = new Uint8Array(groups.length);
+  const racing = new Uint8Array(qFirst.length);
   /** Which flip-flops clocked by logic had an edge in this evaluation already. */
-  const clocked = new Uint8Array(flipFlops.length);
+  const clocked = new Uint8Array(qFirst.length);
   /** Per read pin, whether it changed in this delta (filled at the first edge). */
   const changed = new Uint8Array(readPins.length);
   // The same for the memories' write ports (HDL-6): what their edges write between the phases,
@@ -671,31 +722,88 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
   const pending = new Uint8Array(writes.length);
   const writeRacing = new Uint8Array(writes.length);
   const writeClocked = new Uint8Array(writes.length);
+  const { loopFailed } = settle;
 
-  /** Loads every flip-flop and stores every write with an edge waiting, all at once. */
+  /** Marks the steps reading memory `m` (a write or a poke changed it). */
+  const markMemory = (m: number) => {
+    const list = memoryReaders[m]!;
+    for (let i = 0; i < list.length; i += 2) {
+      marks[list[i]!] = marks[list[i]!]! | list[i + 1]!;
+    }
+  };
+
+  /** Whether flip-flop `k`'s next state has an unknown bit. */
+  const loadsUnknown = (k: number) => {
+    for (let w = qFirst[k]!; w < qFirst[k]! + qCount[k]!; w++) if (NU[w] !== 0) return true;
+    return false;
+  };
+
+  /**
+   * Merges the next state flip-flop `k` computed (in `NV`/`NU`) with the one in `OV`/`OU` (the
+   * same edge seen at another moment of a race): the bits that differ become `X`. Says whether one
+   * did.
+   */
+  const mergeRace = (k: number) => {
+    let differ = false;
+    for (let w = qFirst[k]!; w < qFirst[k]! + qCount[k]!; w++) {
+      const diff = (NV[w]! ^ OV[w]!) | (NU[w]! ^ OU[w]!);
+      if (diff === 0) continue;
+      NU[w] = NU[w]! | diff;
+      NV[w] = NV[w]! & ~diff;
+      differ = true;
+    }
+    return differ;
+  };
+
+  /** Flip-flop `k`'s next state all `X`: every bit of its `Q` unknown, nothing else. */
+  const used = usedBits(layout);
+  const allUnknown = (k: number) => {
+    for (let w = qFirst[k]!; w < qFirst[k]! + qCount[k]!; w++) {
+      NU[w] = used[w]!;
+      NV[w] = 0;
+    }
+  };
+
+  /** Loads every group and stores every write with an edge waiting, all at once. */
   const loadEdges = (ctx: EvalContext<HdlState>) => {
     const state = ctx.state;
-    const { val, unk, next, edges } = state;
-    for (let k = 0; k < flipFlops.length; k++) {
-      if (!edges[k]) continue;
-      load(flipFlops[k]!, val, unk, next);
-      edges[k] = 0;
+    const { v, u } = state;
+    for (let g = 0; g < groups.length; g++) {
+      if (!groupEdge[g]) continue;
+      groups[g]!.load(v, u, NV, NU, marks);
+      groupEdge[g] = 0;
     }
     if (writes.length === 0) return;
     // In port order, so a port that wins over an earlier one stores after it.
     for (let p = 0; p < writes.length; p++) {
-      if (pending[p]) storeWrite(writes, p, samples, pending, memories, state, ctx.now);
+      if (!pending[p]) continue;
+      storeWrite(writes, p, samples, pending, memories, state, ctx.now);
+      markMemory(writes[p]!.memory);
     }
     pending.fill(0);
   };
-  const { steps } = program;
-  const { loopNames, loopFailed } = program;
-  const settle = (ctx: EvalContext<HdlState>) => {
-    const state = ctx.state;
-    if (asyncFlops.length === 0) {
-      const { val, unk } = state;
-      for (let k = 0; k < steps.length; k++) steps[k]!(val, unk, state);
-    } else if (settlePlanes(program, state.val, state.unk, state)) {
+
+  /**
+   * The marked combinational steps, then the asynchronous controls (level-sensitive, from pins or
+   * from logic), again while those change a flip-flop. Says whether they kept changing past the
+   * limit.
+   */
+  const settleWords = (state: HdlState): boolean => {
+    const { v, u } = state;
+    settle.run(v, u, marks, state);
+    if (!applyAsync) return false;
+    for (let round = 0; ; round++) {
+      if (!applyAsync(v, u, marks)) return false;
+      if (round >= roundLimit) {
+        // Leave nothing marked: the next settle starts clean.
+        settle.run(v, u, marks, state);
+        return true;
+      }
+      settle.run(v, u, marks, state);
+    }
+  };
+  const settleAll = (ctx: EvalContext<HdlState>) => {
+    if (settleWords(ctx.state)) {
       ctx.report({
         kind: 'oscillation',
         message: 'asynchronous controls made by logic keep changing their flip-flops',
@@ -713,9 +821,7 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
   /** A flip-flop loading an `X` that a floating pin's value led to reports that pin. */
   const reportLoad = (ctx: EvalContext<HdlState>, k: number) => {
     const cone = flipFlopCones[k]!;
-    if (cone.length > 0 && loadsUnknown(flipFlops[k]!, ctx.state.next)) {
-      reportCone(ctx, cone, ctx.state.floating, readPins);
-    }
+    if (cone.length > 0 && loadsUnknown(k)) reportCone(ctx, cone, ctx.state.floating, readPins);
   };
   /** The same for a write port storing an `X`. */
   const reportWrite = (ctx: EvalContext<HdlState>, p: number) => {
@@ -725,41 +831,55 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
     }
   };
 
-  const pinClocked = clockPins.some((pin) => pin >= 0) || writeClockPins.some((pin) => pin >= 0);
+  const pinClocked = groups.some((g) => g.pin >= 0) || writeClockPins.some((pin) => pin >= 0);
+
+  /** Notes which read pins changed in this delta; says whether one that clocks nothing did. */
+  const noteChanges = (ctx: EvalContext<HdlState>): boolean => {
+    let dataChanged = false;
+    for (let p = 0; p < readPins.length; p++) {
+      const c = ctx.changed(readPins[p]!) ? 1 : 0;
+      changed[p] = c;
+      if (c && !clockReads[p]) dataChanged = true;
+    }
+    return dataChanged;
+  };
+
+  /** Whether a cone holds a read pin that changed in this delta. */
+  const coneChanged = (cone: Int32Array) => {
+    for (let i = 0; i < cone.length; i++) if (changed[cone[i]!]) return true;
+    return false;
+  };
 
   /**
-   * Pin clocks' edges, each next state from the planes before this delta (a shift chain shifts by
+   * Pin clocks' edges, each next state from the words before this delta (a shift chain shifts by
    * one). A flip-flop whose sampled data changed in this delta too races (`resolveRaces`).
    */
   const pinEdges = (ctx: EvalContext<HdlState>): PinEdges => {
-    const { val, unk, next, edges } = ctx.state;
+    const { v, u } = ctx.state;
     let result: PinEdges = NO_EDGE;
     // Whether a pin other than a clock changed in this delta: most edges come alone.
     let dataChanged = false;
-    for (let k = 0; k < flipFlops.length; k++) {
-      const pin = clockPins[k]!;
-      if (pin < 0) continue;
-      const ff = flipFlops[k]!;
-      const edge = clockEdge(ctx, pin, ff.rising ? 'rise' : 'fall');
+    let floats = false;
+    for (let g = 0; g < groups.length; g++) {
+      const group = groups[g]!;
+      if (group.pin < 0) continue;
+      const edge = clockEdge(ctx, group.pin, group.rising ? 'rise' : 'fall');
       if (edge === ClockEdge.NONE) continue;
       if (result === NO_EDGE) {
         result = EDGED;
-        for (let p = 0; p < readPins.length; p++) {
-          const c = ctx.changed(readPins[p]!) ? 1 : 0;
-          changed[p] = c;
-          if (c && !clockReads[p]) dataChanged = true;
-        }
+        dataChanged = noteChanges(ctx);
+        floats = ctx.state.floats[0]! > 0;
       }
-      nextState(ff, edge === ClockEdge.UNCERTAIN, val, unk, next);
-      edges[k] = edge;
-      reportLoad(ctx, k);
-      if (!dataChanged && !dataSeesClock[k]) continue;
-      const cone = dataCones[k]!;
-      for (let i = 0; i < cone.length; i++) {
-        if (changed[cone[i]!]) {
+      group.next(v, u, NV, NU, edge === ClockEdge.UNCERTAIN ? 1 : 0);
+      groupEdge[g] = edge;
+      const members = group.members;
+      if (floats) for (let i = 0; i < members.length; i++) reportLoad(ctx, members[i]!);
+      if (!dataChanged && !group.seesClock) continue;
+      for (let i = 0; i < members.length; i++) {
+        const k = members[i]!;
+        if (coneChanged(dataCones[k]!)) {
           racing[k] = 1;
           result = RACES;
-          break;
         }
       }
     }
@@ -770,69 +890,90 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
       if (edge === ClockEdge.NONE) continue;
       if (result === NO_EDGE) {
         result = EDGED;
-        for (let i = 0; i < readPins.length; i++) {
-          const c = ctx.changed(readPins[i]!) ? 1 : 0;
-          changed[i] = c;
-          if (c && !clockReads[i]) dataChanged = true;
-        }
+        dataChanged = noteChanges(ctx);
       }
-      sampleWrite(writes, p, edge === ClockEdge.UNCERTAIN, val, unk, samples);
+      sampleWriteWords(writes, p, edge === ClockEdge.UNCERTAIN, v, u, samples);
       pending[p] = 1;
       reportWrite(ctx, p);
       if (!dataChanged && !writeDataSeesClock[p]) continue;
-      const cone = writeDataCones[p]!;
-      for (let i = 0; i < cone.length; i++) {
-        if (changed[cone[i]!]) {
-          writeRacing[p] = 1;
-          result = RACES;
-          break;
-        }
+      if (coneChanged(writeDataCones[p]!)) {
+        writeRacing[p] = 1;
+        result = RACES;
       }
     }
     return result;
   };
 
-  /** Reads the pins into the planes without reporting a floating one; says how many float. */
+  /**
+   * Reads the pins into the words, a word at a time (a port's pins share theirs), marking what
+   * reads a word that changed; says how many float.
+   */
   const readInputs = (ctx: EvalContext<HdlState>): number => {
-    const { val, unk, floating } = ctx.state;
+    const { v, u, floating } = ctx.state;
     let floats = 0;
+    let w = -1;
+    let nv = 0;
+    let nu = 0;
     for (let i = 0; i < readPins.length; i++) {
       const level = ctx.level(readPins[i]!);
       const f = level === Level.Z ? 1 : 0;
       floating[i] = f;
       floats += f;
       const t = toInput(level);
-      const b = readBits[i]!;
-      unk[b] = t === Level.X ? 1 : 0;
-      val[b] = t === Level.L1 ? 1 : 0;
+      if (readWord[i] !== w) {
+        if (w >= 0 && (nv !== v[w] || nu !== u[w])) {
+          v[w] = nv;
+          u[w] = nu;
+          markWord(settle, marks, w);
+        }
+        w = readWord[i]!;
+        nv = v[w]!;
+        nu = u[w]!;
+      }
+      const m = 1 << readPos[i]!;
+      nu = t === Level.X ? nu | m : nu & ~m;
+      nv = t === Level.L1 ? nv | m : nv & ~m;
     }
+    if (w >= 0 && (nv !== v[w] || nu !== u[w])) {
+      v[w] = nv;
+      u[w] = nu;
+      markWord(settle, marks, w);
+    }
+    ctx.state.floats[0] = floats;
     return floats;
   };
 
   /** A race at the pins: each racing next state with the data after the change too, merged. */
   const resolveRaces = (ctx: EvalContext<HdlState>) => {
-    const { val, unk, next, edges } = ctx.state;
-    for (let k = 0; k < flipFlops.length; k++) {
-      if (!racing[k]) continue;
-      racing[k] = 0;
-      const ff = flipFlops[k]!;
-      nextState(ff, edges[k] === ClockEdge.UNCERTAIN, val, unk, other);
-      if (!mergeRace(ff, next, other)) continue;
-      const cone = dataCones[k]!;
-      let pin = -1;
-      for (let i = 0; i < cone.length && pin < 0; i++) {
-        if (changed[cone[i]!]) pin = readPins[cone[i]!]!;
+    const { v, u } = ctx.state;
+    for (let g = 0; g < groups.length; g++) {
+      const group = groups[g]!;
+      const members = group.members;
+      let any = false;
+      for (let i = 0; i < members.length && !any; i++) any = racing[members[i]!] === 1;
+      if (!any) continue;
+      group.next(v, u, OV, OU, groupEdge[g] === ClockEdge.UNCERTAIN ? 1 : 0);
+      for (let i = 0; i < members.length; i++) {
+        const k = members[i]!;
+        if (!racing[k]) continue;
+        racing[k] = 0;
+        if (!mergeRace(k)) continue;
+        const cone = dataCones[k]!;
+        let pin = -1;
+        for (let j = 0; j < cone.length && pin < 0; j++) {
+          if (changed[cone[j]!]) pin = readPins[cone[j]!]!;
+        }
+        ctx.report({
+          kind: 'setup-violation',
+          message: `${pinNames[pin] ?? 'an input'} changed at the clock edge of ${flipFlopNames[k]}: it loads X where that matters`,
+          ...(pin >= 0 ? { pin } : {}),
+        });
       }
-      ctx.report({
-        kind: 'setup-violation',
-        message: `${pinNames[pin] ?? 'an input'} changed at the clock edge of ${flipFlopNames[k]}: it loads X where that matters`,
-        ...(pin >= 0 ? { pin } : {}),
-      });
     }
     for (let p = 0; p < writes.length; p++) {
       if (!writeRacing[p]) continue;
       writeRacing[p] = 0;
-      sampleWrite(writes, p, false, val, unk, otherSamples);
+      sampleWriteWords(writes, p, false, v, u, otherSamples);
       if (!mergeWrite(writes, p, samples, otherSamples)) continue;
       const cone = writeDataCones[p]!;
       let pin = -1;
@@ -846,7 +987,7 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
       });
     }
     loadEdges(ctx);
-    settle(ctx);
+    settleAll(ctx);
   };
 
   /**
@@ -855,38 +996,41 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
    * evaluation began) races its clock.
    */
   const internalRounds = (ctx: EvalContext<HdlState>) => {
-    const { val, unk, next, edges, seen } = ctx.state;
+    const { v, u, seen } = ctx.state;
     for (let round = 0; ; round++) {
       let any = false;
       for (let j = 0; j < internal.length; j++) {
         const k = internal[j]!;
-        const ff = flipFlops[k]!;
-        const now = tri(val, unk, ff.clk);
-        const edge = edgeOf(seen[k]!, now, ff.rising);
+        const g = groupOf[k]!;
+        const now = levelAt(v, u, clocks.word[k]!, clocks.pos[k]!);
+        const edge = edgeOf(seen[k]!, now, rising[k] === 1);
         seen[k] = now;
         if (edge === ClockEdge.NONE) continue;
         const uncertain = edge === ClockEdge.UNCERTAIN;
+        const group = groups[g]!;
         if (round >= roundLimit) {
           // Still clocking after every stage could have: it oscillates inside the module.
-          next.fill(TX, ff.offset, ff.offset + ff.q.length);
+          allUnknown(k);
           ctx.report({
             kind: 'oscillation',
             message: `${flipFlopNames[k]} keeps clocking inside the module: X`,
           });
         } else {
-          nextState(ff, uncertain, val, unk, next);
+          group.next(v, u, NV, NU, uncertain ? 1 : 0);
           // An uncertain edge already merged what it could load; a certain one is checked.
-          if (!uncertain) nextState(ff, false, before!.val, before!.unk, other);
-          if (!uncertain && mergeRace(ff, next, other)) {
-            ctx.report({
-              kind: 'race-violation',
-              message: clocked[k]
-                ? `${flipFlopNames[k]} is clocked again in the same instant (its clock glitches inside the module): it loads X where that matters`
-                : `${flipFlopNames[k]} is clocked by logic, and its data changed at the same instant: it loads X where that matters — use a clock enable`,
-            });
+          if (!uncertain) {
+            group.next(BV, BU, OV, OU, 0);
+            if (mergeRace(k)) {
+              ctx.report({
+                kind: 'race-violation',
+                message: clocked[k]
+                  ? `${flipFlopNames[k]} is clocked again in the same instant (its clock glitches inside the module): it loads X where that matters`
+                  : `${flipFlopNames[k]} is clocked by logic, and its data changed at the same instant: it loads X where that matters — use a clock enable`,
+              });
+            }
           }
         }
-        edges[k] = edge;
+        groupEdge[g] = edge;
         clocked[k] = 1;
         any = true;
         reportLoad(ctx, k);
@@ -894,23 +1038,23 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
       if (writeRounds(ctx, round)) any = true;
       if (!any) return;
       loadEdges(ctx);
-      settle(ctx);
+      settleAll(ctx);
     }
   };
 
   /** A round's edges of write ports clocked by logic (`internalRounds`); says whether one had one. */
   const writeRounds = (ctx: EvalContext<HdlState>, round: number): boolean => {
-    const { val, unk, wseen } = ctx.state;
+    const { v, u, wseen } = ctx.state;
     let any = false;
     for (let j = 0; j < writeInternal.length; j++) {
       const p = writeInternal[j]!;
       const wp = writes[p]!;
-      const now = tri(val, unk, wp.clk);
+      const now = levelAt(v, u, writeClocks.word[p]!, writeClocks.pos[p]!);
       const edge = edgeOf(wseen[p]!, now, wp.rising);
       wseen[p] = now;
       if (edge === ClockEdge.NONE) continue;
       const uncertain = edge === ClockEdge.UNCERTAIN;
-      sampleWrite(writes, p, uncertain, val, unk, samples);
+      sampleWriteWords(writes, p, uncertain, v, u, samples);
       if (round >= roundLimit) {
         spoilWrite(writes, p, samples);
         ctx.report({
@@ -918,7 +1062,7 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
           message: `${writeNames[p]}'s write keeps clocking inside the module: X`,
         });
       } else if (!uncertain) {
-        sampleWrite(writes, p, false, before!.val, before!.unk, otherSamples);
+        sampleWriteWords(writes, p, false, BV, BU, otherSamples);
         if (mergeWrite(writes, p, samples, otherSamples)) {
           ctx.report({
             kind: 'race-violation',
@@ -938,32 +1082,36 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
 
   /** An open latch holding `X`, or an asynchronous control at `X`, reports the pins behind it. */
   const reportFloating = (ctx: EvalContext<HdlState>) => {
-    const { val, unk, floating } = ctx.state;
+    const { v, u, floating } = ctx.state;
     for (let k = 0; k < latches.length; k++) {
       const latch = latches[k]!;
-      if (active(tri(val, unk, latch.en), latch.enPolarity) === 0) continue;
+      const e = levelAt(v, u, latch.en.word[0]!, latch.en.pos[0]!);
+      if (active(e, latch.enPolarity) === 0) continue;
       let unknown = false;
-      for (let i = 0; i < latch.q.length && !unknown; i++) unknown = unk[latch.q[i]!] === 1;
+      for (let i = 0; i < latch.q.word.length && !unknown; i++) {
+        unknown = levelAt(v, u, latch.q.word[i]!, latch.q.pos[i]!) === TX;
+      }
       if (unknown) reportCone(ctx, latch.cone, floating, readPins);
     }
     for (let j = 0; j < asyncFlops.length; j++) {
-      const k = asyncFlops[j]!;
-      if (asyncUnknown(flipFlops[k]!, val, unk)) {
-        reportCone(ctx, asyncCones[k]!, floating, readPins);
+      if (asyncUnknown(asyncFlopInfo[j]!, v, u)) {
+        reportCone(ctx, asyncCones[asyncFlops[j]!]!, floating, readPins);
       }
     }
   };
 
   /** Drives every output with the delay; one driven `X` reports the floating pins behind it. */
+  const { word: bitWord, pos: bitPos } = driveBits;
+  const { word: enableWord, pos: enablePos } = driveEnables;
   const driveOutputs = (ctx: EvalContext<HdlState>, floats: number) => {
-    const { val, unk, floating } = ctx.state;
+    const { v, u, floating } = ctx.state;
     for (let i = 0; i < drivePins.length; i++) {
       let drive: Drive;
-      if (driveKinds[i] === STRONG) drive = DRIVES[tri(val, unk, driveBits[i]!)]!;
+      const t = levelAt(v, u, bitWord[i]!, bitPos[i]!);
+      if (driveKinds[i] === STRONG) drive = DRIVES[t]!;
       else {
-        const e = tri(val, unk, driveEnables[i]!);
-        drive =
-          e === 0 ? Drive.Z : e === 1 ? DRIVES[tri(val, unk, driveBits[i]!)]! : Drive.STRONG_X;
+        const e = levelAt(v, u, enableWord[i]!, enablePos[i]!);
+        drive = e === 0 ? Drive.Z : e === 1 ? DRIVES[t]! : Drive.STRONG_X;
       }
       ctx.drive(drivePins[i]!, drive, delay);
       if (floats > 0 && drive === Drive.STRONG_X)
@@ -973,35 +1121,48 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
 
   return {
     createState(): HdlState {
-      const planes = newPlanes(bitCount);
+      // Every bit unknown but those with a power-up value (`init`), as an FPGA's bitstream loads
+      // its flip-flops.
+      const v = new Int32Array(words + 1);
+      const u = new Int32Array(words + 1);
+      u.set(usedBits(layout));
+      v[words] = CONSTANT_V;
+      u[words] = CONSTANT_U;
       const { initBits, initValues } = program;
       for (let i = 0; i < initBits.length; i++) {
-        planes.unk[initBits[i]!] = 0;
-        planes.val[initBits[i]!] = initValues[i]!;
+        setBit(layout, v, u, initBits[i]!, initValues[i]!);
       }
       // Memories start with their power-up contents (`initial`, `$readmemh`), as an FPGA's
       // bitstream loads its block RAMs.
       const memoryState = newMemoryState(memories, readMemory.length);
+      const state: HdlState = {
+        v,
+        u,
+        ...memoryState,
+        floating: new Uint8Array(readPins.length),
+        floats: new Int32Array(1),
+        seen: new Uint8Array(qFirst.length),
+        wseen: new Uint8Array(writes.length),
+      };
       // The logic settles from the power-up values (the pins unknown), so a clock made from an
       // initialized register (`~div`) is known before anything happens.
-      settlePlanes(program, planes.val, planes.unk, memoryState);
-      program.loopFailed.fill(0);
-      return {
-        ...planes,
-        ...memoryState,
-        next: new Uint8Array(program.nextSize),
-        edges: new Uint8Array(flipFlops.length),
-        floating: new Uint8Array(readPins.length),
-        // Clocks start where power-up left them: `reg div = 0` makes no edge.
-        seen: Uint8Array.from(flipFlops, (ff) => tri(planes.val, planes.unk, ff.clk)),
-        wseen: Uint8Array.from(writes, (wp) => tri(planes.val, planes.unk, wp.clk)),
-      };
+      markAll(settle, marks);
+      settleWords(state);
+      loopFailed.fill(0);
+      // Clocks start where power-up left them: `reg div = 0` makes no edge.
+      for (let k = 0; k < qFirst.length; k++) {
+        state.seen[k] = levelAt(v, u, clocks.word[k]!, clocks.pos[k]!);
+      }
+      for (let p = 0; p < writes.length; p++) {
+        state.wseen[p] = levelAt(v, u, writeClocks.word[p]!, writeClocks.pos[p]!);
+      }
+      return state;
     },
     evaluate(ctx: EvalContext<HdlState>) {
       const state = ctx.state;
-      if (before) {
-        before.val.set(state.val);
-        before.unk.set(state.unk);
+      if (hasInternal) {
+        BV.set(state.v);
+        BU.set(state.u);
         clocked.fill(0);
         writeClocked.fill(0);
       }
@@ -1011,9 +1172,9 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
       // Flip-flops load now — unless one races: then all wait, so it sees the others as before.
       if (edges === EDGED) loadEdges(ctx);
       const floats = readInputs(ctx);
-      settle(ctx);
+      settleAll(ctx);
       if (edges === RACES) resolveRaces(ctx);
-      if (internal.length > 0 || writeInternal.length > 0) internalRounds(ctx);
+      if (hasInternal) internalRounds(ctx);
       if (floats > 0) reportFloating(ctx);
       driveOutputs(ctx, floats);
       if (readMemory.length > 0) stampReads(readMemory, state, ctx.now);
@@ -1022,9 +1183,9 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
       if (!isPokeAction(payload)) {
         throw new Error(`${ctx.id}: unknown action ${JSON.stringify(payload)}`);
       }
-      pokeMemory(program, ctx, payload);
+      markMemory(pokeMemory(program, ctx, payload));
       // What reads the memory follows at once, the outputs after their delay.
-      settle(ctx);
+      settleAll(ctx);
       driveOutputs(ctx, 0);
       stampReads(readMemory, ctx.state, ctx.now);
     },
@@ -1035,19 +1196,21 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
  * Whether a flip-flop's asynchronous controls are unknown, or active with its state unknown: the
  * floating rule reports the pins behind them then.
  */
-function asyncUnknown(ff: FlipFlop, val: Uint8Array, unk: Uint8Array): boolean {
+function asyncUnknown(ff: AsyncFlop, v: Int32Array, u: Int32Array): boolean {
   let activeControl = false;
-  const control = (bit: number, polarity: number) => {
-    const t = active(tri(val, unk, bit), polarity);
+  const control = (at: Places, i: number, polarity: number) => {
+    const t = active(levelAt(v, u, at.word[i]!, at.pos[i]!), polarity);
     if (t === 1) activeControl = true;
     return t === TX;
   };
-  if (ff.arst >= 0 && control(ff.arst, ff.arstPolarity)) return true;
-  if (ff.aload >= 0 && control(ff.aload, ff.aloadPolarity)) return true;
-  for (let i = 0; i < ff.set.length; i++) {
-    if (control(ff.set[i]!, ff.setPolarity) || control(ff.clr[i]!, ff.clrPolarity)) return true;
+  if (ff.arst.word.length > 0 && control(ff.arst, 0, ff.arstPolarity)) return true;
+  if (ff.aload.word.length > 0 && control(ff.aload, 0, ff.aloadPolarity)) return true;
+  for (let i = 0; i < ff.set.word.length; i++) {
+    if (control(ff.set, i, ff.setPolarity) || control(ff.clr, i, ff.clrPolarity)) return true;
   }
   if (!activeControl) return false;
-  for (let i = 0; i < ff.q.length; i++) if (unk[ff.q[i]!]) return true;
+  for (let i = 0; i < ff.q.word.length; i++) {
+    if (levelAt(v, u, ff.q.word[i]!, ff.q.pos[i]!) === TX) return true;
+  }
   return false;
 }
