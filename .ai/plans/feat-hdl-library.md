@@ -203,7 +203,7 @@ checks included, and a benchmark compares the Verilog 74HC00 with the hand-writt
   flattened submodule, an internal path, unsupported rules); the command gains `-specify`
   (examples and fixtures regenerate unchanged otherwise — checked).
 - [x] 2. IR: `specify` paths and checks in core, shape check, schema v10, round trip.
-- [ ] 3. Converter: `$specify2/3`, `$specrule` → IR; units, decimals, idioms; warnings and
+- [x] 3. Converter: `$specify2/3`, `$specrule` → IR; units, decimals, idioms; warnings and
   refusals with source locations; fixture tests.
 - [ ] 4. Module part: pin list and port map from outside; per-bit path delays; the `delay` prop
   only where an output has no path; unit tests (each path kind, rise/fall, enable/disable,
@@ -272,12 +272,18 @@ checks included, and a benchmark compares the Verilog 74HC00 with the hand-writt
 - 2026-11-12 — task 2: `HdlModule.specify` (paths with `{min, typ, max}` rise/fall in ps, checks
   normalized to setup/hold/recovery/removal/width with `clock`/`data` events), shape check,
   serializer (a line per path and check), schema v10 (migration changes nothing), examples bumped.
+- 2026-11-12 — the user left for the night: "finish the branch yourself"; merge waits for them.
+- 2026-11-12 — task 3: `specify.ts` (`readSpecifyCell`, `placeSpecify`, `picoseconds`) wired into
+  `fromYosys`; paths not between the top's pins and unchecked rules dropped with warnings. Found:
+  Yosys keeps only the typical value of a lone triple `(6:7:8)` (min = typ = max = 7), while
+  `(r, f)` with triples keeps all three — library sources write `(t:t:max, t:t:max)` (lesson).
 
 ## Handoff
 
-- **State:** tasks 1–2 done (command, fixtures, IR, schema v10); the converter still refuses
-  `$specify*` cells.
-- **Next step:** task 3 — the converter (`from-yosys.ts`): `$specify2/3`, `$specrule` → IR.
+- **State:** tasks 1–3 done (command, fixtures, IR v10, converter); modules with `specify` convert
+  but still run with the one `delay`.
+- **Next step:** task 4 — per-bit path delays in `module-part.ts` (pin list and port map from
+  outside too).
 - **Watch out:** Yosys drops `$width`, `$period`, 3/6-value delays, `specparam`, `ifnone`, source
   lists — the conventions above work around them; try a construct on the real Yosys first.
 - **Verify with:** `pnpm check`; `pnpm hdl:fixtures` and `pnpm hdl:library` need `yosys`.

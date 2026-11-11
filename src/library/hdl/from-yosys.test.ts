@@ -51,6 +51,11 @@ const ACCEPTED = [
   'shifts',
   'signed',
   'signed_ops',
+  'spec_checks',
+  'spec_flattened',
+  'spec_paths',
+  'spec_tristate',
+  'spec_unsupported',
   'traffic',
   'tri_internal',
   'tri_merged',
@@ -370,6 +375,137 @@ describe('fromYosys: memories (HDL-6)', () => {
       fromYosys({ modules: { m: { cells: { m: { type: '$mem', parameters: {} } } } } }).messages[0]
         ?.message,
     ).toBe("$mem is an older Yosys's memory cell: make the JSON with a newer Yosys");
+  });
+});
+
+describe('fromYosys: timing from specify (HDL-2)', () => {
+  const ns = (min: number, typ = min, max = typ) => ({
+    min: min * 1000,
+    typ: typ * 1000,
+    max: max * 1000,
+  });
+
+  it('makes paths of simple, parallel, full, edge-sensitive and conditional paths, in ps', () => {
+    const { module, messages } = convert('spec_paths');
+    expect(messages).toEqual([]);
+    const bit = (name: string) => module!.ports.find((p) => p.name === name)!.bits;
+    const [a, b, en] = [bit('a')[0], bit('b')[0], bit('en')[0]];
+    const src = (line: number) => expect.stringMatching(new RegExp(`^spec_paths\\.v:${line}\\.`));
+    expect(module?.specify?.paths).toEqual([
+      {
+        from: [a],
+        to: bit('y'),
+        full: false,
+        rise: ns(9, 9, 23),
+        fall: ns(8, 8, 20),
+        src: src(22),
+      },
+      // (9.5, 10): Yosys writes the decimal as a string.
+      { from: [b], to: bit('y'), full: false, rise: ns(9.5), fall: ns(10), src: src(23) },
+      { from: bit('s'), to: bit('p'), full: false, rise: ns(5), fall: ns(5), src: src(24) },
+      {
+        from: bit('s'),
+        to: bit('f'),
+        full: true,
+        rise: ns(7), // (6:7:8) alone: Yosys keeps only the typical value; (r, f) keeps whole triples
+        fall: ns(7),
+        src: src(25),
+      },
+      {
+        from: bit('clk'),
+        to: bit('q'),
+        full: false,
+        edge: 'rise',
+        rise: ns(17, 17, 44),
+        fall: ns(18, 18, 45),
+        src: src(26),
+      },
+      { from: [a], to: bit('g'), full: false, when: en, rise: ns(12), fall: ns(12), src: src(27) },
+      { from: [en], to: bit('g'), full: false, rise: ns(11), fall: ns(11), src: src(28) },
+    ]);
+    expect(module?.specify?.checks).toEqual([]);
+  });
+
+  it("takes a 3-state output's enable and disable as two paths conditional on the enable", () => {
+    const { module } = convert('spec_tristate');
+    const [clk, oen, d, q] = module!.ports.map((p) => p.bits);
+    const paths = module!.specify!.paths;
+    expect(paths.map((p) => [p.from, p.to, p.full, p.edge, p.rise.typ])).toEqual([
+      [clk, q, true, 'rise', 17000],
+      [oen, q, true, undefined, 16000],
+      [oen, q, true, undefined, 14000],
+    ]);
+    // `if (!oen)`: a cell inverting oen; `if (oen)`: oen itself.
+    const not = module!.cells.find((c) => c.ports.Y?.[0] === paths[1]!.when)!;
+    expect(not.ports.A).toEqual(oen);
+    expect(paths[2]!.when).toBe(oen![0]);
+    expect(module!.specify!.checks.map((c) => [c.kind, c.clock, c.data.bits, c.limit])).toEqual([
+      ['setup', { bits: clk, edge: 'rise' }, d, 12000],
+      ['hold', { bits: clk, edge: 'rise' }, d, 5000],
+    ]);
+  });
+
+  it('normalizes the checks: set-up/hold in two, recovery and removal of a release, pulse widths', () => {
+    const { module, messages } = convert('spec_checks');
+    expect(messages).toEqual([]);
+    const [cp, d, sdn, rdn] = module!.ports.map((p) => p.bits[0]) as [
+      number,
+      number,
+      number,
+      number,
+    ];
+    const armed = module!.specify!.checks[0]!.clock.when;
+    expect(module!.cells.find((c) => c.ports.Y?.[0] === armed)?.type).toBe('$and');
+    const at = (line: number) => `spec_checks.v:${line}`;
+    const shown = module!.specify!.checks.map(
+      (c) =>
+        `${at(Number(c.src.split(':')[1]!.split('.')[0]))} ${c.kind} ${JSON.stringify(c.clock)} ${JSON.stringify(c.data)} ${c.limit}`,
+    );
+    const ev = (bits: number, edge?: string, when?: unknown) =>
+      JSON.stringify({ bits: [bits], ...(edge && { edge }), ...(when !== undefined && { when }) });
+    expect(shown).toEqual([
+      `${at(25)} width ${ev(cp, 'fall', armed)} ${ev(cp, 'rise')} 20000`,
+      `${at(26)} width ${ev(sdn, 'fall')} ${ev(sdn, 'rise')} 20000`,
+      `${at(19)} setup ${ev(cp, 'rise', armed)} ${ev(d)} 15000`,
+      `${at(20)} hold ${ev(cp, 'rise', armed)} ${ev(d)} 3000`,
+      `${at(21)} setup ${ev(cp, 'rise')} ${ev(d)} 12000`,
+      `${at(21)} hold ${ev(cp, 'rise')} ${ev(d)} 4000`,
+      `${at(22)} recovery ${ev(cp, 'rise')} ${ev(rdn, 'rise')} 8000`,
+      `${at(23)} removal ${ev(cp, 'rise')} ${ev(sdn, 'rise')} 2000`,
+      `${at(24)} width ${ev(cp, 'rise', armed)} ${ev(cp, 'fall')} 20000`,
+    ]);
+  });
+
+  it("keeps a submodule's paths on the top's pins after flatten, and drops those inside", () => {
+    const { module } = convert('spec_flattened');
+    const [a, b, , y] = module!.ports.map((p) => p.bits);
+    expect(module!.specify!.paths.map((p) => [p.from, p.to, p.rise.typ])).toEqual([
+      [[a![0]], [y![0]], 9000],
+      [[b![0]], [y![0]], 9000],
+      [[a![1]], [y![1]], 9000],
+      [[b![1]], [y![1]], 9000],
+    ]);
+    expect(lines('spec_flattened')).toEqual([
+      "warning spec_flattened.v:22.5-22.18: a path that doesn't run between the module's pins (a submodule's, inside it): ignored",
+    ]);
+  });
+
+  it("drops what the simulator doesn't check, with a warning; keeps rise and fall of a third delay", () => {
+    const { module } = convert('spec_unsupported');
+    expect(lines('spec_unsupported')).toEqual([
+      'warning spec_unsupported.v:15.5-15.41: a $skew check is not checked (the simulator checks set-up, hold, recovery, removal and pulse widths): ignored',
+      'warning spec_unsupported.v:17.5-17.31: a $hold check with a negative limit is not checked: ignored',
+    ]);
+    expect(module!.specify!.paths.map((p) => [p.rise.typ, p.fall.typ])).toEqual([[3000, 4000]]);
+    // $recrem: a recovery and a removal.
+    expect(module!.specify!.checks.map((c) => [c.kind, c.limit])).toEqual([
+      ['recovery', 5000],
+      ['removal', 1000],
+    ]);
+  });
+
+  it('leaves a module without specify without timing', () => {
+    expect(convert('decoder').module?.specify).toBeUndefined();
   });
 });
 
