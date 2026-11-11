@@ -46,7 +46,8 @@ function simulate(module: HdlModule): Simulator {
 
 /**
  * `lanes` 8-bit lanes of four cells each — q' = ~((q + k) ^ q of the next lane), a flip-flop —
- * one clock: 3 × lanes combinational cells, lanes × 8 flip-flop bits, lane 0's q an output.
+ * one clock: 3 × lanes combinational cells, lanes × 8 flip-flop bits, lane 0's q an output; every
+ * lane changes at every edge.
  */
 function synthetic(lanes: number): HdlModule {
   let next = 9; // 0: clk, 1–8: k
@@ -80,8 +81,14 @@ function synthetic(lanes: number): HdlModule {
       { name: 'k', dir: 'in', lsb: 0, bits: [1, 2, 3, 4, 5, 6, 7, 8] },
       { name: 'q', dir: 'out', lsb: 0, bits: q[0]! },
     ],
-    // Each lane's register by name (HDL-4: what probes inside a module record).
-    signals: q.map((bits, i) => ({ name: `q${i}`, lsb: 0, bits })),
+    // Each lane's register by name (HDL-4: what probes inside a module record), with a power-up
+    // value (HDL-9): without one the lanes stay `X`, which changes nothing at an edge (HDL-10).
+    signals: q.map((bits, i) => ({
+      name: `q${i}`,
+      lsb: 0,
+      bits,
+      init: bits.map((_, b) => (((i * 37) >> b) & 1 ? '1' : '0')),
+    })),
     memories: [],
     cells,
   };

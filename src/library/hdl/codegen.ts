@@ -25,7 +25,7 @@ import {
 } from './layout';
 import { shiftClosure } from './limb-cells';
 import { type MemoryPlanes, newPlanes, planeIndex, signedOperands } from './planes';
-import { i32, int, limbExpr, type WordClosure } from './source';
+import { generated, i32, int, limbExpr, type WordClosure } from './source';
 
 export { int, type WordClosure } from './source';
 
@@ -499,12 +499,9 @@ export function compileCells(
 ): WordClosure {
   const generator = new Generator(cells, layout);
   const body = indices.map((index) => generator.cell(index, onChange)).join('');
-  const run = new Function('V', 'U', 'M', 'C', `'use strict';\n${body}`) as (
-    V: Int32Array,
-    U: Int32Array,
-    M: MemoryPlanes,
-    C: readonly WordClosure[],
-  ) => void;
+  const run = generated<
+    (V: Int32Array, U: Int32Array, M: MemoryPlanes, C: readonly WordClosure[]) => void
+  >('cells', ['V', 'U', 'M', 'C'], body);
   const closures = generator.closures;
   return (V, U, M) => run(V, U, M, closures);
 }

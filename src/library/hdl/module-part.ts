@@ -72,11 +72,15 @@ import { int } from './source';
 type HdlProps = { delay: number };
 
 interface HdlState extends MemoryState {
-  /** The module's bits in 32-bit words (`layout.ts`): values (0 where unknown) and unknowns. */
+  /**
+   * The module's bits in 32-bit words (`layout.ts`): values (0 where unknown) and unknowns; the
+   * constants' word last.
+   */
   readonly v: Int32Array;
   readonly u: Int32Array;
-  /** A byte per read pin: 1 where it was floating when last read. */
+  /** A byte per read pin: 1 where it was floating when last read; how many did. */
   readonly floating: Uint8Array;
+  readonly floats: Int32Array;
   /** Per flip-flop, the value (0, 1, 2 = X) its clock had when it last looked (HDL-9). */
   readonly seen: Uint8Array;
   /** The same per memory write port (HDL-6). */
@@ -92,26 +96,31 @@ const BUFFER = 1;
 const DRIVES = [strong(Level.L0), strong(Level.L1), strong(Level.X)] as const;
 
 /**
- * A bit's place for a quick read: its word (−1 for a constant) and its position (the constant's
- * value, 0, 1 or 2, for a constant).
+ * A bit's place for a quick read: its word and its position. The constants have a word of their
+ * own after the layout's (0 at bit 0, 1 at bit 1, `X` at bit 2), so a read never asks which.
  */
 interface Places {
   readonly word: Int32Array;
   readonly pos: Int32Array;
 }
 
+/** The constants' word's values and unknowns. */
+const CONSTANT_V = 0b010;
+const CONSTANT_U = 0b100;
+
 function places(layout: Layout, bits: readonly HdlBit[]): Places {
   return {
-    word: Int32Array.from(bits, (bit) => (typeof bit === 'number' ? layout.word[bit]! : -1)),
+    word: Int32Array.from(bits, (bit) =>
+      typeof bit === 'number' ? layout.word[bit]! : layout.words,
+    ),
     pos: Int32Array.from(bits, (bit) =>
-      typeof bit === 'number' ? layout.pos[bit]! : bit === '0' ? 0 : bit === '1' ? 1 : TX,
+      typeof bit === 'number' ? layout.pos[bit]! : bit === '0' ? 0 : bit === '1' ? 1 : 2,
     ),
   };
 }
 
 /** A bit of the words: 0, 1, or 2 (`X`). */
 function levelAt(v: Int32Array, u: Int32Array, w: number, p: number): number {
-  if (w < 0) return p;
   return (u[w]! >>> p) & 1 ? TX : (v[w]! >>> p) & 1;
 }
 
@@ -698,8 +707,8 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
   const OV = new Int32Array(words);
   const OU = new Int32Array(words);
   const hasInternal = internal.length > 0 || writeInternal.length > 0;
-  const BV = hasInternal ? new Int32Array(words) : NV;
-  const BU = hasInternal ? new Int32Array(words) : NU;
+  const BV = hasInternal ? new Int32Array(words + 1) : NV;
+  const BU = hasInternal ? new Int32Array(words + 1) : NU;
   const groupEdge = new Uint8Array(groups.length);
   const racing = new Uint8Array(qFirst.length);
   /** Which flip-flops clocked by logic had an edge in this evaluation already. */
@@ -753,12 +762,6 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
       NU[w] = used[w]!;
       NV[w] = 0;
     }
-  };
-
-  /** Whether any read pin floated when last read. */
-  const anyFloating = (floating: Uint8Array) => {
-    for (let i = 0; i < floating.length; i++) if (floating[i]) return true;
-    return false;
   };
 
   /** Loads every group and stores every write with an edge waiting, all at once. */
@@ -852,7 +855,7 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
    * one). A flip-flop whose sampled data changed in this delta too races (`resolveRaces`).
    */
   const pinEdges = (ctx: EvalContext<HdlState>): PinEdges => {
-    const { v, u, floating } = ctx.state;
+    const { v, u } = ctx.state;
     let result: PinEdges = NO_EDGE;
     // Whether a pin other than a clock changed in this delta: most edges come alone.
     let dataChanged = false;
@@ -865,7 +868,7 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
       if (result === NO_EDGE) {
         result = EDGED;
         dataChanged = noteChanges(ctx);
-        floats = anyFloating(floating);
+        floats = ctx.state.floats[0]! > 0;
       }
       group.next(v, u, NV, NU, edge === ClockEdge.UNCERTAIN ? 1 : 0);
       groupEdge[g] = edge;
@@ -901,25 +904,42 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
     return result;
   };
 
-  /** Reads the pins into the words, marking what reads those that changed; says how many float. */
+  /**
+   * Reads the pins into the words, a word at a time (a port's pins share theirs), marking what
+   * reads a word that changed; says how many float.
+   */
   const readInputs = (ctx: EvalContext<HdlState>): number => {
     const { v, u, floating } = ctx.state;
     let floats = 0;
+    let w = -1;
+    let nv = 0;
+    let nu = 0;
     for (let i = 0; i < readPins.length; i++) {
       const level = ctx.level(readPins[i]!);
       const f = level === Level.Z ? 1 : 0;
       floating[i] = f;
       floats += f;
       const t = toInput(level);
-      const w = readWord[i]!;
+      if (readWord[i] !== w) {
+        if (w >= 0 && (nv !== v[w] || nu !== u[w])) {
+          v[w] = nv;
+          u[w] = nu;
+          markWord(settle, marks, w);
+        }
+        w = readWord[i]!;
+        nv = v[w]!;
+        nu = u[w]!;
+      }
       const m = 1 << readPos[i]!;
-      const nu = t === Level.X ? u[w]! | m : u[w]! & ~m;
-      const nv = t === Level.L1 ? v[w]! | m : v[w]! & ~m;
-      if (nu === u[w] && nv === v[w]) continue;
-      u[w] = nu;
+      nu = t === Level.X ? nu | m : nu & ~m;
+      nv = t === Level.L1 ? nv | m : nv & ~m;
+    }
+    if (w >= 0 && (nv !== v[w] || nu !== u[w])) {
       v[w] = nv;
+      u[w] = nu;
       markWord(settle, marks, w);
     }
+    ctx.state.floats[0] = floats;
     return floats;
   };
 
@@ -1081,14 +1101,16 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
   };
 
   /** Drives every output with the delay; one driven `X` reports the floating pins behind it. */
+  const { word: bitWord, pos: bitPos } = driveBits;
+  const { word: enableWord, pos: enablePos } = driveEnables;
   const driveOutputs = (ctx: EvalContext<HdlState>, floats: number) => {
     const { v, u, floating } = ctx.state;
     for (let i = 0; i < drivePins.length; i++) {
       let drive: Drive;
-      const t = levelAt(v, u, driveBits.word[i]!, driveBits.pos[i]!);
+      const t = levelAt(v, u, bitWord[i]!, bitPos[i]!);
       if (driveKinds[i] === STRONG) drive = DRIVES[t]!;
       else {
-        const e = levelAt(v, u, driveEnables.word[i]!, driveEnables.pos[i]!);
+        const e = levelAt(v, u, enableWord[i]!, enablePos[i]!);
         drive = e === 0 ? Drive.Z : e === 1 ? DRIVES[t]! : Drive.STRONG_X;
       }
       ctx.drive(drivePins[i]!, drive, delay);
@@ -1101,8 +1123,11 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
     createState(): HdlState {
       // Every bit unknown but those with a power-up value (`init`), as an FPGA's bitstream loads
       // its flip-flops.
-      const v = new Int32Array(words);
-      const u = usedBits(layout);
+      const v = new Int32Array(words + 1);
+      const u = new Int32Array(words + 1);
+      u.set(usedBits(layout));
+      v[words] = CONSTANT_V;
+      u[words] = CONSTANT_U;
       const { initBits, initValues } = program;
       for (let i = 0; i < initBits.length; i++) {
         setBit(layout, v, u, initBits[i]!, initValues[i]!);
@@ -1115,6 +1140,7 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
         u,
         ...memoryState,
         floating: new Uint8Array(readPins.length),
+        floats: new Int32Array(1),
         seen: new Uint8Array(qFirst.length),
         wseen: new Uint8Array(writes.length),
       };

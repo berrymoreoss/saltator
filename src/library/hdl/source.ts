@@ -51,6 +51,16 @@ export function limbExpr(limb: Limb, plane: 'V' | 'U'): string {
   return parts.length === 1 ? parts[0]! : `(${parts.join(' | ')})`;
 }
 
+/**
+ * The one place generated code becomes a function: `body` made by the generators from their
+ * templates and `int`, `params` and `name` constants of theirs (`name` shows in profiles and the
+ * debugger as `hdl/<name>.js`).
+ */
+export function generated<F>(name: string, params: readonly string[], body: string): F {
+  if (!/^[a-z][a-z0-9-]*$/.test(name)) throw new Error(`not a name for generated code: ${name}`);
+  return new Function(...params, `'use strict';\n${body}\n//# sourceURL=hdl/${name}.js`) as F;
+}
+
 /** Reads an operand's limbs into `v` and `u`: generated once per operand, for closures. */
 export type OperandReader = (V: Int32Array, U: Int32Array, v: Uint32Array, u: Uint32Array) => void;
 
@@ -61,5 +71,5 @@ export function operandReader(op: Operand): OperandReader {
       (limb, k) => `v[${int(k)}] = ${limbExpr(limb, 'V')};\nu[${int(k)}] = ${limbExpr(limb, 'U')};`,
     )
     .join('\n');
-  return new Function('V', 'U', 'v', 'u', `'use strict';\n${body}`) as OperandReader;
+  return generated<OperandReader>('operand', ['V', 'U', 'v', 'u'], body);
 }

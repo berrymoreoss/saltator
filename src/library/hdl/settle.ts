@@ -13,7 +13,7 @@ import type { HdlAnalysis } from './analyze';
 import { compileCells, Generator } from './codegen';
 import type { Layout } from './layout';
 import type { MemoryPlanes } from './planes';
-import { int, type WordClosure } from './source';
+import { generated, int, type WordClosure } from './source';
 
 /** About this many characters of source a function of the settle holds. */
 const CHUNK_SOURCE = 24_000;
@@ -224,8 +224,8 @@ export function compileSettle(
     M: MemoryPlanes,
     C: readonly WordClosure[],
   ) => void;
-  const functions = chunks.map(
-    (chunk) => new Function('V', 'U', 'D', 'M', 'C', `'use strict';\n${chunk.body}`) as Chunk,
+  const functions = chunks.map((chunk, i) =>
+    generated<Chunk>(`settle-${int(i)}`, ['V', 'U', 'D', 'M', 'C'], chunk.body),
   );
   const dispatch = chunks
     .map((chunk, i) => {
@@ -235,14 +235,16 @@ export function compileSettle(
       return `if (${covered.join(' || ')}) F[${int(i)}](V, U, D, M, C);`;
     })
     .join('\n');
-  const dispatcher = new Function('V', 'U', 'D', 'M', 'C', 'F', `'use strict';\n${dispatch}`) as (
-    V: Int32Array,
-    U: Int32Array,
-    D: Int32Array,
-    M: MemoryPlanes,
-    C: readonly WordClosure[],
-    F: readonly Chunk[],
-  ) => void;
+  const dispatcher = generated<
+    (
+      V: Int32Array,
+      U: Int32Array,
+      D: Int32Array,
+      M: MemoryPlanes,
+      C: readonly WordClosure[],
+      F: readonly Chunk[],
+    ) => void
+  >('settle', ['V', 'U', 'D', 'M', 'C', 'F'], dispatch);
   const closures = generator.closures;
   return {
     steps,

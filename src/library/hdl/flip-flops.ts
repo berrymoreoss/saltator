@@ -10,7 +10,7 @@
  */
 import type { HdlBit, HdlCell } from '../../core';
 import { type Layout, maskOf, operand } from './layout';
-import { i32, int, limbExpr } from './source';
+import { generated, i32, int, limbExpr } from './source';
 
 /** Next states of a group's flip-flops from the words `V`, `U` into `NV`, `NU`; `x`: uncertain. */
 export type NextStates = (
@@ -186,7 +186,7 @@ export function compileNextStates(
   members: readonly number[],
 ): NextStates {
   const body = members.map((index) => nextSource(cells[index]!, index, layout)).join('');
-  return new Function('V', 'U', 'NV', 'NU', 'x', `'use strict';\n${body}`) as NextStates;
+  return generated<NextStates>('next-states', ['V', 'U', 'NV', 'NU', 'x'], body);
 }
 
 /** A group's loads; `marks(index)` is the source marking the readers of a flip-flop's words. */
@@ -196,7 +196,7 @@ export function compileLoads(
   marks: (index: number) => string,
 ): Loads {
   const body = members.map((index) => loadSource(index, layout, marks(index))).join('');
-  return new Function('V', 'U', 'NV', 'NU', 'D', `'use strict';\n${body}`) as Loads;
+  return generated<Loads>('loads', ['V', 'U', 'NV', 'NU', 'D'], body);
 }
 
 /** Every asynchronous flip-flop's controls in one function. */
@@ -209,10 +209,9 @@ export function compileAsyncControls(
   const body = members
     .map((index) => asyncSource(cells[index]!, index, layout, marks(index)))
     .join('');
-  return new Function(
-    'V',
-    'U',
-    'D',
-    `'use strict';\nlet changed = false;\n${body}return changed;`,
-  ) as AsyncControls;
+  return generated<AsyncControls>(
+    'asynchronous-controls',
+    ['V', 'U', 'D'],
+    `let changed = false;\n${body}return changed;`,
+  );
 }
