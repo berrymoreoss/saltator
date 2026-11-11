@@ -118,7 +118,10 @@ in the header, its props for prop-dependent pins) or a part clicked in the Parts
   column stays empty and the legend says how the limits are used. A picked instance shows the
   timing of its props (a 6116's speed grade, an LCD's oscillator). Symbols are set as the data
   sheets set them — `t` or `PW` and a subscript (`tpd`, `PWEH`); keys that name what they time
-  (`Clear display`) as they are (`symbolParts`).
+  (`Clear display`) as they are (`symbolParts`). An instance of a document's Verilog module shows
+  its module's `specify` block (HDL-2: `tpd(clk↑ to q)`, `tsu(d to clk↑)`, `tW(clk HIGH)`; the
+  subcircuit's definition has no timing, so `timingSource` takes the module part's); the library
+  parts written in Verilog (dev builds) theirs, from their sources.
 
 Parts without descriptions, a function table or timing (`prim/*`, `io/*`) show what they have. Edit ▸ Part Info and the part context menu open the tab. The pure model is
 `src/ui/part-info.ts` (unit-tested); the selection-following lives in `Workbench`.
@@ -1091,7 +1094,7 @@ canvas (`ModuleView.tsx`, pure pieces in `module-view.ts`), below the breadcrumb
 ```text
  Module 2  Verilog module
  1. Make its JSON netlist with Yosys on your computer:
- [ yosys -q -p 'read_verilog decoder.v; hierarchy -auto-top; proc -norom; …' ]  [Copy]
+ [ yosys -q -p 'read_verilog -specify decoder.v; hierarchy -auto-top; proc -norom; …' ]  [Copy]
  2. Paste the JSON below or import its file, then Compile.
  [Import JSON…] [▶ Compile]                          │ Module decoder
  ┌─────────────────────────────────────────────┐     │ Yosys 0.70+post (…)

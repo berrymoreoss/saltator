@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { type CircuitDocument, emptyDocument } from './document';
 import { parseDocument } from './schema';
 import { serializeDocument } from './serialize';
-import { testModule } from './test-parts';
+import { testModule, testSpecifyModule } from './test-parts';
 
 const document: CircuitDocument = {
-  schemaVersion: 9,
+  schemaVersion: 10,
   circuits: [
     {
       id: 'main',
@@ -40,7 +40,7 @@ const document: CircuitDocument = {
 };
 
 const text = `{
-  "schemaVersion": 9,
+  "schemaVersion": 10,
   "circuits": [
     {
       "id": "main",
@@ -96,7 +96,7 @@ describe('serializeDocument', () => {
 
 describe('serializeDocument: Verilog modules', () => {
   const withModule: CircuitDocument = {
-    schemaVersion: 9,
+    schemaVersion: 10,
     circuits: [
       { id: 'main', name: 'Main', components: [], wires: [], probes: [], testScript: [] },
       {
@@ -145,5 +145,24 @@ describe('serializeDocument: Verilog modules', () => {
 
   it('round-trips losslessly', () => {
     expect(parseDocument(serializeDocument(withModule))).toEqual(withModule);
+  });
+
+  it("writes a module's timing with a line per path and check, and round-trips it (HDL-2)", () => {
+    const [main, gate] = withModule.circuits;
+    const timed: CircuitDocument = {
+      ...withModule,
+      circuits: [main!, { ...gate!, verilog: { module: testSpecifyModule } }],
+    };
+    const saved = serializeDocument(timed);
+    expect(saved).toContain(`          "specify": {
+            "paths": [
+              { "from": [1, 2], "to": [5], "full": true, "rise": { "min": 9000, "typ": 9000, "max": 23000 }, "fall": { "min": 8000, "typ": 8000, "max": 20000 }, "src": "timed.v:7.5-7.35" },`);
+    expect(saved).toContain(`            "checks": [
+              { "kind": "setup", "clock": { "bits": [0], "edge": "rise" }, "data": { "bits": [1, 2] }, "limit": 15000, "src": "timed.v:9.5-9.32" }
+            ]
+          }
+        }`);
+    expect(parseDocument(saved)).toEqual(timed);
+    expect(serializeDocument(withModule)).not.toContain('specify');
   });
 });

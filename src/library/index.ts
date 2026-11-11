@@ -13,3 +13,4 @@ export * from './periph';
 export * from './primitives';
 export { createDefaultRegistry } from './registry';
 export * from './timer';
+export * from './verilog';

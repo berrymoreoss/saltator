@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
+import {
+  type CircuitDocument,
+  documentRegistry,
+  emptyCircuit,
+  emptyVerilogCircuit,
+  SCHEMA_VERSION,
+} from '../circuit';
 import type { TextRun } from '../core';
-import { createDefaultRegistry } from '../library';
+import { createDefaultRegistry, fromYosys } from '../library';
+import { YOSYS_FIXTURES } from '../library/hdl/fixtures';
 import {
   columnRuns,
   datasheetName,
@@ -9,6 +17,7 @@ import {
   pinInfo,
   symbolParts,
   timingInfo,
+  timingSource,
 } from './part-info';
 
 const registry = createDefaultRegistry();
@@ -236,5 +245,29 @@ describe('timingInfo', () => {
     expect(tAA()).toBe('25 ns');
     expect(tAA('15')).toBe('15 ns');
     expect(tAA('nonsense')).toBe('25 ns');
+  });
+});
+
+describe('timingSource (HDL-2)', () => {
+  it("shows a Verilog module's instance with its specify timing; other parts their own", () => {
+    const module = fromYosys(YOSYS_FIXTURES.spec_tristate!).module!;
+    const draft: CircuitDocument = {
+      schemaVersion: SCHEMA_VERSION,
+      circuits: [
+        emptyCircuit('main', 'Main'),
+        { ...emptyVerilogCircuit('reg', 'Reg'), verilog: { module } },
+        emptyCircuit('sub', 'Sub'),
+      ],
+    };
+    const registry = documentRegistry(draft, createDefaultRegistry());
+    const instance = registry.get('sub/reg')!;
+    expect(instance.timing).toBeUndefined();
+    const source = timingSource(registry, instance);
+    expect(source.type).toBe('hdl/reg');
+    expect(timingInfo(source)?.delays.map((row) => row.symbol)).toEqual(['tpd', 'tpd', 'tpd']);
+    // A plain subcircuit and a chip: their own (none, and the data sheet's).
+    expect(timingSource(registry, registry.get('sub/sub')!).type).toBe('sub/sub');
+    const chip = registry.get('74xx/74hc00')!;
+    expect(timingSource(registry, chip)).toBe(chip);
   });
 });

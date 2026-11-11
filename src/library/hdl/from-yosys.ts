@@ -11,9 +11,11 @@ import {
   type HdlBit,
   type HdlCell,
   type HdlCellSpec,
+  type HdlCheck,
   type HdlMemory,
   type HdlMessage,
   type HdlModule,
+  type HdlPath,
   type HdlPort,
   type HdlPortBit,
   type HdlSignal,
@@ -24,6 +26,7 @@ import {
   unknownHdlMemoryWords,
 } from '../../core';
 import { analyzeHdlModule } from './analyze';
+import { placeSpecify, readSpecifyCell, SPECIFY_CELLS } from './specify';
 
 /** What a conversion gave: the module when nothing was an error, and every message. */
 export interface YosysConversion {
@@ -134,7 +137,26 @@ function compact(module: HdlModule): HdlModule {
   const signals = module.signals
     .filter((s) => s.bits.every((b) => typeof b !== 'number' || index.has(b)))
     .map((s) => ({ ...s, bits: map(s.bits) }));
-  return { ...module, bitCount: index.size, ports, signals, cells };
+  // Timing (HDL-2) names port bits and the cells' condition bits, all numbered by now.
+  const bits = (b: readonly number[]) => map(b) as number[];
+  const when = <E extends { readonly when?: HdlBit }>(e: E): E =>
+    e.when === undefined ? e : { ...e, when: map([e.when])[0]! };
+  const specify = module.specify && {
+    paths: module.specify.paths.map((p) => when({ ...p, from: bits(p.from), to: bits(p.to) })),
+    checks: module.specify.checks.map((c) => ({
+      ...c,
+      clock: when({ ...c.clock, bits: bits(c.clock.bits) }),
+      data: when({ ...c.data, bits: bits(c.data.bits) }),
+    })),
+  };
+  return {
+    ...module,
+    bitCount: index.size,
+    ports,
+    signals,
+    cells,
+    ...(specify && { specify }),
+  };
 }
 
 /**
@@ -481,6 +503,9 @@ export function fromYosys(json: unknown): YosysConversion {
     }
   }
 
+  /** The `specify` block's paths and checks (HDL-2), checked against the ports at the end. */
+  const timing: { paths: HdlPath[]; checks: HdlCheck[] } = { paths: [], checks: [] };
+
   /** The `$mux` cells `proc` made (`$procmux$…`), by index in `cells`. */
   const procMuxes: number[] = [];
   const allCells = Object.entries(mod.cells ?? {});
@@ -491,6 +516,19 @@ export function fromYosys(json: unknown): YosysConversion {
     const ignored = IGNORED[type];
     if (ignored) {
       once(type, () => warning(ignored, src));
+      continue;
+    }
+    if (SPECIFY_CELLS.has(type)) {
+      const connections = cell.connections ?? {};
+      const read = readSpecifyCell(
+        type,
+        cell.parameters ?? {},
+        (port) => bitsOf(connections[port], `${type} port ${port}`, src, () => {}),
+        src ?? '',
+        (message) => once(`${message} ${src}`, () => warning(message, src)),
+      );
+      timing.paths.push(...read.paths);
+      timing.checks.push(...read.checks);
       continue;
     }
     if (!type.startsWith('$')) {
@@ -658,6 +696,9 @@ export function fromYosys(json: unknown): YosysConversion {
   }
 
   if (errors.length > 0 || bad) return done();
+  const specify = placeSpecify(timing, settledPorts, (message, src) =>
+    once(`${message} ${src}`, () => warning(message, src || undefined)),
+  );
   const module = compact({
     format: HDL_FORMAT,
     top: topName,
@@ -667,6 +708,7 @@ export function fromYosys(json: unknown): YosysConversion {
     signals,
     memories,
     cells: settledCells,
+    ...(specify && { specify }),
   });
   const shape = hdlModuleProblems(module);
   if (shape.length > 0) {

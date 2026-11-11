@@ -1,7 +1,7 @@
 import { type Circuit, type CircuitDocument, SCHEMA_VERSION } from '../circuit';
 import { Registry } from '../core';
 import { DEV_PARTS, Editor } from '../editor';
-import { createDefaultRegistry, hdlPart } from '../library';
+import { createDefaultRegistry, hdlPart, verilogChips } from '../library';
 import {
   Autosave,
   askUnsavedVia,
@@ -34,7 +34,11 @@ import { nandGrid, symbolGallery } from './examples';
 // The renderer fixtures (a clock pin and a 28-pin DIP no shipped part has yet, the generic box)
 // exist in dev builds only. Verilog modules' parts come from the library too (HDL-1).
 const registry = new Registry(
-  [...createDefaultRegistry().list(), ...(import.meta.env.DEV ? DEV_PARTS : [])],
+  [
+    ...createDefaultRegistry().list(),
+    // Dev builds: the renderer's fixtures and the library parts written in Verilog (HDL-2).
+    ...(import.meta.env.DEV ? [...DEV_PARTS, ...verilogChips()] : []),
+  ],
   { hdlPart },
 );
 

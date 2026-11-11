@@ -14,7 +14,9 @@
  * part. Spec: docs/components.md#verilog-modules-hdl.
  */
 import {
+  type AnyComponentDefinition,
   type Behavior,
+  type ComponentDefinition,
   Drive,
   defineComponent,
   type EvalContext,
@@ -22,6 +24,7 @@ import {
   type HdlBit,
   type HdlModule,
   type HdlPartResult,
+  type HdlPortBit,
   hdlCellOutput,
   hdlDelayProp,
   hdlModuleProblems,
@@ -65,9 +68,12 @@ import {
   type WordWritePort,
   writesUnknown,
 } from './memory-cells';
+import { type CompiledCheck, compileChecks, type ModuleChecks } from './module-checks';
+import { compilePathDelays, DRIVE_Z, type ModulePathDelays } from './path-delays';
 import { TX } from './planes';
 import { compileSettle, markAll, markWord, type Settle } from './settle';
 import { int } from './source';
+import { hdlTiming } from './timing';
 
 type HdlProps = { delay: number };
 
@@ -85,6 +91,11 @@ interface HdlState extends MemoryState {
   readonly seen: Uint8Array;
   /** The same per memory write port (HDL-6). */
   readonly wseen: Uint8Array;
+  /** The timing checks' pin times (HDL-2; `TimingChecks`), empty without checks. */
+  readonly times: Float64Array;
+  /** The checks' snapshots of `Q` words (`ModuleChecks` slots): values and unknowns. */
+  readonly snapV: Int32Array;
+  readonly snapU: Int32Array;
 }
 
 /** A driving pin's value: a bit's (or a constant's), push-pull. */
@@ -225,6 +236,19 @@ interface Program {
   readonly writeDataSeesClock: Uint8Array;
   /** Per write port, what it writes, for messages: `memory buffer`. */
   readonly writeNames: readonly string[];
+  /** The driving pins' delays by the module's `specify` paths (HDL-2); none without paths. */
+  readonly pathDelays: ModulePathDelays | undefined;
+  /** Its `specify` timing checks (HDL-2); none without checks. */
+  readonly checks: ModuleChecks | undefined;
+}
+
+/**
+ * Where a library part puts a module's pins (HDL-2): its own pin list (a data sheet's, with
+ * numbers, descriptions and power pins) and, per module pin (`hdlPins` order), its index there.
+ */
+export interface HdlPinMap {
+  readonly pins: readonly PinDef[];
+  readonly at: readonly number[];
 }
 
 const PORT_WORDS = { in: 'input', out: 'output', inout: 'inout' } as const;
@@ -250,10 +274,12 @@ export function hdlPins(module: HdlModule): PinDef[] {
   });
 }
 
-function compile(module: HdlModule, analysis: HdlAnalysis): Program {
+function compile(module: HdlModule, analysis: HdlAnalysis, map?: HdlPinMap): Program {
   const { bitCount, cells } = module;
   const { driver, cones } = analysis;
   const layout = layoutModule(module, analysis);
+  /** A module pin's index among the part's pins. */
+  const partPin = (pin: number) => (map ? map.at[pin]! : pin);
 
   // The pins read into the words: the inputs, then the inouts' bits no logic drives (an inout
   // sharing an input's bit drives it instead).
@@ -275,13 +301,13 @@ function compile(module: HdlModule, analysis: HdlAnalysis): Program {
   };
   for (const [p, port] of module.ports.entries()) {
     if (port.dir !== 'in') continue;
-    for (const [i, bit] of port.bits.entries()) read(firstPin[p]! + i, bit as number);
+    for (const [i, bit] of port.bits.entries()) read(partPin(firstPin[p]! + i), bit as number);
   }
   for (const [p, port] of module.ports.entries()) {
     if (port.dir !== 'inout') continue;
     for (const [i, bit] of port.bits.entries()) {
       if (typeof bit === 'number' && driver[bit] === PIN && readPos[bit]! < 0) {
-        read(firstPin[p]! + i, bit);
+        read(partPin(firstPin[p]! + i), bit);
       }
     }
   }
@@ -318,8 +344,12 @@ function compile(module: HdlModule, analysis: HdlAnalysis): Program {
   const driveBits: HdlBit[] = [];
   const driveEnables: HdlBit[] = [];
   const driveCones: Int32Array[] = [];
+  /** Per driving pin, its port's bit there: what `specify` paths name (HDL-2). */
+  const drivePortBits: HdlPortBit[] = [];
+  let portBit: HdlPortBit = 'z';
   const drives = (pin: number, kind: number, bit: HdlBit, enable: HdlBit, cone: Int32Array) => {
     drivePins.push(pin);
+    drivePortBits.push(portBit);
     driveKinds.push(kind);
     driveBits.push(bit);
     driveEnables.push(enable);
@@ -332,7 +362,8 @@ function compile(module: HdlModule, analysis: HdlAnalysis): Program {
   for (const [p, port] of module.ports.entries()) {
     if (port.dir === 'in') continue;
     for (const [i, bit] of port.bits.entries()) {
-      const pin = firstPin[p]! + i;
+      const pin = partPin(firstPin[p]! + i);
+      portBit = bit;
       if (bit === 'z') continue; // never driven: tristate and bidir pins start released
       if (typeof bit !== 'number') {
         drives(pin, STRONG, bit, '0', new Int32Array(0));
@@ -350,6 +381,24 @@ function compile(module: HdlModule, analysis: HdlAnalysis): Program {
       }
     }
   }
+
+  // Pin-to-pin delays (HDL-2): a path starts where its bit enters by an input's or inout's pin.
+  const entering = new Map<number, number[]>();
+  for (const [p, port] of module.ports.entries()) {
+    if (port.dir === 'out') continue;
+    for (const [i, bit] of port.bits.entries()) {
+      if (typeof bit !== 'number') continue;
+      const list = entering.get(bit) ?? [];
+      list.push(partPin(firstPin[p]! + i));
+      entering.set(bit, list);
+    }
+  }
+  const pathDelays = compilePathDelays(
+    module.specify?.paths ?? [],
+    layout,
+    drivePortBits,
+    (bit) => entering.get(bit) ?? [],
+  );
 
   // The memories (HDL-6): read ports as steps of the settle, write ports on edges.
   const memories = module.memories.map(compileMemory);
@@ -455,6 +504,25 @@ function compile(module: HdlModule, analysis: HdlAnalysis): Program {
     };
   });
 
+  // Timing checks (HDL-2) on the part's pins, with the groups and cones they act on.
+  const partPins = map ? map.pins : hdlPins(module);
+  const readOf = new Int32Array(partPins.length).fill(-1);
+  readPins.forEach((pin, r) => {
+    readOf[pin] = r;
+  });
+  const qFirst = Int32Array.from(flipFlops, (index) => layout.cellWord[index]!);
+  const qCount = Int32Array.from(flipFlops, (index) => layout.cellWords[index]!);
+  const checks = compileChecks(module.specify?.checks ?? [], {
+    pins: partPins,
+    layout,
+    entering: (bit) => entering.get(bit) ?? [],
+    readOf,
+    groups,
+    qFirst,
+    qCount,
+    asyncCones: analysis.asyncCones.map(toReadPins),
+  });
+
   // The memories' write ports (HDL-6): edges as the flip-flops', clocks from pins or from logic.
   const writes = compileWordWritePorts(writeCells, layout);
   const writeClockBits = writeCells.map((cell) => cell.ports.CLK![0]!);
@@ -505,8 +573,8 @@ function compile(module: HdlModule, analysis: HdlAnalysis): Program {
     driveCones,
     groups,
     groupOf,
-    qFirst: Int32Array.from(flipFlops, (index) => layout.cellWord[index]!),
-    qCount: Int32Array.from(flipFlops, (index) => layout.cellWords[index]!),
+    qFirst,
+    qCount,
     clocks: places(layout, clockBits),
     rising,
     flipFlopNames: flipFlops.map((index) => outputName(module, cells[index]!.ports.Q!)),
@@ -527,7 +595,7 @@ function compile(module: HdlModule, analysis: HdlAnalysis): Program {
         : undefined,
     asyncCones: analysis.asyncCones.map(toReadPins),
     roundLimit: 2 * (internal.length + writeInternal.length) + 4,
-    pinNames: hdlPins(module).map((pin) => pin.name),
+    pinNames: partPins.map((pin) => pin.name),
     loopNames,
     latches,
     initBits: Int32Array.from(initBits),
@@ -538,6 +606,8 @@ function compile(module: HdlModule, analysis: HdlAnalysis): Program {
     writes,
     writeClocks: places(layout, writeClockBits),
     writeClockPins,
+    pathDelays,
+    checks,
     writeInternal,
     writeCones: analysis.writePorts.map((index) => toReadPins(cones[index]!)),
     writeDataCones,
@@ -560,6 +630,12 @@ export function hdlPart(type: string, name: string, module: HdlModule): HdlPartR
   const analysis = analyzeHdlModule(module);
   if (analysis.messages.some((m) => m.severity === 'error')) return { messages: analysis.messages };
   const program = compile(module, analysis);
+  // HDL-2: a module's specify block times its outputs and shows in the Part tab; the one delay
+  // times the outputs no path reaches (all of them without a specify block).
+  const timing = hdlTiming(module, {
+    conditions: "as the module's specify block gives them, in ns: typical delays simulated",
+    source: `the specify block of module ${module.top}`,
+  });
   const definition = defineComponent<HdlProps, HdlState>({
     type,
     name,
@@ -567,11 +643,65 @@ export function hdlPart(type: string, name: string, module: HdlModule): HdlPartR
     keywords: ['verilog', 'module', module.top],
     pins: hdlPins(module),
     props: [hdlDelayProp],
+    ...(timing && { timing }),
     signals: innerSignals(module, program.layout),
     ...(program.memories.some((m) => m.width <= 32) && { memories: memoryViews(program) }),
     create: (props) => behavior(program, props.delay),
   });
   return { definition, messages: analysis.messages };
+}
+
+/** What a library part made from a module takes from its data sheet (HDL-2). */
+export type HdlLibraryInfo = Pick<
+  ComponentDefinition<Record<string, never>, HdlState>,
+  | 'type'
+  | 'name'
+  | 'title'
+  | 'keywords'
+  | 'datasheet'
+  | 'package'
+  | 'units'
+  | 'timing'
+  | 'functionTable'
+>;
+
+/**
+ * A library part made from a module (HDL-2): the module run on the data sheet's pins (`map`),
+ * every output timed by its `specify` paths — no delay property. Throws where the module can't be
+ * one: errors, a pin whose direction differs from the module's, an output no path reaches.
+ */
+export function hdlLibraryPart(
+  module: HdlModule,
+  map: HdlPinMap,
+  info: HdlLibraryInfo,
+): AnyComponentDefinition {
+  const fail = (why: string): never => {
+    throw new Error(`${info.name} (Verilog ${module.top}): ${why}`);
+  };
+  const shape = hdlModuleProblems(module);
+  if (shape.length > 0) fail(shape.join('; '));
+  const analysis = analyzeHdlModule(module);
+  const errors = analysis.messages.filter((m) => m.severity === 'error');
+  if (errors.length > 0) fail(errors.map((m) => m.message).join('; '));
+  const modulePins = hdlPins(module);
+  if (map.at.length !== modulePins.length) fail('the pin map does not cover every module pin');
+  for (const [i, pin] of modulePins.entries()) {
+    const placed = map.pins[map.at[i]!];
+    if (placed?.dir !== pin.dir) {
+      fail(`${pin.name} is ${pin.dir}, the data sheet's pin ${placed?.name} ${placed?.dir}`);
+    }
+  }
+  const program = compile(module, analysis, map);
+  const unreached = [...program.drivePins].filter((_, i) => !program.pathDelays?.reached[i]);
+  if (unreached.length > 0) {
+    fail(`no specify path reaches ${unreached.map((p) => map.pins[p]!.name).join(', ')}`);
+  }
+  return defineComponent<Record<string, never>, HdlState>({
+    ...info,
+    pins: [...map.pins],
+    signals: innerSignals(module, program.layout),
+    create: () => behavior(program, 0),
+  });
 }
 
 /**
@@ -762,6 +892,171 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
       NU[w] = used[w]!;
       NV[w] = 0;
     }
+  };
+
+  // Timing checks (HDL-2): what each found in this evaluation (a mask of late or early data pins,
+  // or 1), and a copy of the words for "what if a pin were X".
+  const { checks } = program;
+  const checkList = checks ? checks.list : [];
+  const flagged = new Int32Array(checkList.length);
+  const SV = checks ? new Int32Array(words + 1) : NV;
+  const SU = checks ? new Int32Array(words + 1) : NU;
+  const scratchReads = new Int32Array(readMemory.length);
+
+  /** Whether a check's condition (0: the clock's, 1: the data's) may hold in `v`, `u`. */
+  const armedBy = (v: Int32Array, u: Int32Array, c: CompiledCheck, side: number) => {
+    const w = c.whenWord[side]!;
+    return w < 0 || (((u[w]! | v[w]!) >>> c.whenPos[side]!) & 1) === 1;
+  };
+
+  /**
+   * Group `g`'s next states, into `OV`/`OU`, from the words with the read pins `reads[n]` for the
+   * bits `n` of `mask` unknown: a copy of the words, settled (combinational steps only, its own
+   * memory read stamps) — nothing of the instance changes.
+   */
+  const nextWithUnknown = (state: HdlState, g: number, reads: Int32Array, mask: number) => {
+    SV.set(state.v);
+    SU.set(state.u);
+    for (let n = 0; n < reads.length; n++) {
+      const r = reads[n]!;
+      if (((mask >>> n) & 1) === 0 || r < 0) continue;
+      const w = readWord[r]!;
+      const m = 1 << readPos[r]!;
+      SU[w] = SU[w]! | m;
+      SV[w] = SV[w]! & ~m;
+      markWord(settle, marks, w);
+    }
+    settle.run(SV, SU, marks, { mval: state.mval, munk: state.munk, readWord: scratchReads });
+    loopFailed.fill(0);
+    groups[g]!.next(SV, SU, OV, OU, 0);
+  };
+
+  /** Whether flip-flop `k` samples one of the read pins `reads[n]` for the bits `n` of `mask`. */
+  const sampledBy = (k: number, reads: Int32Array, mask: number) => {
+    const cone = dataCones[k]!;
+    for (let n = 0; n < reads.length; n++) {
+      if (((mask >>> n) & 1) !== 0 && reads[n]! >= 0 && cone.includes(reads[n]!)) return true;
+    }
+    return false;
+  };
+
+  /** Makes `X` the bits of flip-flop `k`'s `Q` where `NV`/`NU` and `OV`/`OU` differ. */
+  const spoilWhereDiffer = (v: Int32Array, u: Int32Array, k: number) => {
+    let any = false;
+    for (let w = qFirst[k]!; w < qFirst[k]! + qCount[k]!; w++) {
+      const diff = (NV[w]! ^ OV[w]!) | (NU[w]! ^ OU[w]!);
+      if (diff === 0) continue;
+      u[w] = u[w]! | diff;
+      v[w] = v[w]! & ~diff;
+      markWord(settle, marks, w);
+      any = true;
+    }
+    return any;
+  };
+
+  /**
+   * The timing checks, on the words before this delta: each reports what it finds (`flagged`); a
+   * hold violation makes `X` the bits its data pin may have changed (the next states from the
+   * words as they are and with the pin unknown differ there); pins starting a pulse save the
+   * `Q` words they drive.
+   */
+  const runChecks = (ctx: EvalContext<HdlState>) => {
+    const state = ctx.state;
+    const { v, u, times, snapV, snapU } = state;
+    const { slotPin, slotRising, slotStart, slotWords } = checks!;
+    for (let s = 0; s < slotPin.length; s++) {
+      const pin = slotPin[s]!;
+      if (!ctx.changed(pin)) continue;
+      const to = slotRising[s] ? Level.L1 : Level.L0;
+      if (ctx.level(pin) !== to || ctx.prev(pin) === to) continue;
+      for (let j = slotStart[s]!; j < slotStart[s + 1]!; j++) {
+        snapV[j] = v[slotWords[j]!]!;
+        snapU[j] = u[slotWords[j]!]!;
+      }
+    }
+    let spoiled = false;
+    for (let i = 0; i < checkList.length; i++) {
+      const c = checkList[i]!;
+      const armed = armedBy(v, u, c, 0) && armedBy(v, u, c, 1);
+      let found = 0;
+      if (c.kind === 'setup') found = c.setupHold!.setup(ctx, times, armed);
+      else if (c.kind === 'hold' || c.kind === 'removal')
+        found = c.setupHold!.hold(ctx, times, armed);
+      else if (c.kind === 'width') found = c.width!.check(ctx, times, armed) ? 1 : 0;
+      else found = armed && c.recovery!.check(ctx, times) ? 1 : 0;
+      flagged[i] = found;
+      if (found === 0 || c.kind !== 'hold') continue;
+      for (let j = 0; j < c.groups.length; j++) {
+        const g = c.groups[j]!;
+        groups[g]!.next(v, u, NV, NU, 0);
+        nextWithUnknown(state, g, c.dataReads, found);
+        const members = groups[g]!.members;
+        for (let m = 0; m < members.length; m++) {
+          const k = members[m]!;
+          if (sampledBy(k, c.dataReads, found)) spoiled = spoilWhereDiffer(v, u, k) || spoiled;
+        }
+      }
+    }
+    checks!.checks.track(ctx, times);
+    if (spoiled) settleAll(ctx);
+  };
+
+  /**
+   * At the edges of this delta, before they load: a recovery violation makes its clock's edge
+   * uncertain; a set-up violation merges the next states with those the late pins unknown give
+   * (`X` where they could matter) — the check reports it, so the race doesn't.
+   */
+  const edgeChecks = (ctx: EvalContext<HdlState>) => {
+    const state = ctx.state;
+    for (let i = 0; i < checkList.length; i++) {
+      const c = checkList[i]!;
+      if (flagged[i] === 0 || c.kind !== 'recovery') continue;
+      for (let j = 0; j < c.groups.length; j++) {
+        const g = c.groups[j]!;
+        if (groupEdge[g]) groups[g]!.next(state.v, state.u, NV, NU, 1);
+      }
+    }
+    for (let i = 0; i < checkList.length; i++) {
+      const c = checkList[i]!;
+      const late = flagged[i]!;
+      if (late === 0 || c.kind !== 'setup') continue;
+      for (let j = 0; j < c.groups.length; j++) {
+        const g = c.groups[j]!;
+        if (!groupEdge[g]) continue;
+        nextWithUnknown(state, g, c.dataReads, late);
+        const members = groups[g]!.members;
+        for (let m = 0; m < members.length; m++) {
+          const k = members[m]!;
+          if (!sampledBy(k, c.dataReads, late)) continue;
+          mergeRace(k);
+          racing[k] = 0;
+        }
+      }
+    }
+  };
+
+  /**
+   * After the loads: a short pulse, or a control released too soon after an edge (removal), makes
+   * `X` what changed since the pulse began (the edge): `Q` where it differs from the snapshot.
+   */
+  const endChecks = (ctx: EvalContext<HdlState>) => {
+    const { v, u, snapV, snapU } = ctx.state;
+    const { slotStart, slotWords } = checks!;
+    let any = false;
+    for (let i = 0; i < checkList.length; i++) {
+      const c = checkList[i]!;
+      if (flagged[i] === 0 || c.slot < 0) continue;
+      for (let j = slotStart[c.slot]!; j < slotStart[c.slot + 1]!; j++) {
+        const w = slotWords[j]!;
+        const diff = (v[w]! ^ snapV[j]!) | (u[w]! ^ snapU[j]!);
+        if (diff === 0) continue;
+        u[w] = u[w]! | diff;
+        v[w] = v[w]! & ~diff;
+        markWord(settle, marks, w);
+        any = true;
+      }
+    }
+    if (any) settleAll(ctx);
   };
 
   /** Loads every group and stores every write with an edge waiting, all at once. */
@@ -1100,20 +1395,29 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
     }
   };
 
-  /** Drives every output with the delay; one driven `X` reports the floating pins behind it. */
+  /**
+   * Drives every output with the delay — its `specify` paths' where it has some (HDL-2); one
+   * driven `X` reports the floating pins behind it.
+   */
   const { word: bitWord, pos: bitPos } = driveBits;
   const { word: enableWord, pos: enablePos } = driveEnables;
+  const { pathDelays } = program;
   const driveOutputs = (ctx: EvalContext<HdlState>, floats: number) => {
     const { v, u, floating } = ctx.state;
     for (let i = 0; i < drivePins.length; i++) {
       let drive: Drive;
+      let level: number;
       const t = levelAt(v, u, bitWord[i]!, bitPos[i]!);
-      if (driveKinds[i] === STRONG) drive = DRIVES[t]!;
-      else {
+      if (driveKinds[i] === STRONG) {
+        drive = DRIVES[t]!;
+        level = t;
+      } else {
         const e = levelAt(v, u, enableWord[i]!, enablePos[i]!);
         drive = e === 0 ? Drive.Z : e === 1 ? DRIVES[t]! : Drive.STRONG_X;
+        level = e === 0 ? DRIVE_Z : e === 1 ? t : TX;
       }
-      ctx.drive(drivePins[i]!, drive, delay);
+      const after = pathDelays ? pathDelays.delay(ctx, v, u, i, level, delay) : delay;
+      ctx.drive(drivePins[i]!, drive, after);
       if (floats > 0 && drive === Drive.STRONG_X)
         reportCone(ctx, driveCones[i]!, floating, readPins);
     }
@@ -1143,6 +1447,9 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
         floats: new Int32Array(1),
         seen: new Uint8Array(qFirst.length),
         wseen: new Uint8Array(writes.length),
+        times: checks ? checks.checks.createTimes() : new Float64Array(0),
+        snapV: new Int32Array(checks ? checks.slotWords.length : 0),
+        snapU: new Int32Array(checks ? checks.slotWords.length : 0),
       };
       // The logic settles from the power-up values (the pins unknown), so a clock made from an
       // initialized register (`~div`) is known before anything happens.
@@ -1168,13 +1475,16 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
       }
       // Each phase is its own function, run only where the module needs it: an evaluation of a
       // decoder reads its pins, settles and drives, as in HDL-1.
+      if (checks) runChecks(ctx);
       const edges = pinClocked ? pinEdges(ctx) : NO_EDGE;
+      if (checks && edges !== NO_EDGE) edgeChecks(ctx);
       // Flip-flops load now — unless one races: then all wait, so it sees the others as before.
       if (edges === EDGED) loadEdges(ctx);
       const floats = readInputs(ctx);
       settleAll(ctx);
       if (edges === RACES) resolveRaces(ctx);
       if (hasInternal) internalRounds(ctx);
+      if (checks) endChecks(ctx);
       if (floats > 0) reportFloating(ctx);
       driveOutputs(ctx, floats);
       if (readMemory.length > 0) stampReads(readMemory, state, ctx.now);

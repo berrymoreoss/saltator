@@ -30,6 +30,7 @@
     "hdl:fixtures": "node --import ./scripts/resolve-hooks.ts scripts/hdl-fixtures.ts",
     "hdl:examples": "node --import ./scripts/resolve-hooks.ts scripts/hdl-examples.ts",
     "hdl:differential": "node --import ./scripts/resolve-hooks.ts scripts/hdl-differential.ts",
+    "hdl:library": "node --import ./scripts/resolve-hooks.ts scripts/hdl-library.ts",
     "riscv:firmware": "node --import ./scripts/resolve-hooks.ts scripts/riscv-firmware.ts"
   },
   "dependencies": {

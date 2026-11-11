@@ -116,7 +116,9 @@ interface Wire {
   cells (`$mul`, `$div`, `$pow`, `$eqx`, `$bmux`, `$dffsr`, `$aldff`, `$sr`, …) and signed
   operands (`A_SIGNED`, `B_SIGNED`, absent meaning unsigned); its migration changes nothing. v9
   (HDL-6) gave it memories (`memories`, one line each, and their ports `$memrd`, `$memwr`); its
-  migration gives every module an empty `memories`.
+  migration gives every module an empty `memories`. v10 (HDL-2) gave it its timing (`specify`:
+  `paths` and `checks`, one line each, absent without a `specify` block); its migration changes
+  nothing.
 - `serializeDocument(doc)` writes stable JSON: fixed key order, defaults omitted, one line per
   component, per wire, per probe and per line of the test script (no `probes` or `testScript`
   key without any) — a Verilog module instead of its (empty) `components` and `wires` its

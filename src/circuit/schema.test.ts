@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { emptyDocument, SCHEMA_VERSION } from './document';
 import { DocumentError, loadDocument, parseDocument } from './schema';
-import { testModule } from './test-parts';
+import { testModule, testSpecifyModule } from './test-parts';
 
 /** Problems reported for a document, or [] if it loads. */
 function problemsOf(value: unknown, options?: Parameters<typeof loadDocument>[1]): string[] {
@@ -111,7 +111,7 @@ describe('loadDocument', () => {
       schemaVersion: SCHEMA_VERSION,
       circuits: [{ ...v1.circuits[0], probes: [], testScript: [] }],
     });
-    expect(SCHEMA_VERSION).toBe(9);
+    expect(SCHEMA_VERSION).toBe(10);
   });
 
   it('opens a schema v2 document (before probes) with none', () => {
@@ -453,10 +453,10 @@ describe('loadDocument: Verilog modules (v6)', () => {
   // Modules before v9 have no `memories`.
   const { memories: _, ...v8Module } = testModule;
 
-  it('opens a v7 module as v9, gaining an empty memories; v8 ones may hold signed and HDL-9 cells', () => {
+  it('opens a v7 module as current, gaining an empty memories; v8 ones may hold signed and HDL-9 cells', () => {
     const doc7 = { ...v6({ id: 'gate', name: 'Gate', verilog: { module: v8Module } }) };
     const loaded = loadDocument({ ...doc7, schemaVersion: 7 });
-    expect(loaded.schemaVersion).toBe(9);
+    expect(loaded.schemaVersion).toBe(SCHEMA_VERSION);
     expect(loaded.circuits[1]?.verilog?.module).toEqual(testModule);
     const signed = {
       ...v8Module,
@@ -498,5 +498,31 @@ describe('loadDocument: Verilog modules (v6)', () => {
     ).toEqual([
       'circuits[1].verilog.module.memories[0].init: run "0004:01" is outside the memory\'s addresses 0x0–0x3',
     ]);
+  });
+
+  it('opens a v9 module unchanged, and takes and checks the timing of a v10 one (HDL-2)', () => {
+    const doc9 = {
+      ...v6({ id: 'gate', name: 'Gate', verilog: { module: testModule } }),
+      schemaVersion: 9,
+    };
+    expect(loadDocument(doc9).circuits[1]?.verilog?.module).toEqual(testModule);
+    const doc10 = {
+      ...v6({ id: 'timed', name: 'Timed', verilog: { module: testSpecifyModule } }),
+      schemaVersion: 10,
+    };
+    expect(loadDocument(doc10).circuits[1]?.verilog?.module).toEqual(testSpecifyModule);
+    const wrong = {
+      ...testSpecifyModule,
+      specify: { ...testSpecifyModule.specify!, checks: [{ kind: 'skew' }] },
+    };
+    expect(problemsOf(doc9)).toEqual([]);
+    expect(
+      problemsOf({
+        ...doc10,
+        circuits: [doc10.circuits[0], { ...doc10.circuits[1], verilog: { module: wrong } }],
+      })[0],
+    ).toBe(
+      'circuits[1].verilog.module.specify.checks[0].kind: expected one of setup, hold, recovery, removal, width',
+    );
   });
 });

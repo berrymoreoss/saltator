@@ -10,6 +10,7 @@ import {
   us,
 } from '../../core';
 import { Bench, type BenchValues, functionTable } from '../../core/testing';
+import { verilogChips } from '../verilog';
 import { hcRegisters } from './registers';
 
 const typical = (d: AnyComponentDefinition) => timingOf(d, {})!.typical;
@@ -132,8 +133,14 @@ const CASES: readonly RegisterCase[] = [
   },
 ];
 
-describe.each(CASES)('74HC$number', (c) => {
-  const d = chip(c.number);
+/** The 74HC574 written in Verilog (HDL-2): it passes the hand-written chip's tests. */
+const verilog574 = verilogChips().find((x) => x.name === '74HC574')!;
+
+describe.each([
+  ...CASES.map((c) => ({ ...c, label: c.number, def: chip(c.number) })),
+  { ...CASES.find((c) => c.number === '574')!, label: '574 (Verilog)', def: verilog574 },
+])('74HC$label', (c) => {
+  const d = c.def;
   const mask = (1 << c.bits) - 1;
   const resetOn: BenchValues = c.reset ? { MR: c.reset.on } : {};
   const resetOff: BenchValues = c.reset ? { MR: c.reset.on === 1 ? 0 : 1 } : {};
@@ -427,8 +434,10 @@ const THREE_STATE: readonly {
   { number: '574', oe: ['OE'], idle: {}, ten: 16, tdis: 14 },
 ];
 
-describe.each(THREE_STATE)('74HC$number 3-state outputs', ({ number, oe, idle, ten, tdis }) => {
-  const d = chip(number);
+describe.each([
+  ...THREE_STATE.map((s) => ({ ...s, label: s.number, def: chip(s.number) })),
+  { ...THREE_STATE.find((s) => s.number === '574')!, label: '574 (Verilog)', def: verilog574 },
+])('74HC$label 3-state outputs', ({ oe, idle, ten, tdis, def: d }) => {
   const enable = (level: 0 | 1 | 'X' | 'Z') => Object.fromEntries(oe.map((p) => [p, level]));
 
   it('loads while disabled; enabling shows the register after ten, disabling releases after tdis', () => {

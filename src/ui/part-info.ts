@@ -2,11 +2,14 @@
  * What the Part tab of the bottom dock shows about a part type: its pins with their datasheet
  * descriptions and its function table. Pure, so it is unit-tested without React.
  */
+import { subcircuitOf } from '../circuit';
 import {
   type AnyComponentDefinition,
+  type ComponentRegistry,
   type FunctionTable,
   type FunctionTableRow,
   formatTime,
+  hdlPartType,
   type PinDef,
   type PinDir,
   type PropValue,
@@ -205,6 +208,21 @@ export interface TimingInfo {
  * key (`tpd(nCP to nQ, nQN)`) are shown as drawn, the datasheet's generic names (`nQN`)
  * included.
  */
+/**
+ * The definition whose timing the Part tab shows: the part's own, or for an instance of a
+ * document's Verilog module (`sub/<id>`, which has none) the module's part's — its `specify`
+ * block (HDL-2).
+ */
+export function timingSource(
+  registry: ComponentRegistry,
+  definition: AnyComponentDefinition,
+): AnyComponentDefinition {
+  if (definition.timing) return definition;
+  const id = subcircuitOf(definition.type);
+  const part = id === undefined ? undefined : registry.get(hdlPartType(id));
+  return part?.timing ? part : definition;
+}
+
 export function timingInfo(
   definition: AnyComponentDefinition,
   props?: Readonly<Record<string, unknown>>,

@@ -459,6 +459,45 @@ export const testModule: HdlModule = {
 };
 
 /**
+ * `testModule` with its timing (HDL-2): `a` and `b` reach `y` (9 ns rising, 8 falling, 23 and 20
+ * at most), `clk` rising reaches `q` (17 ns); `a` and `b` set up 15 ns before `clk` rises.
+ */
+export const testSpecifyModule: HdlModule = {
+  ...testModule,
+  top: 'timed',
+  specify: {
+    paths: [
+      {
+        from: [1, 2],
+        to: [5],
+        full: true,
+        rise: { min: 9000, typ: 9000, max: 23000 },
+        fall: { min: 8000, typ: 8000, max: 20000 },
+        src: 'timed.v:7.5-7.35',
+      },
+      {
+        from: [0],
+        to: [6],
+        full: false,
+        edge: 'rise',
+        rise: { min: 17000, typ: 17000, max: 17000 },
+        fall: { min: 17000, typ: 17000, max: 17000 },
+        src: 'timed.v:8.5-8.40',
+      },
+    ],
+    checks: [
+      {
+        kind: 'setup',
+        clock: { bits: [0], edge: 'rise' },
+        data: { bits: [1, 2] },
+        limit: 15000,
+        src: 'timed.v:9.5-9.32',
+      },
+    ],
+  },
+};
+
+/**
  * `testModule` with memories (HDL-6), which nothing reads or writes: `rom` (16 × 8, `0x11`… from
  * 0, the rest unknown) and `wide` (10 × 32, addressed from 16, as `reg [31:0] wide[16:25]`).
  */

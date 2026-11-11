@@ -8,9 +8,10 @@ import { describe, type TestContext, test } from 'vitest';
 import { NetlistBuilder, ns, Recorder, Simulator, strong, Trigger, us } from '../../src/core';
 import { testDriver } from '../../src/core/testing';
 import { Timeline } from '../../src/editor/timeline';
-import { createDefaultRegistry } from '../../src/library';
+import { createDefaultRegistry, verilogChips } from '../../src/library';
 
-const registry = createDefaultRegistry().register(testDriver);
+// With the library parts written in Verilog (HDL-2), to compare with the hand-written chips.
+const registry = createDefaultRegistry().register(testDriver, ...verilogChips());
 
 function chain(length: number): Simulator {
   const b = new NetlistBuilder().add('IN', 'test/driver');
@@ -37,14 +38,32 @@ function hc04Chain(chips: number): Simulator {
 }
 
 /**
- * `chips` 74HC574s in a pipeline: each chip's Q0–Q7 feed the next chip's D0–D7, one clock for all.
- * Every edge loads every register, with the timing checks running on each.
+ * `chips` 74HC00s (`type`: hand-written or in Verilog), their four NAND gates inverting (B tied
+ * HIGH) and chained through all of them (4 × chips stages).
  */
-function hc574Pipeline(chips: number): Simulator {
+function hc00Chain(chips: number, type: string): Simulator {
+  const b = new NetlistBuilder().add('IN', 'test/driver').add('V', 'io/vcc');
+  let previous = 'IN.Y';
+  for (let i = 0; i < chips; i++) {
+    b.add(`U${i}`, type);
+    for (let g = 1; g <= 4; g++) {
+      b.connect(previous, `U${i}.${g}A`).connect('V.Y', `U${i}.${g}B`);
+      previous = `U${i}.${g}Y`;
+    }
+  }
+  return new Simulator(b.build(), registry);
+}
+
+/**
+ * `chips` 74HC574s (`type`: hand-written or in Verilog) in a pipeline: each chip's Q0–Q7 feed the
+ * next chip's D0–D7, one clock for all. Every edge loads every register, with the timing checks
+ * running on each.
+ */
+function hc574Pipeline(chips: number, type = '74xx/74hc574'): Simulator {
   const b = new NetlistBuilder().add('CLK', 'test/driver').add('IN', 'test/driver');
   b.add('G', 'io/gnd');
   for (let i = 0; i < chips; i++) {
-    b.add(`U${i}`, '74xx/74hc574').connect('CLK.Y', `U${i}.CP`).connect('G.Y', `U${i}.OE`);
+    b.add(`U${i}`, type).connect('CLK.Y', `U${i}.CP`).connect('G.Y', `U${i}.OE`);
     for (let n = 0; n < 8; n++) b.connect(i === 0 ? 'IN.Y' : `U${i - 1}.Q${n}`, `U${i}.D${n}`);
   }
   return new Simulator(b.build(), registry);
@@ -164,6 +183,24 @@ describe('kernel', () => {
     await measure(bench, '74HC04 chain ×1002', sim, toggle);
   });
 
+  for (const [name, type] of [
+    ['74HC00', '74xx/74hc00'],
+    ['74HC00 (Verilog)', 'dev/74hc00-verilog'],
+  ] as const) {
+    test(`${name} chain ×1000 (250 chips): toggle input and settle`, async ({ bench }) => {
+      // HDL-2: the hand-written 74HC00 against the one written in Verilog.
+      const sim = hc00Chain(250, type);
+      let level: 0 | 1 = 0;
+      const toggle = () => {
+        level = level === 0 ? 1 : 0;
+        sim.action('IN', strong(level));
+        sim.settle();
+      };
+      toggle();
+      await measure(bench, `${name} chain ×1000`, sim, toggle);
+    });
+  }
+
   test('74HC574 pipeline ×100 (800 flip-flops): one clock cycle', async ({ bench }) => {
     // The input toggles every cycle, so once the pipeline is full every bit changes on every edge.
     // 50 ns per clock phase: data settles 17 ns after an edge, well within the checks' minima.
@@ -184,6 +221,28 @@ describe('kernel', () => {
     const problems = sim.diagnostics.entries.map((d) => d.kind);
     if (problems.length > 0) throw new Error(`unexpected diagnostics: ${problems.join(', ')}`);
     await measure(bench, '74HC574 pipeline ×100', sim, cycle);
+  });
+
+  test('74HC574 (Verilog) pipeline ×100 (800 flip-flops): one clock cycle', async ({ bench }) => {
+    // HDL-2: the same pipeline of the 74HC574 written in Verilog, its specify checks running.
+    // 50 ns per clock phase: data settles 17 ns after an edge, well within the checks' minima.
+    const sim = hc574Pipeline(100, 'dev/74hc574-verilog');
+    let level: 0 | 1 = 0;
+    sim.action('CLK', strong(0));
+    sim.action('IN', strong(0));
+    sim.runFor(ns(50));
+    const cycle = () => {
+      sim.action('CLK', strong(1));
+      sim.runFor(ns(50));
+      level = level === 0 ? 1 : 0;
+      sim.action('CLK', strong(0));
+      sim.action('IN', strong(level));
+      sim.runFor(ns(50));
+    };
+    for (let i = 0; i < 120; i++) cycle(); // fill the pipeline
+    const problems = sim.diagnostics.entries.map((d) => d.kind);
+    if (problems.length > 0) throw new Error(`unexpected diagnostics: ${problems.join(', ')}`);
+    await measure(bench, '74HC574 (Verilog) pipeline ×100', sim, cycle);
   });
 
   test('74HC595 chain ×100 (800 + 800 flip-flops): one clock cycle', async ({ bench }) => {

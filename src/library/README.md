@@ -36,7 +36,10 @@ plain steps (the adapter's, and the generated code's reference) in `planes.ts`, 
 fixtures made by `pnpm hdl:fixtures` in `fixtures/` and `fixtures.ts`, the differential tests'
 designs in `differential/` and Yosys's outputs, made by `pnpm hdl:differential`, in
 `differential.ts`, every module the tests hold in `sample-modules.ts`; tri-states and `inout`
-ports, HDL-8) and `registry.ts`
+ports, HDL-8; HDL-2: a `specify` block read in `specify.ts`, its delays in `path-delays.ts`, its
+timing checks in `module-checks.ts`, its timing as a `TimingDef` in `timing.ts`), `verilog/`
+(HDL-2: library parts written in Verilog — the sources, `modules.ts` made by `pnpm hdl:library`,
+the definitions in `chips.ts`) and `registry.ts`
 (`createDefaultRegistry()`, which can make a module's part: `hdlPart`). One part per file (or
 one factory file for a
 family of near-identical parts, like `primitives/gates.ts`), with a colocated `*.test.ts` built

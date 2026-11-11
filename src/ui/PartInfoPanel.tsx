@@ -16,6 +16,7 @@ import {
   type TimingInfo,
   type TimingRow,
   timingInfo,
+  timingSource,
 } from './part-info';
 
 interface PartInfoPanelProps {
@@ -49,7 +50,7 @@ export function PartInfoPanel({ editor, pick, theme, gateStyle }: PartInfoPanelP
   }
   const pins = pinInfo(definition, instance?.props);
   const table = functionTableInfo(definition.functionTable);
-  const timing = timingInfo(definition, instance?.props);
+  const timing = timingInfo(timingSource(editor.registry, definition), instance?.props);
   const numbered = pins.some((pin) => pin.number !== undefined);
   const described = pins.some((pin) => pin.description !== undefined);
 

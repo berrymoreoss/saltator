@@ -1,6 +1,7 @@
 import { expect, type Page, test } from '@playwright/test';
 import clockModule from '../../examples/clock-module.saltator.json' with { type: 'json' };
 import dataBus from '../../examples/data-bus.saltator.json' with { type: 'json' };
+import { SCHEMA_VERSION } from '../../src/circuit';
 import { pick, readFile, stubFileSystemAccess } from './file-system';
 import { clickAt, menu, openExample, watchErrors } from './support';
 
@@ -113,7 +114,7 @@ test('Probes: added from the context menu, undone, and saved with the circuit', 
   await menu(page, 'File', /Save As/);
   await expect(page).toHaveTitle('clock — Saltator');
   const saved = (await readFile(page, 'clock.saltator.json'))!;
-  expect(saved).toContain('"schemaVersion": 9');
+  expect(saved).toContain(`"schemaVersion": ${SCHEMA_VERSION}`);
   expect(saved).toContain('        { "ref": "U3.OUT" },\n        { "ref": "U5.1Y" }\n      ]');
   expect(errors).toEqual([]);
 });

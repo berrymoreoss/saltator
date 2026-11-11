@@ -31,6 +31,8 @@ export const MIGRATIONS: Migrations = {
   7: (doc) => doc,
   // v9 gave modules memories (`memories`, `$memrd`, `$memwr`; HDL-6); v8 ones have none.
   8: addModuleMemories,
+  // v10 gave modules their timing (`specify`: paths and checks; HDL-2); v9 ones have none.
+  9: (doc) => doc,
 };
 
 /** v8 → v9: every compiled module gets an empty `memories`. */

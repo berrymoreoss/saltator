@@ -5,11 +5,11 @@
  */
 
 /**
- * The passes, in order: read the sources, pick the top module (`top`, or the one Yosys guesses:
- * sources with other modules nobody instantiates — PicoRV32's bus adapters — need it named),
- * turn processes into cells (`-norom`: a `case` stays logic, as a GAL gets it, instead of
- * becoming a ROM), flatten the
- * hierarchy, turn tri-states into `$tribuf` cells (HDL-8: `-logic` merges the drivers of one net
+ * The passes, in order: read the sources with their `specify` blocks (HDL-2: pin-to-pin delays
+ * and timing checks become `$specify2`, `$specify3` and `$specrule` cells), pick the top module
+ * (`top`, or the one Yosys guesses: sources with other modules nobody instantiates — PicoRV32's
+ * bus adapters — need it named), turn processes into cells (`-norom`: a `case` stays logic, as a
+ * GAL gets it, instead of becoming a ROM), flatten the hierarchy, turn tri-states into `$tribuf` cells (HDL-8: `-logic` merges the drivers of one net
  * into one and makes those that reach no port logic), optimize without dropping don't-care bits
  * (`-keepdc`, so `X` behaves as written), collect each memory's ports and contents into one cell
  * (HDL-6: reads stay asynchronous, a registered read's register a flip-flop), report problems,
@@ -17,7 +17,7 @@
  */
 export function yosysScript(sources: readonly string[], output: string, top?: string): string {
   return [
-    `read_verilog ${sources.join(' ')}`,
+    `read_verilog -specify ${sources.join(' ')}`,
     top === undefined ? 'hierarchy -auto-top' : `hierarchy -top ${top}`,
     'proc -norom',
     'flatten',
