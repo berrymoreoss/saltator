@@ -4,7 +4,7 @@
 | ---------- | ------------------------------------------------------------------------------------------------------------ |
 | Branch     | `feat/hdl-memories`                                                                                          |
 | Roadmap    | HDL-6 — Memories in modules, track [Programmable logic](../../docs/roadmap/programmable-logic.md)            |
-| Status     | in-progress                                                                                                  |
+| Status     | done                                                                                                         |
 | Depends on | HDL-1, HDL-8, HDL-9 (IR, converter, interpreter), HDL-4 (references inside modules), R12b (memory inspector) |
 | Created    | 2026-11-11                                                                                                   |
 
@@ -197,25 +197,25 @@ Small, ordered, each committable with its tests (`pnpm check` green).
 
 ## Acceptance criteria
 
-- [ ] `pnpm check` and `pnpm build` are green; `pnpm e2e` and `pnpm test:circuits` pass (the
+- [x] `pnpm check` and `pnpm build` are green; `pnpm e2e` and `pnpm test:circuits` pass (the
   examples unchanged).
-- [ ] The register file, FIFO, block RAM, `$readmemh` ROM, byte-enable, two-port, offset and
+- [x] The register file, FIFO, block RAM, `$readmemh` ROM, byte-enable, two-port, offset and
   dual-clock fixtures convert and run; the refused forms say why and how to fix the command.
-- [ ] `pnpm hdl:differential` covers memory designs; `differential.test.ts` checks their outputs
+- [x] `pnpm hdl:differential` covers memory designs; `differential.test.ts` checks their outputs
   against Yosys's `sim`; mutation-checked (a broken read or write fails it).
-- [ ] `X` rules hold in unit tests: unknown address (merge ≤ 8 bits), out of range, unknown
+- [x] `X` rules hold in unit tests: unknown address (merge ≤ 8 bits), out of range, unknown
   enable, uncertain clock edge, a race at the clock edge, a collision of two write ports.
-- [ ] A module's memory is in the Memory tab while running, its cells lit as they are read and
+- [x] A module's memory is in the Memory tab while running, its cells lit as they are read and
   written; an edit there changes what the module reads; stopped, it shows the power-up
   contents read-only; Reset brings them back (Q1).
-- [ ] `A1/rom[1F]` and `A1/m[10..19]` (hex, Verilog addresses: Q2) resolve in watches and benches;
+- [x] `A1/rom[1F]` and `A1/m[10..19]` (hex, Verilog addresses: Q2) resolve in watches and benches;
   `b.memory` loads a module memory in a bench's setup, `expect` checks a cell — headless and in
   the app.
-- [ ] A 32-bit memory shows as words and, switched, as little-endian bytes; a `.bin` and an Intel
+- [x] A 32-bit memory shows as words and, switched, as little-endian bytes; a `.bin` and an Intel
   HEX file load into it packed little-endian; Save gives the same file back (Q3).
-- [ ] The scenario test (FIFO, register file, `$readmemh` ROM) passes headless; the e2e test in the
+- [x] The scenario test (FIFO, register file, `$readmemh` ROM) passes headless; the e2e test in the
   browser (Q4).
-- [ ] HDL-1's benchmark unchanged; a memory module's speed measured and written down.
+- [x] HDL-1's benchmark unchanged; a memory module's speed measured and written down.
 
 ## Open questions
 
@@ -299,14 +299,21 @@ Small, ordered, each committable with its tests (`pnpm check` green).
   speed, tests), circuit.md (resolver, benches), editor.md (Memory tab, files, Insert Image, the
   module view), simulation.md; the track's HDL-6 section rewritten as built, three ideas added
   (per-instance images, synchronous read ports, wider than 32 bits in the tab); lessons.
+- 2026-11-11 — finished. Verified: `pnpm check` (3526 tests), `pnpm build`, `pnpm test:circuits`
+  (28 benches), `pnpm e2e` (99; the probes test had schema v8 written in it), every acceptance
+  criterion (a FIFO bench added to the scenario, a Reset test to the inspector's). Summary:
+  modules hold register files, FIFOs, block RAMs and ROMs (`$readmemh`) as word-level memories
+  with the interpreter's `X` rules, races and collisions; the tools see them as a chip's memory
+  (references, benches, Memory tab with Words/Bytes, the module view); ADR-0036. Follow-ups are
+  track ideas: per-instance images, synchronous read ports, memories wider than 32 bits in the
+  tab.
 
 ## Handoff
 
-- **State:** all twelve tasks done and committed; the acceptance criteria to verify in the
-  finish-branch workflow.
-- **Next step:** finish-branch: full `pnpm e2e`, `pnpm build`, `pnpm test:circuits`, tick the
-  acceptance criteria, status `done` (plan and track), ask the user to merge.
-- **Watch out:** `$readmemh` paths are relative to the `.v`; read stamps change only on a new
-  word or a write since (`stampReads`); `pnpm check` and `pnpm e2e` one after the other; Yosys's
-  `sim` loops on colliding write ports (lessons).
-- **Verify with:** `pnpm check`; `pnpm hdl:fixtures` / `pnpm hdl:differential` need Yosys.
+- **State:** done; waiting for the user's approval to merge.
+- **Next step:** merge (`gh pr create`, `gh pr merge --merge --delete-branch`); then HDL-7
+  (PicoRV32) is the track's head.
+- **Watch out:** `$readmemh` paths are relative to the `.v`; Yosys's `sim` loops on colliding
+  write ports (lessons).
+- **Verify with:** `pnpm check`, `pnpm e2e`; `pnpm hdl:fixtures` / `pnpm hdl:differential`
+  need Yosys.

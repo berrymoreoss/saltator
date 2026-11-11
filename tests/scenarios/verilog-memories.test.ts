@@ -105,6 +105,20 @@ bench('addressed from 16', (b) => {
     ]);
   });
 
+  it('a FIFO: pushed and popped through its ports, its buffer checked inside', () => {
+    const script = `
+bench('pushes three, pops one', (b) => {
+  b.set({ clk: 0, rst: 1, push: 0, pop: 0, 'din[7..0]': 0 });
+  b.row({ clk: 'C' }, { empty: 1, full: 0 });
+  b.set({ rst: 0, push: 1 });
+  for (const byte of [0x11, 0x22, 0x33]) b.row({ 'din[7..0]': byte, clk: 'C' }, { empty: 0 });
+  b.expect({ 'buffer[0..2]': [0x11, 0x22, 0x33], 'buffer[3]': 'X', 'dout[7..0]': 0x11 });
+  b.set({ push: 0, pop: 1 });
+  b.row({ clk: 'C' }, { 'dout[7..0]': 0x22 });
+});`;
+    expect(own('mem_fifo', script)).toEqual([['pushes three, pops one', 'pass', []]]);
+  });
+
   it('a 32-bit RAM takes words, and Intel HEX packed little-endian', () => {
     // addi x0, x0, 0 (0x00000013) and addi x1, x0, 1 (0x00100093), as a RISC-V toolchain writes them.
     const program = writeIntelHex(Uint8Array.from([0x13, 0, 0, 0, 0x93, 0, 0x10, 0]));
