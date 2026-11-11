@@ -166,9 +166,9 @@ address without them); `PokeAction` names the memory. Chips keep `memory` (one);
 
 Small, ordered, each committable with its tests (`pnpm check` green).
 
-- [ ] 1. Core IR: `HdlMemory`, `memories`, `$memrd`/`$memwr` specs and shape checks, `init`
+- [x] 1. Core IR: `HdlMemory`, `memories`, `$memrd`/`$memwr` specs and shape checks, `init`
   text (parse/format); schema v9 migration.
-- [ ] 2. Converter + command: `memory_collect`; `$mem_v2` → memories and ports (wide ports split,
+- [x] 2. Converter + command: `memory_collect`; `$mem_v2` → memories and ports (wide ports split,
   priorities, `INIT`); refusals; the case-ROM error gone; fixtures (`pnpm hdl:fixtures`):
   register file, FIFO, ROM with `$readmemh`, byte enables, two write ports, offset, dual clock,
   reset loop, a JSON from `memory -nomap`.
@@ -245,6 +245,11 @@ Small, ordered, each committable with its tests (`pnpm check` green).
 
 - 2026-11-11 — plan drafted; Yosys tried on ten memory designs (see Design). Q1–Q4 answered.
 - 2026-11-11 — plan approved; started.
+- 2026-11-11 — task 1: IR (`HdlMemory`, `$memrd`, `$memwr`, `init` as hex runs in
+  `core/hdl-memory.ts`), schema v9; examples and differential data regenerated. Task 2: the
+  command gains `memory_collect`; `$mem_v2` converted (wide ports need nothing: their words come
+  with constant low address bits); 13 memory fixtures. Until task 4, `hdlPart` refuses modules
+  with memories ("not supported yet"), so the converter's IR is testable.
 
 ## Handoff
 

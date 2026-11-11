@@ -33,9 +33,21 @@ const ACCEPTED = [
   'latches',
   'loop',
   'loops',
+  'mem_bytes',
+  'mem_dual_clock',
+  'mem_fifo',
+  'mem_hier',
+  'mem_offset',
+  'mem_regfile',
+  'mem_reset_loop',
+  'mem_rom',
+  'mem_two_writes',
+  'mem_wide',
+  'memory',
   'open_drain',
   'ops',
   'races',
+  'rom',
   'shifts',
   'signed',
   'signed_ops',
@@ -236,12 +248,137 @@ describe('fromYosys: tri-states (HDL-8)', () => {
   });
 });
 
+describe('fromYosys: memories (HDL-6)', () => {
+  const memoryCells = (name: string) =>
+    convert(name).module?.cells.filter((c) => c.type === '$memrd' || c.type === '$memwr') ?? [];
+
+  it('makes a memory and a cell per port: reads asynchronous, writes on the clock', () => {
+    const { module, messages } = convert('mem_regfile');
+    expect(messages).toEqual([]);
+    expect(module?.memories).toEqual([
+      { name: 'regs', width: 8, size: 8, offset: 0, src: 'mem_regfile.v:4.13-4.17' },
+    ]);
+    const cells = memoryCells('mem_regfile');
+    expect(cells.map((c) => c.type)).toEqual(['$memrd', '$memrd', '$memwr']);
+    const rs1 = module?.ports.find((p) => p.name === 'rs1')?.bits;
+    const r1 = module?.ports.find((p) => p.name === 'r1')?.bits;
+    expect(cells[0]?.ports).toEqual({ ADDR: rs1, DATA: r1 });
+    expect(cells[0]?.params).toEqual({ MEMORY: 0 });
+    const write = cells[2]!;
+    expect(write.params).toEqual({ MEMORY: 0, CLK_POLARITY: 1, PRIORITY: [] });
+    expect(write.ports.CLK).toEqual(module?.ports.find((p) => p.name === 'clk')?.bits);
+    // One enable for the whole word, as wide as it.
+    expect(new Set(write.ports.EN).size).toBe(1);
+    expect(write.ports.EN).toHaveLength(8);
+    expect(write.src).toBe('mem_regfile.v:4.13-4.17');
+  });
+
+  it("keeps the contents Yosys read from $readmemh and initial blocks, at Verilog's addresses", () => {
+    const rom = convert('mem_rom').module;
+    expect(rom?.memories[0]).toMatchObject({
+      name: 'rom',
+      size: 16,
+      init: '0000:48656C6C6F2C20524F4D',
+    });
+    // A registered read: an asynchronous port and a flip-flop after it.
+    expect(rom?.cells.map((c) => c.type)).toEqual(['$dff', '$memrd']);
+    expect(convert('mem_offset').module?.memories[0]).toMatchObject({
+      size: 10,
+      offset: 16,
+      init: '0010:10111213141516171819',
+    });
+    // A case table made a ROM (plain proc) runs as one too.
+    expect(convert('rom').module?.memories[0]).toMatchObject({
+      width: 4,
+      size: 16,
+      init: '0000:EEEEFFDDBBBBBBBB',
+    });
+  });
+
+  it('keeps the order of write ports and which wins: the later statement, a byte enable each', () => {
+    const [, first, second] = memoryCells('mem_two_writes');
+    expect(first?.params.PRIORITY).toEqual([]);
+    expect(second?.params.PRIORITY).toEqual(['1']);
+    const [, low, high] = memoryCells('mem_bytes');
+    expect(low?.ports.EN?.slice(8)).toEqual(Array(8).fill('0'));
+    expect(high?.ports.EN?.slice(0, 8)).toEqual(Array(8).fill('0'));
+    // A reset loop: a port per word, each winning over the earlier ones; the address an integer's.
+    const loop = memoryCells('mem_reset_loop').filter((c) => c.type === '$memwr');
+    expect(loop.map((c) => c.params.PRIORITY)).toEqual([
+      [],
+      ['1'],
+      ['1', '1'],
+      ['1', '1', '1'],
+      ['0', '0', '0', '0'],
+    ]);
+    expect(loop[0]?.ports.ADDR).toHaveLength(32);
+  });
+
+  it("names a submodule's memory by its path, and splits a wide port into words", () => {
+    expect(convert('mem_hier').module?.memories[0]?.name).toBe('u_store.mem');
+    const [, even, odd] = memoryCells('mem_wide');
+    expect(even?.ports.ADDR?.[0]).toBe('0');
+    expect(odd?.ports.ADDR?.[0]).toBe('1');
+    expect(even?.ports.ADDR?.slice(1)).toEqual(odd?.ports.ADDR?.slice(1));
+  });
+
+  it("refuses what isn't a $mem_v2 the interpreter runs", () => {
+    const mem = (
+      parameters: Record<string, unknown>,
+      connections: Record<string, unknown> = {},
+    ) => ({
+      modules: {
+        m: {
+          attributes: { top: '1' },
+          ports: {},
+          cells: {
+            m: { type: '$mem_v2', attributes: { src: 'm.v:2.1-2.2' }, parameters, connections },
+          },
+          netnames: {},
+        },
+      },
+    });
+    const base = {
+      MEMID: '\\m',
+      SIZE: 2,
+      WIDTH: 1,
+      ABITS: 1,
+      OFFSET: 0,
+      RD_PORTS: 0,
+      WR_PORTS: 1,
+      RD_CLK_ENABLE: '',
+      WR_CLK_ENABLE: '0',
+      WR_CLK_POLARITY: '1',
+      WR_PRIORITY_MASK: '0',
+      INIT: 'xx',
+    };
+    const messages = (parameters: Record<string, unknown>) =>
+      fromYosys(mem(parameters)).messages.map((m) => m.message);
+    expect(messages(base)).toEqual([
+      'memory m is written without a clock: write it in a clocked always block',
+    ]);
+    expect(messages({ ...base, OFFSET: -4 })).toEqual([
+      'memory m has negative addresses (from -4): declare it from 0 up',
+    ]);
+    expect(messages({ ...base, SIZE: 'big' })).toEqual([
+      "memory m: its parameters are not a $mem_v2's",
+    ]);
+    expect(
+      fromYosys({ modules: { m: { cells: { m: { type: '$mem', parameters: {} } } } } }).messages[0]
+        ?.message,
+    ).toBe("$mem is an older Yosys's memory cell: make the JSON with a newer Yosys");
+  });
+});
+
 describe('fromYosys: what it refuses', () => {
   it.each([
-    ['memory', 'error memory.v:4.33-4.42: a memory (r) — not supported yet (HDL-6)'],
     [
-      'rom',
-      'error rom.v:4.13-9.10: a case statement became a ROM: make the JSON with the command (proc -norom)',
+      'mem_sync_read',
+      'error mem_sync_read.v:4.13-4.14: memory m has a synchronous read port (memory_dff merged its register): make the JSON with the command, which leaves the register a flip-flop',
+    ],
+    [
+      'mem_uncollected',
+      'error mem_uncollected.v:6.33-6.42: a memory (m) whose ports are separate cells: make the JSON with the command (memory_collect)',
     ],
     [
       'no_tribuf',

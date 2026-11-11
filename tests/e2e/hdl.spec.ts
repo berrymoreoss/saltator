@@ -49,9 +49,9 @@ test('a Verilog module: the command, a refused JSON, Compile, undo, placed in Ma
   await expect(page.getByTestId('module-summary')).toHaveText('Not compiled yet.');
 
   // What the interpreter can't run yet is refused with its source location.
-  await compile(page, YOSYS_FIXTURES.memory!);
+  await compile(page, YOSYS_FIXTURES.hierarchy!);
   await expect(messages(page)).toContainText(
-    'memory.v:4.33-4.42: a memory (r) — not supported yet (HDL-6)',
+    'hierarchy.v:8.7-8.24: the module places module inv (u1): make the JSON with the command, which flattens',
   );
   await expect(page.getByTestId('module-summary')).toHaveText('Not compiled yet.');
 

@@ -411,6 +411,16 @@ export function hdlPart(type: string, name: string, module: HdlModule): HdlPartR
   if (shape.length > 0) {
     return { messages: shape.map((message) => ({ severity: 'error', message })) };
   }
+  // Memories convert and keep their shape, but don't run yet (HDL-6: the interpreter's task).
+  if (module.memories.length > 0) {
+    return {
+      messages: module.memories.map((memory) => ({
+        severity: 'error',
+        message: `a memory (${memory.name}) — not supported yet (HDL-6)`,
+        ...(memory.src !== undefined && { src: memory.src }),
+      })),
+    };
+  }
   const analysis = analyzeHdlModule(module);
   if (analysis.messages.some((m) => m.severity === 'error')) return { messages: analysis.messages };
   const program = compile(module, analysis);

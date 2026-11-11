@@ -1257,15 +1257,18 @@ converter, the analysis, the interpreter).
 **The command** (`yosysScript`, `yosysCommand` in `src/library/hdl/command.ts`):
 
 ```sh
-yosys -q -p 'read_verilog decoder.v; hierarchy -auto-top; proc -norom; flatten; tribuf -logic; opt -keepdc; check; write_json decoder.json'
+yosys -q -p 'read_verilog decoder.v; hierarchy -auto-top; proc -norom; flatten; tribuf -logic; opt -keepdc; memory_collect; check; write_json decoder.json'
 ```
 
 `hierarchy -auto-top` marks the top module, `proc -norom` turns processes into cells but keeps a
-`case` as logic (plain `proc` makes a decoder's table a ROM, a memory the interpreter can't hold
-before HDL-6), `flatten` inlines the hierarchy, `tribuf -logic` (HDL-8) turns tri-states
+`case` as logic, as a GAL gets it (plain `proc` makes a decoder's table a ROM), `flatten` inlines
+the hierarchy, `tribuf -logic` (HDL-8) turns tri-states
 (`oe ? q : 8'bz`, also from an `always` block) into `$tribuf` cells — it merges the drivers of
 one net into one buffer fed by a `$pmux` and makes those that reach no port logic —, `opt
--keepdc` optimizes without dropping don't-care bits (so `X` behaves as written). Several files,
+-keepdc` optimizes without dropping don't-care bits (so `X` behaves as written), `memory_collect`
+(HDL-6) makes each memory one `$mem_v2` cell with its size, its contents (`initial`, `$readmemh`
+— read by Yosys, relative to the `.v`) and its ports, reads asynchronous (a registered read
+stays a flip-flop: the command runs no `memory_dff`). Several files,
 `` `include ``, SystemVerilog (`read_verilog -sv`) are the user's command line. For every
 tri-state `read_verilog` says "Yosys has only limited support for tri-state logic at the
 moment": harmless here, where only buffers on the ports are left.
@@ -1295,8 +1298,11 @@ extended by its sign bit, an operation of two operands signed only when both are
 on its own), a shift extending `A` to the wider of A and Y by its signedness (`$shiftx` selects
 from `A` as it is). HDL-1 ran unsigned operands up to 32 bits.
 
-**The converter** (`fromYosys`) refuses, with the reason and the source location: memories
-(`$mem*`; a ROM `proc` made of a `case` asks for the command), a multiplexer with `z` inputs (a
+**The converter** (`fromYosys`) refuses, with the reason and the source location: a memory whose
+ports are separate cells (`$memrd_v2`, `$memwr_v2`, `$meminit_v2`: it asks for the command's
+`memory_collect`), one with a synchronous read port (`memory_dff`, `memory -nomap`: it asks for
+the command), one written without a clock, one with negative addresses, the old `$mem`; a
+multiplexer with `z` inputs (a
 tri-state the command's `tribuf` didn't see: it asks for the command), cells of synthesis passes
 the command doesn't run (`$alu`, `$macc`, `$lut`, `$sop`, `$fsm`, …: it asks for the command),
 formal verification cells (`$ff` on the global clock, `$anyseq`, `$initstate`, …), a

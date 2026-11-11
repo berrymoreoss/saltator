@@ -99,10 +99,6 @@ export function analyzeHdlModule(module: HdlModule): HdlAnalysis {
     if (port.dir !== 'inout') continue;
     for (const bit of port.bits) if (typeof bit === 'number') inoutOf.set(bit, port.name);
   }
-  // Memories convert and keep their shape, but don't run yet (HDL-6, the interpreter's task).
-  for (const memory of module.memories) {
-    error(`a memory (${memory.name}) — not supported yet (HDL-6)`, memory.src);
-  }
   const { cells } = module;
   for (const [index, cell] of cells.entries()) {
     const spec: HdlCellSpec = HDL_CELLS[cell.type];

@@ -5,11 +5,13 @@
  * `case`, a gate-level netlist, a tri-state left a `$mux`). Spec: docs/components.md#verilog-modules-hdl.
  */
 import {
+  formatHdlMemoryInit,
   HDL_CELLS,
   HDL_FORMAT,
   type HdlBit,
   type HdlCell,
   type HdlCellSpec,
+  type HdlMemory,
   type HdlMessage,
   type HdlModule,
   type HdlPort,
@@ -19,6 +21,7 @@ import {
   hdlModuleProblems,
   hdlPortProblem,
   isHdlCellType,
+  unknownHdlMemoryWords,
 } from '../../core';
 import { analyzeHdlModule } from './analyze';
 
@@ -73,6 +76,33 @@ function srcOf(attributes: Attributes | undefined): string {
 /** A Yosys constant (a binary string, most significant first) as a number. */
 function flag(value: unknown): number | undefined {
   return typeof value === 'string' && /^[01]+$/.test(value) ? Number.parseInt(value, 2) : undefined;
+}
+
+/**
+ * An integer parameter: a 32-bit binary string (two's complement, as `write_json` writes them),
+ * or a number (`write_json -compat-int`).
+ */
+function intParam(value: unknown): number | undefined {
+  if (typeof value === 'number') return Number.isInteger(value) ? value : undefined;
+  const n = flag(value);
+  if (n === undefined) return undefined;
+  return (value as string).length === 32 && (value as string)[0] === '1' ? n - 2 ** 32 : n;
+}
+
+/**
+ * A bit-vector parameter as `width` bits, least significant first: a binary string (most
+ * significant first; `x` and `z` kept) extended with `fill`, or a number.
+ */
+function bitsParam(value: unknown, width: number, fill: string): string[] | undefined {
+  let bits: string[];
+  if (typeof value === 'number' && Number.isInteger(value) && value >= 0) {
+    bits = [...value.toString(2)].reverse();
+  } else if (typeof value === 'string' && /^[01xz]*$/.test(value)) {
+    bits = [...value].reverse();
+  } else return undefined;
+  if (bits.length > width) bits = bits.slice(0, width);
+  while (bits.length < width) bits.push(fill);
+  return bits;
 }
 
 /** A net's `init` attribute (most significant first) as bits, least significant first. */
@@ -273,9 +303,149 @@ export function fromYosys(json: unknown): YosysConversion {
     reported.add(key);
     report();
   };
+  const memories: HdlMemory[] = [];
+
+  /**
+   * A memory (HDL-6): `memory_collect`'s `$mem_v2` becomes the memory and a `$memrd` per read
+   * port and a `$memwr` per write port. A wide port's words come as ports of their own, their low
+   * address bits constant, so they need nothing more.
+   */
+  function memory(cellName: string, cell: YosysCell, src: string | undefined): void {
+    const p = cell.parameters ?? {};
+    const c = cell.connections ?? {};
+    const name = String(p.MEMID ?? cellName)
+      .trim()
+      .replace(/^\\/, '');
+    const [size, width, abits, offset, rdPorts, wrPorts] = [
+      p.SIZE,
+      p.WIDTH,
+      p.ABITS,
+      p.OFFSET,
+      p.RD_PORTS,
+      p.WR_PORTS,
+    ].map(intParam);
+    const where = `memory ${name}`;
+    if (
+      size === undefined ||
+      width === undefined ||
+      abits === undefined ||
+      offset === undefined ||
+      rdPorts === undefined ||
+      wrPorts === undefined ||
+      size < 1 ||
+      width < 1 ||
+      abits < 0 ||
+      rdPorts < 0 ||
+      wrPorts < 0
+    ) {
+      error(`${where}: its parameters are not a $mem_v2's`, src);
+      bad = true;
+      return;
+    }
+    if (offset < 0) {
+      error(`${where} has negative addresses (from ${offset}): declare it from 0 up`, src);
+      return;
+    }
+    const rdClock = bitsParam(p.RD_CLK_ENABLE, rdPorts, '0');
+    const wrClock = bitsParam(p.WR_CLK_ENABLE, wrPorts, '0');
+    const wrPolarity = bitsParam(p.WR_CLK_POLARITY, wrPorts, '0');
+    const priority = bitsParam(p.WR_PRIORITY_MASK, wrPorts * wrPorts, '0');
+    const init = bitsParam(p.INIT ?? '', size * width, 'x');
+    if (!rdClock || !wrClock || !wrPolarity || !priority || !init) {
+      error(`${where}: its parameters are not a $mem_v2's`, src);
+      bad = true;
+      return;
+    }
+    if (rdClock.includes('1')) {
+      error(
+        `${where} has a synchronous read port (memory_dff merged its register): make the JSON with the command, which leaves the register a flip-flop`,
+        src,
+      );
+      return;
+    }
+    if (wrClock.includes('0')) {
+      error(`${where} is written without a clock: write it in a clocked always block`, src);
+      return;
+    }
+
+    const words = unknownHdlMemoryWords({ width, size });
+    for (const [k, bit] of init.entries()) {
+      if (bit !== '0' && bit !== '1') continue;
+      const w = Math.floor(k / width);
+      const b = k % width;
+      const at = w * words.limbs + Math.floor(b / 32);
+      const mask = 2 ** (b % 32);
+      words.unk[at] = words.unk[at]! - mask;
+      if (bit === '1') words.val[at] = words.val[at]! + mask;
+    }
+    const text = formatHdlMemoryInit({ width, size, offset }, words);
+    const index = memories.length;
+    memories.push({
+      name,
+      width,
+      size,
+      offset,
+      ...(text ? { init: text } : {}),
+      ...(src ? { src } : {}),
+    });
+
+    let readsZ = false;
+    const inputs = (port: string, count: number) => {
+      const bits = bitsOf(c[port], `${where} port ${port}`, src, () => {
+        readsZ = true;
+      });
+      if (bits.length !== count) {
+        error(`${where} port ${port}: expected ${count} bits, got ${bits.length}`, src);
+        bad = true;
+      }
+      return bits;
+    };
+    const rdAddr = inputs('RD_ADDR', rdPorts * abits);
+    const rdData = bitsOf(c.RD_DATA, `${where} port RD_DATA`, src);
+    const wrClk = inputs('WR_CLK', wrPorts);
+    const wrEn = inputs('WR_EN', wrPorts * width);
+    const wrAddr = inputs('WR_ADDR', wrPorts * abits);
+    const wrData = inputs('WR_DATA', wrPorts * width);
+    if (bad || rdData.length !== rdPorts * width) {
+      if (!bad) error(`${where} port RD_DATA: expected ${rdPorts * width} bits`, src);
+      bad = true;
+      return;
+    }
+    // A memory of one word may have no address bits; the IR's ports have at least one.
+    const address = (bits: HdlBit[], i: number) =>
+      abits === 0 ? (['0'] as HdlBit[]) : bits.slice(i * abits, (i + 1) * abits);
+    for (let i = 0; i < rdPorts; i++) {
+      cells.push({
+        type: '$memrd',
+        src: src ?? '',
+        ports: { ADDR: address(rdAddr, i), DATA: rdData.slice(i * width, (i + 1) * width) },
+        params: { MEMORY: index },
+      });
+    }
+    for (let i = 0; i < wrPorts; i++) {
+      // Bit i·WR_PORTS + j of the mask: port i wins over port j (only earlier ones matter).
+      const wins = Array.from(
+        { length: i },
+        (_, j): HdlBit => (priority[i * wrPorts + j] === '1' ? '1' : '0'),
+      );
+      cells.push({
+        type: '$memwr',
+        src: src ?? '',
+        ports: {
+          CLK: wrClk.slice(i, i + 1),
+          EN: wrEn.slice(i * width, (i + 1) * width),
+          ADDR: address(wrAddr, i),
+          DATA: wrData.slice(i * width, (i + 1) * width),
+        },
+        params: { MEMORY: index, CLK_POLARITY: wrPolarity[i] === '1' ? 1 : 0, PRIORITY: wins },
+      });
+    }
+    if (readsZ) {
+      warning('a constant z is read by a memory port here, which reads X', src);
+    }
+  }
+
   const allCells = Object.entries(mod.cells ?? {});
-  const hasRomInit = allCells.some(([, c]) => c.type === '$meminit' || c.type === '$meminit_v2');
-  const hasMemWrite = allCells.some(([, c]) => String(c.type).startsWith('$memwr'));
   for (const [cellName, cell] of allCells) {
     const type = String(cell.type);
     const src = srcOf(cell.attributes) || undefined;
@@ -303,17 +473,25 @@ export function fromYosys(json: unknown): YosysConversion {
       );
       continue;
     }
+    if (type === '$mem_v2') {
+      memory(cellName, cell, src);
+      continue;
+    }
+    if (type === '$mem') {
+      once('mem v1', () =>
+        error("$mem is an older Yosys's memory cell: make the JSON with a newer Yosys", src),
+      );
+      continue;
+    }
     if (type.startsWith('$mem')) {
-      if (hasRomInit && !hasMemWrite) {
-        once('rom', () =>
-          error('a case statement became a ROM: make the JSON with the command (proc -norom)', src),
-        );
-      } else {
-        const memory = String(cell.parameters?.MEMID ?? '').replace(/^\\/, '');
-        once(`mem ${memory}`, () =>
-          error(`a memory${memory ? ` (${memory})` : ''} — not supported yet (HDL-6)`, src),
-        );
-      }
+      // $memrd, $memwr, $meminit (and their _v2): a memory's ports, not collected into one cell.
+      const name = String(cell.parameters?.MEMID ?? '').replace(/^\\/, '');
+      once(`mem ${name}`, () =>
+        error(
+          `a memory${name ? ` (${name})` : ''} whose ports are separate cells: make the JSON with the command (memory_collect)`,
+          src,
+        ),
+      );
       continue;
     }
     if (!isHdlCellType(type)) {
@@ -446,7 +624,7 @@ export function fromYosys(json: unknown): YosysConversion {
     bitCount: renumber.size,
     ports: settledPorts,
     signals,
-    memories: [],
+    memories,
     cells: settledCells,
   });
   const shape = hdlModuleProblems(module);
