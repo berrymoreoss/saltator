@@ -70,7 +70,7 @@ export function compileStep(cell: HdlCell, bitCount: number): CellStep {
   const zero = bitCount;
   const a = indices(cell, 'A', bitCount);
   const b = indices(cell, 'B', bitCount);
-  const y = indices(cell, spec.output, bitCount);
+  const y = indices(cell, spec.output ?? '', bitCount);
   const width = y.length;
 
   switch (cell.type) {

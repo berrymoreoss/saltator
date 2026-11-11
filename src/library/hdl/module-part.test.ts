@@ -500,6 +500,7 @@ describe('clocks made inside the module (HDL-9)', () => {
       bitCount: 4,
       ports: [{ name: 'q', dir: 'out', lsb: 0, bits: [3], init: ['0'] }],
       signals: [{ name: 'd', lsb: 0, bits: [1], init: ['0'] }],
+      memories: [],
       cells: [
         {
           type: '$dff',
@@ -583,6 +584,7 @@ describe('clocks made inside the module (HDL-9)', () => {
         { name: 'x1', lsb: 0, bits: [1] },
         { name: 'x2', lsb: 0, bits: [2] },
       ],
+      memories: [],
       cells: [
         ...toggle(1, 3, 1),
         ...toggle(2, 6, 0),
@@ -743,6 +745,7 @@ describe('clock edges', () => {
         { name: 'q2', dir: 'out', lsb: 0, bits: [3] },
       ],
       signals: [],
+      memories: [],
       cells: [
         { type: '$dff', src: '', ports: { CLK: [0], D: [2], Q: [3] }, params: { CLK_POLARITY: 1 } },
         { type: '$dff', src: '', ports: { CLK: [0], D: [1], Q: [2] }, params: { CLK_POLARITY: 1 } },
@@ -984,6 +987,7 @@ describe('tri-states and inout ports (HDL-8)', () => {
           { name: 'y', dir: 'out', lsb: 0, bits: [4] },
         ],
         signals: [],
+        memories: [],
         cells: [
           {
             type: '$dlatch',

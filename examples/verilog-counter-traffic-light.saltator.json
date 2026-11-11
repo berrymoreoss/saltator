@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 8,
+  "schemaVersion": 9,
   "circuits": [
     {
       "id": "main",
@@ -97,6 +97,7 @@
             { "name": "co", "dir": "out", "lsb": 0, "bits": [7], "src": "decade_counter.v:8.12-8.14" }
           ],
           "signals": [],
+          "memories": [],
           "cells": [
             { "type": "$add", "src": "decade_counter.v:12.44-12.52", "ports": { "A": [3, 4, 5, 6], "B": ["1", "0", "0", "0"], "Y": [8, 9, 10, 11] }, "params": {} },
             { "type": "$and", "src": "decade_counter.v:13.15-13.31", "ports": { "A": [2], "B": [12], "Y": [7] }, "params": {} },
@@ -155,6 +156,7 @@
           "signals": [
             { "name": "state", "lsb": 0, "bits": [8, 9], "src": "traffic_light.v:12.13-12.18" }
           ],
+          "memories": [],
           "cells": [
             { "type": "$sdffe", "src": "traffic_light.v:13.3-20.14", "ports": { "CLK": [0], "SRST": [1], "EN": [2], "D": [6, 7], "Q": [8, 9] }, "params": { "CLK_POLARITY": 1, "SRST_POLARITY": 1, "EN_POLARITY": 1, "SRST_VALUE": ["0", "0"] } },
             { "type": "$eq", "src": "traffic_light.v:21.32-21.45", "ports": { "A": [8, 9], "B": ["1", "1"], "Y": [10] }, "params": {} },

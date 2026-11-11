@@ -18,6 +18,7 @@ import {
   HDL_CELLS,
   type HdlModule,
   type HdlPartResult,
+  hdlCellOutput,
   hdlDelayProp,
   hdlModuleProblems,
   hdlPinDirs,
@@ -323,12 +324,10 @@ function compile(module: HdlModule, analysis: HdlAnalysis): Program {
     if (members && index === members[members.length - 1]) {
       // The loop's last cell: its steps become one, iterated.
       const outputs = members.flatMap((m) =>
-        cells[m]!.ports[HDL_CELLS[cells[m]!.type].output]!.map((bit) => planeIndex(bit, bitCount)),
+        hdlCellOutput(cells[m]!).map((bit) => planeIndex(bit, bitCount)),
       );
       steps.push(loopStep(loopSteps, Int32Array.from(outputs), loopFailed, l));
-      loopNames.push(
-        outputName(module, cells[members[0]!]!.ports[HDL_CELLS[cells[members[0]!]!.type].output]!),
-      );
+      loopNames.push(outputName(module, hdlCellOutput(cells[members[0]!]!)));
       loopSteps = [];
     }
     if (HDL_CELLS[cell.type].kind === 'latch' && cell.ports.EN) {

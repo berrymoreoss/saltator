@@ -395,6 +395,7 @@ export const testModule: HdlModule = {
     { name: 'held', lsb: 0, bits: [6] },
     { name: 'u1.word', lsb: 4, bits: [3, 4, '1'] },
   ],
+  memories: [],
   cells: [
     { type: '$and', src: 'gate.v:4.10-4.15', ports: { A: [1], B: [2], Y: [5] }, params: {} },
     {

@@ -13,6 +13,7 @@ const base = (cells: HdlCell[], bitCount = 8): HdlModule => ({
     { name: 'y', dir: 'out', lsb: 0, bits: [3] },
   ],
   signals: [{ name: 'w', lsb: 4, bits: [4, 5] }],
+  memories: [],
   cells,
 });
 
@@ -146,6 +147,7 @@ describe('analyzeHdlModule: tri-states (HDL-8)', () => {
       ...ports,
     ],
     signals: [],
+    memories: [],
     cells,
   });
 

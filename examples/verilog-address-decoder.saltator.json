@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 8,
+  "schemaVersion": 9,
   "circuits": [
     {
       "id": "main",
@@ -100,6 +100,7 @@
             { "name": "rom_cs_n", "dir": "out", "lsb": 0, "bits": [7], "src": "address_decoder.v:11.12-11.20" }
           ],
           "signals": [],
+          "memories": [],
           "cells": [
             { "type": "$logic_not", "src": "address_decoder.v:13.23-13.43", "ports": { "A": [2, 3], "Y": [8] }, "params": {} },
             { "type": "$eq", "src": "address_decoder.v:14.23-14.44", "ports": { "A": [1, 2, 3], "B": ["1", "1", "0"], "Y": [9] }, "params": {} },

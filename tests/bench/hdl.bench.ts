@@ -78,6 +78,7 @@ function synthetic(lanes: number): HdlModule {
     ],
     // Each lane's register by name (HDL-4: what probes inside a module record).
     signals: q.map((bits, i) => ({ name: `q${i}`, lsb: 0, bits })),
+    memories: [],
     cells,
   };
 }

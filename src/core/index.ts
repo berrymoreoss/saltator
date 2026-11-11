@@ -53,6 +53,14 @@ export {
   validateFunctionTable,
 } from './function-table';
 export {
+  formatHdlMemoryInit,
+  HDL_INIT_HINT,
+  type HdlMemoryWords,
+  hdlMemoryLimbs,
+  readHdlMemoryInit,
+  unknownHdlMemoryWords,
+} from './hdl-memory';
+export {
   HDL_CELLS,
   HDL_DEFAULT_DELAY,
   HDL_FAMILY,
@@ -62,12 +70,14 @@ export {
   type HdlCellKind,
   type HdlCellSpec,
   type HdlCellType,
+  type HdlMemory,
   type HdlMessage,
   type HdlModule,
   type HdlPartResult,
   type HdlPort,
   type HdlPortBit,
   type HdlSignal,
+  hdlCellOutput,
   hdlDelayProp,
   hdlModuleProblems,
   hdlPartType,

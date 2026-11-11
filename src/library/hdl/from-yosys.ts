@@ -15,6 +15,7 @@ import {
   type HdlPort,
   type HdlPortBit,
   type HdlSignal,
+  hdlCellOutput,
   hdlModuleProblems,
   hdlPortProblem,
   isHdlCellType,
@@ -338,7 +339,9 @@ export function fromYosys(json: unknown): YosysConversion {
         readsZ = true;
       });
     }
-    cellPorts[spec.output] = bitsOf(connections[spec.output], `${type} port ${spec.output}`, src);
+    if (spec.output !== undefined) {
+      cellPorts[spec.output] = bitsOf(connections[spec.output], `${type} port ${spec.output}`, src);
+    }
     if (readsZ && (type === '$mux' || type === '$pmux')) {
       once('no tribuf', () =>
         error(
@@ -391,7 +394,7 @@ export function fromYosys(json: unknown): YosysConversion {
     for (const b of port.bits) if (typeof b === 'number') driven.add(b);
   }
   for (const cell of cells) {
-    for (const b of cell.ports[HDL_CELLS[cell.type].output]!) driven.add(b as number);
+    for (const b of hdlCellOutput(cell)) driven.add(b as number);
   }
   const floating = new Set<number>();
   const settle = <B extends HdlPortBit>(bits: readonly B[]): (B | 'x')[] =>
@@ -443,6 +446,7 @@ export function fromYosys(json: unknown): YosysConversion {
     bitCount: renumber.size,
     ports: settledPorts,
     signals,
+    memories: [],
     cells: settledCells,
   });
   const shape = hdlModuleProblems(module);

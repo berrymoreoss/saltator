@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   HDL_CELLS,
+  type HdlCell,
   type HdlModule,
+  hdlCellOutput,
   hdlModuleProblems,
   hdlPinDirs,
   hdlPortName,
@@ -23,6 +25,7 @@ const sample: HdlModule = {
     { name: 'q', dir: 'out', lsb: 4, bits: [4, 5], init: ['1', '0'], src: 's.v:2.3-2.4' },
   ],
   signals: [{ name: 'w', lsb: 0, bits: [3], src: 's.v:5.1-5.2' }],
+  memories: [],
   cells: [
     { type: '$and', src: 's.v:6.1-6.9', ports: { A: [1], B: [2], Y: [3] }, params: {} },
     {
@@ -97,7 +100,9 @@ describe('HDL_CELLS', () => {
     expect(isHdlCellType('$lut')).toBe(false);
     expect(isHdlCellType('$_AND_')).toBe(false);
     expect(isHdlCellType('toString')).toBe(false);
-    expect(Object.keys(HDL_CELLS)).toHaveLength(58);
+    expect(isHdlCellType('$memrd')).toBe(true);
+    expect(isHdlCellType('$mem_v2')).toBe(false);
+    expect(Object.keys(HDL_CELLS)).toHaveLength(60);
   });
 });
 
@@ -310,6 +315,83 @@ describe('hdlModuleProblems', () => {
       'm.cells[0].ports.A: expected signal bits or "0", "1", "x", got "z"',
       'm.cells[1].ports.EN: expected one bit',
       'm.cells[2].ports.A: expected 1 bits, as Y',
+    ]);
+  });
+
+  /** A 4 × 2 RAM: clk, we, a[1:0], d[1:0] in; q[1:0] read asynchronously; two write ports. */
+  const ram: HdlModule = {
+    ...sample,
+    bitCount: 9,
+    ports: [
+      { name: 'clk', dir: 'in', lsb: 0, bits: [0] },
+      { name: 'we', dir: 'in', lsb: 0, bits: [1] },
+      { name: 'a', dir: 'in', lsb: 0, bits: [2, 3] },
+      { name: 'd', dir: 'in', lsb: 0, bits: [4, 5] },
+      { name: 'q', dir: 'out', lsb: 0, bits: [6, 7] },
+    ],
+    signals: [],
+    memories: [{ name: 'm', width: 2, size: 4, offset: 0, init: '0000:3', src: 'r.v:2.3-2.20' }],
+    cells: [
+      {
+        type: '$memrd',
+        src: 'r.v:4.1-4.9',
+        ports: { ADDR: [2, 3], DATA: [6, 7] },
+        params: { MEMORY: 0 },
+      },
+      {
+        type: '$memwr',
+        src: 'r.v:3.1-3.9',
+        ports: { CLK: [0], EN: [1, 1], ADDR: [2, 3], DATA: [4, 5] },
+        params: { MEMORY: 0, CLK_POLARITY: 1, PRIORITY: [] },
+      },
+      {
+        type: '$memwr',
+        src: 'r.v:5.1-5.9',
+        ports: { CLK: [0], EN: [8, 8], ADDR: ['0', '1'], DATA: ['0', 'x'] },
+        params: { MEMORY: 0, CLK_POLARITY: 0, PRIORITY: ['1'] },
+      },
+    ],
+  };
+
+  it('takes memories, their read and write ports (HDL-6)', () => {
+    expect(hdlModuleProblems(ram)).toEqual([]);
+    expect(hdlModuleProblems(JSON.parse(JSON.stringify(ram)))).toEqual([]);
+    expect(hdlCellOutput(ram.cells[0]!)).toEqual([6, 7]);
+    expect(hdlCellOutput(ram.cells[1]!)).toEqual([]);
+  });
+
+  it('checks memories and their ports against them', () => {
+    const memories = [
+      { name: 'm', width: 2, size: 4, offset: 0, init: '0004:1' },
+      { name: 'm', width: 0, size: 1.5, offset: -1, depth: 3 },
+    ];
+    const [rd, wr1, wr2] = ram.cells as [HdlCell, HdlCell, HdlCell];
+    const cells = [
+      { ...rd, ports: { ADDR: [2, 3], DATA: [6] } },
+      { ...rd, params: { MEMORY: 2 } },
+      {
+        ...wr1,
+        ports: { ...wr1.ports, EN: [1] },
+        params: { MEMORY: 0, CLK_POLARITY: 1, PRIORITY: ['1'] },
+      },
+      { ...wr2, ports: { ...wr2.ports, CLK: [0, 1] } },
+      { ...wr2, params: { MEMORY: 0, CLK_POLARITY: 2, PRIORITY: ['1', 'x'], A_SIGNED: 1 } },
+    ];
+    expect(hdlModuleProblems({ ...ram, memories, cells }, 'm')).toEqual([
+      'm.memories[0].init: run "0004:1" is outside the memory\'s addresses 0x0–0x3',
+      'm.memories[1].depth: unknown field',
+      "m.memories[1].name: m is an earlier memory's",
+      'm.memories[1].width: expected an integer ≥ 1',
+      'm.memories[1].size: expected an integer ≥ 1',
+      'm.memories[1].offset: expected an integer ≥ 0',
+      "m.cells[0].ports.DATA: expected 2 bits, as its memory's words",
+      'm.cells[1].params.MEMORY: expected the index of one of the 2 memories',
+      "m.cells[2].ports.EN: expected 2 bits, as its memory's words",
+      'm.cells[2].params.PRIORITY: expected 0 bits "0" or "1", one per earlier write port of its memory',
+      'm.cells[3].ports.CLK: expected one bit',
+      'm.cells[4].params.A_SIGNED: not a parameter of it',
+      'm.cells[4].params.CLK_POLARITY: expected 0 or 1',
+      'm.cells[4].params.PRIORITY: expected 2 bits "0" or "1", one per earlier write port of its memory',
     ]);
   });
 });
