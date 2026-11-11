@@ -264,6 +264,36 @@ export function placeImage(
   return [{ address: 0, bytes }];
 }
 
+/** A run of consecutive words: `words[i]` at word address `address + i`. */
+export interface WordRun {
+  readonly address: number;
+  readonly words: readonly number[];
+}
+
+/**
+ * An image file's bytes as words of `bytesPerWord` bytes, least significant first (little-endian,
+ * as RISC-V tools lay a program out): byte address `b` is byte `b % n` of word `b / n` (HDL-6).
+ * A word the file covers in part gets 0 in its other bytes. Runs in address order.
+ */
+export function packWords(chunks: readonly ImageChunk[], bytesPerWord: number): WordRun[] {
+  const words = new Map<number, number>();
+  for (const { address, bytes } of chunks) {
+    for (let i = 0; i < bytes.length; i++) {
+      const b = address + i;
+      const w = Math.floor(b / bytesPerWord);
+      const lane = b % bytesPerWord;
+      words.set(w, ((words.get(w) ?? 0) + bytes[i]! * 2 ** (8 * lane)) >>> 0);
+    }
+  }
+  const runs: { address: number; words: number[] }[] = [];
+  for (const w of [...words.keys()].sort((a, b) => a - b)) {
+    const last = runs.at(-1);
+    if (last && last.address + last.words.length === w) last.words.push(words.get(w)!);
+    else runs.push({ address: w, words: [words.get(w)!] });
+  }
+  return runs;
+}
+
 /** Applies `writes` to `bytes` in place (a ROM's contents), returning it. */
 export function applyImageWrites(bytes: Uint8Array, writes: readonly ImageChunk[]): Uint8Array {
   for (const write of writes) bytes.set(write.bytes, write.address);

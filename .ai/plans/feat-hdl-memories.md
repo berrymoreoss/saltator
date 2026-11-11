@@ -182,7 +182,7 @@ Small, ordered, each committable with its tests (`pnpm check` green).
   with the memory; the module part's view and pokes; chips unchanged.
 - [x] 7. Resolver: module memories and cells by name (Q2), listed in `memories()`; errors that
   say what exists.
-- [ ] 8. Benches: module memories in `b.memory`, `b.loadIntelHex`, `expect`/`get`/rows; wide
+- [x] 8. Benches: module memories in `b.memory`, `b.loadIntelHex`, `expect`/`get`/rows; wide
   words; `pnpm test:circuits`.
 - [ ] 9. Memory tab: module memories in the picker, stopped view (Q1), pokes; wide words with the
   Words/Bytes switch, Load/Save packed little-endian (Q3).
@@ -272,14 +272,20 @@ Small, ordered, each committable with its tests (`pnpm check` green).
   `offset`); `parseAddress` takes the first address; `memories()` lists them with the holding
   part apart (`MemoryPart.part`). The inspector and the debugger's watches now reach the
   simulator through that part (watches keep the memory's reference and addresses).
+- 2026-11-11 — task 8: benches take a module's memory (`b.memory('A1/regs', …)`, addresses from
+  its first one, hex words for wider memories), `b.loadIntelHex` packs bytes into wider words
+  little-endian (`packWords` in core), `expect`/`get` on its cells; a whole memory as an output
+  says to check its cells. `tests/scenarios/verilog-memories.test.ts` (own benches, through an
+  instance, a 32-bit RAM fixture `mem_word32`).
 
 ## Handoff
 
-- **State:** tasks 1–7 done and committed (IR + schema v9, converter + command, analysis,
+- **State:** tasks 1–8 done and committed (IR + schema v9, converter + command, analysis,
   interpreter in `memory-cells.ts`, differential). Modules with memories run headless; nothing
   shows them yet (no view, references, benches or UI).
-- **Next step:** task 8 — benches: `#memory` takes a `memory` target, addresses from the
-  memory's `offset`, pokes by `pokeOf`, words up to `2^width`; then task 9 (the Memory tab).
+- **Next step:** task 9 — the Memory tab: entries carry `part`/`memory` already; stopped
+  module memories show `powerUp` read-only (Q1); addresses from `offset`; wide words with a
+  Words/Bytes switch, Load/Save packed little-endian (`packWords`, `memoryBytes(…, width)`).
 - **Watch out:** `$readmemh` paths are relative to the `.v`; read stamps change only on a new
   word or a write since (`stampReads`); `pnpm check` and `pnpm e2e` one after the other; Yosys's
   `sim` loops on colliding write ports (lessons).

@@ -99,12 +99,14 @@ export {
   type IntelHexOptions,
   memoryBytes,
   type PlaceOptions,
+  packWords,
   placeImage,
   readBinaryImage,
   readImageFile,
   readIntelHex,
   suggestedLoadAddress,
   summarizeImage,
+  type WordRun,
   writeIntelHex,
 } from './image-files';
 export {

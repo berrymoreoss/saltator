@@ -21,8 +21,10 @@ import {
   type Netlist,
   type NetlistNet,
   type PropValue,
+  packWords,
   parseImage,
   parseTime,
+  pokeOf,
   readIntelHex,
   resolveProps,
   SeededRandom,
@@ -128,6 +130,7 @@ type Output =
       readonly kind: 'cells';
       readonly part: string;
       readonly memory: MemoryDef;
+      /** Word indices: an address minus the memory's `offset`. */
       readonly from: number;
       readonly to: number;
     };
@@ -340,16 +343,22 @@ export class CircuitBench {
   /**
    * Bytes into a memory from `address` on (a number, or hex text as the Memory tab takes it):
    * an array of numbers or hex text (`'2A 55 FF'`). A RAM takes them at once (`poke`); a ROM's
-   * image only before the simulation starts — before anything else in the bench.
+   * image only before the simulation starts — before anything else in the bench. A module's
+   * memory (HDL-6) takes words as wide as its own (`'DEADBEEF 00000013'`) at its Verilog
+   * addresses.
    */
   memory(ref: unknown, address: unknown, bytes: unknown): void {
     const name = this.#ref(ref, 'memory');
     const target = this.#memory(name);
-    const at = memoryAddress(address, target.memory.words, name);
-    this.#write(target, name, at, memoryData(bytes, target.memory.width, name));
+    const { memory } = target;
+    const at = memoryAddress(address, memory.words, memory.offset ?? 0, name);
+    this.#write(target, name, at, memoryData(bytes, memory.width, name));
   }
 
-  /** An Intel HEX image (its text) into a memory, record by record (as `memory`). */
+  /**
+   * An Intel HEX image (its text) into a memory, record by record (as `memory`); into a memory of
+   * wider words, its bytes packed into them little-endian by byte address (HDL-6).
+   */
   loadIntelHex(ref: unknown, text: unknown): void {
     const name = this.#ref(ref, 'loadIntelHex');
     if (typeof text !== 'string')
@@ -361,7 +370,20 @@ export class CircuitBench {
     } catch (error) {
       throw new BenchError(`${name}: ${(error as Error).message}`);
     }
-    for (const chunk of file.chunks) this.#write(target, name, chunk.address, [...chunk.bytes]);
+    const offset = target.memory.offset ?? 0;
+    const per = Math.ceil(target.memory.width / 8);
+    const runs =
+      per === 1
+        ? file.chunks.map((c) => ({ address: c.address, words: [...c.bytes] }))
+        : packWords(file.chunks, per);
+    for (const run of runs) {
+      if (run.address < offset) {
+        throw new BenchError(
+          `${name}: ${hex(run.address)} is before its first address ${hex(offset)}`,
+        );
+      }
+      this.#write(target, name, run.address - offset, run.words);
+    }
   }
 
   /** A failure that ends the bench. */
@@ -510,6 +532,8 @@ export class CircuitBench {
   #memory(ref: string): { part: string; memory: MemoryDef; image?: string } {
     const target = this.#resolver.resolve(ref);
     if (typeof target === 'string') throw new BenchError(`${ref}: ${target}`);
+    // A module's memory (HDL-6): volatile, from its power-up contents.
+    if (target.kind === 'memory') return { part: target.part, memory: target.memory };
     const definition = target.kind === 'part' ? this.#registry.get(target.type) : undefined;
     if (target.kind !== 'part' || !definition?.memory) {
       throw new BenchError(`${ref} is not a memory`);
@@ -529,12 +553,14 @@ export class CircuitBench {
   ): void {
     const { part, memory, image } = target;
     if (address + bytes.length > memory.words) {
+      const offset = memory.offset ?? 0;
+      const unit = memory.width > 8 ? 'words' : 'bytes';
       throw new BenchError(
-        `${ref}: ${bytes.length} bytes at ${hex(address)} reach past the last address ${hex(memory.words - 1)}`,
+        `${ref}: ${bytes.length} ${unit} at ${hex(offset + address)} reach past the last address ${hex(offset + memory.words - 1)}`,
       );
     }
     if (image === undefined) {
-      this.#act(part, { type: 'poke', address, data: [...bytes] }, ref);
+      this.#act(part, pokeOf(memory, address, bytes), ref);
       return;
     }
     if (this.#sim) {
@@ -704,6 +730,9 @@ export class CircuitBench {
       const { part, memory, from, to } = target;
       return { kind: 'cells', part, memory, from, to };
     }
+    if (typeof target !== 'string' && target.kind === 'memory') {
+      throw new BenchError(`${ref} is a memory: check its cells (${ref}[…])`);
+    }
     const signal = this.#resolver.signal(ref);
     if (typeof signal === 'string') throw new BenchError(`${ref}: ${signal}`);
     return { kind: 'nets', nets: signal.bits.map((bit) => channelSource(sim, bit)) };
@@ -771,32 +800,43 @@ export class CircuitBench {
   }
 }
 
-/** A memory address: a number, or hex text (`'7F0'`, `'0x7F0'`, `'$7F0'`). */
-function memoryAddress(address: unknown, words: number, ref: string): number {
-  if (typeof address === 'number' && Number.isInteger(address) && address >= 0 && address < words) {
-    return address;
+/**
+ * A memory address: a number, or hex text (`'7F0'`, `'0x7F0'`, `'$7F0'`), from the memory's
+ * first address `offset` (a module's, HDL-6); the word's index.
+ */
+function memoryAddress(address: unknown, words: number, offset: number, ref: string): number {
+  if (
+    typeof address === 'number' &&
+    Number.isInteger(address) &&
+    address >= offset &&
+    address < offset + words
+  ) {
+    return address - offset;
   }
   if (typeof address === 'string') {
-    const parsed = parseAddress(address, words);
-    if (typeof parsed === 'number') return parsed;
+    const parsed = parseAddress(address, words, offset);
+    if (typeof parsed === 'number') return parsed - offset;
     throw new BenchError(`${ref}: ${parsed}`);
   }
-  throw new BenchError(`${ref}: an address 0…${hex(words - 1)}, got ${show(address)}`);
+  throw new BenchError(
+    `${ref}: an address ${offset === 0 ? '0' : hex(offset)}…${hex(offset + words - 1)}, got ${show(address)}`,
+  );
 }
 
-/** Bytes to write: numbers (an array or a typed array) or hex text (`'2A 55 FF'`). */
+/**
+ * Bytes to write — or words, into a module's wider memory (HDL-6): numbers (an array or a typed
+ * array) or hex text (`'2A 55 FF'`, `'DEADBEEF 13'`).
+ */
 function memoryData(bytes: unknown, width: number, ref: string): number[] {
+  const digits = Math.max(2, Math.ceil(width / 4));
+  const word = new RegExp(`^(?:0x|\\$)?[0-9a-f]{1,${digits}}$`, 'i');
   const values: unknown[] =
     typeof bytes === 'string'
       ? bytes
           .trim()
           .split(/[\s,]+/)
           .filter((b) => b !== '')
-          .map((b) =>
-            /^(?:0x|\$)?[0-9a-f]{1,2}$/i.test(b)
-              ? Number.parseInt(b.replace(/^(0x|\$)/i, ''), 16)
-              : b,
-          )
+          .map((b) => (word.test(b) ? Number.parseInt(b.replace(/^(0x|\$)/i, ''), 16) : b))
       : Array.isArray(bytes) || ArrayBuffer.isView(bytes)
         ? [...(bytes as ArrayLike<unknown> & Iterable<unknown>)]
         : [bytes];
@@ -805,8 +845,9 @@ function memoryData(bytes: unknown, width: number, ref: string): number[] {
     if (typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= max) {
       return value;
     }
+    const unit = width > 8 ? 'words' : 'bytes';
     throw new BenchError(
-      `${ref}: bytes are numbers 0…${max} or hex text ('2A 55'), got ${show(value)}`,
+      `${ref}: ${unit} are numbers 0…${max} or hex text ('2A 55'), got ${show(value)}`,
     );
   });
 }
@@ -819,9 +860,10 @@ function onOff(level: Level, ref: string): boolean {
   throw new BenchError(`${ref}: a switch is 0 or 1`);
 }
 
-/** `U5[10..1F]`'s i-th cell as `U5[12]`. */
-function cellName(ref: string, output: { from: number }, i: number): string {
-  return `${ref.slice(0, ref.indexOf('['))}[${(output.from + i).toString(16).toUpperCase()}]`;
+/** `U5[10..1F]`'s i-th cell as `U5[12]` (at the memory's addresses). */
+function cellName(ref: string, output: { from: number; memory: MemoryDef }, i: number): string {
+  const address = (output.memory.offset ?? 0) + output.from + i;
+  return `${ref.slice(0, ref.indexOf('['))}[${address.toString(16).toUpperCase()}]`;
 }
 
 /** A simulation error as a failure says it: `setup-violation U1: …`. */
