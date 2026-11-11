@@ -219,3 +219,16 @@ export function setBit(layout: Layout, v: Int32Array, u: Int32Array, bit: number
     v[w] = t === 1 ? v[w]! | m : v[w]! & ~m;
   }
 }
+
+/**
+ * Per word, the bits that hold a signal bit. The others stay 0 in both planes (every write is
+ * masked to its bits), so comparing whole words says whether a bit changed.
+ */
+export function usedBits(layout: Layout): Int32Array {
+  const used = new Int32Array(layout.words);
+  for (let b = 0; b < layout.word.length; b++) {
+    const w = layout.word[b]!;
+    used[w] = used[w]! | (1 << layout.pos[b]!);
+  }
+  return used;
+}

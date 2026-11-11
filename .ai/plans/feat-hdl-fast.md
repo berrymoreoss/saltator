@@ -162,7 +162,7 @@ branch goes on and ends with what it reaches (Q3), the rest a track idea with th
   generated step tested against today's step on random 4-state inputs, over every fixture's cells.
 - [x] 3. Activity and the checkpoint: dirty flags, fanout, `settle`; PicoRV32's combinational
   settle measured; numbers and the projection into this plan (Q3: no stop either way).
-- [ ] 4. Flip-flops: next states and loads generated (every flip-flop cell: enables, synchronous
+- [x] 4. Flip-flops: next states and loads generated (every flip-flop cell: enables, synchronous
   and asynchronous resets, sets and clears, `$aldff`, `$sr`), loads marking their readers.
 - [ ] 5. Memories on words: read ports as steps, write ports' samples and stores, pokes, views.
 - [ ] 6. The behavior on words: pins, edges, races, internal rounds, loops, floating rule, inner
