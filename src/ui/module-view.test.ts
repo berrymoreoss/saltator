@@ -53,10 +53,10 @@ describe('moduleCommand', () => {
     expect(
       moduleCommand({ ...emptyVerilogCircuit('dec', 'Dec'), verilog: { module: decoder } }),
     ).toBe(
-      "yosys -q -p 'read_verilog decoder.v; hierarchy -auto-top; proc -norom; flatten; tribuf -logic; opt -keepdc; memory_collect; check; write_json decoder.json'",
+      "yosys -q -p 'read_verilog -specify decoder.v; hierarchy -auto-top; proc -norom; flatten; tribuf -logic; opt -keepdc; memory_collect; check; write_json decoder.json'",
     );
     expect(moduleCommand(emptyVerilogCircuit('address-decoder', 'Address Decoder'))).toContain(
-      'read_verilog address_decoder.v;',
+      'read_verilog -specify address_decoder.v;',
     );
   });
 });

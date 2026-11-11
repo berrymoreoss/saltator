@@ -1262,7 +1262,7 @@ converter, the analysis, the interpreter).
 **The command** (`yosysScript`, `yosysCommand` in `src/library/hdl/command.ts`):
 
 ```sh
-yosys -q -p 'read_verilog decoder.v; hierarchy -auto-top; proc -norom; flatten; tribuf -logic; opt -keepdc; memory_collect; check; write_json decoder.json'
+yosys -q -p 'read_verilog -specify decoder.v; hierarchy -auto-top; proc -norom; flatten; tribuf -logic; opt -keepdc; memory_collect; check; write_json decoder.json'
 ```
 
 `hierarchy -auto-top` marks the top module — `hierarchy -top soc` names it where the sources hold

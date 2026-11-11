@@ -1091,7 +1091,7 @@ canvas (`ModuleView.tsx`, pure pieces in `module-view.ts`), below the breadcrumb
 ```text
  Module 2  Verilog module
  1. Make its JSON netlist with Yosys on your computer:
- [ yosys -q -p 'read_verilog decoder.v; hierarchy -auto-top; proc -norom; …' ]  [Copy]
+ [ yosys -q -p 'read_verilog -specify decoder.v; hierarchy -auto-top; proc -norom; …' ]  [Copy]
  2. Paste the JSON below or import its file, then Compile.
  [Import JSON…] [▶ Compile]                          │ Module decoder
  ┌─────────────────────────────────────────────┐     │ Yosys 0.70+post (…)
