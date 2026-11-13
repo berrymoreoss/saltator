@@ -111,7 +111,7 @@ describe('loadDocument', () => {
       schemaVersion: SCHEMA_VERSION,
       circuits: [{ ...v1.circuits[0], probes: [], testScript: [] }],
     });
-    expect(SCHEMA_VERSION).toBe(10);
+    expect(SCHEMA_VERSION).toBe(11);
   });
 
   it('opens a schema v2 document (before probes) with none', () => {
@@ -522,7 +522,7 @@ describe('loadDocument: Verilog modules (v6)', () => {
         circuits: [doc10.circuits[0], { ...doc10.circuits[1], verilog: { module: wrong } }],
       })[0],
     ).toBe(
-      'circuits[1].verilog.module.specify.checks[0].kind: expected one of setup, hold, recovery, removal, width',
+      'circuits[1].verilog.module.specify.checks[0].kind: expected one of setup, hold, recovery, removal, width, cycle',
     );
   });
 });

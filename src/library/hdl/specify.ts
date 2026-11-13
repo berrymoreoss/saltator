@@ -3,8 +3,9 @@
  * `$specify2` (simple, conditional) and `$specify3` (edge-sensitive) cells and its timing checks
  * `$specrule` cells. Here they become the IR's paths and checks: times from nanoseconds to
  * picoseconds, the checks normalized (a `$setuphold` is a set-up and a hold, a `$hold` between
- * opposite edges of one pin a pulse width — Yosys reads no `$width`), and what the simulator
- * doesn't model dropped with a warning. Spec: docs/components.md#verilog-modules-hdl.
+ * opposite edges of one pin a pulse width — Yosys reads no `$width` — and between one pin's same
+ * edges a cycle time — nor `$period`), and what the simulator doesn't model dropped with a
+ * warning. Spec: docs/components.md#verilog-modules-hdl.
  */
 import type {
   HdlBit,
@@ -35,7 +36,8 @@ const UNCHECKED: Readonly<Record<string, string>> = {
   $width: 'a $width check',
 };
 
-const CHECKED = 'the simulator checks set-up, hold, recovery, removal and pulse widths';
+const CHECKED =
+  'the simulator checks set-up, hold, recovery, removal, pulse widths and cycle times';
 
 /** A Yosys constant (a binary string, most significant first) as a number. */
 function flag(value: unknown): number | undefined {
@@ -150,7 +152,8 @@ export function readSpecifyCell(
     // $setup(data, reference, limit): SRC is the data, DST the clock.
     case '$setup':
       return negative(limit) ? none : { paths: [], checks: [check('setup', dst, src_, limit)] };
-    // $hold(reference, data, limit); one pin's opposite edges: a pulse width (no $width in Yosys).
+    // $hold(reference, data, limit); one pin's opposite edges: a pulse width (no $width in Yosys);
+    // its same edge: a cycle time (no $period).
     case '$hold': {
       if (negative(limit)) return none;
       const samePin =
@@ -161,8 +164,13 @@ export function readSpecifyCell(
         const end = { bits: dst.bits, edge: dst.edge };
         return { paths: [], checks: [check('width', src_, end, limit)] };
       }
+      if (src_.edge !== undefined && src_.edge === dst.edge) {
+        // The cycle is armed at its edge (`&&&` on the first one).
+        const again = { bits: dst.bits, edge: dst.edge };
+        return { paths: [], checks: [check('cycle', src_, again, limit)] };
+      }
       warn(
-        `a $hold of one pin is a pulse width between its opposite edges (posedge, then negedge): ignored`,
+        `a $hold of one pin is a pulse width between its opposite edges (posedge, then negedge) or a cycle time between its same edges: ignored`,
       );
       return none;
     }

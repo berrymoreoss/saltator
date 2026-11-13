@@ -182,8 +182,8 @@ export interface HdlPath {
   readonly src: string;
 }
 
-/** What a timing check measures (HDL-2, ADR-0014). */
-export type HdlCheckKind = 'setup' | 'hold' | 'recovery' | 'removal' | 'width';
+/** What a timing check measures (HDL-2, ADR-0014; `cycle`, feat/hdl-timing). */
+export type HdlCheckKind = 'setup' | 'hold' | 'recovery' | 'removal' | 'width' | 'cycle';
 
 /** One side of a timing check: bits, the edge that counts (any change without one), its arming. */
 export interface HdlCheckEvent {
@@ -197,8 +197,9 @@ export interface HdlCheckEvent {
  * A timing check, measured from `clock`'s edge: `data` may not change `limit` before it (`setup`)
  * or after it (`hold`); a control's release (`data`, its edge) may not come `limit` before the
  * edge (`recovery`) or after it (`removal`); for `width`, `clock` is the edge that starts a pulse
- * and `data` the same pin's opposite edge, which may not come `limit` after it. `limit` is the
- * data sheet's guaranteed minimum, in picoseconds.
+ * and `data` the same pin's opposite edge, which may not come `limit` after it; for `cycle`,
+ * `clock` and `data` are the same pin's same edge, which may not come again `limit` after it.
+ * `limit` is the data sheet's guaranteed minimum, in picoseconds.
  */
 export interface HdlCheck {
   readonly kind: HdlCheckKind;
@@ -812,7 +813,7 @@ function specifyProblems(value: unknown, context: SpecifyContext): Problem[] {
 
   if (!Array.isArray(value.checks)) at('checks', 'expected an array');
   else {
-    const kinds: readonly string[] = ['setup', 'hold', 'recovery', 'removal', 'width'];
+    const kinds: readonly string[] = ['setup', 'hold', 'recovery', 'removal', 'width', 'cycle'];
     for (const [i, check] of (value.checks as unknown[]).entries()) {
       const where = `checks[${i}]`;
       if (!isObject(check)) {
@@ -850,7 +851,7 @@ function specifyProblems(value: unknown, context: SpecifyContext): Problem[] {
       if (!Array.isArray(clock.bits) || clock.bits.length !== 1)
         at(`${where}.clock.bits`, 'expected one bit');
       if (clock.edge === undefined) at(`${where}.clock.edge`, 'expected an edge');
-      if (kind === 'recovery' || kind === 'removal' || kind === 'width') {
+      if (kind === 'recovery' || kind === 'removal' || kind === 'width' || kind === 'cycle') {
         if (!Array.isArray(data.bits) || data.bits.length !== 1)
           at(`${where}.data.bits`, 'expected one bit');
         if (data.edge === undefined) at(`${where}.data.edge`, 'expected an edge');
@@ -863,6 +864,15 @@ function specifyProblems(value: unknown, context: SpecifyContext): Problem[] {
           at(`${where}.data.edge`, "expected the edge opposite the clock's");
         if (data.when !== undefined)
           at(`${where}.data.when`, 'expected none (the pulse is armed at its start)');
+      }
+      if (kind === 'cycle') {
+        const same =
+          Array.isArray(clock.bits) && Array.isArray(data.bits) && clock.bits[0] === data.bits[0];
+        if (!same) at(`${where}.data.bits`, "expected the clock's bit (a cycle of one pin)");
+        if (clock.edge !== undefined && data.edge !== clock.edge)
+          at(`${where}.data.edge`, "expected the clock's edge");
+        if (data.when !== undefined)
+          at(`${where}.data.when`, 'expected none (the cycle is armed at its edge)');
       }
     }
   }

@@ -33,6 +33,8 @@ export const MIGRATIONS: Migrations = {
   8: addModuleMemories,
   // v10 gave modules their timing (`specify`: paths and checks; HDL-2); v9 ones have none.
   9: (doc) => doc,
+  // v11 let a module's timing hold cycle-time checks (`cycle`; feat/hdl-timing); v10 ones have none.
+  10: (doc) => doc,
 };
 
 /** v8 → v9: every compiled module gets an empty `memories`. */

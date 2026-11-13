@@ -450,6 +450,13 @@ describe('hdlModuleProblems: specify (HDL-2)', () => {
           limit: 20000,
           src: '',
         },
+        {
+          kind: 'cycle',
+          clock: { bits: [0], edge: 'fall', when: 1 },
+          data: { bits: [0], edge: 'fall' },
+          limit: 70000,
+          src: '',
+        },
       ],
     },
   };
@@ -506,9 +513,16 @@ describe('hdlModuleProblems: specify (HDL-2)', () => {
         src: '',
       },
       { kind: 'hold', clock: 'cp', data: event([1]), limit: 1, src: '', extra: 0 },
+      {
+        kind: 'cycle',
+        clock: event([0], 'rise'),
+        data: { ...event([1], 'fall'), when: 1 },
+        limit: 1,
+        src: '',
+      },
     ];
     expect(hdlModuleProblems({ ...timed, specify: { paths: [], checks } }, 'm')).toEqual([
-      'm.specify.checks[0].kind: expected one of setup, hold, recovery, removal, width',
+      'm.specify.checks[0].kind: expected one of setup, hold, recovery, removal, width, cycle',
       "m.specify.checks[1].data.bits: bit 4 is no input or inout's",
       'm.specify.checks[1].limit: expected a time in ps, an integer ≥ 0',
       'm.specify.checks[1].clock.bits: expected one bit',
@@ -520,6 +534,9 @@ describe('hdlModuleProblems: specify (HDL-2)', () => {
       'm.specify.checks[3].data.when: expected none (the pulse is armed at its start)',
       'm.specify.checks[4].extra: unknown field',
       'm.specify.checks[4].clock: expected { bits, edge?, when? }',
+      "m.specify.checks[5].data.bits: expected the clock's bit (a cycle of one pin)",
+      "m.specify.checks[5].data.edge: expected the clock's edge",
+      'm.specify.checks[5].data.when: expected none (the cycle is armed at its edge)',
     ]);
     expect(hdlModuleProblems({ ...timed, specify: { paths: [] } }, 'm')).toEqual([
       'm.specify.checks: expected an array',

@@ -43,7 +43,7 @@ describe('readSpecifyCell', () => {
     ]);
   });
 
-  it("drops a $hold of one pin's same edge, and rules it doesn't know", () => {
+  it("reads a $hold of one pin's same edge as a cycle time; drops one without edges, and rules it doesn't know", () => {
     warnings.length = 0;
     const rule = (TYPE: string, more: Record<string, unknown> = {}) => ({
       TYPE,
@@ -55,12 +55,22 @@ describe('readSpecifyCell', () => {
       DST_POL: '1',
       ...more,
     });
-    expect(read('$specrule', rule('$hold'), { ...ports, DST: [1] }).checks).toEqual([]);
+    expect(read('$specrule', rule('$hold'), { ...ports, DST: [1], SRC_EN: [3] }).checks).toEqual([
+      {
+        kind: 'cycle',
+        clock: { bits: [1], edge: 'rise', when: 3 },
+        data: { bits: [1], edge: 'rise' },
+        limit: 3000,
+        src: 'm.v:1',
+      },
+    ]);
+    const anyChange = { SRC_PEN: '0', DST_PEN: '0' };
+    expect(read('$specrule', rule('$hold', anyChange), { ...ports, DST: [1] }).checks).toEqual([]);
     expect(read('$specrule', rule('$future')).checks).toEqual([]);
     expect(read('$specrule', rule('$setup', { T_LIMIT_TYP: 'x' })).checks).toEqual([]);
     expect(warnings).toEqual([
-      'a $hold of one pin is a pulse width between its opposite edges (posedge, then negedge): ignored',
-      'a $future check is not checked (the simulator checks set-up, hold, recovery, removal and pulse widths): ignored',
+      'a $hold of one pin is a pulse width between its opposite edges (posedge, then negedge) or a cycle time between its same edges: ignored',
+      'a $future check is not checked (the simulator checks set-up, hold, recovery, removal, pulse widths and cycle times): ignored',
       'a $setup check whose limit is not a number: ignored',
     ]);
   });

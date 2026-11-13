@@ -7,6 +7,7 @@
  * runtime is in `module-part.ts`. Spec: docs/components.md#verilog-modules-hdl.
  */
 import {
+  type CycleCheck,
   type Edge,
   type HdlBit,
   type HdlCheck,
@@ -32,11 +33,14 @@ export interface CompiledCheck {
   readonly whenPos: Int32Array;
   readonly setupHold?: SetupHoldCheck;
   readonly width?: PulseWidthCheck;
+  readonly cycle?: CycleCheck;
   readonly recovery?: RecoveryCheck;
   /** The flip-flop groups clocked by the check's clock pin on its edge. */
   readonly groups: Int32Array;
   /** Its snapshot slot (a width: the pulse's start; removal: the clock's edge); −1 none. */
   readonly slot: number;
+  /** A hold's edge slot (`ModuleChecks.edgePin`): the words its clock's edge loaded from; −1 none. */
+  readonly edgeSlot: number;
 }
 
 /** The checks of a module and its snapshot slots. */
@@ -48,6 +52,13 @@ export interface ModuleChecks {
   readonly slotRising: Uint8Array;
   readonly slotStart: Int32Array;
   readonly slotWords: Int32Array;
+  /**
+   * Per edge slot, a hold check's clock pin and edge (1 rising): at that edge the module's words
+   * before it loads are saved, so a hold violation can redo that edge's loads with the late pin
+   * unknown (feat/hdl-timing: a state machine has moved on since).
+   */
+  readonly edgePin: Int32Array;
+  readonly edgeRising: Uint8Array;
 }
 
 /** What `compileChecks` needs of the compiled module. */
@@ -117,6 +128,20 @@ export function compileChecks(
     return slot;
   };
 
+  // Edge slots: one per hold check's clock pin and edge.
+  const edgeKeys = new Map<string, number>();
+  const edgePin: number[] = [];
+  const edgeRising: number[] = [];
+  const edgeOf = (pin: number, edge: Edge): number => {
+    const key = `${pin}:${edge}`;
+    const known = edgeKeys.get(key);
+    if (known !== undefined) return known;
+    edgeKeys.set(key, edgePin.length);
+    edgePin.push(pin);
+    edgeRising.push(edge === 'rise' ? 1 : 0);
+    return edgePin.length - 1;
+  };
+
   const compiled = list.map((check, i): CompiledCheck => {
     const key = `limit${i}`;
     const clockBit = check.clock.bits[0]!;
@@ -138,6 +163,7 @@ export function compileChecks(
       groups: Int32Array.from(
         groups.flatMap((g, index) => (g.pin === clockPin && g.rising === rising ? [index] : [])),
       ),
+      edgeSlot: check.kind === 'hold' ? edgeOf(clockPin, edge) : -1,
     };
     switch (check.kind) {
       case 'setup':
@@ -168,6 +194,14 @@ export function compileChecks(
           }),
           slot: -1,
         };
+      case 'cycle':
+        // From one edge of the clock to its next: the snapshot is taken at that edge, before it
+        // loads, so a violation makes `X` what the early edge changed.
+        return {
+          ...base,
+          cycle: checks.cycle({ pin: clock, edge, cycle: key }),
+          slot: slotOf(clockPin, edge),
+        };
       default:
         // 'width': a pulse from the clock event's edge to the opposite one, HIGH when it rises.
         return {
@@ -184,5 +218,7 @@ export function compileChecks(
     slotRising: Uint8Array.from(slotRising),
     slotStart: Int32Array.from(slotStart),
     slotWords: Int32Array.from(slotWords),
+    edgePin: Int32Array.from(edgePin),
+    edgeRising: Uint8Array.from(edgeRising),
   };
 }

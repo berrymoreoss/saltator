@@ -6,7 +6,10 @@
  * its condition not known 0 after the change), the longest; rise for a new 1, fall for a new 0, the
  * longer of the two for `X` and a release. When no path's cause happened (the forced evaluation,
  * a change through logic no path describes) the pin's longest path; a pin no path reaches takes the
- * part's one delay. Compiled once per module into typed arrays: no allocation per evaluation.
+ * part's one delay. The chosen path's minimum (`early`) is when the pin may start to change: where
+ * it is below the delay the part shows the pin `X` in between (feat/hdl-timing; a data sheet's
+ * hold and valid times, as the W65C02S's tAH and tADS). Compiled once per module into typed arrays:
+ * no allocation per evaluation.
  */
 import {
   type EvalContext,
@@ -29,6 +32,8 @@ const FALL = 2;
 export interface ModulePathDelays {
   /** Per driving pin, whether a path reaches it (else it takes the part's delay). */
   readonly reached: Uint8Array;
+  /** Per driving pin, whether a path to it has a minimum below its typical delay. */
+  readonly windowed: Uint8Array;
   /**
    * The delay to drive driving pin `i` (in the program's `drivePins` order) with `level` (0, 1,
    * 2 = `X`, 3 = released) in this evaluation; `fallback` where no path reaches it. `v` and `u`
@@ -42,6 +47,11 @@ export interface ModulePathDelays {
     level: number,
     fallback: Time,
   ): Time;
+  /**
+   * The minimum of the path the last `delay` chose (rise for a new 1, fall for a new 0, the
+   * shorter of the two for `X`); its delay where no path's cause happened or none reaches the pin.
+   */
+  early(): Time;
 }
 
 /**
@@ -75,6 +85,8 @@ export function compilePathDelays(
     readonly when: HdlPortBit | undefined;
     readonly rise: Time;
     readonly fall: Time;
+    readonly riseMin: Time;
+    readonly fallMin: Time;
   }
   const drivesOf = new Map<number, number[]>();
   for (const [i, bit] of drivePortBits.entries()) {
@@ -92,7 +104,15 @@ export function compilePathDelays(
     for (const [from, to] of pairs) {
       for (const i of drivesOf.get(to) ?? []) {
         for (const pin of sourcePins(from)) {
-          perPin[i]!.push({ pin, edge, when: path.when, rise: path.rise.typ, fall: path.fall.typ });
+          perPin[i]!.push({
+            pin,
+            edge,
+            when: path.when,
+            rise: path.rise.typ,
+            fall: path.fall.typ,
+            riseMin: Math.min(path.rise.min, path.rise.typ),
+            fallMin: Math.min(path.fall.min, path.fall.typ),
+          });
         }
       }
     }
@@ -114,6 +134,12 @@ export function compilePathDelays(
   );
   const rise = Float64Array.from(entries, (e) => e.rise);
   const fall = Float64Array.from(entries, (e) => e.fall);
+  const riseMin = Float64Array.from(entries, (e) => e.riseMin);
+  const fallMin = Float64Array.from(entries, (e) => e.fallMin);
+  const windowed = Uint8Array.from(perPin, (list) =>
+    list.some((e) => e.riseMin < e.rise || e.fallMin < e.fall) ? 1 : 0,
+  );
+  let early = 0;
   const longest = (of: (e: Entry) => Time) =>
     Float64Array.from(perPin, (list) => list.reduce((m, e) => Math.max(m, of(e)), 0));
   const longRise = longest((e) => e.rise);
@@ -122,10 +148,15 @@ export function compilePathDelays(
 
   return {
     reached,
+    windowed,
+    early: () => early,
     delay(ctx, v, u, i, level, fallback) {
       const start = starts[i]!;
       const end = starts[i + 1]!;
-      if (start === end) return fallback;
+      if (start === end) {
+        early = fallback;
+        return fallback;
+      }
       let best = -1;
       for (let j = start; j < end; j++) {
         const pin = pathPin[j]!;
@@ -135,14 +166,25 @@ export function compilePathDelays(
         const w = whenWord[j]!;
         if (w >= 0 && (((u[w]! | v[w]!) >>> whenPos[j]!) & 1) === 0) continue;
         const t = level === 1 ? rise[j]! : level === 0 ? fall[j]! : Math.max(rise[j]!, fall[j]!);
-        if (t > best) best = t;
+        if (t > best) {
+          best = t;
+          early =
+            level === 1
+              ? riseMin[j]!
+              : level === 0
+                ? fallMin[j]!
+                : Math.min(riseMin[j]!, fallMin[j]!);
+        }
       }
       if (best >= 0) return best;
-      return level === 1
-        ? longRise[i]!
-        : level === 0
-          ? longFall[i]!
-          : Math.max(longRise[i]!, longFall[i]!);
+      const longest =
+        level === 1
+          ? longRise[i]!
+          : level === 0
+            ? longFall[i]!
+            : Math.max(longRise[i]!, longFall[i]!);
+      early = longest;
+      return longest;
     },
   };
 }

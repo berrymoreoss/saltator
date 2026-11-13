@@ -5,7 +5,7 @@
  * delays' typical values in `typical` and maxima in `max`, the checks' limits (guaranteed
  * minima) in `min`. The bits of one port are one entry. Spec: docs/components.md#verilog-modules-hdl.
  */
-import type { HdlBit, HdlCheck, HdlModule, Time, TimingDef } from '../../core';
+import type { HdlBit, HdlCheck, HdlDelay, HdlModule, Time, TimingDef } from '../../core';
 
 /** Where a module's numbers come from: `TimingDef.conditions` and `source`. */
 export interface HdlTimingInfo {
@@ -19,6 +19,7 @@ const SYMBOLS: Readonly<Record<HdlCheck['kind'], string>> = {
   recovery: 'trec',
   removal: 'trem',
   width: 'tW',
+  cycle: 'tcyc',
 };
 
 /** The module's timing; undefined without a `specify` block. */
@@ -62,12 +63,20 @@ export function hdlTiming(module: HdlModule, info: HdlTimingInfo): TimingDef | u
 
   for (const path of specify.paths) {
     const base = `${names(path.from, inName)}${arrow(path.edge)} to ${names(path.to, outName)}${condition(path.when)}`;
-    if (path.rise.typ === path.fall.typ && path.rise.max === path.fall.max) {
-      const key = put(typical, `tpd(${base})`, path.rise.typ, path.src);
-      max[key] = path.rise.max;
+    // A minimum below the typical delay is when the output may start to change (a hold time).
+    const corners = (key: string, delay: HdlDelay) => {
+      max[key] = delay.max;
+      if (delay.min < delay.typ) min[key] = delay.min;
+    };
+    if (
+      path.rise.typ === path.fall.typ &&
+      path.rise.max === path.fall.max &&
+      path.rise.min === path.fall.min
+    ) {
+      corners(put(typical, `tpd(${base})`, path.rise.typ, path.src), path.rise);
     } else {
-      max[put(typical, `tPLH(${base})`, path.rise.typ, path.src)] = path.rise.max;
-      max[put(typical, `tPHL(${base})`, path.fall.typ, path.src)] = path.fall.max;
+      corners(put(typical, `tPLH(${base})`, path.rise.typ, path.src), path.rise);
+      corners(put(typical, `tPHL(${base})`, path.fall.typ, path.src), path.fall);
     }
   }
   for (const check of specify.checks) {
@@ -75,7 +84,9 @@ export function hdlTiming(module: HdlModule, info: HdlTimingInfo): TimingDef | u
     const key =
       check.kind === 'width'
         ? `tW(${clock} ${check.clock.edge === 'rise' ? 'HIGH' : 'LOW'}${condition(check.clock.when)})`
-        : `${SYMBOLS[check.kind]}(${names(check.data.bits, inName)}${arrow(check.data.edge)} to ${clock}${arrow(check.clock.edge)}${condition(check.clock.when)})`;
+        : check.kind === 'cycle'
+          ? `tcyc(${clock}${arrow(check.clock.edge)}${condition(check.clock.when)})`
+          : `${SYMBOLS[check.kind]}(${names(check.data.bits, inName)}${arrow(check.data.edge)} to ${clock}${arrow(check.clock.edge)}${condition(check.clock.when)})`;
     put(min, key, check.limit, check.src);
   }
   return {
