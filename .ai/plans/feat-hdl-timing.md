@@ -93,8 +93,9 @@ D1–D5 were made while the user was away (they had answered Q1, Q2) and reporte
 
 ## Acceptance criteria
 
-- [ ] `pnpm check`, `pnpm build` and `pnpm e2e` are green.
-- [ ] `pnpm bench` against main: nothing slower.
+- [x] `pnpm check`, `pnpm build` and `pnpm e2e` are green (2026-11-13: 4 128 tests, 101 e2e).
+- [x] `pnpm bench` against main: nothing slower (measured 2026-11-12 on the same engine code;
+  progress log).
 - [x] Each change has its test, the fixes a regression test that fails on main.
 
 ## Open questions
@@ -112,10 +113,11 @@ D1–D5 were made while the user was away (they had answered Q1, Q2) and reporte
   there; benchmarks against main (alternately, twice): nothing slower, the Verilog 74HC00 chain
   3.2 → 3.45 M events/s, the 74HC574 pipeline 2.8 → 3.2 M, wide words +17 %, internal clocks
   +15 %, PicoRV32 230 → 241 k cycles/s.
-- 2026-11-13 — Q3 answered: this branch from main with the engine's changes only; the
-  experiment's branch deleted.
+- 2026-11-13 — Q3 answered: this branch from main with the engine's changes only (the same
+  engine code as the experiment's branch, comments aside); the experiment's branch and its
+  playground copies deleted. `pnpm check`, `build`, `e2e` green.
 
 ## Handoff
 
-The engine's changes, their tests and docs, committed on `feat/hdl-timing`; then the
-finish-branch workflow with the user's approval.
+Done: the engine's changes, their tests and docs are committed on `feat/hdl-timing`. Next: the
+finish-branch workflow, merged only with the user's approval.
