@@ -118,7 +118,8 @@ interface Wire {
   (HDL-6) gave it memories (`memories`, one line each, and their ports `$memrd`, `$memwr`); its
   migration gives every module an empty `memories`. v10 (HDL-2) gave it its timing (`specify`:
   `paths` and `checks`, one line each, absent without a `specify` block); its migration changes
-  nothing.
+  nothing. v11 (feat/hdl-timing) let those checks be cycle times (`"kind": "cycle"`, one pin's
+  same edges), so an older app refuses such a document as newer; its migration changes nothing.
 - `serializeDocument(doc)` writes stable JSON: fixed key order, defaults omitted, one line per
   component, per wire, per probe and per line of the test script (no `probes` or `testScript`
   key without any) — a Verilog module instead of its (empty) `components` and `wires` its

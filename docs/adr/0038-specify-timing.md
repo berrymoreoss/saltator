@@ -94,3 +94,30 @@ a library part written in Verilog reaches the app without Yosys.
   `.v` files aren't either.
 - **Replacing the hand-written 74HC chips** with the Verilog ones — they would be slower and gain
   nothing; the Verilog ones are the proof, the hand-written ones stay in the palette.
+
+## Amendment: cycle times, hold and valid windows, holds redone (feat/hdl-timing, 2026-11-12)
+
+An experiment — the W65C02S written in Verilog as a drop-in for the hand-written one, run on its
+tests and SingleStepTests at its pins (not kept: the engine's changes were) — needed what the
+74HC parts didn't:
+
+- **A cycle time** is a `$hold` between one pin's _same_ edges (`$hold(negedge PHI2, negedge
+  PHI2, tCYC)`) — Yosys reads no `$period` — recognized by the converter as a `cycle` check
+  (schema v11) and run by `TimingChecks.cycle`; a violation makes `X` what the early edge
+  changed, as a short pulse does. _Alternative:_ a port attribute — not Verilog's meaning, as for
+  pulse widths.
+- **A path's minimum is a hold time.** Where it is below the typical delay, a changing output is
+  `X` from the minimum and takes its level at the typical delay — the W65C02S's address bus held
+  tAH and valid tADS, as its data sheet gives them and as the hand-written part shows them. The
+  74HC sources write min = typ, so nothing changed for them. _Alternatives:_ typical only (the
+  address bus jumps at tADS: the hand-written part's tests of tAH failed); a simulator corner
+  (min or max) as Verilog simulators pick one — a whole run at one corner, no window.
+- **A hold violation redoes the edge it follows.** The module's words are saved at each edge of a
+  hold check's clock; a late pin's "what if it were `X`" is worked out from them, not from the
+  words after the edge. For a flip-flop that loads its pin (a 74HC574) both say the same; a state
+  machine has moved on at the edge, and the words after it said what the _next_ edge would load
+  (a W65C02S's late operand left A known and spoiled the next opcode instead). _Alternative:_ the
+  words after the edge (HDL-2's), documented as possibly too pessimistic — it was wrong both
+  ways for a CPU.
+- **Power-on**: a 3-state output a module may drive at power-up drives `X` at once, as push-pull
+  pins start; it floated for its delay before, and the parts reading it reported a floating input.

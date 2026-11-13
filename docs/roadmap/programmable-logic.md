@@ -307,11 +307,19 @@ Not scheduled yet; promoting one gives it the next free id and a row in the tabl
 - Library controllers in Verilog: the W65C22 VIA or the 6551 ACIA (R18) written as modules with
   a `specify` block instead of TypeScript; HDL-2 built the path (`src/library/verilog/`,
   `hdlLibraryPart`).
-- `$period` as the kernel's cycle check (`TimingChecks.cycle`), and `$skew`: Yosys reads `$skew`
-  and (as a `$hold` of one edge) a period; HDL-2 drops them with a warning.
+- `$skew` as a check: Yosys reads it; HDL-2 drops it with a warning. (`$period`, written as a
+  `$hold` of one pin's same edge, became the cycle check in feat/hdl-timing.)
 - Faster small modules: a Verilog 74HC00 runs at ≈ 57 % of the hand-written one (HDL-2); a
   module's evaluation reads every pin and drives every output, where a chip touches only what it
-  needs.
+  needs. (feat/hdl-timing: an output whose drive didn't change no longer asks the kernel nor
+  works out its delay: +8–14 % for the Verilog 74HC parts.)
+- CPUs in Verilog: tried on 2026-11-12 ([feat/hdl-timing](../../.ai/plans/feat-hdl-timing.md),
+  the module not kept) — the W65C02S written in Verilog as a drop-in for `cpu/w65c02s` (≈ 1 200
+  cells) passed the whole SingleStepTests suite at its pins and the hand-written part's tests,
+  at ≈ 4.9 % of real time at 1 MHz in the 6502 computer against 18 %. What a library part would
+  need: speed (a microcoded control ROM instead of ≈ 640 multiplexers), diagnostics from a module
+  (the next idea: `cpu-lost`), and a reason to keep two models of one CPU. The same path would
+  give the 6502's peripherals (R18) and other CPUs as modules.
 - Messages and assertions from a module: Yosys turns `$display` in an `always` block into `$print`
   cells and immediate assertions into `$check` cells — lines in the simulator's log and
   diagnostics.

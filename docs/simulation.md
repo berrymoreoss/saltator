@@ -93,7 +93,9 @@ probes) only observe their net: reading `Z` through them is not a floating input
 ### Power-on
 
 - Push-pull (`out`) pins start driving **strong `X`**: a real output always drives something,
-  and at power-on nobody knows what. `tristate` and `bidir` pins start released (`Z`).
+  and at power-on nobody knows what. `tristate` and `bidir` pins start released (`Z`); a part
+  that may drive one at power-on drives `X` there from its `init` (the W65C02S's address bus, a
+  Verilog module's 3-state outputs whose enable isn't known 0).
 - Every behavior's `init` runs when the `Simulator` is constructed (drives scheduled there land
   at t = 0; with a carry-over, at the carried time — see below).
 - At t = 0, after the t = 0 events from `init` and from actions were applied, **every component
