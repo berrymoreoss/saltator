@@ -1510,13 +1510,14 @@ delays and its timing checks, as a chip's data sheet does. Yosys reads simple pa
 checks `$setup`, `$hold`, `$setuphold`, `$recovery`, `$removal`, `$recrem` with `&&&` conditions.
 Numbers are nanoseconds (`timescale` is ignored, decimals are fine). What Yosys doesn't read:
 
-| Wanted                                     | Yosys                                     | Write instead                                                   |
-| ------------------------------------------ | ----------------------------------------- | --------------------------------------------------------------- |
-| a pulse width, `$width(posedge CP, 20)`    | "unsupported specify rule type"           | `$hold(posedge CP &&& armed, negedge CP, 20)` (the HIGH phase)  |
-| enable and disable, `(OE *> Q) = (r,f,z)`  | keeps rise and fall, drops the rest       | `if (!OEn) (OEn *> Q) = ten;` and `if (OEn) (OEn *> Q) = tdis;` |
-| a lone triple, `(A => Y) = (6:7:8)`        | keeps the typical value only (7:7:7)      | `(A => Y) = (6:7:8, 6:7:8)` (rise, fall)                        |
-| `(A, B *> Y)`, `specparam`, `ifnone`       | syntax errors                             | one path per source; numbers                                    |
-| `$period`, `$skew`, `$nochange`, negatives | `$period` an error; the rest dropped here | — (a warning says what is not checked)                          |
+| Wanted                                    | Yosys                                | Write instead                                                   |
+| ----------------------------------------- | ------------------------------------ | --------------------------------------------------------------- |
+| a pulse width, `$width(posedge CP, 20)`   | "unsupported specify rule type"      | `$hold(posedge CP &&& armed, negedge CP, 20)` (the HIGH phase)  |
+| enable and disable, `(OE *> Q) = (r,f,z)` | keeps rise and fall, drops the rest  | `if (!OEn) (OEn *> Q) = ten;` and `if (OEn) (OEn *> Q) = tdis;` |
+| a lone triple, `(A => Y) = (6:7:8)`       | keeps the typical value only (7:7:7) | `(A => Y) = (6:7:8, 6:7:8)` (rise, fall)                        |
+| `(A, B *> Y)`, `specparam`, `ifnone`      | syntax errors                        | one path per source; numbers                                    |
+| a cycle time, `$period(negedge CLK, 70)`  | "unsupported specify rule type"      | `$hold(negedge CLK, negedge CLK, 70)` (one pin's same edges)    |
+| `$skew`, `$nochange`, negative limits     | dropped here                         | — (a warning says what is not checked)                          |
 
 - **Delays.** Each output bit is driven with the **longest** typical delay among its paths whose
   source pin changed in this delta — an edge path only with its edge (also an uncertain one), a
@@ -1525,17 +1526,29 @@ Numbers are nanoseconds (`timescale` is ignored, decimals are fine). What Yosys 
   release. With no such path (the forced evaluation, a change through logic no path describes),
   the bit's longest path; with no path at all, `delay`. A submodule's paths survive `flatten`
   where its ports are the top's: a chip is written as its sections, each with its `specify`.
+- **Minimum and typical** (feat/hdl-timing): where the chosen path's minimum is below its
+  typical delay, an output bit that changes is `X` from the minimum and takes its level at the
+  typical delay — a data sheet's hold and valid times (a 65C02's address bus as its data sheet
+  gives it: held tAH = 10 ns, valid tADS = 30 ns, written `(negedge PHI2 *> (A +: addr)) = (10:30:30, 10:30:30)`; its write
+  data `X` from PHI2 rising and valid tMDS later, `(0:25:25, …)`). A bit that keeps its level
+  doesn't move, a release has no window, and a change inside the window moves its end. The 74HC
+  parts write min = typ: no window. The Part tab shows such a minimum in the `min` column.
+- **Power-on**: a 3-state output the module may drive (its enable not known 0 at power-up) drives
+  `X` at once, as a push-pull pin starts ([Power-on](simulation.md#power-on)), and what the
+  forced evaluation computes after its delay — no floating net for the parts that read it.
 - **Checks** run through core's `TimingChecks` ([Timing checks](#timing-checks)) on the part's pins,
   armed unless their `&&&` condition is known 0, with the chips' diagnostics on the pin at fault
   (`d0 changed 11 ns before clk rose (setup time ≥ 12 ns)`). What a violation makes `X`, as the
   chips do ([ADR-0014](adr/0014-timing-checks.md)): a late data pin — the flip-flops on that clock
   load what "the pin unknown" would give them merged with what they load (computed on a settled
   copy of the words: exact bit by bit), and the race of the same instant isn't reported again; an
-  early one (hold) — `X` where the pin may have changed the load; a recovery violation — the edge
-  is uncertain; a short pulse, or a control released too soon after an edge (removal, reported as
-  a hold of the release) — `X` where `Q` changed since the pulse (the edge) began. A hold
-  violation of a flip-flop whose data also depends on its own state (a counter's enable) may make
-  more bits `X` than the chip would.
+  early one (hold) — the edge's loads done again from the module's words saved at that edge, with
+  the pin unknown, `X` where they differ (feat/hdl-timing: a state machine has moved on since
+  the edge, so the words after it would say what the _next_ edge loads; a regression fixture,
+  `spec_hold_fsm`); a recovery violation — the edge is uncertain; a short pulse, a short cycle
+  (`cycle`, a `$hold` of one pin's same edges: `tcyc(PHI2↓)` in the Part tab), or a control
+  released too soon after an edge (removal, reported as a hold of the release) — `X` where `Q`
+  changed since the pulse (the early edge) began.
 
 ### Library parts in Verilog
 
@@ -1556,10 +1569,13 @@ active and the outputs read `X` until a load, a set or a reset) and the **74HC57
 enable and disable as the table above says) pass the hand-written chips' tests — function tables,
 unknown and floating inputs, every delay path, the 3-state outputs and every timing check
 (`gates.test.ts`, `flip-flops.test.ts`, `registers.test.ts` run on both). They are dev parts
-(`dev/74hc00-verilog`, …, titled `… (Verilog)`), in the palette of dev builds only, next to the
+(`dev/74hc00-verilog`, …, titled `… (Verilog)`), in the palette of dev builds only (and in their
+test benches' sandbox, which ran a document with one as an unknown part until feat/hdl-timing),
+next to the
 hand-written ones; a generic engine runs them at ≈ 55 % of the hand-written chips' speed
 (`pnpm bench`: a 74HC00 chain 3.2 M against 5.6 M events a second, a 74HC574 pipeline 2.75 M
-against 5.1 M).
+against 5.1 M; since feat/hdl-timing, whose outputs ask the kernel only when their drive
+changes, 3.45 M and 3.2 M).
 
 **Speed** (`tests/bench/hdl.bench.ts`, Apple M3 Pro): about 10 M combinational cells a second —
 every cell on every evaluation; a 1 000-cell module clocks at ≈ 6 kHz per second of wall time

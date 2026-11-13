@@ -50,6 +50,32 @@ describe('startBenchWorker', () => {
     ]);
   });
 
+  it('runs a document with a Verilog dev part in dev builds, as the app shows it (feat/hdl-timing)', async () => {
+    expect(import.meta.env.DEV).toBe(true); // vitest, like `pnpm dev`
+    // The 6502 example with its address decoder's 74HC00 written in Verilog (HDL-2).
+    const document = exampleDocument('6502-rom-ram');
+    const verilog: CircuitDocument = {
+      ...document,
+      circuits: document.circuits.map((c) => ({
+        ...c,
+        components: c.components.map((part) =>
+          part.type === '74xx/74hc00' ? { ...part, type: 'dev/74hc00-verilog' } : part,
+        ),
+      })),
+    };
+    expect(JSON.stringify(verilog)).toContain('dev/74hc00-verilog');
+    const ask = connect((scope) => startBenchWorker(scope, noLine));
+    const replies = await ask({
+      kind: 'run',
+      job: 1,
+      document: verilog,
+      targets: [{ circuit: 'main' }],
+    });
+    expect(replies.flatMap((r) => (r.kind === 'result' ? [r.result.status] : []))).toEqual([
+      'pass',
+    ]);
+  });
+
   it('finds a syntax error’s line, keeping the responses in order', async () => {
     const lines: string[] = [];
     // Slow on purpose: what comes after the error must still come after it.

@@ -624,3 +624,27 @@ Format: `- YYYY-MM-DD (branch) — lesson. Why it matters / what to do instead.`
   failing check (a type error in a test, a Biome lint): grep patterns miss what they don't name.
   Gate commits on `pnpm check`'s exit code (a tiny script printing the summary and exiting with
   its status), never on matching its output.
+- 2026-11-12 (feat/hdl-timing) — Yosys's `opt_clean` removes a register nothing in the module
+  reads, also one a tool reads by name (the CPU view's `op_addr`): it simply isn't among the IR's
+  signals. Mark such a register `(* keep *)`, and look at the IR's signal list before writing a
+  view over it. Also: an edge path's data source must be as wide as its destination
+  (`(negedge PHI2 *> (A +: addr))`, "Specify DAT width does not match DST width"), and a
+  parallel path from one bit to many is a shape error — use `*>`.
+- 2026-11-12 (feat/hdl-timing) — Inside an `always @*` block every task call and branch is
+  inlined into multiplexers per assigned variable: an ALU or an adder written in the branches is
+  built once per branch. Keep the datapath outside the control block (wires, one `always @*`
+  each) and let the branches set select codes; an opcode table as a ROM (`reg [12:0] t[0:255]`
+  with an `initial` block) is one `$memrd` where a `case` is 256 comparisons. The 65C02 came to
+  ≈ 1 200 cells, still ≈ 640 multiplexers.
+- 2026-11-12 (feat/hdl-timing) — HDL-2's hold rule ("next states from the words as they are,
+  with the pin unknown") was right for every chip it was tried on and wrong for a CPU: after the
+  edge a state machine has moved on, and the words then say what the next edge loads. Rules
+  checked only on parts where the state is the pin (Q = D) need a case where it isn't
+  (`spec_hold_fsm`), and running a whole program's tests on a second implementation of a part
+  is what found it.
+- 2026-11-12 (feat/hdl-timing) — A part has no way to load registers, so SingleStepTests at the
+  pins feed a preamble (`LDX #S-1; TXS; LDA; LDY; LDX; PLP; JMP`) by cycle, not by address: the
+  previous case ends anywhere, and the preamble's bytes served by address could collide with the
+  stack page it pulls P from. Running the runner on the hand-written part first (2 032 cases, 0
+  failures) proved the harness before it judged the new part. (The runner went with the
+  experiment: its plan, feat-hdl-timing.md, describes it.)

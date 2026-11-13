@@ -493,7 +493,7 @@ describe('fromYosys: timing from specify (HDL-2)', () => {
   it("drops what the simulator doesn't check, with a warning; keeps rise and fall of a third delay", () => {
     const { module } = convert('spec_unsupported');
     expect(lines('spec_unsupported')).toEqual([
-      'warning spec_unsupported.v:15.5-15.41: a $skew check is not checked (the simulator checks set-up, hold, recovery, removal and pulse widths): ignored',
+      'warning spec_unsupported.v:15.5-15.41: a $skew check is not checked (the simulator checks set-up, hold, recovery, removal, pulse widths and cycle times): ignored',
       'warning spec_unsupported.v:17.5-17.31: a $hold check with a negative limit is not checked: ignored',
     ]);
     expect(module!.specify!.paths.map((p) => [p.rise.typ, p.fall.typ])).toEqual([[3000, 4000]]);

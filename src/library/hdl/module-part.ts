@@ -96,6 +96,22 @@ interface HdlState extends MemoryState {
   /** The checks' snapshots of `Q` words (`ModuleChecks` slots): values and unknowns. */
   readonly snapV: Int32Array;
   readonly snapU: Int32Array;
+  /**
+   * Per driving pin with a path whose minimum is below its delay (`windowed`): what it last
+   * started to show (0, 1, 2 = `X`, 3 = released; 255 nothing yet) and when that is valid — `X`
+   * from the path's minimum until then. Empty without such paths.
+   */
+  readonly shown: Uint8Array;
+  readonly validAt: Float64Array;
+  /**
+   * Per driving pin, the drive last asked of the kernel (0: none yet): asking for it again would
+   * change nothing (the inertial model keeps an equal pending change), so it isn't asked — nor
+   * its delay worked out.
+   */
+  readonly requested: Uint8Array;
+  /** Per edge slot (`ModuleChecks.edgePin`), the words before that edge last loaded. */
+  readonly edgeV: Int32Array;
+  readonly edgeU: Int32Array;
 }
 
 /** A driving pin's value: a bit's (or a constant's), push-pull. */
@@ -114,6 +130,9 @@ interface Places {
   readonly word: Int32Array;
   readonly pos: Int32Array;
 }
+
+/** The wake-up token of an output's `X` window ending (`driveOutputs`). */
+const WINDOW_WAKE = 1;
 
 /** The constants' word's values and unknowns. */
 const CONSTANT_V = 0b010;
@@ -910,13 +929,21 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
   };
 
   /**
-   * Group `g`'s next states, into `OV`/`OU`, from the words with the read pins `reads[n]` for the
-   * bits `n` of `mask` unknown: a copy of the words, settled (combinational steps only, its own
-   * memory read stamps) — nothing of the instance changes.
+   * Group `g`'s next states, into `OV`/`OU`, from the words `v`, `u` (the instance's, or those its
+   * last edge loaded from) with the read pins `reads[n]` for the bits `n` of `mask` unknown: a
+   * copy, settled (combinational steps only, its own memory read stamps) — nothing of the instance
+   * changes.
    */
-  const nextWithUnknown = (state: HdlState, g: number, reads: Int32Array, mask: number) => {
-    SV.set(state.v);
-    SU.set(state.u);
+  const nextWithUnknown = (
+    state: HdlState,
+    v: Int32Array,
+    u: Int32Array,
+    g: number,
+    reads: Int32Array,
+    mask: number,
+  ) => {
+    SV.set(v);
+    SU.set(u);
     for (let n = 0; n < reads.length; n++) {
       const r = reads[n]!;
       if (((mask >>> n) & 1) === 0 || r < 0) continue;
@@ -956,14 +983,25 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
 
   /**
    * The timing checks, on the words before this delta: each reports what it finds (`flagged`); a
-   * hold violation makes `X` the bits its data pin may have changed (the next states from the
-   * words as they are and with the pin unknown differ there); pins starting a pulse save the
-   * `Q` words they drive.
+   * hold violation makes `X` the bits its data pin may have changed — its clock's last edge loaded
+   * from the words saved then: what that edge loads from them as they were and with the pin
+   * unknown differs there; pins starting a pulse save the `Q` words they drive, hold checks'
+   * clocks making their edge all the words.
    */
+  const edgeWords = words + 1;
   const runChecks = (ctx: EvalContext<HdlState>) => {
     const state = ctx.state;
-    const { v, u, times, snapV, snapU } = state;
-    const { slotPin, slotRising, slotStart, slotWords } = checks!;
+    const { v, u, times, snapV, snapU, edgeV, edgeU } = state;
+    const { slotPin, slotRising, slotStart, slotWords, edgePin, edgeRising } = checks!;
+    for (let s = 0; s < edgePin.length; s++) {
+      const pin = edgePin[s]!;
+      if (!ctx.changed(pin)) continue;
+      const to = edgeRising[s] ? Level.L1 : Level.L0;
+      if (ctx.level(pin) === (edgeRising[s] ? Level.L0 : Level.L1) || ctx.prev(pin) === to)
+        continue;
+      edgeV.set(v, s * edgeWords);
+      edgeU.set(u, s * edgeWords);
+    }
     for (let s = 0; s < slotPin.length; s++) {
       const pin = slotPin[s]!;
       if (!ctx.changed(pin)) continue;
@@ -983,13 +1021,17 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
       else if (c.kind === 'hold' || c.kind === 'removal')
         found = c.setupHold!.hold(ctx, times, armed);
       else if (c.kind === 'width') found = c.width!.check(ctx, times, armed) ? 1 : 0;
+      else if (c.kind === 'cycle') found = c.cycle!.check(ctx, times, armed) ? 1 : 0;
       else found = armed && c.recovery!.check(ctx, times) ? 1 : 0;
       flagged[i] = found;
       if (found === 0 || c.kind !== 'hold') continue;
+      const at = c.edgeSlot * edgeWords;
+      const ev = edgeV.subarray(at, at + edgeWords);
+      const eu = edgeU.subarray(at, at + edgeWords);
       for (let j = 0; j < c.groups.length; j++) {
         const g = c.groups[j]!;
-        groups[g]!.next(v, u, NV, NU, 0);
-        nextWithUnknown(state, g, c.dataReads, found);
+        groups[g]!.next(ev, eu, NV, NU, 0);
+        nextWithUnknown(state, ev, eu, g, c.dataReads, found);
         const members = groups[g]!.members;
         for (let m = 0; m < members.length; m++) {
           const k = members[m]!;
@@ -1023,7 +1065,7 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
       for (let j = 0; j < c.groups.length; j++) {
         const g = c.groups[j]!;
         if (!groupEdge[g]) continue;
-        nextWithUnknown(state, g, c.dataReads, late);
+        nextWithUnknown(state, state.v, state.u, g, c.dataReads, late);
         const members = groups[g]!.members;
         for (let m = 0; m < members.length; m++) {
           const k = members[m]!;
@@ -1036,8 +1078,9 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
   };
 
   /**
-   * After the loads: a short pulse, or a control released too soon after an edge (removal), makes
-   * `X` what changed since the pulse began (the edge): `Q` where it differs from the snapshot.
+   * After the loads: a short pulse, a short cycle, or a control released too soon after an edge
+   * (removal), makes `X` what changed since the pulse began (the edge; a cycle: its early edge):
+   * `Q` where it differs from the snapshot.
    */
   const endChecks = (ctx: EvalContext<HdlState>) => {
     const { v, u, snapV, snapU } = ctx.state;
@@ -1397,29 +1440,73 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
 
   /**
    * Drives every output with the delay — its `specify` paths' where it has some (HDL-2); one
-   * driven `X` reports the floating pins behind it.
+   * driven `X` reports the floating pins behind it. A pin whose path has a minimum below its delay
+   * shows a new level `X` from the minimum and the level at the delay (a wake-up then: the kernel
+   * keeps one change pending per pin); while that runs, evaluations that want the same level
+   * leave it alone.
    */
   const { word: bitWord, pos: bitPos } = driveBits;
   const { word: enableWord, pos: enablePos } = driveEnables;
   const { pathDelays } = program;
+  const windowed = pathDelays?.windowed;
+  const windows = windowed !== undefined && windowed.includes(1);
+  /** Driving pin `i`'s drive now, and its level (`drivenLevel`) for the path delays. */
+  let drivenLevel = 0;
+  const driveOf = (v: Int32Array, u: Int32Array, i: number): Drive => {
+    const t = levelAt(v, u, bitWord[i]!, bitPos[i]!);
+    if (driveKinds[i] === STRONG) {
+      drivenLevel = t;
+      return DRIVES[t]!;
+    }
+    const e = levelAt(v, u, enableWord[i]!, enablePos[i]!);
+    drivenLevel = e === 0 ? DRIVE_Z : e === 1 ? t : TX;
+    return e === 0 ? Drive.Z : e === 1 ? DRIVES[t]! : Drive.STRONG_X;
+  };
   const driveOutputs = (ctx: EvalContext<HdlState>, floats: number) => {
-    const { v, u, floating } = ctx.state;
+    const { v, u, floating, shown, validAt, requested } = ctx.state;
     for (let i = 0; i < drivePins.length; i++) {
-      let drive: Drive;
-      let level: number;
-      const t = levelAt(v, u, bitWord[i]!, bitPos[i]!);
-      if (driveKinds[i] === STRONG) {
-        drive = DRIVES[t]!;
-        level = t;
-      } else {
-        const e = levelAt(v, u, enableWord[i]!, enablePos[i]!);
-        drive = e === 0 ? Drive.Z : e === 1 ? DRIVES[t]! : Drive.STRONG_X;
-        level = e === 0 ? DRIVE_Z : e === 1 ? t : TX;
+      const drive = driveOf(v, u, i);
+      const level = drivenLevel;
+      if (windows && windowed[i] === 1) {
+        if (level === shown[i]) {
+          // Showing it, or `X` until it is valid: a wake-up drives it then.
+          if (ctx.now >= validAt[i]! && requested[i] !== drive) {
+            requested[i] = drive;
+            ctx.drive(drivePins[i]!, drive, pathDelays!.delay(ctx, v, u, i, level, delay));
+          }
+        } else {
+          shown[i] = level;
+          const after = pathDelays!.delay(ctx, v, u, i, level, delay);
+          const early = pathDelays!.early();
+          if (level !== DRIVE_Z && level !== TX && early < after) {
+            requested[i] = Drive.STRONG_X;
+            ctx.drive(drivePins[i]!, Drive.STRONG_X, early);
+            validAt[i] = ctx.now + after;
+            ctx.wakeAfter(after, WINDOW_WAKE);
+          } else {
+            validAt[i] = ctx.now;
+            requested[i] = drive;
+            ctx.drive(drivePins[i]!, drive, level === TX ? early : after);
+          }
+        }
+      } else if (requested[i] !== drive) {
+        requested[i] = drive;
+        const after = pathDelays ? pathDelays.delay(ctx, v, u, i, level, delay) : delay;
+        ctx.drive(drivePins[i]!, drive, after);
       }
-      const after = pathDelays ? pathDelays.delay(ctx, v, u, i, level, delay) : delay;
-      ctx.drive(drivePins[i]!, drive, after);
       if (floats > 0 && drive === Drive.STRONG_X)
         reportCone(ctx, driveCones[i]!, floating, readPins);
+    }
+  };
+  /** A window ended: its pins take the level they show `X` for. */
+  const endWindows = (ctx: EvalContext<HdlState>) => {
+    const { v, u, validAt, requested } = ctx.state;
+    for (let i = 0; i < drivePins.length; i++) {
+      if (windowed![i] === 1 && validAt[i] === ctx.now) {
+        const drive = driveOf(v, u, i);
+        requested[i] = drive;
+        ctx.drive(drivePins[i]!, drive, 0);
+      }
     }
   };
 
@@ -1450,6 +1537,11 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
         times: checks ? checks.checks.createTimes() : new Float64Array(0),
         snapV: new Int32Array(checks ? checks.slotWords.length : 0),
         snapU: new Int32Array(checks ? checks.slotWords.length : 0),
+        shown: new Uint8Array(windows ? drivePins.length : 0).fill(255),
+        requested: new Uint8Array(drivePins.length),
+        validAt: new Float64Array(windows ? drivePins.length : 0),
+        edgeV: new Int32Array(checks ? checks.edgePin.length * (words + 1) : 0),
+        edgeU: new Int32Array(checks ? checks.edgePin.length * (words + 1) : 0),
       };
       // The logic settles from the power-up values (the pins unknown), so a clock made from an
       // initialized register (`~div`) is known before anything happens.
@@ -1464,6 +1556,19 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
         state.wseen[p] = levelAt(v, u, writeClocks.word[p]!, writeClocks.pos[p]!);
       }
       return state;
+    },
+    init(ctx: EvalContext<HdlState>) {
+      // Power-on: a 3-state output the module may drive (its enable not known 0) drives `X` at
+      // once, as a push-pull output starts (docs/simulation.md#power-on); the forced evaluation
+      // then drives what it computes after its delay (feat/hdl-timing: a bus a module drives no
+      // longer floats for its delay, reported by every part reading it).
+      const { v, u } = ctx.state;
+      for (let i = 0; i < drivePins.length; i++) {
+        if (driveKinds[i] === STRONG) continue;
+        if (levelAt(v, u, enableWord[i]!, enablePos[i]!) === 0) continue;
+        ctx.state.requested[i] = Drive.STRONG_X;
+        ctx.drive(drivePins[i]!, Drive.STRONG_X, 0);
+      }
     },
     evaluate(ctx: EvalContext<HdlState>) {
       const state = ctx.state;
@@ -1488,6 +1593,9 @@ function behavior(program: Program, delay: number): Behavior<HdlState> {
       if (floats > 0) reportFloating(ctx);
       driveOutputs(ctx, floats);
       if (readMemory.length > 0) stampReads(readMemory, state, ctx.now);
+    },
+    wake(ctx: EvalContext<HdlState>, token: number) {
+      if (token === WINDOW_WAKE && windows) endWindows(ctx);
     },
     action(ctx: EvalContext<HdlState>, payload: unknown) {
       if (!isPokeAction(payload)) {

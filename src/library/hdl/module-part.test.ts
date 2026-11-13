@@ -1184,6 +1184,16 @@ describe('pin-to-pin delays from specify (HDL-2)', () => {
     expect(b.measure({ en: 1 }, 'g')).toBe(ns(11));
   });
 
+  it('drives a 3-state output it may drive X from power-on, then what it computes', () => {
+    const b = new Bench(part('spec_tristate'));
+    b.set({ clk: 0, oen: 1, d0: 1, d1: 0, d2: 1, d3: 0 });
+    b.run(0);
+    expect(levelChar(b.get('q0'))).toBe('X'); // at t = 0: nobody knows yet
+    b.run(us(1));
+    expect(levelChar(b.get('q0'))).toBe('Z'); // released after its delay
+    expect(b.diagnostics).toEqual([]);
+  });
+
   it("enables and releases a 3-state output with the enable's two conditional paths", () => {
     const b = settled('spec_tristate', { clk: 0, oen: 0, d0: 1, d1: 0, d2: 1, d3: 0 });
     expect(b.measure({ clk: 1 }, 'q0')).toBe(ns(17));
@@ -1202,6 +1212,51 @@ describe('pin-to-pin delays from specify (HDL-2)', () => {
     fast.run(us(1));
     expect(fast.measure({ c: 1 }, 'z')).toBe(ns(4));
     expect(fast.measure({ b0: 0 }, 'y0')).toBe(ns(9));
+  });
+
+  it("shows a change X from its path's minimum to its typical delay (spec_window)", () => {
+    const b = settled('spec_window', { clk: 0, d: 0, oe: 0 });
+    b.set({ clk: 1 }).run(us(1));
+    b.set({ clk: 0 }).run(us(1)); // q is 0
+    const changes = (values: BenchValues, pin: string) => {
+      const net = b.sim.netIndex(pin);
+      const start = b.now;
+      const seen: [number, string][] = [];
+      const off = b.sim.onNetChange((t, n, level) => {
+        if (n === net) seen.push([(t - start) / 1000, levelChar(level)]);
+      });
+      b.set(values).run(us(1));
+      off();
+      return seen;
+    };
+    changes({ d: 1 }, 'q');
+    expect(changes({ clk: 1 }, 'q')).toEqual([
+      [4, 'X'],
+      [10, '1'],
+    ]);
+    changes({ clk: 0 }, 'q');
+    expect(changes({ clk: 1 }, 'q')).toEqual([]); // the same level: nothing moves
+    expect(changes({ oe: 1 }, 'y')).toEqual([
+      [0, 'X'],
+      [6, '1'],
+    ]);
+    expect(changes({ oe: 0 }, 'y')).toEqual([[6, 'Z']]);
+    // A level that changes again inside the window: X stays until the last one is valid.
+    b.set({ clk: 0, d: 0 }).run(us(1));
+    const net = b.sim.netIndex('q');
+    const start = b.now;
+    const seen: [number, string][] = [];
+    const off = b.sim.onNetChange((t, n, level) => {
+      if (n === net) seen.push([(t - start) / 1000, levelChar(level)]);
+    });
+    b.set({ clk: 1 }).run(ns(5));
+    b.set({ clk: 0, d: 1 }).run(ns(1));
+    b.set({ clk: 1 }).run(us(1));
+    off();
+    expect(seen).toEqual([
+      [4, 'X'],
+      [16, '1'],
+    ]);
   });
 
   it('times asynchronous controls by their paths', () => {
@@ -1264,6 +1319,25 @@ describe('timing checks from specify (HDL-2)', () => {
     b.expect({ q: 'X' });
   });
 
+  it('hold: redoes the edge that loaded from the words before it (a state machine moved on)', () => {
+    const run = (after: number) => {
+      const b = new Bench(part('spec_hold_fsm'));
+      b.set({ clk: 0, rst: 1, d: 1 }).run(us(1));
+      b.set({ clk: 1 }).run(us(1));
+      b.set({ clk: 0, rst: 0 }).run(us(1)); // en = 1: the next edge loads d
+      b.set({ clk: 1 }).run(ns(after));
+      b.set({ d: 0 }).run(us(1));
+      return b;
+    };
+    run(3).expect({ q: 1, en: 0 });
+    const b = run(2);
+    expect(messages(b)).toEqual([
+      'hold-violation d: d changed 2 ns after clk rose (hold time ≥ 3 ns)',
+    ]);
+    // What that edge loaded is unknown; en, which doesn't read d, is not.
+    b.expect({ q: 'X', en: 0 });
+  });
+
   it('a short LOW clock phase makes the edge unreliable', () => {
     const pulse = (low: number) => {
       const b = flop();
@@ -1295,6 +1369,29 @@ describe('timing checks from specify (HDL-2)', () => {
     same.set({ cp: 1 }).run(ns(19));
     same.set({ cp: 0 }).run(us(1));
     same.expect({ q: 0 });
+  });
+
+  it('a short cycle (spec_cycle, armed while counting) makes X what its edge changed', () => {
+    const counter = (cycle: number, en: 0 | 1 = 1) => {
+      const b = new Bench(part('spec_cycle'));
+      b.set({ clk: 0, rst: 1, en }).run(us(1));
+      b.set({ clk: 1 }).run(us(1));
+      b.set({ clk: 0, rst: 0 }).run(us(1));
+      b.set({ clk: 1 }).run(ns(cycle / 2)); // q: 0 → 1
+      b.set({ clk: 0 }).run(ns(cycle / 2));
+      b.set({ clk: 1 }).run(us(1)); // 1 → 2: bit 0 falls, bit 1 rises
+      return b;
+    };
+    expect(messages(counter(50))).toEqual([]);
+    counter(50).expect({ q0: 0, q1: 1 });
+    const b = counter(48);
+    expect(messages(b)).toEqual([
+      'cycle-violation clk: clk rose again 48 ns after it last rose (cycle time ≥ 50 ns)',
+    ]);
+    b.expect({ q0: 'X', q1: 'X' });
+    // Not counting: not armed, nothing changes.
+    expect(messages(counter(48, 0))).toEqual([]);
+    counter(48, 0).expect({ q0: 0, q1: 0 });
   });
 
   it('a short set pulse leaves the bit unknown', () => {
