@@ -4,7 +4,7 @@
 | ---------- | -------------------------------------------------------------------------------------------------------------------------- |
 | Branch     | `feat/hdl-timing`                                                                                                          |
 | Roadmap    | — (no item: what an experiment needed of the engine; track [Programmable logic](../../docs/roadmap/programmable-logic.md)) |
-| Status     | in-progress                                                                                                                |
+| Status     | done                                                                                                                       |
 | Depends on | HDL-2 (library parts in Verilog, `specify` timing), HDL-10 (fast evaluation)                                               |
 | Created    | 2026-11-12                                                                                                                 |
 
@@ -116,8 +116,14 @@ D1–D5 were made while the user was away (they had answered Q1, Q2) and reporte
 - 2026-11-13 — Q3 answered: this branch from main with the engine's changes only (the same
   engine code as the experiment's branch, comments aside); the experiment's branch and its
   playground copies deleted. `pnpm check`, `build`, `e2e` green.
+- 2026-11-13 — finished: `main` hadn't moved; `pnpm check` (4 128 tests) and `pnpm build` green
+  on the final tree; in the dev app, the 6502 example with its 74HC00 written in Verilog passes
+  its bench in the Tests tab (the sandbox fix), no console errors. Summary: the engine runs
+  `specify` cycle checks (schema v11) and min → typ windows, redoes a hold-violated edge from
+  its saved words, drives 3-state outputs `X` from power-on, skips unchanged drives (the
+  Verilog 74HC parts +8–14 %), and its bench sandbox has the dev parts.
 
 ## Handoff
 
-Done: the engine's changes, their tests and docs are committed on `feat/hdl-timing`. Next: the
-finish-branch workflow, merged only with the user's approval.
+Merged; nothing pending. Follow-ups are ideas of the HDL track: `$skew`, "CPUs in Verilog",
+"Messages and assertions from a module".
