@@ -12,7 +12,7 @@ import {
   benchService,
   functionScriptHost,
 } from '../circuit';
-import { createDefaultRegistry } from '../library';
+import { createDefaultRegistry, verilogChips } from '../library';
 
 /** The message that connects the worker to the app: the port comes as its first port. */
 export const CONNECT = 'connect';
@@ -25,6 +25,17 @@ export interface WorkerScope {
   ): void;
 }
 
+/**
+ * The parts a bench can run: the library's, and in dev builds the library parts written in
+ * Verilog (`dev/*-verilog`), as the app's registry has them — or a document with one opened in
+ * a dev build would show its parts and fail its benches (feat/hdl-timing).
+ */
+function benchRegistry() {
+  const registry = createDefaultRegistry();
+  if (import.meta.env.DEV) registry.register(...verilogChips());
+  return registry;
+}
+
 /** Finds the line of a syntax error in a script (V8's `new Function` gives none). */
 export type SyntaxLine = (source: string) => Promise<number | undefined>;
 
@@ -35,7 +46,7 @@ export type SyntaxLine = (source: string) => Promise<number | undefined>;
 export function startBenchWorker(
   scope: WorkerScope,
   syntaxLine: SyntaxLine,
-  serve: BenchService = benchService(createDefaultRegistry(), functionScriptHost()),
+  serve: BenchService = benchService(benchRegistry(), functionScriptHost()),
 ): void {
   scope.addEventListener('message', ({ data, ports }) => {
     const port = ports[0];
